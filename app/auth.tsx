@@ -34,10 +34,10 @@ const PHRASES = [
   { text: 'Best captain ever', color: '#E67E22', size: 10 },
   { text: 'Star the message', color: '#9B59B6', size: 9 },
   { text: 'Evolo sambathichi\nenna panna pora', color: '#FF69B4', size: 8 },
-  { text: "Edhukaga sollren'na\nathukaga solren", color: '#00CED1', size: 9 },
-  { text: 'Naan apave sonnen', color: '#FF4500', size: 10 },
-  { text: 'Vanmam Pro Max', color: '#7B68EE', size: 11 },
-  { text: 'Idho ungalukaga', color: '#32CD32', size: 10 },
+  { text: "Edhukaga sollren'na\nathukaga solren", color: '#00CED1', size: 10 },
+  { text: 'Naan apave sonnen', color: '#FF4500', size: 12 },
+  { text: 'Vanmam Pro Max', color: '#7B68EE', size: 13 },
+  { text: 'Idho ungalukaga', color: '#32CD32', size: 11 },
 ];
 
 const PHRASE_POSITIONS: { top?: string; bottom?: string; left?: string; right?: string; rotate: string }[] = [
@@ -51,10 +51,10 @@ const PHRASE_POSITIONS: { top?: string; bottom?: string; left?: string; right?: 
   { bottom: '2%', left: '5%', rotate: '-10deg' },
   { bottom: '18%', left: '2%', rotate: '7deg' },
   { bottom: '7%', left: '20%', rotate: '-4deg' },
-  { top: '6%', left: '30%', rotate: '4deg' },
-  { top: '14%', right: '8%', rotate: '-6deg' },
-  { bottom: '22%', right: '3%', rotate: '8deg' },
-  { bottom: '12%', left: '25%', rotate: '-3deg' },
+  { top: '5%', left: '25%', rotate: '4deg' },
+  { top: '15%', left: '5%', rotate: '-6deg' },
+  { bottom: '25%', left: '3%', rotate: '8deg' },
+  { top: '8%', right: '20%', rotate: '-3deg' },
 ];
 
 export default function AuthScreen() {
