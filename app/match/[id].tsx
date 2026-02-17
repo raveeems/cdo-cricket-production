@@ -85,6 +85,14 @@ export default function MatchDetailScreen() {
   const userTeams = id ? getTeamsForMatch(id) : [];
   const scorecard = scorecardData?.scorecard;
 
+  const pickedPlayerNames = new Set<string>();
+  for (const team of userTeams) {
+    for (const pid of team.playerIds) {
+      const p = players.find((pl) => pl.id === pid);
+      if (p) pickedPlayerNames.add(p.name.toLowerCase());
+    }
+  }
+
   useEffect(() => {
     if (!match) return;
     setTimeLeft(getTimeUntilMatch(match.startTime));
@@ -377,36 +385,42 @@ export default function MatchDetailScreen() {
                 FP
               </Text>
             </View>
-            {currentInning.batting.map((bat, i) => (
-              <View key={i} style={[styles.scorecardRow, { borderBottomColor: colors.border + '40' }]}>
-                <View style={{ flex: 2 }}>
-                  <Text style={[styles.scorecardName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
-                    {bat.name}
+            {currentInning.batting.map((bat, i) => {
+              const isPicked = pickedPlayerNames.has(bat.name.toLowerCase());
+              return (
+                <View key={i} style={[styles.scorecardRow, { borderBottomColor: colors.border + '40' }, isPicked && { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
+                  <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.scorecardName, { color: isPicked ? '#22C55E' : colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                        {bat.name}
+                      </Text>
+                      <Text style={[styles.scorecardDismissal, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                        {bat.dismissal}
+                      </Text>
+                    </View>
+                    {isPicked && <Ionicons name="checkmark-circle" size={14} color="#22C55E" />}
+                  </View>
+                  <Text style={[styles.scorecardStat, { color: colors.text, fontFamily: bat.r >= 50 ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                    {bat.r}
                   </Text>
-                  <Text style={[styles.scorecardDismissal, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-                    {bat.dismissal}
+                  <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {bat.b}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {bat.fours}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {bat.sixes}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {bat.sr.toFixed(1)}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: bat.fantasyPoints >= 30 ? colors.success : colors.accent, fontFamily: 'Inter_700Bold' }]}>
+                    {bat.fantasyPoints}
                   </Text>
                 </View>
-                <Text style={[styles.scorecardStat, { color: colors.text, fontFamily: bat.r >= 50 ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
-                  {bat.r}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {bat.b}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {bat.fours}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {bat.sixes}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {bat.sr.toFixed(1)}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: bat.fantasyPoints >= 30 ? colors.success : colors.accent, fontFamily: 'Inter_700Bold' }]}>
-                  {bat.fantasyPoints}
-                </Text>
-              </View>
-            ))}
+              );
+            })}
           </>
         )}
 
@@ -435,33 +449,37 @@ export default function MatchDetailScreen() {
                 FP
               </Text>
             </View>
-            {currentInning.bowling.map((bowl, i) => (
-              <View key={i} style={[styles.scorecardRow, { borderBottomColor: colors.border + '40' }]}>
-                <View style={{ flex: 2 }}>
-                  <Text style={[styles.scorecardName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
-                    {bowl.name}
+            {currentInning.bowling.map((bowl, i) => {
+              const isPicked = pickedPlayerNames.has(bowl.name.toLowerCase());
+              return (
+                <View key={i} style={[styles.scorecardRow, { borderBottomColor: colors.border + '40' }, isPicked && { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
+                  <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={[styles.scorecardName, { color: isPicked ? '#22C55E' : colors.text, fontFamily: 'Inter_600SemiBold', flex: 1 }]} numberOfLines={1}>
+                      {bowl.name}
+                    </Text>
+                    {isPicked && <Ionicons name="checkmark-circle" size={14} color="#22C55E" />}
+                  </View>
+                  <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {bowl.o}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {bowl.m}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {bowl.r}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: bowl.w >= 3 ? colors.success : colors.text, fontFamily: bowl.w >= 3 ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                    {bowl.w}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: bowl.eco < 7 ? colors.success : bowl.eco > 10 ? colors.error : colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {bowl.eco.toFixed(1)}
+                  </Text>
+                  <Text style={[styles.scorecardStat, { color: bowl.fantasyPoints >= 30 ? colors.success : colors.accent, fontFamily: 'Inter_700Bold' }]}>
+                    {bowl.fantasyPoints}
                   </Text>
                 </View>
-                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {bowl.o}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {bowl.m}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {bowl.r}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: bowl.w >= 3 ? colors.success : colors.text, fontFamily: bowl.w >= 3 ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
-                  {bowl.w}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: bowl.eco < 7 ? colors.success : bowl.eco > 10 ? colors.error : colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {bowl.eco.toFixed(1)}
-                </Text>
-                <Text style={[styles.scorecardStat, { color: bowl.fantasyPoints >= 30 ? colors.success : colors.accent, fontFamily: 'Inter_700Bold' }]}>
-                  {bowl.fantasyPoints}
-                </Text>
-              </View>
-            ))}
+              );
+            })}
           </>
         )}
       </View>
