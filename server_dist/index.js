@@ -1936,6 +1936,8 @@ function configureExpoAndLanding(app2) {
       setHeaders: (res, filePath) => {
         if (filePath.endsWith(".html")) {
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
         } else {
           res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
         }
