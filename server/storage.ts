@@ -186,6 +186,33 @@ export class DatabaseStorage {
     await db.update(userTeams).set({ totalPoints }).where(eq(userTeams.id, teamId));
   }
 
+  async markPlayingXI(matchId: string, externalPlayerIds: string[]): Promise<number> {
+    if (externalPlayerIds.length === 0) return 0;
+    
+    await db
+      .update(players)
+      .set({ isPlayingXI: false })
+      .where(eq(players.matchId, matchId));
+
+    let updated = 0;
+    for (const extId of externalPlayerIds) {
+      const result = await db
+        .update(players)
+        .set({ isPlayingXI: true })
+        .where(and(eq(players.matchId, matchId), eq(players.externalId, extId)));
+      updated++;
+    }
+    return updated;
+  }
+
+  async getPlayingXICount(matchId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(players)
+      .where(and(eq(players.matchId, matchId), eq(players.isPlayingXI, true)));
+    return Number(result[0]?.count || 0);
+  }
+
   async getLeaderboard(): Promise<{
     rank: number;
     userId: string;

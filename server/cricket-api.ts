@@ -481,6 +481,67 @@ export async function fetchMatchInfo(
   }
 }
 
+export async function fetchPlayingXI(
+  externalMatchId: string
+): Promise<string[]> {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+
+    const json = (await res.json()) as CricApiResponse<ScorecardData>;
+    if (json.status !== "success" || !json.data?.scorecard) return [];
+
+    const playerIds = new Set<string>();
+    for (const inning of json.data.scorecard) {
+      inning.batting?.forEach((b) => {
+        if (b.batsman?.id) playerIds.add(b.batsman.id);
+      });
+      inning.bowling?.forEach((b) => {
+        if (b.bowler?.id) playerIds.add(b.bowler.id);
+      });
+      inning.catching?.forEach((c) => {
+        if (c.catcher?.id) playerIds.add(c.catcher.id);
+      });
+    }
+
+    console.log(`Playing XI extraction: found ${playerIds.size} player IDs from scorecard for match ${externalMatchId}`);
+    return Array.from(playerIds);
+  } catch (err) {
+    console.error("Playing XI fetch error:", err);
+    return [];
+  }
+}
+
+export async function refreshPlayingXIForLiveMatches(): Promise<void> {
+  const { storage } = await import("./storage");
+
+  const allMatches = await storage.getAllMatches();
+  const liveMatches = allMatches.filter(
+    (m) => (m.status === "live" || m.status === "delayed") && m.externalId
+  );
+
+  if (liveMatches.length === 0) return;
+
+  for (const match of liveMatches) {
+    try {
+      const existingCount = await storage.getPlayingXICount(match.id);
+      if (existingCount >= 22) continue;
+
+      const playingIds = await fetchPlayingXI(match.externalId!);
+      if (playingIds.length >= 2) {
+        await storage.markPlayingXI(match.id, playingIds);
+        console.log(`Playing XI updated for ${match.team1} vs ${match.team2}: ${playingIds.length} players marked`);
+      }
+    } catch (err) {
+      console.error(`Playing XI refresh failed for match ${match.id}:`, err);
+    }
+  }
+}
+
 let lastStatusRefresh = 0;
 const STATUS_REFRESH_INTERVAL = 2 * 60 * 1000;
 
@@ -528,6 +589,17 @@ export async function refreshStaleMatchStatuses(): Promise<void> {
       if (Object.keys(updates).length > 0) {
         await storage.updateMatch(m.id, updates);
         console.log(`Status refresh: ${m.team1} vs ${m.team2}: ${m.status} -> ${newStatus} [${statusNote}]`);
+      }
+
+      if (newStatus === "live" || (info.matchStarted && !info.matchEnded)) {
+        const xiCount = await storage.getPlayingXICount(m.id);
+        if (xiCount < 22) {
+          const playingIds = await fetchPlayingXI(m.externalId);
+          if (playingIds.length >= 2) {
+            await storage.markPlayingXI(m.id, playingIds);
+            console.log(`Playing XI updated for ${m.team1} vs ${m.team2}: ${playingIds.length} players`);
+          }
+        }
       }
     } catch (err) {
       console.error(`Failed to refresh status for match ${m.id}:`, err);
