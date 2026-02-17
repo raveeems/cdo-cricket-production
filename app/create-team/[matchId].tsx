@@ -19,6 +19,7 @@ import {
   Player,
   Match,
   getRoleColor,
+  getRoleLabel,
 } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -225,6 +226,34 @@ export default function CreateTeamScreen() {
     return true;
   }, [selectedIds, roleCounts]);
 
+  const validationError = useMemo(() => {
+    if (selectedIds.size > 0 && selectedIds.size !== 11) {
+      return `Select ${11 - selectedIds.size} more player${11 - selectedIds.size !== 1 ? 's' : ''} (${selectedIds.size}/11)`;
+    }
+    for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
+      const count = roleCounts[role as keyof typeof roleCounts];
+      if (count < limits.min) {
+        return `Need at least ${limits.min} ${getRoleLabel(role)}${limits.min > 1 ? 's' : ''} (you have ${count})`;
+      }
+      if (count > limits.max) {
+        return `Too many ${getRoleLabel(role)}s (max ${limits.max})`;
+      }
+    }
+    return null;
+  }, [selectedIds, roleCounts]);
+
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+
+  const isDuplicateTeam = useMemo(() => {
+    if (selectedIds.size !== 11) return false;
+    const selectedArray = Array.from(selectedIds).sort();
+    return existingTeams.some((team) => {
+      const teamIds = [...team.playerIds].sort();
+      if (teamIds.length !== selectedArray.length) return false;
+      return teamIds.every((id, i) => id === selectedArray[i]);
+    });
+  }, [selectedIds, existingTeams]);
+
   const canSelectPlayer = (player: Player) => {
     if (selectedIds.has(player.id)) return true;
     if (selectedIds.size >= 11) return false;
@@ -249,7 +278,11 @@ export default function CreateTeamScreen() {
     if (!captainId || !vcId || !matchId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const teamNumber = existingTeams.length + 1;
+    const existingNames = new Set(existingTeams.map((t) => t.name));
+    let teamNumber = existingTeams.length + 1;
+    while (existingNames.has(`Team ${teamNumber}`)) {
+      teamNumber++;
+    }
     await saveTeam({
       matchId,
       name: `Team ${teamNumber}`,
@@ -313,9 +346,14 @@ export default function CreateTeamScreen() {
                 <View style={[styles.statusDivider, { backgroundColor: colors.border }]} />
                 <View style={styles.statusItem}>
                   <Text style={[styles.statusLabel, { color: getRoleColor(role, isDark), fontFamily: 'Inter_600SemiBold' }]}>{role}</Text>
-                  <Text style={[styles.statusValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-                    {roleCounts[role]}
-                  </Text>
+                  <View style={styles.statusRoleRow}>
+                    <Text style={[styles.statusValue, { color: roleCounts[role] < ROLE_LIMITS[role].min ? colors.error : colors.success, fontFamily: 'Inter_700Bold' }]}>
+                      {roleCounts[role]}
+                    </Text>
+                    <Text style={[styles.statusRoleRange, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                      ({ROLE_LIMITS[role].min}-{ROLE_LIMITS[role].max})
+                    </Text>
+                  </View>
                 </View>
               </React.Fragment>
             ))}
@@ -367,9 +405,24 @@ export default function CreateTeamScreen() {
           />
 
           <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+            {!isValidTeam && selectedIds.size > 0 && validationError && (
+              <Text style={[styles.validationErrorText, { color: colors.error, fontFamily: 'Inter_600SemiBold' }]}>
+                {validationError}
+              </Text>
+            )}
+            {duplicateError && (
+              <Text style={[styles.validationErrorText, { color: colors.error, fontFamily: 'Inter_600SemiBold' }]}>
+                {duplicateError}
+              </Text>
+            )}
             <Pressable
               onPress={() => {
                 if (isValidTeam) {
+                  if (isDuplicateTeam) {
+                    setDuplicateError('This team already exists. Change at least one player.');
+                    return;
+                  }
+                  setDuplicateError(null);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   setStep('captain');
                 }
@@ -511,6 +564,14 @@ const styles = StyleSheet.create({
   statusValue: {
     fontSize: 14,
   },
+  statusRoleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  statusRoleRange: {
+    fontSize: 9,
+  },
   statusDivider: {
     width: 1,
   },
@@ -606,6 +667,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingHorizontal: 16,
     paddingTop: 12,
+  },
+  validationErrorText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   nextBtn: {
     borderRadius: 14,
