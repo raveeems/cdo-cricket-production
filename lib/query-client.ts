@@ -1,6 +1,6 @@
 import { fetch } from "expo/fetch";
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getCachedToken } from "./auth-token";
+import { getCachedToken, getAuthToken } from "./auth-token";
 
 /**
  * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
@@ -28,9 +28,12 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-function getAuthHeaders(extra?: Record<string, string>): Record<string, string> {
+async function getAuthHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
   const headers: Record<string, string> = { ...extra };
-  const token = getCachedToken();
+  let token = getCachedToken();
+  if (!token) {
+    token = await getAuthToken();
+  }
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -45,9 +48,10 @@ export async function apiRequest(
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
 
+  const headers = await getAuthHeaders(data ? { "Content-Type": "application/json" } : {});
   const res = await fetch(url.toString(), {
     method,
-    headers: getAuthHeaders(data ? { "Content-Type": "application/json" } : {}),
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -65,8 +69,9 @@ export const getQueryFn: <T>(options: {
     const baseUrl = getApiUrl();
     const url = new URL(queryKey.join("/") as string, baseUrl);
 
+    const headers = await getAuthHeaders();
     const res = await fetch(url.toString(), {
-      headers: getAuthHeaders(),
+      headers,
       credentials: "include",
     });
 
