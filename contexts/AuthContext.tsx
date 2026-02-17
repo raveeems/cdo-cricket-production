@@ -19,7 +19,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isVerified: boolean;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (phone: string, password: string) => Promise<boolean>;
   signup: (username: string, email: string, phone: string, password: string) => Promise<boolean>;
   verifyReferenceCode: (code: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -65,9 +65,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (phone: string, password: string): Promise<boolean> => {
     try {
-      const res = await apiRequest('POST', '/api/auth/login', { email, password });
+      const res = await apiRequest('POST', '/api/auth/login', { phone, password });
       const data = await res.json();
       if (data.token) {
         await setAuthToken(data.token);

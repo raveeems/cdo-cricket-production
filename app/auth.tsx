@@ -34,12 +34,12 @@ export default function AuthScreen() {
   const handleSubmit = async () => {
     setError('');
     if (isLogin) {
-      if (!email || !password) {
+      if (!phone || !password) {
         setError('Please fill in all fields');
         return;
       }
     } else {
-      if (!username || !email || !phone || !password) {
+      if (!username || !phone || !password) {
         setError('Please fill in all fields');
         return;
       }
@@ -50,7 +50,7 @@ export default function AuthScreen() {
 
     try {
       if (isLogin) {
-        const success = await login(email, password);
+        const success = await login(phone, password);
         if (!success) {
           setError('No account found. Please sign up first.');
           setLoading(false);
@@ -160,28 +160,28 @@ export default function AuthScreen() {
             )}
 
             <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
+              <Ionicons name="call-outline" size={20} color={colors.textTertiary} />
               <TextInput
                 style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
-                placeholder="Email"
+                placeholder="Phone Number"
                 placeholderTextColor={colors.textTertiary}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
               />
             </View>
 
             {!isLogin && (
               <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="call-outline" size={20} color={colors.textTertiary} />
+                <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
                 <TextInput
                   style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
-                  placeholder="Phone Number"
+                  placeholder="Email (optional)"
                   placeholderTextColor={colors.textTertiary}
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                 />
               </View>
             )}

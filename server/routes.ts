@@ -11,7 +11,7 @@ declare module "express-session" {
   }
 }
 
-const ADMIN_EMAILS = ["admin@cdo.com"];
+const ADMIN_PHONES = ["9840872462", "9884334973"];
 const TOKEN_SECRET = process.env.SESSION_SECRET || "cdo-session-secret-dev";
 
 function generateAuthToken(userId: string): string {
@@ -80,15 +80,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/signup", async (req: Request, res: Response) => {
     try {
       const { username, email, phone, password } = req.body;
-      if (!username || !email || !password) {
+      if (!username || !phone || !password) {
         return res
           .status(400)
-          .json({ message: "Username, email, and password are required" });
+          .json({ message: "Username, phone number, and password are required" });
       }
 
-      const existingEmail = await storage.getUserByEmail(email);
-      if (existingEmail) {
-        return res.status(400).json({ message: "Email already in use" });
+      const existingPhone = await storage.getUserByPhone(phone);
+      if (existingPhone) {
+        return res.status(400).json({ message: "Phone number already in use" });
       }
 
       const existingUsername = await storage.getUserByUsername(username);
@@ -96,7 +96,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Username already taken" });
       }
 
-      const isAdminUser = ADMIN_EMAILS.includes(email);
+      if (email) {
+        const existingEmail = await storage.getUserByEmail(email);
+        if (existingEmail) {
+          return res.status(400).json({ message: "Email already in use" });
+        }
+      }
+
+      const isAdminUser = ADMIN_PHONES.includes(phone);
       const user = await storage.createUser({
         username,
         email,
@@ -129,14 +136,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
-      const { email, password } = req.body;
-      if (!email || !password) {
+      const { phone, password } = req.body;
+      if (!phone || !password) {
         return res
           .status(400)
-          .json({ message: "Email and password are required" });
+          .json({ message: "Phone number and password are required" });
       }
 
-      const user = await storage.getUserByEmail(email);
+      const user = await storage.getUserByPhone(phone);
       if (!user || user.password !== password) {
         return res.status(401).json({ message: "Invalid credentials" });
       }

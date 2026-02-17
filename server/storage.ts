@@ -26,6 +26,11 @@ export class DatabaseStorage {
     return user;
   }
 
+  async getUserByPhone(phone: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.phone, phone));
+    return user;
+  }
+
   async getUserByUsername(username: string): Promise<User | undefined> {
     const [user] = await db
       .select()
