@@ -121,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isAdminUser = ADMIN_PHONES.includes(phone);
       const user = await storage.createUser({
         username,
-        email,
+        email: email || null,
         phone: phone || "",
         password,
       });
