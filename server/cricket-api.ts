@@ -48,16 +48,18 @@ function determineMatchStatus(
     return { status: 'completed', statusNote };
   }
 
+  if (matchStarted) {
+    if (hasScoreData) {
+      return { status: 'live', statusNote };
+    }
+    if (isMatchDelayed(apiStatusText)) {
+      return { status: 'delayed', statusNote };
+    }
+    return { status: 'live', statusNote: statusNote || 'Toss completed' };
+  }
+
   if (isMatchDelayed(apiStatusText)) {
     return { status: 'delayed', statusNote };
-  }
-
-  if (matchStarted && hasScoreData) {
-    return { status: 'live', statusNote };
-  }
-
-  if (matchStarted && !hasScoreData) {
-    return { status: 'delayed', statusNote: statusNote || 'Waiting for play to begin' };
   }
 
   return { status: 'upcoming', statusNote };

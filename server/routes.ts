@@ -623,8 +623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const now = new Date();
         const matchStart = new Date(match.startTime);
-        const isDelayed = match.status === "delayed";
-        if (!isDelayed && now.getTime() >= matchStart.getTime() - 1000) {
+        if (now.getTime() >= matchStart.getTime() - 1000) {
           return res
             .status(400)
             .json({ message: "Entry deadline has passed" });
