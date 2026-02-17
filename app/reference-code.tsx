@@ -20,11 +20,11 @@ export default function ReferenceCodeScreen() {
   const { verifyReferenceCode, logout, isVerified } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [code, setCode] = useState(['', '', '', '']);
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
+  const hiddenInputRef = useRef<TextInput | null>(null);
 
   useEffect(() => {
     if (isVerified) {
@@ -36,30 +36,14 @@ export default function ReferenceCodeScreen() {
     return null;
   }
 
-  const handleCodeChange = (value: string, index: number) => {
-    if (value.length > 1) {
-      value = value.slice(-1);
-    }
-
-    const newCode = [...code];
-    newCode[index] = value;
-    setCode(newCode);
+  const handleCodeChange = (value: string) => {
+    const cleaned = value.replace(/[^0-9]/g, '').slice(0, 4);
+    setCode(cleaned);
     setError('');
-
-    if (value && index < 3) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
   };
 
   const handleVerify = async () => {
-    const fullCode = code.join('');
-    if (fullCode.length !== 4) {
+    if (code.length !== 4) {
       setError('Please enter all 4 digits');
       return;
     }
@@ -69,7 +53,7 @@ export default function ReferenceCodeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const valid = await verifyReferenceCode(fullCode);
+      const valid = await verifyReferenceCode(code);
       if (valid) {
         setSuccess(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -86,6 +70,9 @@ export default function ReferenceCodeScreen() {
       setLoading(false);
     }
   };
+
+  const digits = code.split('');
+  while (digits.length < 4) digits.push('');
 
   const handleLogout = async () => {
     await logout();
@@ -121,30 +108,36 @@ export default function ReferenceCodeScreen() {
           Ask your group admin for the 4-digit code to unlock access to the platform.
         </Text>
 
-        <View style={styles.codeRow}>
-          {code.map((digit, i) => (
-            <TextInput
+        <Pressable onPress={() => hiddenInputRef.current?.focus()} style={styles.codeRow}>
+          {digits.map((digit, i) => (
+            <View
               key={i}
-              ref={(ref) => { inputRefs.current[i] = ref; }}
               style={[
                 styles.codeInput,
                 {
                   backgroundColor: colors.surface,
-                  borderColor: digit ? colors.accent : colors.border,
-                  color: colors.text,
-                  fontFamily: 'Inter_700Bold',
+                  borderColor: digit ? colors.accent : (i === code.length ? colors.primary : colors.border),
+                  borderWidth: i === code.length ? 2.5 : 2,
                 },
                 success && { borderColor: colors.success },
               ]}
-              value={digit}
-              onChangeText={(v) => handleCodeChange(v, i)}
-              onKeyPress={(e) => handleKeyPress(e, i)}
-              keyboardType="number-pad"
-              maxLength={1}
-              selectTextOnFocus
-            />
+            >
+              <Text style={[styles.codeDigitText, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                {digit}
+              </Text>
+            </View>
           ))}
-        </View>
+        </Pressable>
+        <TextInput
+          ref={hiddenInputRef}
+          style={styles.hiddenInput}
+          value={code}
+          onChangeText={handleCodeChange}
+          keyboardType="number-pad"
+          maxLength={4}
+          autoFocus
+          caretHidden
+        />
 
         {!!error && (
           <View style={styles.errorRow}>
@@ -246,8 +239,18 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 16,
     borderWidth: 2,
-    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  codeDigitText: {
     fontSize: 24,
+    textAlign: 'center',
+  },
+  hiddenInput: {
+    position: 'absolute',
+    opacity: 0,
+    height: 1,
+    width: 1,
   },
   errorRow: {
     flexDirection: 'row',
