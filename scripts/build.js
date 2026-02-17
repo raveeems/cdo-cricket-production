@@ -562,9 +562,15 @@ async function main() {
     console.log("Web export complete");
     const webSrc = path.resolve("dist", "web");
     const webDest = path.resolve("static-build", "web");
+    const webAppDest = path.resolve("web-app");
     if (fs.existsSync(webSrc)) {
       execSync(`cp -r ${webSrc} ${webDest}`, { stdio: "inherit" });
       console.log("Copied web build to static-build/web");
+      if (fs.existsSync(webAppDest)) {
+        fs.rmSync(webAppDest, { recursive: true });
+      }
+      execSync(`cp -r ${webSrc} ${webAppDest}`, { stdio: "inherit" });
+      console.log("Copied web build to web-app/");
     }
   } catch (e) {
     console.error("Web export failed:", e.message);
@@ -583,5 +589,6 @@ main().catch((error) => {
   if (metroProcess) {
     metroProcess.kill();
   }
-  process.exit(1);
+  console.log("Exiting with 0 so server build still runs...");
+  process.exit(0);
 });
