@@ -121,24 +121,46 @@ export async function fetchUpcomingMatches(): Promise<
   }
 
   try {
-    const url = `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=0`;
-    const res = await fetch(url);
-    if (!res.ok) {
-      console.error("Cricket API error:", res.status, res.statusText);
+    const allApiMatches: CricApiMatch[] = [];
+    const seenIds = new Set<string>();
+
+    const endpoints = [
+      `${CRICKET_API_BASE}/currentMatches?apikey=${apiKey}&offset=0`,
+      `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=0`,
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          console.error("Cricket API error:", res.status, res.statusText, url);
+          continue;
+        }
+        const json = (await res.json()) as CricApiResponse<CricApiMatch[]>;
+        if (json.status === "success" && json.data) {
+          console.log(
+            `Cricket API: fetched ${json.data.length} from ${url.includes('currentMatches') ? 'currentMatches' : 'matches'}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`
+          );
+          for (const m of json.data) {
+            if (!seenIds.has(m.id)) {
+              seenIds.add(m.id);
+              allApiMatches.push(m);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Cricket API endpoint error:", e);
+      }
+    }
+
+    if (allApiMatches.length === 0) {
+      console.log("No matches from any Cricket API endpoint");
       return [];
     }
 
-    const json = (await res.json()) as CricApiResponse<CricApiMatch[]>;
-    if (json.status !== "success" || !json.data) {
-      console.error("Cricket API returned non-success:", json.status);
-      return [];
-    }
+    console.log(`Cricket API: ${allApiMatches.length} unique matches total`);
 
-    console.log(
-      `Cricket API: fetched ${json.data.length} matches, hits used: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`
-    );
-
-    return json.data
+    return allApiMatches
       .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT)
       .map((m) => {
         const team1 = m.teams[0];

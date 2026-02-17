@@ -242,8 +242,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/matches", isAuthenticated, async (_req: Request, res: Response) => {
     const allMatches = await storage.getAllMatches();
     const now = new Date();
-    const ONE_HOUR = 60 * 60 * 1000;
-    const THREE_HOURS = 3 * ONE_HOUR;
+    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+    const THREE_HOURS = 3 * 60 * 60 * 1000;
 
     const matchesWithParticipants: { match: typeof allMatches[0]; participantCount: number }[] = [];
 
@@ -255,11 +255,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teams = await storage.getAllTeamsForMatch(m.id);
       const participantCount = teams.length;
 
-      const isUpcomingSoon = m.status !== "completed" && m.status !== "live" && diff > 0 && diff <= ONE_HOUR;
-      const isRecentlyLive = m.status === "live" && elapsed <= THREE_HOURS;
+      const isUpcoming = m.status !== "completed" && m.status !== "live" && diff > 0 && diff <= FORTY_EIGHT_HOURS;
+      const isLive = m.status === "live";
+      const isRecentlyCompleted = m.status === "completed" && elapsed <= THREE_HOURS;
       const hasParticipants = participantCount > 0;
 
-      if (hasParticipants || isUpcomingSoon || isRecentlyLive) {
+      if (hasParticipants || isUpcoming || isLive || isRecentlyCompleted) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
     }
