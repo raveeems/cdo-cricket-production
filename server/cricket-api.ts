@@ -173,10 +173,10 @@ export async function fetchUpcomingMatches(): Promise<
       .map((m) => {
         const team1 = m.teams[0];
         const team2 = m.teams[1];
-        const team1Short =
-          m.teamInfo?.[0]?.shortname || getTeamShort(team1);
-        const team2Short =
-          m.teamInfo?.[1]?.shortname || getTeamShort(team2);
+        const team1Info = m.teamInfo?.find((t) => t.name === team1);
+        const team2Info = m.teamInfo?.find((t) => t.name === team2);
+        const team1Short = team1Info?.shortname || getTeamShort(team1);
+        const team2Short = team2Info?.shortname || getTeamShort(team2);
 
         let status = "upcoming";
         if (m.matchStarted && !m.matchEnded) status = "live";
