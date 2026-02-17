@@ -22,7 +22,8 @@ export interface Match {
   team2Color: string;
   venue: string;
   startTime: string;
-  status: 'upcoming' | 'live' | 'completed';
+  status: 'upcoming' | 'live' | 'completed' | 'delayed';
+  statusNote: string;
   league: string;
   totalPrize: string;
   entryFee: number;
@@ -65,6 +66,7 @@ export const MOCK_MATCHES: Match[] = [
     venue: 'Wankhede Stadium, Mumbai',
     startTime: hoursFromNow(6),
     status: 'upcoming',
+    statusNote: '',
     league: 'IPL 2026',
     totalPrize: '10L',
     entryFee: 49,
@@ -82,6 +84,7 @@ export const MOCK_MATCHES: Match[] = [
     venue: 'M. Chinnaswamy Stadium',
     startTime: hoursFromNow(18),
     status: 'upcoming',
+    statusNote: '',
     league: 'IPL 2026',
     totalPrize: '5L',
     entryFee: 29,
@@ -99,6 +102,7 @@ export const MOCK_MATCHES: Match[] = [
     venue: 'Arun Jaitley Stadium, Delhi',
     startTime: hoursFromNow(30),
     status: 'upcoming',
+    statusNote: '',
     league: 'IPL 2026',
     totalPrize: '8L',
     entryFee: 39,
@@ -116,6 +120,7 @@ export const MOCK_MATCHES: Match[] = [
     venue: 'Rajiv Gandhi Stadium',
     startTime: hoursFromNow(42),
     status: 'upcoming',
+    statusNote: '',
     league: 'IPL 2026',
     totalPrize: '6L',
     entryFee: 19,
@@ -192,7 +197,8 @@ export const VALID_REFERENCE_CODES = ['1234', '5678', '9012', '3456'];
 
 export const ADMIN_USER_IDS = ['admin1', 'admin2'];
 
-export function getTimeUntilMatch(startTime: string): string {
+export function getTimeUntilMatch(startTime: string, status?: string): string {
+  if (status === 'delayed') return 'Delayed';
   const diff = new Date(startTime).getTime() - Date.now();
   if (diff <= 0) return 'Started';
   const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -209,7 +215,9 @@ export function isMatchVisible(startTime: string): boolean {
   return diff > 0 && diff <= 48 * 60 * 60 * 1000;
 }
 
-export function canEditTeam(startTime: string): boolean {
+export function canEditTeam(startTime: string, status?: string): boolean {
+  if (status === 'delayed') return true;
+  if (status === 'live' || status === 'completed') return false;
   const diff = new Date(startTime).getTime() - Date.now();
   return diff > 1000;
 }

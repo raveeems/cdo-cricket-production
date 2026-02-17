@@ -25,6 +25,44 @@ interface CricApiMatch {
   matchEnded?: boolean;
 }
 
+const DELAY_KEYWORDS = [
+  'rain', 'delay', 'delayed', 'no result', 'abandoned', 'postponed',
+  'wet outfield', 'weather', 'inspection', 'covers', 'drizzle',
+  'toss yet', 'start delayed', 'play yet to', 'yet to begin',
+];
+
+function isMatchDelayed(apiStatusText: string): boolean {
+  const lower = (apiStatusText || '').toLowerCase();
+  return DELAY_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+function determineMatchStatus(
+  matchStarted: boolean | undefined,
+  matchEnded: boolean | undefined,
+  apiStatusText: string,
+  hasScoreData: boolean
+): { status: string; statusNote: string } {
+  const statusNote = apiStatusText || '';
+
+  if (matchEnded) {
+    return { status: 'completed', statusNote };
+  }
+
+  if (isMatchDelayed(apiStatusText)) {
+    return { status: 'delayed', statusNote };
+  }
+
+  if (matchStarted && hasScoreData) {
+    return { status: 'live', statusNote };
+  }
+
+  if (matchStarted && !hasScoreData) {
+    return { status: 'delayed', statusNote: statusNote || 'Waiting for play to begin' };
+  }
+
+  return { status: 'upcoming', statusNote };
+}
+
 interface CricApiResponse<T> {
   apikey: string;
   data: T;
@@ -112,6 +150,7 @@ export async function fetchUpcomingMatches(): Promise<
     venue: string;
     startTime: Date;
     status: string;
+    statusNote: string;
     league: string;
   }>
 > {
@@ -178,9 +217,13 @@ export async function fetchUpcomingMatches(): Promise<
         const team1Short = team1Info?.shortname || getTeamShort(team1);
         const team2Short = team2Info?.shortname || getTeamShort(team2);
 
-        let status = "upcoming";
-        if (m.matchStarted && !m.matchEnded) status = "live";
-        if (m.matchEnded) status = "completed";
+        const hasScoreData = !!(m.score && m.score.length > 0 && m.score.some(s => s.r > 0 || s.w > 0 || s.o > 0));
+        const { status, statusNote } = determineMatchStatus(
+          m.matchStarted,
+          m.matchEnded,
+          m.status,
+          hasScoreData
+        );
 
         const nameParts = m.name?.split(",").map((s: string) => s.trim()) || [];
         let league = nameParts[nameParts.length - 1] || nameParts[0] || "";
@@ -202,6 +245,7 @@ export async function fetchUpcomingMatches(): Promise<
           venue: m.venue || "",
           startTime: new Date(m.dateTimeGMT),
           status,
+          statusNote,
           league,
         };
       });
@@ -231,6 +275,7 @@ export async function fetchSeriesMatches(
     venue: string;
     startTime: Date;
     status: string;
+    statusNote: string;
     league: string;
   }>
 > {
@@ -271,9 +316,12 @@ export async function fetchSeriesMatches(
         const team1Short = team1Info?.shortname || getTeamShort(team1);
         const team2Short = team2Info?.shortname || getTeamShort(team2);
 
-        let status = "upcoming";
-        if (m.matchStarted && !m.matchEnded) status = "live";
-        if (m.matchEnded) status = "completed";
+        const { status, statusNote } = determineMatchStatus(
+          m.matchStarted,
+          m.matchEnded,
+          m.status,
+          false
+        );
 
         const nameParts = m.name?.split(",").map((s: string) => s.trim()) || [];
         let league = nameParts[nameParts.length - 1] || nameParts[0] || "";
@@ -295,6 +343,7 @@ export async function fetchSeriesMatches(
           venue: m.venue || "",
           startTime: new Date(m.dateTimeGMT),
           status,
+          statusNote,
           league,
         };
       });
@@ -317,6 +366,7 @@ async function upsertMatches(
     venue: string;
     startTime: Date;
     status: string;
+    statusNote: string;
     league: string;
   }>,
   existingMatches: any[]
@@ -340,6 +390,7 @@ async function upsertMatches(
         venue: m.venue,
         startTime: m.startTime,
         status: m.status,
+        statusNote: m.statusNote,
         league: m.league,
         totalPrize: "0",
         entryFee: 0,
@@ -350,12 +401,14 @@ async function upsertMatches(
     } else {
       const updates: Record<string, any> = {};
       if (dup.status !== m.status) updates.status = m.status;
+      if (m.statusNote && dup.statusNote !== m.statusNote) updates.statusNote = m.statusNote;
       if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
       if (dup.league !== m.league) updates.league = m.league;
       if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
       if (m.venue && dup.venue !== m.venue) updates.venue = m.venue;
       if (Object.keys(updates).length > 0) {
         await storage.updateMatch(dup.id, updates);
+        console.log(`Match ${m.team1} vs ${m.team2}: updated [${Object.keys(updates).join(', ')}]`);
         updated++;
       }
     }
@@ -429,7 +482,7 @@ export async function fetchMatchInfo(
 }
 
 let lastStatusRefresh = 0;
-const STATUS_REFRESH_INTERVAL = 5 * 60 * 1000;
+const STATUS_REFRESH_INTERVAL = 2 * 60 * 1000;
 
 export async function refreshStaleMatchStatuses(): Promise<void> {
   const now = Date.now();
@@ -446,7 +499,8 @@ export async function refreshStaleMatchStatuses(): Promise<void> {
     const start = new Date(m.startTime).getTime();
     const elapsed = now - start;
     if (m.status === "live") return true;
-    if (m.status === "upcoming" && elapsed > 0) return true;
+    if (m.status === "delayed") return true;
+    if (m.status === "upcoming" && elapsed > -30 * 60 * 1000) return true;
     return false;
   });
 
@@ -459,16 +513,21 @@ export async function refreshStaleMatchStatuses(): Promise<void> {
       const info = await fetchMatchInfo(m.externalId);
       if (!info) continue;
 
-      let newStatus = m.status;
-      if (info.matchEnded) {
-        newStatus = "completed";
-      } else if (info.matchStarted && !info.matchEnded) {
-        newStatus = "live";
-      }
+      const hasScoreData = !!(info.score && info.score.length > 0 && info.score.some(s => s.r > 0 || s.w > 0 || s.o > 0));
+      const { status: newStatus, statusNote } = determineMatchStatus(
+        info.matchStarted,
+        info.matchEnded,
+        info.status,
+        hasScoreData
+      );
 
-      if (newStatus !== m.status) {
-        await storage.updateMatch(m.id, { status: newStatus });
-        console.log(`Updated ${m.team1} vs ${m.team2}: ${m.status} -> ${newStatus}`);
+      const updates: Record<string, any> = {};
+      if (newStatus !== m.status) updates.status = newStatus;
+      if (statusNote && statusNote !== (m as any).statusNote) updates.statusNote = statusNote;
+
+      if (Object.keys(updates).length > 0) {
+        await storage.updateMatch(m.id, updates);
+        console.log(`Status refresh: ${m.team1} vs ${m.team2}: ${m.status} -> ${newStatus} [${statusNote}]`);
       }
     } catch (err) {
       console.error(`Failed to refresh status for match ${m.id}:`, err);

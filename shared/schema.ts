@@ -50,6 +50,7 @@ export const matches = pgTable("matches", {
   venue: text("venue").notNull().default(""),
   startTime: timestamp("start_time").notNull(),
   status: varchar("status", { length: 20 }).notNull().default("upcoming"),
+  statusNote: text("status_note").notNull().default(""),
   league: text("league").notNull().default(""),
   totalPrize: text("total_prize").notNull().default("0"),
   entryFee: integer("entry_fee").notNull().default(0),

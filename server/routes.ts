@@ -301,29 +301,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const diff = start - now.getTime();
       const elapsed = now.getTime() - start;
 
-      let effectiveStatus = m.status;
-      if (m.status === "upcoming" && diff <= 0 && elapsed <= THREE_HOURS) {
-        effectiveStatus = "live";
-      }
+      const effectiveStatus = m.status;
 
       const teams = await storage.getAllTeamsForMatch(m.id);
       const participantCount = teams.length;
 
-      const isUpcoming = effectiveStatus !== "completed" && effectiveStatus !== "live" && diff > 0 && diff <= TWENTY_FOUR_HOURS;
+      const isUpcoming = (effectiveStatus === "upcoming" || effectiveStatus === "delayed") && diff > -THREE_HOURS && diff <= TWENTY_FOUR_HOURS;
       const isLive = effectiveStatus === "live";
+      const isDelayed = effectiveStatus === "delayed";
       const isRecentlyCompleted = effectiveStatus === "completed" && elapsed <= THREE_HOURS;
       const hasParticipants = participantCount > 0;
 
-      if (hasParticipants || isUpcoming || isLive || isRecentlyCompleted) {
-        const matchData = { ...m, status: effectiveStatus };
-        matchesWithParticipants.push({ match: matchData, participantCount });
+      if (hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted) {
+        matchesWithParticipants.push({ match: m, participantCount });
       }
     }
 
     matchesWithParticipants.sort((a, b) => {
       if (a.participantCount > 0 && b.participantCount === 0) return -1;
       if (a.participantCount === 0 && b.participantCount > 0) return 1;
-      const order: Record<string, number> = { upcoming: 0, live: 1, completed: 2 };
+      const order: Record<string, number> = { upcoming: 0, delayed: 0, live: 1, completed: 2 };
       const oa = order[a.match.status] ?? 1;
       const ob = order[b.match.status] ?? 1;
       if (oa !== ob) return oa - ob;
@@ -583,10 +580,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const now = new Date();
         const matchStart = new Date(match.startTime);
-        if (now.getTime() >= matchStart.getTime() - 1000) {
+        const isDelayed = match.status === "delayed";
+        if (!isDelayed && now.getTime() >= matchStart.getTime() - 1000) {
           return res
             .status(400)
             .json({ message: "Entry deadline has passed" });
+        }
+        if (match.status === "live" || match.status === "completed") {
+          return res
+            .status(400)
+            .json({ message: "Match has already started" });
         }
 
         const existingTeams = await storage.getUserTeamsForMatch(
