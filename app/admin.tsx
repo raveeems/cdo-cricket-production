@@ -102,7 +102,13 @@ export default function AdminScreen() {
       >
         <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16 }}>
           <View style={styles.headerRow}>
-            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Pressable onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/profile');
+              }
+            }} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </Pressable>
             <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
