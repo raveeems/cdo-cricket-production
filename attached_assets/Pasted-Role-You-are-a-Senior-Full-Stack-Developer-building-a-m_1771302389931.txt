@@ -1,0 +1,75 @@
+Role: You are a Senior Full-Stack Developer building a mobile-responsive web app (PWA) called "CDO".
+
+Project Goal: Create a private Fantasy Cricket platform for a closed group of friends with a UI inspired by Dream11.
+
+Design System:
+
+Primary Colors: Blue and Yellow.
+
+Theme: Modern Dark Mode by default (with a user toggle for Light Mode).
+
+Layout: Mobile-first design. Bottom navigation bar (Home, My Matches, Leaderboard, Profile).
+
+Core Feature: Invite-Only Access
+
+Auth: Users sign up with Phone Number (OTP simulation is fine for v1) or Email.
+
+The Gatekeeper: Immediately after signup, users are blocked until they enter a valid "4-Digit Reference Code".
+
+Code Logic: Create a database table for ReferenceCodes.
+
+Columns: code (string), is_active (boolean), created_by (admin_id).
+
+Validation: When a user enters a code, check if is_active is TRUE. If valid, grant user access and log the entry.
+
+Core Feature: The Contest & Teams
+
+Dashboard: Show upcoming matches.
+
+Visibility Rule: Matches must ONLY appear on the dashboard 48 hours before the start time. Hidden otherwise.
+
+Entry Deadline:
+
+Users can edit/submit teams up to 1 second before the first ball.
+
+Network Time Sync: You must use an NTP (Network Time Protocol) or Server Time check to validate the deadline, NEVER the user's device time.
+
+Delay Handling: If the API updates the match_start_time (due to rain/delay), the entry deadline must automatically extend to the new time.
+
+Team Rules:
+
+Max 3 teams per user per match.
+
+11 Players total: 1-4 WK, 3-6 Batters, 1-4 All-Rounders, 3-6 Bowlers.
+
+Captain (2x points), Vice-Captain (1.5x points).
+
+Super Subs: Include "Impact Players" in the player list. If an Impact Player is substituted into the real match, they earn points normally.
+
+Admin Panel (Private)
+
+Access: Only specific User IDs (me and one other person) have Admin access.
+
+Capabilities:
+
+Generate 4-digit reference codes.
+
+Manually add/edit match details if the API fails.
+
+Admins must be able to participate in contests like normal users.
+
+Data & Scoring
+
+API Integration: Structure the backend to fetch data from a Cricket API (like Sportmonks or CricketData).
+
+Stats: On the "Select Player" screen, show the last 5 match performance (Runs/Wickets) for every player.
+
+Scoring: Implement the standard Dream11 scoring system (Run=+1, Wicket=+25, Catch=+8, etc.).
+
+Tech Stack:
+
+Frontend: React with Tailwind CSS (for the Blue/Yellow theme).
+
+Backend: Node.js with a PostgreSQL database.
+
+Real-time: Use WebSockets or Polling to ensure the leaderboard updates within 10 seconds of a real event.
