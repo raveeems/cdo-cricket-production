@@ -18,12 +18,49 @@ import { useTeams } from '@/contexts/TeamContext';
 import { getTimeUntilMatch, canEditTeam, getRoleColor, Match, Player } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
 
+type TabKey = 'overview' | 'scorecard' | 'players';
+
+interface ScorecardBatter {
+  name: string;
+  r: number;
+  b: number;
+  fours: number;
+  sixes: number;
+  sr: number;
+  dismissal: string;
+  fantasyPoints: number;
+}
+
+interface ScorecardBowler {
+  name: string;
+  o: number;
+  m: number;
+  r: number;
+  w: number;
+  eco: number;
+  fantasyPoints: number;
+}
+
+interface ScorecardInning {
+  inning: string;
+  batting: ScorecardBatter[];
+  bowling: ScorecardBowler[];
+}
+
+interface LiveScorecard {
+  score: Array<{ r: number; w: number; o: number; inning: string }>;
+  innings: ScorecardInning[];
+  status: string;
+}
+
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, isDark } = useTheme();
   const { getTeamsForMatch, deleteTeam } = useTeams();
   const insets = useSafeAreaInsets();
   const [timeLeft, setTimeLeft] = useState('');
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [selectedInning, setSelectedInning] = useState(0);
 
   const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
@@ -35,9 +72,18 @@ export default function MatchDetailScreen() {
     enabled: !!id,
   });
 
+  const isLiveOrCompleted = matchData?.match?.status === 'live' || matchData?.match?.status === 'completed';
+
+  const { data: scorecardData, isLoading: scorecardLoading } = useQuery<{ scorecard: LiveScorecard | null }>({
+    queryKey: ['/api/matches', id, 'live-scorecard'],
+    enabled: !!id && activeTab === 'scorecard' && isLiveOrCompleted,
+    refetchInterval: isLiveOrCompleted && matchData?.match?.status === 'live' ? 30000 : false,
+  });
+
   const match = matchData?.match;
   const players = playersData?.players || [];
   const userTeams = id ? getTeamsForMatch(id) : [];
+  const scorecard = scorecardData?.scorecard;
 
   useEffect(() => {
     if (!match) return;
@@ -47,6 +93,12 @@ export default function MatchDetailScreen() {
     }, 1000);
     return () => clearInterval(interval);
   }, [match?.startTime]);
+
+  useEffect(() => {
+    if (isLiveOrCompleted) {
+      setActiveTab('scorecard');
+    }
+  }, [isLiveOrCompleted]);
 
   if (matchLoading || playersLoading) {
     return (
@@ -67,8 +119,402 @@ export default function MatchDetailScreen() {
   const canEdit = canEditTeam(match.startTime);
   const canCreateMore = userTeams.length < 3;
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
-
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { key: 'overview', label: 'Overview', icon: 'grid-outline' },
+    { key: 'scorecard', label: 'Scorecard', icon: 'stats-chart-outline' },
+    { key: 'players', label: 'Players', icon: 'people-outline' },
+  ];
+
+  const renderOverviewTab = () => (
+    <View style={styles.contentSection}>
+      <View style={styles.contestRow}>
+        <View style={[styles.contestCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <View style={styles.contestHeader}>
+            <Text style={[styles.contestLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+              Prize Pool
+            </Text>
+            <Text style={[styles.contestValue, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
+              {match.totalPrize}
+            </Text>
+          </View>
+          <View style={[styles.contestBar, { backgroundColor: colors.border }]}>
+            <View
+              style={[
+                styles.contestBarFill,
+                {
+                  width: `${filledPercent}%`,
+                  backgroundColor: filledPercent > 80 ? colors.error : colors.success,
+                },
+              ]}
+            />
+          </View>
+          <View style={styles.contestMeta}>
+            <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+              {match.spotsFilled}/{match.spotsTotal} joined
+            </Text>
+            <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+              Entry: {match.entryFee} coins
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          Your Teams ({userTeams.length}/3)
+        </Text>
+      </View>
+
+      {userTeams.length === 0 ? (
+        <View style={[styles.noTeams, { backgroundColor: colors.surface }]}>
+          <Ionicons name="people-outline" size={40} color={colors.textTertiary} />
+          <Text style={[styles.noTeamsText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+            Create your first team for this match
+          </Text>
+        </View>
+      ) : (
+        userTeams.map((team, idx) => (
+          <View
+            key={team.id}
+            style={[styles.teamCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          >
+            <View style={styles.teamCardHeader}>
+              <View style={styles.teamCardLeft}>
+                <View style={[styles.teamBadge, { backgroundColor: colors.primary + '20' }]}>
+                  <Text style={[styles.teamBadgeText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
+                    T{idx + 1}
+                  </Text>
+                </View>
+                <Text style={[styles.teamCardName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
+                  {team.name}
+                </Text>
+              </View>
+              {canEdit && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    deleteTeam(team.id);
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color={colors.error} />
+                </Pressable>
+              )}
+            </View>
+            <View style={[styles.teamCardDetails, { borderTopColor: colors.border }]}>
+              <Text style={[styles.teamDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                {team.playerIds.length} players selected
+              </Text>
+              <View style={styles.captainRow}>
+                <Text style={[styles.captainLabel, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
+                  C
+                </Text>
+                <Text style={[styles.captainName, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {players.find((p) => p.id === team.captainId)?.name || 'N/A'}
+                </Text>
+                <Text style={[styles.captainLabel, { color: colors.primary, fontFamily: 'Inter_600SemiBold', marginLeft: 12 }]}>
+                  VC
+                </Text>
+                <Text style={[styles.captainName, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {players.find((p) => p.id === team.viceCaptainId)?.name || 'N/A'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ))
+      )}
+
+      {canEdit && canCreateMore && (
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push({ pathname: '/create-team/[matchId]', params: { matchId: match.id } });
+          }}
+          style={styles.createTeamBtn}
+        >
+          <LinearGradient
+            colors={[colors.accent, colors.accentDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.createTeamGradient}
+          >
+            <Ionicons name="add" size={22} color="#000" />
+            <Text style={[styles.createTeamText, { fontFamily: 'Inter_700Bold' }]}>
+              Create Team
+            </Text>
+          </LinearGradient>
+        </Pressable>
+      )}
+
+      {!canEdit && (
+        <View style={[styles.deadlinePassed, { backgroundColor: colors.error + '15' }]}>
+          <Ionicons name="lock-closed" size={18} color={colors.error} />
+          <Text style={[styles.deadlineText, { color: colors.error, fontFamily: 'Inter_500Medium' }]}>
+            Entry deadline has passed
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderScorecardTab = () => {
+    if (!isLiveOrCompleted) {
+      return (
+        <View style={[styles.contentSection, { alignItems: 'center', paddingTop: 40 }]}>
+          <Ionicons name="time-outline" size={48} color={colors.textTertiary} />
+          <Text style={[styles.noTeamsText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium', marginTop: 12 }]}>
+            Scorecard will be available once the match starts
+          </Text>
+        </View>
+      );
+    }
+
+    if (scorecardLoading) {
+      return (
+        <View style={[styles.contentSection, { alignItems: 'center', paddingTop: 40 }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.noTeamsText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginTop: 12 }]}>
+            Loading scorecard...
+          </Text>
+        </View>
+      );
+    }
+
+    if (!scorecard || !scorecard.innings || scorecard.innings.length === 0) {
+      return (
+        <View style={[styles.contentSection, { alignItems: 'center', paddingTop: 40 }]}>
+          <Ionicons name="document-text-outline" size={48} color={colors.textTertiary} />
+          <Text style={[styles.noTeamsText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium', marginTop: 12 }]}>
+            Scorecard data not available yet
+          </Text>
+        </View>
+      );
+    }
+
+    const currentInning = scorecard.innings[selectedInning] || scorecard.innings[0];
+
+    return (
+      <View style={styles.contentSection}>
+        {scorecard.score && scorecard.score.length > 0 && (
+          <View style={[styles.liveScoreBar, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            {scorecard.score.map((s, i) => (
+              <View key={i} style={styles.liveScoreItem}>
+                <Text style={[styles.liveScoreInning, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
+                  {s.inning}
+                </Text>
+                <Text style={[styles.liveScoreValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                  {s.r}/{s.w}
+                </Text>
+                <Text style={[styles.liveScoreOvers, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                  ({s.o} ov)
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {match.status === 'live' && (
+          <View style={[styles.liveBadgeRow, { marginBottom: 12 }]}>
+            <View style={styles.liveDot} />
+            <Text style={[styles.liveText, { fontFamily: 'Inter_600SemiBold' }]}>LIVE</Text>
+          </View>
+        )}
+
+        {scorecard.innings.length > 1 && (
+          <View style={styles.inningsTabs}>
+            {scorecard.innings.map((inn, i) => (
+              <Pressable
+                key={i}
+                onPress={() => setSelectedInning(i)}
+                style={[
+                  styles.inningsTab,
+                  {
+                    backgroundColor: selectedInning === i ? colors.primary : colors.surface,
+                    borderColor: selectedInning === i ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.inningsTabText,
+                    {
+                      color: selectedInning === i ? '#FFF' : colors.textSecondary,
+                      fontFamily: 'Inter_600SemiBold',
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {inn.inning.length > 20 ? inn.inning.substring(0, 18) + '...' : inn.inning}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {currentInning.batting && currentInning.batting.length > 0 && (
+          <>
+            <View style={[styles.scorecardHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', flex: 2 }]}>
+                Batter
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                R
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                B
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                4s
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                6s
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                SR
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
+                FP
+              </Text>
+            </View>
+            {currentInning.batting.map((bat, i) => (
+              <View key={i} style={[styles.scorecardRow, { borderBottomColor: colors.border + '40' }]}>
+                <View style={{ flex: 2 }}>
+                  <Text style={[styles.scorecardName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                    {bat.name}
+                  </Text>
+                  <Text style={[styles.scorecardDismissal, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+                    {bat.dismissal}
+                  </Text>
+                </View>
+                <Text style={[styles.scorecardStat, { color: colors.text, fontFamily: bat.r >= 50 ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                  {bat.r}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {bat.b}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {bat.fours}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {bat.sixes}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {bat.sr.toFixed(1)}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: bat.fantasyPoints >= 30 ? colors.success : colors.accent, fontFamily: 'Inter_700Bold' }]}>
+                  {bat.fantasyPoints}
+                </Text>
+              </View>
+            ))}
+          </>
+        )}
+
+        {currentInning.bowling && currentInning.bowling.length > 0 && (
+          <>
+            <View style={[styles.scorecardHeader, { borderBottomColor: colors.border, marginTop: 20 }]}>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', flex: 2 }]}>
+                Bowler
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                O
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                M
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                R
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                W
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                ECO
+              </Text>
+              <Text style={[styles.scorecardHeaderText, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
+                FP
+              </Text>
+            </View>
+            {currentInning.bowling.map((bowl, i) => (
+              <View key={i} style={[styles.scorecardRow, { borderBottomColor: colors.border + '40' }]}>
+                <View style={{ flex: 2 }}>
+                  <Text style={[styles.scorecardName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                    {bowl.name}
+                  </Text>
+                </View>
+                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {bowl.o}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {bowl.m}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {bowl.r}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: bowl.w >= 3 ? colors.success : colors.text, fontFamily: bowl.w >= 3 ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                  {bowl.w}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: bowl.eco < 7 ? colors.success : bowl.eco > 10 ? colors.error : colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {bowl.eco.toFixed(1)}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: bowl.fantasyPoints >= 30 ? colors.success : colors.accent, fontFamily: 'Inter_700Bold' }]}>
+                  {bowl.fantasyPoints}
+                </Text>
+              </View>
+            ))}
+          </>
+        )}
+      </View>
+    );
+  };
+
+  const renderPlayersTab = () => (
+    <View style={styles.contentSection}>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          Squad ({players.length})
+        </Text>
+      </View>
+
+      {players.map((player) => (
+        <View
+          key={player.id}
+          style={[styles.playerRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+        >
+          <View style={styles.playerLeft}>
+            <View style={[styles.roleBadge, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+              <Text style={[styles.roleText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
+                {player.role}
+              </Text>
+            </View>
+            <View>
+              <View style={styles.playerNameRow}>
+                <Text style={[styles.playerName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
+                  {player.name}
+                </Text>
+                {player.isImpactPlayer && (
+                  <View style={[styles.impactBadge, { backgroundColor: colors.warning + '20' }]}>
+                    <MaterialCommunityIcons name="lightning-bolt" size={10} color={colors.warning} />
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.playerTeam, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                {player.teamShort} | {player.credits} Cr
+              </Text>
+            </View>
+          </View>
+          <View style={styles.playerRight}>
+            <Text style={[styles.playerPoints, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              {player.points}
+            </Text>
+            <Text style={[styles.playerPointsLabel, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+              pts
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -106,7 +552,14 @@ export default function MatchDetailScreen() {
             </View>
 
             <View style={styles.heroCenter}>
-              <Text style={[styles.heroVs, { fontFamily: 'Inter_700Bold' }]}>VS</Text>
+              {match.status === 'live' ? (
+                <View style={styles.liveBadgeRow}>
+                  <View style={styles.liveDot} />
+                  <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
+                </View>
+              ) : (
+                <Text style={[styles.heroVs, { fontFamily: 'Inter_700Bold' }]}>VS</Text>
+              )}
               <View style={styles.timerPill}>
                 <Ionicons name="time" size={14} color="#FFD130" />
                 <Text style={[styles.timerPillText, { fontFamily: 'Inter_600SemiBold' }]}>
@@ -135,178 +588,42 @@ export default function MatchDetailScreen() {
           </View>
         </LinearGradient>
 
-        <View style={styles.contentSection}>
-          <View style={styles.contestRow}>
-            <View style={[styles.contestCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <View style={styles.contestHeader}>
-                <Text style={[styles.contestLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
-                  Prize Pool
-                </Text>
-                <Text style={[styles.contestValue, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
-                  {match.totalPrize}
-                </Text>
-              </View>
-              <View style={[styles.contestBar, { backgroundColor: colors.border }]}>
-                <View
-                  style={[
-                    styles.contestBarFill,
-                    {
-                      width: `${filledPercent}%`,
-                      backgroundColor: filledPercent > 80 ? colors.error : colors.success,
-                    },
-                  ]}
-                />
-              </View>
-              <View style={styles.contestMeta}>
-                <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-                  {match.spotsFilled}/{match.spotsTotal} joined
-                </Text>
-                <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-                  Entry: {match.entryFee} coins
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              Your Teams ({userTeams.length}/3)
-            </Text>
-          </View>
-
-          {userTeams.length === 0 ? (
-            <View style={[styles.noTeams, { backgroundColor: colors.surface }]}>
-              <Ionicons name="people-outline" size={40} color={colors.textTertiary} />
-              <Text style={[styles.noTeamsText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
-                Create your first team for this match
-              </Text>
-            </View>
-          ) : (
-            userTeams.map((team, idx) => (
-              <View
-                key={team.id}
-                style={[styles.teamCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-              >
-                <View style={styles.teamCardHeader}>
-                  <View style={styles.teamCardLeft}>
-                    <View style={[styles.teamBadge, { backgroundColor: colors.primary + '20' }]}>
-                      <Text style={[styles.teamBadgeText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
-                        T{idx + 1}
-                      </Text>
-                    </View>
-                    <Text style={[styles.teamCardName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
-                      {team.name}
-                    </Text>
-                  </View>
-                  {canEdit && (
-                    <Pressable
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        deleteTeam(team.id);
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={colors.error} />
-                    </Pressable>
-                  )}
-                </View>
-                <View style={[styles.teamCardDetails, { borderTopColor: colors.border }]}>
-                  <Text style={[styles.teamDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                    {team.playerIds.length} players selected
-                  </Text>
-                  <View style={styles.captainRow}>
-                    <Text style={[styles.captainLabel, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
-                      C
-                    </Text>
-                    <Text style={[styles.captainName, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                      {players.find((p) => p.id === team.captainId)?.name || 'N/A'}
-                    </Text>
-                    <Text style={[styles.captainLabel, { color: colors.primary, fontFamily: 'Inter_600SemiBold', marginLeft: 12 }]}>
-                      VC
-                    </Text>
-                    <Text style={[styles.captainName, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                      {players.find((p) => p.id === team.viceCaptainId)?.name || 'N/A'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))
-          )}
-
-          {canEdit && canCreateMore && (
+        <View style={styles.tabBar}>
+          {tabs.map((tab) => (
             <Pressable
+              key={tab.key}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push({ pathname: '/create-team/[matchId]', params: { matchId: match.id } });
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setActiveTab(tab.key);
               }}
-              style={styles.createTeamBtn}
+              style={[
+                styles.tabItem,
+                activeTab === tab.key && { borderBottomColor: colors.accent, borderBottomWidth: 3 },
+              ]}
             >
-              <LinearGradient
-                colors={[colors.accent, colors.accentDark]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.createTeamGradient}
+              <Ionicons
+                name={tab.icon}
+                size={18}
+                color={activeTab === tab.key ? colors.accent : colors.textTertiary}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  {
+                    color: activeTab === tab.key ? colors.accent : colors.textTertiary,
+                    fontFamily: activeTab === tab.key ? 'Inter_700Bold' : 'Inter_500Medium',
+                  },
+                ]}
               >
-                <Ionicons name="add" size={22} color="#000" />
-                <Text style={[styles.createTeamText, { fontFamily: 'Inter_700Bold' }]}>
-                  Create Team
-                </Text>
-              </LinearGradient>
-            </Pressable>
-          )}
-
-          {!canEdit && (
-            <View style={[styles.deadlinePassed, { backgroundColor: colors.error + '15' }]}>
-              <Ionicons name="lock-closed" size={18} color={colors.error} />
-              <Text style={[styles.deadlineText, { color: colors.error, fontFamily: 'Inter_500Medium' }]}>
-                Entry deadline has passed
+                {tab.label}
               </Text>
-            </View>
-          )}
-
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              Players
-            </Text>
-          </View>
-
-          {players.slice(0, 12).map((player) => (
-            <View
-              key={player.id}
-              style={[styles.playerRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            >
-              <View style={styles.playerLeft}>
-                <View style={[styles.roleBadge, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-                  <Text style={[styles.roleText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
-                    {player.role}
-                  </Text>
-                </View>
-                <View>
-                  <View style={styles.playerNameRow}>
-                    <Text style={[styles.playerName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
-                      {player.name}
-                    </Text>
-                    {player.isImpactPlayer && (
-                      <View style={[styles.impactBadge, { backgroundColor: colors.warning + '20' }]}>
-                        <MaterialCommunityIcons name="lightning-bolt" size={10} color={colors.warning} />
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[styles.playerTeam, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-                    {player.teamShort} | {player.credits} Cr
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.playerRight}>
-                <Text style={[styles.playerPoints, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-                  {player.points}
-                </Text>
-                <Text style={[styles.playerPointsLabel, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-                  pts
-                </Text>
-              </View>
-            </View>
+            </Pressable>
           ))}
         </View>
+
+        {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'scorecard' && renderScorecardTab()}
+        {activeTab === 'players' && renderPlayersTab()}
       </ScrollView>
     </View>
   );
@@ -393,6 +710,40 @@ const styles = StyleSheet.create({
   heroVenue: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.6)',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  tabLabel: {
+    fontSize: 13,
+  },
+  liveBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  liveText: {
+    fontSize: 13,
+    color: '#EF4444',
+    letterSpacing: 1,
   },
   contentSection: {
     paddingHorizontal: 16,
@@ -580,5 +931,73 @@ const styles = StyleSheet.create({
   },
   playerPointsLabel: {
     fontSize: 10,
+  },
+  liveScoreBar: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 16,
+    gap: 16,
+  },
+  liveScoreItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  liveScoreInning: {
+    fontSize: 11,
+  },
+  liveScoreValue: {
+    fontSize: 20,
+  },
+  liveScoreOvers: {
+    fontSize: 11,
+  },
+  inningsTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  inningsTab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  inningsTabText: {
+    fontSize: 12,
+  },
+  scorecardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    marginBottom: 4,
+  },
+  scorecardHeaderText: {
+    fontSize: 11,
+    flex: 1,
+    textAlign: 'center',
+  },
+  scorecardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  scorecardName: {
+    fontSize: 13,
+  },
+  scorecardDismissal: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  scorecardStat: {
+    fontSize: 13,
+    flex: 1,
+    textAlign: 'center',
   },
 });
