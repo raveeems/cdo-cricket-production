@@ -127,6 +127,7 @@ export async function fetchUpcomingMatches(): Promise<
     const endpoints = [
       `${CRICKET_API_BASE}/currentMatches?apikey=${apiKey}&offset=0`,
       `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=0`,
+      `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=25`,
     ];
 
     for (const url of endpoints) {
@@ -138,8 +139,9 @@ export async function fetchUpcomingMatches(): Promise<
         }
         const json = (await res.json()) as CricApiResponse<CricApiMatch[]>;
         if (json.status === "success" && json.data) {
+          const epName = url.includes('currentMatches') ? 'currentMatches' : `matches(offset=${url.includes('offset=25') ? '25' : '0'})`;
           console.log(
-            `Cricket API: fetched ${json.data.length} from ${url.includes('currentMatches') ? 'currentMatches' : 'matches'}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`
+            `Cricket API: fetched ${json.data.length} from ${epName}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`
           );
           for (const m of json.data) {
             if (!seenIds.has(m.id)) {
@@ -174,6 +176,14 @@ export async function fetchUpcomingMatches(): Promise<
         if (m.matchStarted && !m.matchEnded) status = "live";
         if (m.matchEnded) status = "completed";
 
+        const nameParts = m.name?.split(",").map((s: string) => s.trim()) || [];
+        let league = nameParts[nameParts.length - 1] || nameParts[0] || "";
+        if (nameParts.length >= 3) {
+          league = nameParts.slice(2).join(", ");
+        } else if (nameParts.length === 2) {
+          league = nameParts[1];
+        }
+
         return {
           externalId: m.id,
           team1,
@@ -185,7 +195,7 @@ export async function fetchUpcomingMatches(): Promise<
           venue: m.venue || "",
           startTime: new Date(m.dateTimeGMT),
           status,
-          league: m.name?.split(",")[0] || "",
+          league,
         };
       });
   } catch (err) {
@@ -230,11 +240,12 @@ export async function syncMatchesFromApi(): Promise<void> {
         });
         created++;
       } else {
-        if (dup.status !== m.status) {
-          await storage.updateMatch(dup.id, { status: m.status });
-        }
-        if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) {
-          await storage.updateMatch(dup.id, { startTime: m.startTime } as any);
+        const updates: Record<string, any> = {};
+        if (dup.status !== m.status) updates.status = m.status;
+        if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
+        if (dup.league !== m.league) updates.league = m.league;
+        if (Object.keys(updates).length > 0) {
+          await storage.updateMatch(dup.id, updates);
         }
       }
     }
