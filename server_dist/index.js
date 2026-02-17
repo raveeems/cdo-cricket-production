@@ -1268,7 +1268,8 @@ async function registerRoutes(app2) {
       const elapsed = now.getTime() - start;
       const effectiveStatus = m.status;
       const teams = await storage.getAllTeamsForMatch(m.id);
-      const participantCount = teams.length;
+      const uniqueUsers = new Set(teams.map((t) => t.userId));
+      const participantCount = uniqueUsers.size;
       const isUpcoming = (effectiveStatus === "upcoming" || effectiveStatus === "delayed") && diff > -THREE_HOURS && diff <= TWENTY_FOUR_HOURS;
       const isLive = effectiveStatus === "live";
       const isDelayed = effectiveStatus === "delayed";
@@ -1299,7 +1300,9 @@ async function registerRoutes(app2) {
     async (req, res) => {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
-      return res.json({ match });
+      const allTeams = await storage.getAllTeamsForMatch(req.params.id);
+      const uniqueUsers = new Set(allTeams.map((t) => t.userId));
+      return res.json({ match: { ...match, spotsFilled: uniqueUsers.size, participantCount: uniqueUsers.size } });
     }
   );
   app2.get(
@@ -1466,13 +1469,17 @@ async function registerRoutes(app2) {
       for (const t of allTeams) {
         if (!allUsers[t.userId]) {
           const u = await storage.getUser(t.userId);
-          allUsers[t.userId] = u?.username || "Unknown";
+          allUsers[t.userId] = {
+            username: u?.username || "Unknown",
+            teamName: u?.teamName || ""
+          };
         }
       }
       if (isLive) {
         const teamsWithInfo = allTeams.map((t) => ({
           ...t,
-          username: allUsers[t.userId] || "Unknown"
+          username: allUsers[t.userId]?.username || "Unknown",
+          userTeamName: allUsers[t.userId]?.teamName || ""
         }));
         return res.json({ teams: teamsWithInfo, visibility: "full" });
       } else {
@@ -1481,10 +1488,11 @@ async function registerRoutes(app2) {
           userId: t.userId,
           matchId: t.matchId,
           name: t.name,
-          username: allUsers[t.userId] || "Unknown",
-          playerIds: t.userId === req.session.userId ? t.playerIds : "HIDDEN",
-          captainId: t.userId === req.session.userId ? t.captainId : "HIDDEN",
-          viceCaptainId: t.userId === req.session.userId ? t.viceCaptainId : "HIDDEN",
+          username: allUsers[t.userId]?.username || "Unknown",
+          userTeamName: allUsers[t.userId]?.teamName || "",
+          playerIds: t.userId === req.session.userId ? t.playerIds : [],
+          captainId: t.userId === req.session.userId ? t.captainId : null,
+          viceCaptainId: t.userId === req.session.userId ? t.viceCaptainId : null,
           totalPoints: t.totalPoints,
           createdAt: t.createdAt
         }));

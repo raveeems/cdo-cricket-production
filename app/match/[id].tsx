@@ -15,10 +15,11 @@ import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
-import { getTimeUntilMatch, canEditTeam, getRoleColor, Match, Player } from '@/lib/mock-data';
+import { getTimeUntilMatch, canEditTeam, getRoleColor, Match, Player, ContestTeam } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/contexts/AuthContext';
 
-type TabKey = 'overview' | 'scorecard' | 'players';
+type TabKey = 'overview' | 'scorecard' | 'players' | 'participants';
 
 interface ScorecardBatter {
   name: string;
@@ -57,10 +58,12 @@ export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, isDark } = useTheme();
   const { getTeamsForMatch, deleteTeam } = useTeams();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [timeLeft, setTimeLeft] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [selectedInning, setSelectedInning] = useState(0);
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
 
   const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
@@ -82,10 +85,17 @@ export default function MatchDetailScreen() {
     refetchInterval: isLiveOrCompleted && matchData?.match?.status === 'live' ? 30000 : false,
   });
 
+  const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string }>({
+    queryKey: ['/api/matches', id, 'teams'],
+    enabled: !!id && activeTab === 'participants',
+  });
+
   const match = matchData?.match;
   const players = playersData?.players || [];
   const userTeams = id ? getTeamsForMatch(id) : [];
   const scorecard = scorecardData?.scorecard;
+  const contestTeams = contestData?.teams || [];
+  const teamsVisibility = contestData?.visibility || 'hidden';
 
   const pickedPlayerNames = new Set<string>();
   for (const team of userTeams) {
@@ -133,6 +143,7 @@ export default function MatchDetailScreen() {
 
   const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { key: 'overview', label: 'Overview', icon: 'grid-outline' },
+    { key: 'participants', label: 'Contest', icon: 'trophy-outline' },
     { key: 'scorecard', label: 'Scorecard', icon: 'stats-chart-outline' },
     { key: 'players', label: 'Players', icon: 'people-outline' },
   ];
@@ -162,7 +173,7 @@ export default function MatchDetailScreen() {
           </View>
           <View style={styles.contestMeta}>
             <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-              {match.spotsFilled}/{match.spotsTotal} joined
+              {match.spotsFilled} joined
             </Text>
             <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
               Entry: {match.entryFee} coins
@@ -488,6 +499,173 @@ export default function MatchDetailScreen() {
     );
   };
 
+  const renderParticipantsTab = () => {
+    const grouped: Record<string, { username: string; userTeamName: string; teams: ContestTeam[] }> = {};
+    for (const t of contestTeams) {
+      if (!grouped[t.userId]) {
+        grouped[t.userId] = { username: t.username, userTeamName: t.userTeamName, teams: [] };
+      }
+      grouped[t.userId].teams.push(t);
+    }
+    const participants = Object.entries(grouped);
+    const canViewDetails = teamsVisibility === 'full';
+
+    if (participants.length === 0) {
+      return (
+        <View style={[styles.contentSection, { alignItems: 'center', paddingTop: 40 }]}>
+          <Ionicons name="people-outline" size={48} color={colors.textTertiary} />
+          <Text style={[styles.noTeamsText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium', marginTop: 12 }]}>
+            No one has joined this contest yet
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.contentSection}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            {participants.length} {participants.length === 1 ? 'Participant' : 'Participants'}
+          </Text>
+        </View>
+
+        {!canViewDetails && (
+          <View style={[styles.visibilityNote, { backgroundColor: colors.primary + '15' }]}>
+            <Ionicons name="lock-closed-outline" size={14} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_500Medium' as const, flex: 1 }}>
+              Team details will be visible after the first ball is bowled
+            </Text>
+          </View>
+        )}
+
+        {participants.map(([userId, data]) => {
+          const isCurrentUser = userId === user?.id;
+          return (
+            <View key={userId} style={[styles.participantCard, { backgroundColor: colors.card, borderColor: isCurrentUser ? colors.accent + '60' : colors.cardBorder }]}>
+              <View style={styles.participantHeader}>
+                <View style={styles.participantInfo}>
+                  <View style={[styles.participantAvatar, { backgroundColor: isCurrentUser ? colors.accent + '20' : colors.primary + '20' }]}>
+                    <Text style={{ color: isCurrentUser ? colors.accent : colors.primary, fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>
+                      {data.username[0]?.toUpperCase() || '?'}
+                    </Text>
+                  </View>
+                  <View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>
+                        {data.userTeamName || data.username}
+                      </Text>
+                      {isCurrentUser && (
+                        <View style={[styles.youBadge, { backgroundColor: colors.accent + '20' }]}>
+                          <Text style={{ color: colors.accent, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>YOU</Text>
+                        </View>
+                      )}
+                    </View>
+                    {data.userTeamName ? (
+                      <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                        @{data.username}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={[styles.teamCountBadge, { backgroundColor: colors.surface }]}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>
+                    {data.teams.length} {data.teams.length === 1 ? 'team' : 'teams'}
+                  </Text>
+                </View>
+              </View>
+
+              {data.teams.map((team) => {
+                const isExpanded = expandedTeamId === team.id && canViewDetails;
+                const teamPlayers = isExpanded ? team.playerIds.map(pid => players.find(p => p.id === pid)).filter(Boolean) : [];
+                const captain = isExpanded ? players.find(p => p.id === team.captainId) : null;
+                const viceCaptain = isExpanded ? players.find(p => p.id === team.viceCaptainId) : null;
+
+                return (
+                  <Pressable
+                    key={team.id}
+                    onPress={() => {
+                      if (canViewDetails) {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setExpandedTeamId(expandedTeamId === team.id ? null : team.id);
+                      }
+                    }}
+                    style={[styles.contestTeamRow, { borderTopColor: colors.border }]}
+                  >
+                    <View style={styles.contestTeamHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name="shield-outline" size={16} color={colors.textSecondary} />
+                        <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }}>
+                          {team.name}
+                        </Text>
+                      </View>
+                      {canViewDetails && (
+                        <Ionicons
+                          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={16}
+                          color={colors.textTertiary}
+                        />
+                      )}
+                    </View>
+
+                    {isExpanded && teamPlayers.length > 0 && (
+                      <View style={[styles.expandedTeamDetails, { backgroundColor: colors.surface }]}>
+                        {captain && (
+                          <View style={styles.cvRow}>
+                            <View style={[styles.cvBadge, { backgroundColor: colors.accent + '20' }]}>
+                              <Text style={{ color: colors.accent, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>C</Text>
+                            </View>
+                            <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const }}>{captain.name}</Text>
+                            <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>({captain.teamShort})</Text>
+                          </View>
+                        )}
+                        {viceCaptain && (
+                          <View style={styles.cvRow}>
+                            <View style={[styles.cvBadge, { backgroundColor: colors.primary + '20' }]}>
+                              <Text style={{ color: colors.primary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>VC</Text>
+                            </View>
+                            <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const }}>{viceCaptain.name}</Text>
+                            <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>({viceCaptain.teamShort})</Text>
+                          </View>
+                        )}
+                        <View style={{ height: 8 }} />
+                        {teamPlayers.map((p) => {
+                          if (!p) return null;
+                          const isCaptain = p.id === team.captainId;
+                          const isVC = p.id === team.viceCaptainId;
+                          return (
+                            <View key={p.id} style={styles.expandedPlayerRow}>
+                              <View style={[styles.miniRoleBadge, { backgroundColor: getRoleColor(p.role, isDark) + '20' }]}>
+                                <Text style={{ color: getRoleColor(p.role, isDark), fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>{p.role}</Text>
+                              </View>
+                              <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const, flex: 1 }} numberOfLines={1}>
+                                {p.name}
+                              </Text>
+                              <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>{p.teamShort}</Text>
+                              {isCaptain && (
+                                <View style={[styles.miniCVBadge, { backgroundColor: colors.accent + '30' }]}>
+                                  <Text style={{ color: colors.accent, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>C</Text>
+                                </View>
+                              )}
+                              {isVC && (
+                                <View style={[styles.miniCVBadge, { backgroundColor: colors.primary + '30' }]}>
+                                  <Text style={{ color: colors.primary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>VC</Text>
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
   const renderPlayersTab = () => {
     const playingXI = players.filter((p) => p.isPlayingXI);
     const bench = players.filter((p) => !p.isPlayingXI);
@@ -692,6 +870,7 @@ export default function MatchDetailScreen() {
         </View>
 
         {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'participants' && renderParticipantsTab()}
         {activeTab === 'scorecard' && renderScorecardTab()}
         {activeTab === 'players' && renderPlayersTab()}
       </ScrollView>
@@ -1085,5 +1264,98 @@ const styles = StyleSheet.create({
   },
   playingXIText: {
     fontSize: 12,
+  },
+  visibilityNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  participantCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  participantHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  participantInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  participantAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  youBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  teamCountBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  contestTeamRow: {
+    borderTopWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  contestTeamHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  expandedTeamDetails: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 10,
+    gap: 6,
+  },
+  cvRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  cvBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandedPlayerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  miniRoleBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    minWidth: 30,
+    alignItems: 'center',
+  },
+  miniCVBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
   },
 });
