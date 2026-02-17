@@ -17,6 +17,87 @@ import Animated, {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+const PHRASES = [
+  { text: 'Vettu', size: 16, color: '#FFD700' },
+  { text: 'Cha', size: 14, color: '#FF6B6B' },
+  { text: 'Vettu Kili', size: 15, color: '#4ECDC4' },
+  { text: 'RCB fan daa', size: 13, color: '#EE1C25' },
+  { text: 'Kholi fan daa', size: 12, color: '#1A6FBF' },
+  { text: 'Thala', size: 18, color: '#FFD700' },
+  { text: 'Jadeja all rounder?', size: 11, color: '#2ECC71' },
+  { text: 'Best captain ever', size: 12, color: '#E67E22' },
+  { text: 'Star the message', size: 11, color: '#9B59B6' },
+  { text: 'Evolo sambathichi enna panna pora', size: 10, color: '#FF69B4' },
+];
+
+const PHRASE_POSITIONS = [
+  { top: '8%', left: '5%', rotate: '-12deg' },
+  { top: '12%', right: '8%', rotate: '8deg' },
+  { top: '22%', left: '2%', rotate: '-5deg' },
+  { top: '18%', right: '3%', rotate: '15deg' },
+  { top: '68%', left: '4%', rotate: '10deg' },
+  { top: '75%', right: '5%', rotate: '-8deg' },
+  { top: '62%', right: '2%', rotate: '6deg' },
+  { top: '82%', left: '8%', rotate: '-10deg' },
+  { top: '88%', right: '10%', rotate: '12deg' },
+  { top: '55%', left: '1%', rotate: '-15deg' },
+];
+
+function FloatingPhrase({ phrase, position, index }: {
+  phrase: typeof PHRASES[0];
+  position: typeof PHRASE_POSITIONS[0];
+  index: number;
+}) {
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.5);
+  const translateY = useSharedValue(15);
+
+  useEffect(() => {
+    const delay = 600 + index * 150;
+    opacity.value = withDelay(delay, withSequence(
+      withTiming(0.85, { duration: 400 }),
+      withDelay(1200 - index * 80, withTiming(0, { duration: 500 })),
+    ));
+    scale.value = withDelay(delay, withSpring(1, { damping: 10, stiffness: 100 }));
+    translateY.value = withDelay(delay, withSpring(0, { damping: 12 }));
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      { scale: scale.value },
+      { translateY: translateY.value },
+    ],
+  }));
+
+  const posStyle: any = {
+    position: 'absolute' as const,
+    ...(position.top ? { top: position.top } : {}),
+    ...(position.left ? { left: position.left } : {}),
+    ...(position.right ? { right: position.right } : {}),
+  };
+
+  return (
+    <Animated.View style={[posStyle, animStyle]}>
+      <View style={[styles.phraseChip, { borderColor: phrase.color + '40' }]}>
+        <Text
+          style={[
+            styles.phraseText,
+            {
+              color: phrase.color,
+              fontSize: phrase.size,
+              fontFamily: 'Inter_600SemiBold',
+              transform: [{ rotate: position.rotate }],
+            },
+          ]}
+        >
+          {phrase.text}
+        </Text>
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function IndexScreen() {
   const { isLoading, isAuthenticated, isVerified } = useAuth();
   const { colors, isDark } = useTheme();
@@ -58,7 +139,7 @@ export default function IndexScreen() {
       withTiming(SCREEN_WIDTH, { duration: 1000, easing: Easing.inOut(Easing.ease) })
     );
 
-    containerOpacity.value = withDelay(2200,
+    containerOpacity.value = withDelay(3400,
       withTiming(0, { duration: 400 }, () => {
         runOnJS(onAnimEnd)();
       })
@@ -115,6 +196,15 @@ export default function IndexScreen() {
       <View style={[styles.glowOrb, styles.glowOrb1, { backgroundColor: colors.primary }]} />
       <View style={[styles.glowOrb, styles.glowOrb2, { backgroundColor: colors.accent }]} />
       <View style={[styles.glowOrb, styles.glowOrb3, { backgroundColor: colors.primary }]} />
+
+      {PHRASES.map((phrase, i) => (
+        <FloatingPhrase
+          key={phrase.text}
+          phrase={phrase}
+          position={PHRASE_POSITIONS[i]}
+          index={i}
+        />
+      ))}
 
       <View style={styles.center}>
         <View style={styles.logoWrapper}>
@@ -198,6 +288,7 @@ const styles = StyleSheet.create({
   center: {
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 10,
   },
   logoWrapper: {
     width: 140,
@@ -264,5 +355,15 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  phraseChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  phraseText: {
+    letterSpacing: 0.5,
   },
 });
