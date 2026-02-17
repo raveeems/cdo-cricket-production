@@ -303,8 +303,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/matches/:id/players",
     isAuthenticated,
     async (req: Request, res: Response) => {
-      const matchPlayers = await storage.getPlayersForMatch(req.params.id);
+      const matchId = req.params.id;
+      let matchPlayers = await storage.getPlayersForMatch(matchId);
+
+      if (matchPlayers.length === 0) {
+        const match = await storage.getMatch(matchId);
+        if (match?.externalId) {
+          try {
+            const { fetchMatchSquad } = await import("./cricket-api");
+            const squad = await fetchMatchSquad(match.externalId);
+            if (squad.length > 0) {
+              const playersToCreate = squad.map((p) => ({
+                matchId,
+                externalId: p.externalId,
+                name: p.name,
+                team: p.team,
+                teamShort: p.teamShort,
+                role: p.role,
+                credits: p.credits,
+              }));
+              await storage.bulkCreatePlayers(playersToCreate);
+              matchPlayers = await storage.getPlayersForMatch(matchId);
+              console.log(`Auto-fetched ${matchPlayers.length} players for match ${matchId}`);
+            }
+          } catch (err) {
+            console.error("Auto-fetch squad error:", err);
+          }
+        }
+      }
+
       return res.json({ players: matchPlayers });
+    }
+  );
+
+  app.post(
+    "/api/matches/:id/sync-scorecard",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      const matchId = req.params.id;
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
+
+      try {
+        const { fetchMatchScorecard } = await import("./cricket-api");
+        const pointsMap = await fetchMatchScorecard(match.externalId);
+
+        if (pointsMap.size === 0) {
+          return res.json({ message: "No scorecard data available yet", updated: 0 });
+        }
+
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        let updated = 0;
+        for (const player of matchPlayers) {
+          if (player.externalId && pointsMap.has(player.externalId)) {
+            const pts = pointsMap.get(player.externalId)!;
+            await storage.updatePlayer(player.id, { points: pts });
+            updated++;
+          }
+        }
+
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        for (const team of allTeams) {
+          const teamPlayerIds = team.playerIds as string[];
+          let totalPoints = 0;
+          for (const pid of teamPlayerIds) {
+            const p = matchPlayers.find((mp) => mp.id === pid);
+            if (p && p.externalId) {
+              let pts = pointsMap.get(p.externalId) || 0;
+              if (pid === team.captainId) pts *= 2;
+              else if (pid === team.viceCaptainId) pts *= 1.5;
+              totalPoints += pts;
+            }
+          }
+          await storage.updateUserTeamPoints(team.id, totalPoints);
+        }
+
+        return res.json({ message: `Updated ${updated} player scores`, updated });
+      } catch (err: any) {
+        console.error("Scorecard sync error:", err);
+        return res.status(500).json({ message: "Failed to sync scorecard" });
+      }
     }
   );
 

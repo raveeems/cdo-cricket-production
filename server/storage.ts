@@ -123,6 +123,10 @@ export class DatabaseStorage {
     await db.insert(players).values(data as any);
   }
 
+  async updatePlayer(id: string, data: Partial<Player>): Promise<void> {
+    await db.update(players).set(data as any).where(eq(players.id, id));
+  }
+
   // User Teams
   async getUserTeamsForMatch(userId: string, matchId: string): Promise<UserTeam[]> {
     return db
@@ -155,6 +159,10 @@ export class DatabaseStorage {
     await db
       .delete(userTeams)
       .where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId)));
+  }
+
+  async updateUserTeamPoints(teamId: string, totalPoints: number): Promise<void> {
+    await db.update(userTeams).set({ totalPoints }).where(eq(userTeams.id, teamId));
   }
 }
 
