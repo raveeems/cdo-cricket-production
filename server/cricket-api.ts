@@ -744,3 +744,75 @@ export async function fetchMatchScorecard(
     return pointsMap;
   }
 }
+
+export async function fetchLiveScorecard(externalMatchId: string): Promise<{
+  score: Array<{ r: number; w: number; o: number; inning: string }>;
+  innings: Array<{
+    inning: string;
+    batting: Array<{
+      name: string;
+      r: number;
+      b: number;
+      fours: number;
+      sixes: number;
+      sr: number;
+      dismissal: string;
+      fantasyPoints: number;
+    }>;
+    bowling: Array<{
+      name: string;
+      o: number;
+      m: number;
+      r: number;
+      w: number;
+      eco: number;
+      fantasyPoints: number;
+    }>;
+  }>;
+  status: string;
+} | null> {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as CricApiResponse<ScorecardData>;
+    if (json.status !== "success" || !json.data) return null;
+
+    const scorecard = json.data.scorecard || [];
+    const innings = scorecard.map((inn) => ({
+      inning: inn.inning,
+      batting: (inn.batting || []).map((b) => ({
+        name: b.batsman?.name || "",
+        r: b.r,
+        b: b.b,
+        fours: b["4s"],
+        sixes: b["6s"],
+        sr: b.sr,
+        dismissal: b.dismissal || "not out",
+        fantasyPoints: b.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0,
+      })),
+      bowling: (inn.bowling || []).map((b) => ({
+        name: b.bowler?.name || "",
+        o: b.o,
+        m: b.m,
+        r: b.r,
+        w: b.w,
+        eco: b.eco,
+        fantasyPoints: b.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0,
+      })),
+    }));
+
+    return {
+      score: json.data.score || [],
+      innings,
+      status: json.data.name || "",
+    };
+  } catch (err) {
+    console.error("Live scorecard error:", err);
+    return null;
+  }
+}

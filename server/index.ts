@@ -249,6 +249,14 @@ function setupErrorHandler(app: express.Application) {
       syncMatchesFromApi().catch((err) => {
         console.error("Initial match sync failed:", err);
       });
+
+      const TWO_HOURS = 2 * 60 * 60 * 1000;
+      setInterval(() => {
+        log("Periodic match sync (every 2 hours)...");
+        syncMatchesFromApi().catch((err) => {
+          console.error("Periodic match sync failed:", err);
+        });
+      }, TWO_HOURS);
     },
   );
 })();
