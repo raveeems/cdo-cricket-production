@@ -1022,6 +1022,9 @@ function isAuthenticated(req, res, next) {
       req.session.userId = userId;
       return next();
     }
+    console.log(`Auth failed: Bearer token invalid for ${req.path}`);
+  } else {
+    console.log(`Auth failed: No session or bearer token for ${req.path}, auth header: ${authHeader || "none"}`);
   }
   return res.status(401).json({ message: "Not authenticated" });
 }

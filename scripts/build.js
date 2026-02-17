@@ -555,9 +555,11 @@ async function main() {
   console.log("Building web export...");
   try {
     const { execSync } = require("child_process");
+    const webEnv = { ...process.env };
+    delete webEnv.EXPO_PUBLIC_DOMAIN;
     execSync("npx expo export --platform web --output-dir dist/web", {
       stdio: "inherit",
-      env: { ...process.env, EXPO_PUBLIC_DOMAIN: domain },
+      env: webEnv,
     });
     console.log("Web export complete");
     const webSrc = path.resolve("dist", "web");
