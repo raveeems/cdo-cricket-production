@@ -991,7 +991,9 @@ init_storage();
 init_cricket_api();
 import { createServer } from "node:http";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { createHmac } from "crypto";
+import pg2 from "pg";
 var ADMIN_PHONES = ["9840872462", "9884334973"];
 var TOKEN_SECRET = process.env.SESSION_SECRET || "cdo-session-secret-dev";
 function generateAuthToken(userId) {
@@ -1039,8 +1041,17 @@ async function isAdmin(req, res, next) {
   next();
 }
 async function registerRoutes(app2) {
+  const PgStore = connectPgSimple(session);
+  const sessionPool = new pg2.Pool({
+    connectionString: process.env.DATABASE_URL
+  });
   app2.use(
     session({
+      store: new PgStore({
+        pool: sessionPool,
+        tableName: "session",
+        createTableIfMissing: true
+      }),
       secret: process.env.SESSION_SECRET || "cdo-session-secret-dev",
       resave: false,
       saveUninitialized: false,
@@ -1075,7 +1086,7 @@ async function registerRoutes(app2) {
       const isAdminUser = ADMIN_PHONES.includes(phone);
       const user = await storage.createUser({
         username,
-        email,
+        email: email || null,
         phone: phone || "",
         password
       });
