@@ -328,7 +328,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const effectiveStatus = m.status;
 
       const teams = await storage.getAllTeamsForMatch(m.id);
-      const participantCount = teams.length;
+      const uniqueUsers = new Set(teams.map(t => t.userId));
+      const participantCount = uniqueUsers.size;
 
       const isUpcoming = (effectiveStatus === "upcoming" || effectiveStatus === "delayed") && diff > -THREE_HOURS && diff <= TWENTY_FOUR_HOURS;
       const isLive = effectiveStatus === "live";
