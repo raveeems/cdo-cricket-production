@@ -82,8 +82,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       secret: process.env.SESSION_SECRET || "cdo-session-secret-dev",
       resave: false,
       saveUninitialized: false,
+      proxy: true,
       cookie: {
-        secure: false,
+        secure: "auto" as any,
         httpOnly: true,
         maxAge: 7 * 24 * 60 * 60 * 1000,
         sameSite: "lax",

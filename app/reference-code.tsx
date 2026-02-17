@@ -17,7 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ReferenceCodeScreen() {
-  const { verifyReferenceCode, logout, isVerified } = useAuth();
+  const { verifyReferenceCode, logout, isVerified, isAuthenticated } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [code, setCode] = useState('');
@@ -61,8 +61,14 @@ export default function ReferenceCodeScreen() {
           router.replace('/(tabs)');
         }, 600);
       } else {
-        setError('Invalid code. Please try again.');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        if (!isAuthenticated) {
+          setError('Session expired. Please log in again.');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setTimeout(() => router.replace('/auth'), 1500);
+        } else {
+          setError('Invalid code. Please try again.');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
       }
     } catch (e) {
       setError('Something went wrong');

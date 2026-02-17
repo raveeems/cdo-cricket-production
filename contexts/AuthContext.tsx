@@ -4,7 +4,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { apiRequest, getApiUrl } from '@/lib/query-client';
 
 const fetchFn = Platform.OS === 'web' ? globalThis.fetch.bind(globalThis) : expoFetch;
-import { getAuthToken, setAuthToken, clearAuthToken } from '@/lib/auth-token';
+import { getAuthToken, setAuthToken, clearAuthToken, getCachedToken } from '@/lib/auth-token';
 
 interface User {
   id: string;
@@ -102,13 +102,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyReferenceCode = async (code: string): Promise<boolean> => {
     try {
-      await apiRequest('POST', '/api/auth/verify-code', { code });
+      const baseUrl = getApiUrl();
+      const url = new URL('/api/auth/verify-code', baseUrl);
+      const token = getCachedToken() || await getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetchFn(url.toString(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ code }),
+        credentials: 'include',
+      });
+      if (res.status === 401) {
+        throw new Error('AUTH_FAILED');
+      }
+      if (!res.ok) {
+        return false;
+      }
       if (user) {
         setUser({ ...user, isVerified: true });
       }
       return true;
     } catch (e: any) {
-      console.error('Verify code failed:', e);
+      console.error('Verify code failed:', e?.message || e);
+      if (e?.message === 'AUTH_FAILED') {
+        await clearAuthToken();
+        setUser(null);
+      }
       return false;
     }
   };

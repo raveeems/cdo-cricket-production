@@ -1055,8 +1055,9 @@ async function registerRoutes(app2) {
       secret: process.env.SESSION_SECRET || "cdo-session-secret-dev",
       resave: false,
       saveUninitialized: false,
+      proxy: true,
       cookie: {
-        secure: false,
+        secure: "auto",
         httpOnly: true,
         maxAge: 7 * 24 * 60 * 60 * 1e3,
         sameSite: "lax"
@@ -1797,6 +1798,7 @@ init_storage();
 import * as fs from "fs";
 import * as path from "path";
 var app = express();
+app.set("trust proxy", 1);
 var log = console.log;
 function setupCors(app2) {
   app2.use((req, res, next) => {
