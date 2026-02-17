@@ -43,13 +43,9 @@ export default function AdminScreen() {
 
   const loadCodes = async () => {
     try {
-      const baseUrl = getApiUrl();
-      const url = new URL('/api/admin/codes', baseUrl);
-      const res = await fetch(url.toString(), { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setCodes(data.codes || []);
-      }
+      const res = await apiRequest('GET', '/api/admin/codes');
+      const data = await res.json();
+      setCodes(data.codes || []);
     } catch (e) {
       console.error('Failed to load codes:', e);
     }
