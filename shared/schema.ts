@@ -40,6 +40,7 @@ export const matches = pgTable("matches", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   externalId: varchar("external_id"),
+  seriesId: varchar("series_id"),
   team1: text("team1").notNull(),
   team1Short: varchar("team1_short", { length: 10 }).notNull(),
   team1Color: varchar("team1_color", { length: 10 }).notNull().default("#333"),

@@ -102,6 +102,7 @@ function getTeamShort(fullName: string): string {
 export async function fetchUpcomingMatches(): Promise<
   Array<{
     externalId: string;
+    seriesId: string;
     team1: string;
     team1Short: string;
     team1Color: string;
@@ -191,6 +192,7 @@ export async function fetchUpcomingMatches(): Promise<
 
         return {
           externalId: m.id,
+          seriesId: m.series_id || "",
           team1,
           team1Short,
           team1Color: getTeamColor(team1Short),
@@ -234,6 +236,7 @@ export async function syncMatchesFromApi(retryCount = 0): Promise<void> {
       if (!dup) {
         await storage.createMatch({
           externalId: m.externalId,
+          seriesId: m.seriesId,
           team1: m.team1,
           team1Short: m.team1Short,
           team1Color: m.team1Color,
@@ -255,6 +258,7 @@ export async function syncMatchesFromApi(retryCount = 0): Promise<void> {
         if (dup.status !== m.status) updates.status = m.status;
         if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
         if (dup.league !== m.league) updates.league = m.league;
+        if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
         if (Object.keys(updates).length > 0) {
           await storage.updateMatch(dup.id, updates);
         }
@@ -363,6 +367,66 @@ function assignCredits(role: string): number {
     case "AR": return 9;
     case "BOWL": return 8.5;
     default: return 8;
+  }
+}
+
+export async function fetchSeriesSquad(
+  seriesId: string
+): Promise<Array<{
+  externalId: string;
+  name: string;
+  team: string;
+  teamShort: string;
+  role: string;
+  credits: number;
+}>> {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const url = `${CRICKET_API_BASE}/series_squad?apikey=${apiKey}&id=${seriesId}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error("Series Squad API error:", res.status);
+      return [];
+    }
+
+    const json = (await res.json()) as CricApiResponse<SquadTeam[]>;
+    if (json.status !== "success" || !json.data) {
+      console.error("Series Squad API non-success:", json.status);
+      return [];
+    }
+
+    console.log(`Series Squad API: fetched ${json.data.length} teams for series ${seriesId}`);
+
+    const allPlayers: Array<{
+      externalId: string;
+      name: string;
+      team: string;
+      teamShort: string;
+      role: string;
+      credits: number;
+    }> = [];
+
+    for (const team of json.data) {
+      if (!team.players) continue;
+      for (const p of team.players) {
+        const role = mapCricApiRole(p.role);
+        allPlayers.push({
+          externalId: p.id,
+          name: p.name,
+          team: team.teamName,
+          teamShort: team.shortname || getTeamShort(team.teamName),
+          role,
+          credits: assignCredits(role),
+        });
+      }
+    }
+
+    return allPlayers;
+  } catch (err) {
+    console.error("Series Squad API error:", err);
+    return [];
   }
 }
 

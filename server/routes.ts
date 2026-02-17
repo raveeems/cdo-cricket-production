@@ -311,8 +311,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const match = await storage.getMatch(matchId);
         if (match?.externalId) {
           try {
-            const { fetchMatchSquad } = await import("./cricket-api");
-            const squad = await fetchMatchSquad(match.externalId);
+            const { fetchMatchSquad, fetchSeriesSquad } = await import("./cricket-api");
+            let squad = await fetchMatchSquad(match.externalId);
+
+            if (squad.length === 0 && match.seriesId) {
+              console.log(`Match squad empty, trying series squad for series ${match.seriesId}...`);
+              const seriesPlayers = await fetchSeriesSquad(match.seriesId);
+              const team1 = match.team1.toLowerCase();
+              const team2 = match.team2.toLowerCase();
+              squad = seriesPlayers.filter((p) => {
+                const pTeam = p.team.toLowerCase();
+                return pTeam === team1 || pTeam === team2 ||
+                  pTeam.includes(team1) || team1.includes(pTeam) ||
+                  pTeam.includes(team2) || team2.includes(pTeam);
+              });
+              if (squad.length > 0) {
+                console.log(`Found ${squad.length} players from series squad for ${match.team1} vs ${match.team2}`);
+              }
+            }
+
             if (squad.length > 0) {
               const playersToCreate = squad.map((p) => ({
                 matchId,
@@ -546,6 +563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!dup) {
             await storage.createMatch({
               externalId: m.externalId,
+              seriesId: m.seriesId,
               team1: m.team1,
               team1Short: m.team1Short,
               team1Color: m.team1Color,
@@ -567,6 +585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (dup.status !== m.status) updates.status = m.status;
             if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
             if (dup.league !== m.league) updates.league = m.league;
+            if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
             if (Object.keys(updates).length > 0) {
               await storage.updateMatch(dup.id, updates);
               updated++;
