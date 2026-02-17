@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { fetch } from 'expo/fetch';
 import { apiRequest, getApiUrl } from '@/lib/query-client';
+import { getAuthToken, setAuthToken, clearAuthToken } from '@/lib/auth-token';
 
 interface User {
   id: string;
@@ -37,10 +38,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUser = async () => {
     try {
+      const token = await getAuthToken();
       const baseUrl = getApiUrl();
       const url = new URL('/api/auth/me', baseUrl);
-      const res = await fetch(url.toString(), { credentials: 'include' });
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch(url.toString(), {
+        credentials: 'include',
+        headers,
+      });
       if (res.status === 401) {
+        await clearAuthToken();
         setUser(null);
         return;
       }
@@ -59,6 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiRequest('POST', '/api/auth/login', { email, password });
       const data = await res.json();
+      if (data.token) {
+        await setAuthToken(data.token);
+      }
       setUser(data.user);
       return true;
     } catch (e: any) {
@@ -71,6 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiRequest('POST', '/api/auth/signup', { username, email, phone, password });
       const data = await res.json();
+      if (data.token) {
+        await setAuthToken(data.token);
+      }
       setUser(data.user);
       return true;
     } catch (e: any) {
@@ -98,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error('Logout failed:', e);
     }
+    await clearAuthToken();
     setUser(null);
   };
 
