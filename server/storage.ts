@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { db } from "./db";
 import {
   users,
@@ -184,6 +184,41 @@ export class DatabaseStorage {
 
   async updateUserTeamPoints(teamId: string, totalPoints: number): Promise<void> {
     await db.update(userTeams).set({ totalPoints }).where(eq(userTeams.id, teamId));
+  }
+
+  async getLeaderboard(): Promise<{
+    rank: number;
+    userId: string;
+    username: string;
+    teamName: string | null;
+    totalPoints: number;
+    matchesPlayed: number;
+    teamsCreated: number;
+  }[]> {
+    const result = await db
+      .select({
+        userId: users.id,
+        username: users.username,
+        teamName: users.teamName,
+        totalPoints: sql<number>`COALESCE(SUM(${userTeams.totalPoints}), 0)`.as('total_points_sum'),
+        matchesPlayed: sql<number>`COUNT(DISTINCT ${userTeams.matchId})`.as('matches_played'),
+        teamsCreated: sql<number>`COUNT(${userTeams.id})`.as('teams_created'),
+      })
+      .from(users)
+      .leftJoin(userTeams, eq(users.id, userTeams.userId))
+      .where(eq(users.isVerified, true))
+      .groupBy(users.id, users.username, users.teamName)
+      .orderBy(desc(sql`total_points_sum`));
+
+    return result.map((row, index) => ({
+      rank: index + 1,
+      userId: row.userId,
+      username: row.username,
+      teamName: row.teamName,
+      totalPoints: Number(row.totalPoints),
+      matchesPlayed: Number(row.matchesPlayed),
+      teamsCreated: Number(row.teamsCreated),
+    }));
   }
 }
 

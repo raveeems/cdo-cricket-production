@@ -696,6 +696,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- LEADERBOARD ----
+  app.get("/api/leaderboard", isAuthenticated, async (_req: Request, res: Response) => {
+    try {
+      const leaderboard = await storage.getLeaderboard();
+      return res.json(leaderboard);
+    } catch (e: any) {
+      return res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+
   // ---- SERVER TIME ----
   app.get("/api/server-time", (_req: Request, res: Response) => {
     return res.json({ serverTime: new Date().toISOString() });
