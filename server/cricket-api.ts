@@ -287,6 +287,54 @@ export async function fetchMatchInfo(
   }
 }
 
+let lastStatusRefresh = 0;
+const STATUS_REFRESH_INTERVAL = 5 * 60 * 1000;
+
+export async function refreshStaleMatchStatuses(): Promise<void> {
+  const now = Date.now();
+  if (now - lastStatusRefresh < STATUS_REFRESH_INTERVAL) return;
+  lastStatusRefresh = now;
+
+  const { storage } = await import("./storage");
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return;
+
+  const allMatches = await storage.getAllMatches();
+  const staleMatches = allMatches.filter((m) => {
+    if (m.status === "completed") return false;
+    const start = new Date(m.startTime).getTime();
+    const elapsed = now - start;
+    if (m.status === "live") return true;
+    if (m.status === "upcoming" && elapsed > 0) return true;
+    return false;
+  });
+
+  if (staleMatches.length === 0) return;
+  console.log(`Refreshing status for ${staleMatches.length} active/stale matches...`);
+
+  for (const m of staleMatches) {
+    if (!m.externalId) continue;
+    try {
+      const info = await fetchMatchInfo(m.externalId);
+      if (!info) continue;
+
+      let newStatus = m.status;
+      if (info.matchEnded) {
+        newStatus = "completed";
+      } else if (info.matchStarted && !info.matchEnded) {
+        newStatus = "live";
+      }
+
+      if (newStatus !== m.status) {
+        await storage.updateMatch(m.id, { status: newStatus });
+        console.log(`Updated ${m.team1} vs ${m.team2}: ${m.status} -> ${newStatus}`);
+      }
+    } catch (err) {
+      console.error(`Failed to refresh status for match ${m.id}:`, err);
+    }
+  }
+}
+
 interface SquadPlayer {
   id: string;
   name: string;

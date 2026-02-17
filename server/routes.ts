@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-import { fetchUpcomingMatches } from "./cricket-api";
+import { fetchUpcomingMatches, refreshStaleMatchStatuses } from "./cricket-api";
 import session from "express-session";
 import { randomUUID } from "crypto";
 
@@ -240,6 +240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ---- MATCHES ----
   app.get("/api/matches", isAuthenticated, async (_req: Request, res: Response) => {
+    try { await refreshStaleMatchStatuses(); } catch (e) { console.error("Status refresh error:", e); }
     const allMatches = await storage.getAllMatches();
     const now = new Date();
     const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
@@ -537,9 +538,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const apiMatches = await fetchUpcomingMatches();
         let created = 0;
+        let updated = 0;
+        const existing = await storage.getAllMatches();
 
         for (const m of apiMatches) {
-          const existing = await storage.getAllMatches();
           const dup = existing.find((e) => e.externalId === m.externalId);
           if (!dup) {
             await storage.createMatch({
@@ -560,13 +562,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
               spotsFilled: 0,
             });
             created++;
+          } else {
+            const updates: Record<string, any> = {};
+            if (dup.status !== m.status) updates.status = m.status;
+            if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
+            if (dup.league !== m.league) updates.league = m.league;
+            if (Object.keys(updates).length > 0) {
+              await storage.updateMatch(dup.id, updates);
+              updated++;
+            }
           }
         }
 
+        await refreshStaleMatchStatuses();
+
         return res.json({
           synced: created,
+          updated,
           total: apiMatches.length,
-          message: `Synced ${created} new matches from Cricket API`,
+          message: `Synced ${created} new, updated ${updated} existing matches from Cricket API`,
         });
       } catch (err: any) {
         console.error("Sync error:", err);
