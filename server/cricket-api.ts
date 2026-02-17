@@ -172,6 +172,57 @@ export async function fetchUpcomingMatches(): Promise<
   }
 }
 
+export async function syncMatchesFromApi(): Promise<void> {
+  const { storage } = await import("./storage");
+  
+  console.log("Auto-syncing matches from Cricket API...");
+  try {
+    const apiMatches = await fetchUpcomingMatches();
+    if (apiMatches.length === 0) {
+      console.log("No matches returned from Cricket API (check API key)");
+      return;
+    }
+
+    const existing = await storage.getAllMatches();
+    let created = 0;
+
+    for (const m of apiMatches) {
+      const dup = existing.find((e) => e.externalId === m.externalId);
+      if (!dup) {
+        await storage.createMatch({
+          externalId: m.externalId,
+          team1: m.team1,
+          team1Short: m.team1Short,
+          team1Color: m.team1Color,
+          team2: m.team2,
+          team2Short: m.team2Short,
+          team2Color: m.team2Color,
+          venue: m.venue,
+          startTime: m.startTime,
+          status: m.status,
+          league: m.league,
+          totalPrize: "0",
+          entryFee: 0,
+          spotsTotal: 100,
+          spotsFilled: 0,
+        });
+        created++;
+      } else {
+        if (dup.status !== m.status) {
+          await storage.updateMatch(dup.id, { status: m.status });
+        }
+        if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) {
+          await storage.updateMatch(dup.id, { startTime: m.startTime } as any);
+        }
+      }
+    }
+
+    console.log(`Cricket API sync: ${created} new matches added, ${apiMatches.length} total from API`);
+  } catch (err) {
+    console.error("Auto-sync failed:", err);
+  }
+}
+
 export async function fetchMatchInfo(
   matchId: string
 ): Promise<CricApiMatch | null> {

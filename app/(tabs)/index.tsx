@@ -17,7 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/contexts/TeamContext';
-import { getTimeUntilMatch, isMatchVisible, Match } from '@/lib/mock-data';
+import { getTimeUntilMatch, Match } from '@/lib/mock-data';
 import { queryClient } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -55,12 +55,27 @@ function MatchCard({ match, teamsCount }: { match: Match; teamsCount: number }) 
             {match.league}
           </Text>
         </View>
-        <View style={styles.timerContainer}>
-          <Ionicons name="time-outline" size={14} color={colors.accent} />
-          <Text style={[styles.timerText, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
-            {timeLeft}
-          </Text>
-        </View>
+        {match.status === 'live' ? (
+          <View style={[styles.liveBadge, { backgroundColor: colors.error + '20' }]}>
+            <View style={[styles.livePulse, { backgroundColor: colors.error }]} />
+            <Text style={[styles.liveText, { color: colors.error, fontFamily: 'Inter_700Bold' }]}>
+              LIVE
+            </Text>
+          </View>
+        ) : match.status === 'completed' ? (
+          <View style={[styles.liveBadge, { backgroundColor: colors.textTertiary + '20' }]}>
+            <Text style={[styles.liveText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+              Completed
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.timerContainer}>
+            <Ionicons name="time-outline" size={14} color={colors.accent} />
+            <Text style={[styles.timerText, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
+              {timeLeft}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.teamsRow}>
@@ -147,8 +162,7 @@ export default function HomeScreen() {
     queryKey: ['/api/matches'],
   });
 
-  const allMatches = data?.matches || [];
-  const visibleMatches = allMatches.filter((m) => isMatchVisible(m.startTime));
+  const visibleMatches = data?.matches || [];
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -195,14 +209,14 @@ export default function HomeScreen() {
           </View>
 
           <LinearGradient
-            colors={[colors.primary, '#1E40AF']}
+            colors={[colors.primary, '#003D7A']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.bannerCard}
           >
             <View style={styles.bannerContent}>
               <Text style={[styles.bannerTitle, { fontFamily: 'Inter_700Bold' }]}>
-                IPL Season 2026
+                CDO Fantasy Cricket
               </Text>
               <Text style={[styles.bannerSubtitle, { fontFamily: 'Inter_400Regular' }]}>
                 Create your dream team and compete with friends
@@ -213,7 +227,7 @@ export default function HomeScreen() {
 
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              Upcoming Matches
+              Live & Upcoming
             </Text>
             <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
           </View>
@@ -332,9 +346,25 @@ const styles = StyleSheet.create({
   leagueText: {
     fontSize: 11,
   },
+  liveBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  livePulse: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  liveText: {
+    fontSize: 12,
+  },
   timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 4,
   },
   timerText: {

@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { syncMatchesFromApi } from "./cricket-api";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -245,6 +246,9 @@ function setupErrorHandler(app: express.Application) {
     },
     () => {
       log(`express server serving on port ${port}`);
+      syncMatchesFromApi().catch((err) => {
+        console.error("Initial match sync failed:", err);
+      });
     },
   );
 })();

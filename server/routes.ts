@@ -243,8 +243,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const allMatches = await storage.getAllMatches();
     const now = new Date();
     const visible = allMatches.filter((m) => {
-      const diff = new Date(m.startTime).getTime() - now.getTime();
+      const start = new Date(m.startTime).getTime();
+      const diff = start - now.getTime();
+      if (m.status === "live") return true;
+      const completedAgo = now.getTime() - start;
+      if (m.status === "completed" && completedAgo <= 24 * 60 * 60 * 1000) return true;
       return diff > 0 && diff <= 48 * 60 * 60 * 1000;
+    });
+    visible.sort((a, b) => {
+      const order: Record<string, number> = { live: 0, upcoming: 1, completed: 2 };
+      const oa = order[a.status] ?? 1;
+      const ob = order[b.status] ?? 1;
+      if (oa !== ob) return oa - ob;
+      return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
     });
     return res.json({ matches: visible });
   });
