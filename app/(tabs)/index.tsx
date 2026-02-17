@@ -21,7 +21,11 @@ import { getTimeUntilMatch, Match } from '@/lib/mock-data';
 import { queryClient } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
 
-function MatchCard({ match, teamsCount }: { match: Match; teamsCount: number }) {
+interface MatchWithParticipants extends Match {
+  participantCount?: number;
+}
+
+function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants; teamsCount: number }) {
   const { colors } = useTheme();
   const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(match.startTime));
 
@@ -32,7 +36,7 @@ function MatchCard({ match, teamsCount }: { match: Match; teamsCount: number }) 
     return () => clearInterval(interval);
   }, [match.startTime]);
 
-  const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
+  const participants = match.participantCount ?? 0;
 
   return (
     <Pressable
@@ -41,7 +45,7 @@ function MatchCard({ match, teamsCount }: { match: Match; teamsCount: number }) 
         router.push({ pathname: '/match/[id]', params: { id: match.id } });
       }}
       style={({ pressed }) => [
-        styles.matchCard,
+        styles.compactCard,
         {
           backgroundColor: colors.card,
           borderColor: colors.cardBorder,
@@ -49,107 +53,89 @@ function MatchCard({ match, teamsCount }: { match: Match; teamsCount: number }) 
         },
       ]}
     >
-      <View style={styles.matchHeader}>
-        <View style={[styles.leagueBadge, { backgroundColor: colors.primary + '20' }]}>
-          <Text style={[styles.leagueText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-            {match.league}
-          </Text>
-        </View>
+      <View style={styles.compactTop}>
+        <Text style={[styles.compactLeague, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
+          {match.league}
+        </Text>
         {match.status === 'live' ? (
-          <View style={[styles.liveBadge, { backgroundColor: colors.error + '20' }]}>
-            <View style={[styles.livePulse, { backgroundColor: colors.error }]} />
-            <Text style={[styles.liveText, { color: colors.error, fontFamily: 'Inter_700Bold' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: colors.error + '18' }]}>
+            <View style={[styles.statusDot, { backgroundColor: colors.error }]} />
+            <Text style={[styles.statusText, { color: colors.error, fontFamily: 'Inter_700Bold' }]}>
               LIVE
             </Text>
           </View>
         ) : match.status === 'completed' ? (
-          <View style={[styles.liveBadge, { backgroundColor: colors.textTertiary + '20' }]}>
-            <Text style={[styles.liveText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
-              Completed
+          <View style={[styles.statusBadge, { backgroundColor: colors.textTertiary + '18' }]}>
+            <Text style={[styles.statusText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+              Done
             </Text>
           </View>
         ) : (
-          <View style={styles.timerContainer}>
-            <Ionicons name="time-outline" size={14} color={colors.accent} />
-            <Text style={[styles.timerText, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
+          <View style={styles.timerRow}>
+            <Ionicons name="time-outline" size={12} color={colors.accent} />
+            <Text style={[styles.timerVal, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
               {timeLeft}
             </Text>
           </View>
         )}
       </View>
 
-      <View style={styles.teamsRow}>
-        <View style={styles.teamInfo}>
-          <View style={[styles.teamCircle, { backgroundColor: match.team1Color }]}>
-            <Text style={[styles.teamInitial, { fontFamily: 'Inter_700Bold' }]}>
+      <View style={styles.compactTeams}>
+        <View style={styles.compactTeamSide}>
+          <View style={[styles.compactCircle, { backgroundColor: match.team1Color }]}>
+            <Text style={[styles.compactInitial, { fontFamily: 'Inter_700Bold' }]}>
               {match.team1Short[0]}
             </Text>
           </View>
-          <Text style={[styles.teamShort, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.compactShort, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             {match.team1Short}
           </Text>
-          <Text style={[styles.teamFull, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-            {match.team1}
-          </Text>
         </View>
 
-        <View style={styles.vsContainer}>
-          <Text style={[styles.vsText, { color: colors.textTertiary, fontFamily: 'Inter_700Bold' }]}>
-            VS
-          </Text>
-        </View>
+        <Text style={[styles.compactVs, { color: colors.textTertiary, fontFamily: 'Inter_600SemiBold' }]}>
+          vs
+        </Text>
 
-        <View style={[styles.teamInfo, { alignItems: 'flex-end' }]}>
-          <View style={[styles.teamCircle, { backgroundColor: match.team2Color }]}>
-            <Text style={[styles.teamInitial, { fontFamily: 'Inter_700Bold' }]}>
+        <View style={[styles.compactTeamSide, { alignItems: 'flex-end' as const }]}>
+          <View style={[styles.compactCircle, { backgroundColor: match.team2Color }]}>
+            <Text style={[styles.compactInitial, { fontFamily: 'Inter_700Bold' }]}>
               {match.team2Short[0]}
             </Text>
           </View>
-          <Text style={[styles.teamShort, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.compactShort, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             {match.team2Short}
-          </Text>
-          <Text style={[styles.teamFull, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-            {match.team2}
           </Text>
         </View>
       </View>
 
-      <View style={[styles.matchFooter, { borderTopColor: colors.border }]}>
-        <View style={styles.prizeSection}>
-          <MaterialCommunityIcons name="trophy-variant" size={16} color={colors.accent} />
-          <Text style={[styles.prizeText, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
-            {match.totalPrize}
-          </Text>
-        </View>
-
-        <View style={styles.spotsSection}>
-          <View style={[styles.spotsBar, { backgroundColor: colors.border }]}>
-            <View
-              style={[
-                styles.spotsFill,
-                {
-                  width: `${filledPercent}%`,
-                  backgroundColor: filledPercent > 80 ? colors.error : colors.success,
-                },
-              ]}
-            />
-          </View>
-          <Text style={[styles.spotsText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-            {match.spotsTotal - match.spotsFilled} spots left
-          </Text>
-        </View>
-
-        {teamsCount > 0 && (
-          <View style={[styles.teamsBadge, { backgroundColor: colors.success + '20' }]}>
-            <Text style={[styles.teamsCountText, { color: colors.success, fontFamily: 'Inter_600SemiBold' }]}>
-              {teamsCount} team{teamsCount > 1 ? 's' : ''}
+      <View style={[styles.compactBottom, { borderTopColor: colors.border }]}>
+        {participants > 0 && (
+          <View style={styles.participantInfo}>
+            <Ionicons name="people" size={13} color={colors.primary} />
+            <Text style={[styles.participantText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+              {participants} team{participants !== 1 ? 's' : ''}
             </Text>
           </View>
+        )}
+        {teamsCount > 0 && (
+          <View style={[styles.myTeamBadge, { backgroundColor: colors.success + '20' }]}>
+            <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+            <Text style={[styles.myTeamText, { color: colors.success, fontFamily: 'Inter_600SemiBold' }]}>
+              {teamsCount} joined
+            </Text>
+          </View>
+        )}
+        {participants === 0 && teamsCount === 0 && (
+          <Text style={[styles.noParticipants, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+            No entries yet
+          </Text>
         )}
       </View>
     </Pressable>
   );
 }
+
+const AUTO_REFRESH_INTERVAL = 2 * 60 * 60 * 1000;
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -158,8 +144,9 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data, isLoading } = useQuery<{ matches: Match[] }>({
+  const { data, isLoading } = useQuery<{ matches: MatchWithParticipants[] }>({
     queryKey: ['/api/matches'],
+    refetchInterval: AUTO_REFRESH_INTERVAL,
   });
 
   const visibleMatches = data?.matches || [];
@@ -227,7 +214,7 @@ export default function HomeScreen() {
 
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              Live & Upcoming
+              Matches
             </Text>
             <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
           </View>
@@ -243,12 +230,12 @@ export default function HomeScreen() {
                 No matches right now
               </Text>
               <Text style={[styles.emptyDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                Matches appear here 48 hours before they start
+                Matches appear when contests are entered or close to start time
               </Text>
             </View>
           ) : (
             visibleMatches.map((match) => (
-              <MatchCard
+              <CompactMatchCard
                 key={match.id}
                 match={match}
                 teamsCount={getTeamsForMatch(match.id).length}
@@ -324,127 +311,108 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  matchCard: {
-    borderRadius: 16,
+  compactCard: {
+    borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 14,
+    marginBottom: 10,
     overflow: 'hidden',
   },
-  matchHeader: {
+  compactTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 4,
   },
-  leagueBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+  compactLeague: {
+    fontSize: 10,
+    flex: 1,
+    marginRight: 8,
   },
-  leagueText: {
-    fontSize: 11,
-  },
-  liveBadge: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  livePulse: {
-    width: 7,
-    height: 7,
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 4,
   },
-  liveText: {
-    fontSize: 12,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  timerContainer: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 4,
+  statusText: {
+    fontSize: 10,
   },
-  timerText: {
-    fontSize: 13,
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
-  teamsRow: {
+  timerVal: {
+    fontSize: 11,
+  },
+  compactTeams: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  teamInfo: {
+  compactTeamSide: {
     flex: 1,
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
-  teamCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  compactCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  teamInitial: {
-    fontSize: 20,
+  compactInitial: {
+    fontSize: 15,
     color: '#FFF',
   },
-  teamShort: {
-    fontSize: 16,
+  compactShort: {
+    fontSize: 13,
   },
-  teamFull: {
+  compactVs: {
     fontSize: 11,
-    textAlign: 'center',
+    paddingHorizontal: 10,
+    letterSpacing: 1,
   },
-  vsContainer: {
-    paddingHorizontal: 16,
-  },
-  vsText: {
-    fontSize: 14,
-    letterSpacing: 2,
-  },
-  matchFooter: {
+  compactBottom: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderTopWidth: 1,
-    gap: 12,
+    gap: 8,
   },
-  prizeSection: {
+  participantInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  prizeText: {
-    fontSize: 14,
-  },
-  spotsSection: {
-    flex: 1,
-    gap: 4,
-  },
-  spotsBar: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  spotsFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  spotsText: {
+  participantText: {
     fontSize: 11,
   },
-  teamsBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  myTeamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  teamsCountText: {
+  myTeamText: {
+    fontSize: 10,
+  },
+  noParticipants: {
     fontSize: 11,
   },
   emptyState: {

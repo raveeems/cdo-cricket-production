@@ -242,22 +242,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/matches", isAuthenticated, async (_req: Request, res: Response) => {
     const allMatches = await storage.getAllMatches();
     const now = new Date();
-    const visible = allMatches.filter((m) => {
+    const ONE_HOUR = 60 * 60 * 1000;
+    const THREE_HOURS = 3 * ONE_HOUR;
+
+    const matchesWithParticipants: { match: typeof allMatches[0]; participantCount: number }[] = [];
+
+    for (const m of allMatches) {
       const start = new Date(m.startTime).getTime();
       const diff = start - now.getTime();
-      if (m.status === "live") return true;
-      const completedAgo = now.getTime() - start;
-      if (m.status === "completed" && completedAgo <= 24 * 60 * 60 * 1000) return true;
-      return diff > 0 && diff <= 48 * 60 * 60 * 1000;
-    });
-    visible.sort((a, b) => {
-      const order: Record<string, number> = { live: 0, upcoming: 1, completed: 2 };
-      const oa = order[a.status] ?? 1;
-      const ob = order[b.status] ?? 1;
+      const elapsed = now.getTime() - start;
+
+      const teams = await storage.getAllTeamsForMatch(m.id);
+      const participantCount = teams.length;
+
+      const isUpcomingSoon = m.status !== "completed" && m.status !== "live" && diff > 0 && diff <= ONE_HOUR;
+      const isRecentlyLive = m.status === "live" && elapsed <= THREE_HOURS;
+      const hasParticipants = participantCount > 0;
+
+      if (hasParticipants || isUpcomingSoon || isRecentlyLive) {
+        matchesWithParticipants.push({ match: m, participantCount });
+      }
+    }
+
+    matchesWithParticipants.sort((a, b) => {
+      if (a.participantCount > 0 && b.participantCount === 0) return -1;
+      if (a.participantCount === 0 && b.participantCount > 0) return 1;
+      const order: Record<string, number> = { upcoming: 0, live: 1, completed: 2 };
+      const oa = order[a.match.status] ?? 1;
+      const ob = order[b.match.status] ?? 1;
       if (oa !== ob) return oa - ob;
-      return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      return new Date(a.match.startTime).getTime() - new Date(b.match.startTime).getTime();
     });
-    return res.json({ matches: visible });
+
+    const result = matchesWithParticipants.map((mp) => ({
+      ...mp.match,
+      participantCount: mp.participantCount,
+    }));
+
+    return res.json({ matches: result });
   });
 
   app.get(
