@@ -149,6 +149,11 @@ export async function fetchUpcomingMatches(): Promise<
               allApiMatches.push(m);
             }
           }
+        } else if ((json as any).reason) {
+          console.log(`Cricket API blocked: ${(json as any).reason} - will retry later`);
+          if ((json as any).reason?.includes("Blocked")) {
+            break;
+          }
         }
       } catch (e) {
         console.error("Cricket API endpoint error:", e);
@@ -204,14 +209,20 @@ export async function fetchUpcomingMatches(): Promise<
   }
 }
 
-export async function syncMatchesFromApi(): Promise<void> {
+export async function syncMatchesFromApi(retryCount = 0): Promise<void> {
   const { storage } = await import("./storage");
   
   console.log("Auto-syncing matches from Cricket API...");
   try {
     const apiMatches = await fetchUpcomingMatches();
     if (apiMatches.length === 0) {
-      console.log("No matches returned from Cricket API (check API key)");
+      if (retryCount < 3) {
+        const delayMin = retryCount === 0 ? 1 : retryCount === 1 ? 5 : 15;
+        console.log(`No matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/3)`);
+        setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1000);
+      } else {
+        console.log("No matches returned from Cricket API after 3 retries");
+      }
       return;
     }
 
