@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   ActivityIndicator,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +19,9 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function AuthScreen() {
   const { login, signup } = useAuth();
@@ -71,6 +76,14 @@ export default function AuthScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LinearGradient
+        colors={isDark ? ['#0A0E1A', '#0D1530', '#0A0E1A'] : ['#F0F2F7', '#E8EBF5', '#F0F2F7']}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <View style={[styles.glowOrb, styles.glowOrb1, { backgroundColor: colors.primary }]} />
+      <View style={[styles.glowOrb, styles.glowOrb2, { backgroundColor: colors.accent }]} />
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -79,165 +92,182 @@ export default function AuthScreen() {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + webTopInset + 40,
+              paddingTop: insets.top + webTopInset + 30,
               paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20),
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.headerSection}>
-            <LinearGradient
-              colors={[colors.primary, colors.accent]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.logoBadge}
-            >
-              <Ionicons name="trophy" size={32} color="#FFF" />
-            </LinearGradient>
+          <Animated.View
+            entering={Platform.OS !== 'web' ? FadeInUp.duration(800).delay(200) : undefined}
+            style={styles.headerSection}
+          >
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('@/assets/images/cdo-logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
             <Text style={[styles.title, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              CDO
+              CDO Cricket
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
               Fantasy Cricket for Your Squad
             </Text>
-          </View>
+          </Animated.View>
 
-          <View style={styles.tabRow}>
-            <Pressable
-              style={[
-                styles.tab,
-                isLogin && { borderBottomColor: colors.accent, borderBottomWidth: 2 },
-              ]}
-              onPress={() => { setIsLogin(true); setError(''); }}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  {
-                    color: isLogin ? colors.accent : colors.textTertiary,
-                    fontFamily: 'Inter_600SemiBold',
-                  },
-                ]}
-              >
-                Log In
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.tab,
-                !isLogin && { borderBottomColor: colors.accent, borderBottomWidth: 2 },
-              ]}
-              onPress={() => { setIsLogin(false); setError(''); }}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  {
-                    color: !isLogin ? colors.accent : colors.textTertiary,
-                    fontFamily: 'Inter_600SemiBold',
-                  },
-                ]}
-              >
-                Sign Up
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.formSection}>
-            {!isLogin && (
-              <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="person-outline" size={20} color={colors.textTertiary} />
-                <TextInput
-                  style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
-                  placeholder="Username"
-                  placeholderTextColor={colors.textTertiary}
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                />
-              </View>
-            )}
-
-            <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="call-outline" size={20} color={colors.textTertiary} />
-              <TextInput
-                style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
-                placeholder="Phone Number"
-                placeholderTextColor={colors.textTertiary}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            {!isLogin && (
-              <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
-                <TextInput
-                  style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
-                  placeholder="Email (optional)"
-                  placeholderTextColor={colors.textTertiary}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-            )}
-
-            <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
-              <TextInput
-                style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
-                placeholder="Password"
-                placeholderTextColor={colors.textTertiary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <Pressable onPress={() => setShowPassword(!showPassword)}>
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={colors.textTertiary}
-                />
-              </Pressable>
-            </View>
-
-            {!!error && (
-              <View style={styles.errorRow}>
-                <Ionicons name="alert-circle" size={16} color={colors.error} />
-                <Text style={[styles.errorText, { color: colors.error, fontFamily: 'Inter_400Regular' }]}>
-                  {error}
-                </Text>
-              </View>
-            )}
-
-            <Pressable
-              onPress={handleSubmit}
-              disabled={loading}
-              style={({ pressed }) => [
-                styles.submitButton,
-                { opacity: pressed || loading ? 0.8 : 1 },
-              ]}
-            >
-              <LinearGradient
-                colors={[colors.accent, colors.accentDark]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.submitGradient}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#000" size="small" />
-                ) : (
-                  <Text style={[styles.submitText, { fontFamily: 'Inter_700Bold' }]}>
-                    {isLogin ? 'Log In' : 'Create Account'}
+          <Animated.View
+            entering={Platform.OS !== 'web' ? FadeInDown.duration(600).delay(400) : undefined}
+          >
+            <View style={[styles.formCard, { backgroundColor: isDark ? 'rgba(19, 24, 41, 0.85)' : 'rgba(255, 255, 255, 0.9)', borderColor: colors.border }]}>
+              <View style={styles.tabRow}>
+                <Pressable
+                  style={[
+                    styles.tab,
+                    isLogin && { backgroundColor: isDark ? 'rgba(255, 215, 0, 0.12)' : 'rgba(0, 85, 165, 0.1)', borderRadius: 10 },
+                  ]}
+                  onPress={() => { setIsLogin(true); setError(''); }}
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      {
+                        color: isLogin ? colors.accent : colors.textTertiary,
+                        fontFamily: 'Inter_600SemiBold',
+                      },
+                    ]}
+                  >
+                    Log In
                   </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.tab,
+                    !isLogin && { backgroundColor: isDark ? 'rgba(255, 215, 0, 0.12)' : 'rgba(0, 85, 165, 0.1)', borderRadius: 10 },
+                  ]}
+                  onPress={() => { setIsLogin(false); setError(''); }}
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      {
+                        color: !isLogin ? colors.accent : colors.textTertiary,
+                        fontFamily: 'Inter_600SemiBold',
+                      },
+                    ]}
+                  >
+                    Sign Up
+                  </Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.formSection}>
+                {!isLogin && (
+                  <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: colors.border }]}>
+                    <Ionicons name="person-outline" size={20} color={colors.textTertiary} />
+                    <TextInput
+                      style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
+                      placeholder="Username"
+                      placeholderTextColor={colors.textTertiary}
+                      value={username}
+                      onChangeText={setUsername}
+                      autoCapitalize="none"
+                    />
+                  </View>
                 )}
-              </LinearGradient>
-            </Pressable>
-          </View>
+
+                <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="call-outline" size={20} color={colors.textTertiary} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
+                    placeholder="Phone Number"
+                    placeholderTextColor={colors.textTertiary}
+                    value={phone}
+                    onChangeText={setPhone}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                {!isLogin && (
+                  <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: colors.border }]}>
+                    <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
+                    <TextInput
+                      style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
+                      placeholder="Email (optional)"
+                      placeholderTextColor={colors.textTertiary}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                )}
+
+                <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
+                    placeholder="Password"
+                    placeholderTextColor={colors.textTertiary}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={20}
+                      color={colors.textTertiary}
+                    />
+                  </Pressable>
+                </View>
+
+                {!!error && (
+                  <View style={styles.errorRow}>
+                    <Ionicons name="alert-circle" size={16} color={colors.error} />
+                    <Text style={[styles.errorText, { color: colors.error, fontFamily: 'Inter_400Regular' }]}>
+                      {error}
+                    </Text>
+                  </View>
+                )}
+
+                <Pressable
+                  onPress={handleSubmit}
+                  disabled={loading}
+                  style={({ pressed }) => [
+                    styles.submitButton,
+                    { opacity: pressed || loading ? 0.8 : 1 },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.accent, colors.accentDark]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.submitGradient}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#000" size="small" />
+                    ) : (
+                      <Text style={[styles.submitText, { fontFamily: 'Inter_700Bold' }]}>
+                        {isLogin ? 'Log In' : 'Create Account'}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </View>
+          </Animated.View>
+
+          <Animated.View
+            entering={Platform.OS !== 'web' ? FadeInUp.duration(500).delay(700) : undefined}
+            style={styles.footer}
+          >
+            <Text style={[styles.footerText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+              Private league - Invite only
+            </Text>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -248,42 +278,76 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  glowOrb: {
+    position: 'absolute',
+    borderRadius: 200,
+    opacity: 0.08,
+  },
+  glowOrb1: {
+    width: 300,
+    height: 300,
+    top: -80,
+    right: -60,
+  },
+  glowOrb2: {
+    width: 250,
+    height: 250,
+    bottom: 60,
+    left: -80,
+  },
   scrollContent: {
     paddingHorizontal: 24,
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
   },
-  logoBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  logoContainer: {
+    width: 110,
+    height: 110,
+    borderRadius: 28,
+    overflow: 'hidden',
     marginBottom: 16,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   title: {
-    fontSize: 36,
-    letterSpacing: 4,
-    marginBottom: 8,
+    fontSize: 32,
+    letterSpacing: 3,
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     textAlign: 'center',
+  },
+  formCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    ...(Platform.OS === 'web' ? { backdropFilter: 'blur(10px)' } : {}),
   },
   tabRow: {
     flexDirection: 'row',
-    marginBottom: 28,
-    gap: 24,
-    justifyContent: 'center',
+    marginBottom: 20,
+    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    borderRadius: 12,
+    padding: 4,
   },
   tab: {
-    paddingBottom: 8,
-    paddingHorizontal: 4,
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
   },
   tabText: {
-    fontSize: 16,
+    fontSize: 15,
   },
   formSection: {
     gap: 14,
@@ -294,7 +358,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     paddingHorizontal: 16,
-    height: 54,
+    height: 52,
     gap: 12,
   },
   input: {
@@ -311,12 +375,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   submitButton: {
-    marginTop: 8,
+    marginTop: 4,
     borderRadius: 14,
     overflow: 'hidden',
   },
   submitGradient: {
-    height: 54,
+    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 14,
@@ -324,5 +388,14 @@ const styles = StyleSheet.create({
   submitText: {
     fontSize: 16,
     color: '#000',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  footerText: {
+    fontSize: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
   },
 });
