@@ -30,6 +30,21 @@ export interface Match {
   entryFee: number;
   spotsTotal: number;
   spotsFilled: number;
+  participantCount?: number;
+}
+
+export interface ContestTeam {
+  id: string;
+  userId: string;
+  matchId: string;
+  name: string;
+  username: string;
+  userTeamName: string;
+  playerIds: string[];
+  captainId: string | null;
+  viceCaptainId: string | null;
+  totalPoints: number;
+  createdAt: string;
 }
 
 export interface UserTeam {
