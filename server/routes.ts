@@ -252,16 +252,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const diff = start - now.getTime();
       const elapsed = now.getTime() - start;
 
+      let effectiveStatus = m.status;
+      if (m.status === "upcoming" && diff <= 0 && elapsed <= THREE_HOURS) {
+        effectiveStatus = "live";
+      }
+
       const teams = await storage.getAllTeamsForMatch(m.id);
       const participantCount = teams.length;
 
-      const isUpcoming = m.status !== "completed" && m.status !== "live" && diff > 0 && diff <= FORTY_EIGHT_HOURS;
-      const isLive = m.status === "live";
-      const isRecentlyCompleted = m.status === "completed" && elapsed <= THREE_HOURS;
+      const isUpcoming = effectiveStatus !== "completed" && effectiveStatus !== "live" && diff > 0 && diff <= FORTY_EIGHT_HOURS;
+      const isLive = effectiveStatus === "live";
+      const isRecentlyCompleted = effectiveStatus === "completed" && elapsed <= THREE_HOURS;
       const hasParticipants = participantCount > 0;
 
       if (hasParticipants || isUpcoming || isLive || isRecentlyCompleted) {
-        matchesWithParticipants.push({ match: m, participantCount });
+        const matchData = { ...m, status: effectiveStatus };
+        matchesWithParticipants.push({ match: matchData, participantCount });
       }
     }
 
