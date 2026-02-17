@@ -546,27 +546,20 @@ async function main() {
   console.log("Updating manifests and creating landing page...");
   updateManifests(manifests, timestamp, baseUrl, assetsByHash);
 
+  if (metroProcess) {
+    metroProcess.kill();
+    metroProcess = null;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
   console.log("Building web export...");
   try {
-    const webBuild = spawn("npx", ["expo", "export", "--platform", "web", "--output-dir", "dist/web"], {
+    const { execSync } = require("child_process");
+    execSync("npx expo export --platform web --output-dir dist/web", {
       stdio: "inherit",
       env: { ...process.env, EXPO_PUBLIC_DOMAIN: domain },
     });
-    await new Promise((resolve, reject) => {
-      webBuild.on("close", (code) => {
-        if (code === 0) {
-          console.log("Web export complete");
-          resolve();
-        } else {
-          console.error("Web export failed with code", code);
-          resolve();
-        }
-      });
-      webBuild.on("error", (err) => {
-        console.error("Web export error:", err.message);
-        resolve();
-      });
-    });
+    console.log("Web export complete");
   } catch (e) {
     console.error("Web export failed:", e.message);
   }
