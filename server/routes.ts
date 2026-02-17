@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { fetchUpcomingMatches, fetchSeriesMatches, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
 import session from "express-session";
-import { randomUUID } from "crypto";
+import { randomUUID, createHmac } from "crypto";
 
 declare module "express-session" {
   interface SessionData {
@@ -12,12 +12,42 @@ declare module "express-session" {
 }
 
 const ADMIN_EMAILS = ["admin@cdo.com"];
+const TOKEN_SECRET = process.env.SESSION_SECRET || "cdo-session-secret-dev";
+
+function generateAuthToken(userId: string): string {
+  const hmac = createHmac("sha256", TOKEN_SECRET);
+  hmac.update(userId);
+  const sig = hmac.digest("hex");
+  return `${userId}.${sig}`;
+}
+
+function verifyAuthToken(token: string): string | null {
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [userId, sig] = parts;
+  const hmac = createHmac("sha256", TOKEN_SECRET);
+  hmac.update(userId);
+  const expected = hmac.digest("hex");
+  if (sig !== expected) return null;
+  return userId;
+}
 
 function isAuthenticated(req: Request, res: Response, next: Function) {
-  if (!req.session.userId) {
-    return res.status(401).json({ message: "Not authenticated" });
+  if (req.session.userId) {
+    return next();
   }
-  next();
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const userId = verifyAuthToken(token);
+    if (userId) {
+      req.session.userId = userId;
+      return next();
+    }
+  }
+
+  return res.status(401).json({ message: "Not authenticated" });
 }
 
 async function isAdmin(req: Request, res: Response, next: Function) {
@@ -89,6 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isVerified: user.isVerified,
           isAdmin: user.isAdmin,
         },
+        token: generateAuthToken(user.id),
       });
     } catch (err: any) {
       console.error("Signup error:", err);
@@ -120,6 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isVerified: user.isVerified,
           isAdmin: user.isAdmin,
         },
+        token: generateAuthToken(user.id),
       });
     } catch (err: any) {
       console.error("Login error:", err);
