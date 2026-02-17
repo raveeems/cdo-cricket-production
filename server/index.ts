@@ -209,7 +209,15 @@ function configureExpoAndLanding(app: express.Application) {
   });
 
   if (hasWebBuild) {
-    app.use(express.static(webDistPath));
+    app.use(express.static(webDistPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      }
+    }));
   }
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
@@ -222,6 +230,7 @@ function configureExpoAndLanding(app: express.Application) {
       if (hasWebBuild) {
         const indexHtml = fs.readFileSync(path.join(webDistPath, "index.html"), "utf-8");
         res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         return res.status(200).send(indexHtml);
       }
       return serveLandingPage({
