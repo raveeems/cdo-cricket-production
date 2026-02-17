@@ -269,6 +269,22 @@ function setupErrorHandler(app: express.Application) {
 
   setupErrorHandler(app);
 
+  async function seedReferenceCodes() {
+    try {
+      const existing = await storage.getAllCodes();
+      if (existing.length === 0) {
+        log("No reference codes found, seeding defaults...");
+        const defaultCodes = ["1234", "5678", "9012", "3456"];
+        for (const code of defaultCodes) {
+          await storage.createCode(code);
+        }
+        log(`Seeded ${defaultCodes.length} default reference codes`);
+      }
+    } catch (err) {
+      console.error("Failed to seed reference codes:", err);
+    }
+  }
+
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(
     {
@@ -278,6 +294,11 @@ function setupErrorHandler(app: express.Application) {
     },
     () => {
       log(`express server serving on port ${port}`);
+
+      seedReferenceCodes().catch((err) => {
+        console.error("Reference code seeding failed:", err);
+      });
+
       syncMatchesFromApi().catch((err) => {
         console.error("Initial match sync failed:", err);
       });
