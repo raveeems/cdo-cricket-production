@@ -6,23 +6,31 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
-import { MOCK_MATCHES, getTimeUntilMatch } from '@/lib/mock-data';
+import { getTimeUntilMatch, Match } from '@/lib/mock-data';
 
 export default function MyMatchesScreen() {
   const { colors } = useTheme();
   const { teams } = useTeams();
   const insets = useSafeAreaInsets();
 
+  const { data, isLoading } = useQuery<{ matches: Match[] }>({
+    queryKey: ['/api/matches'],
+  });
+
+  const allMatches = data?.matches || [];
+
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
-  const matchesWithTeams = MOCK_MATCHES.filter((m) =>
+  const matchesWithTeams = allMatches.filter((m) =>
     teams.some((t) => t.matchId === m.id)
   );
 
@@ -43,7 +51,11 @@ export default function MyMatchesScreen() {
             My Matches
           </Text>
 
-          {userTeamsByMatch.length === 0 ? (
+          {isLoading ? (
+            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : userTeamsByMatch.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
               <MaterialCommunityIcons name="cricket" size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
@@ -110,7 +122,7 @@ export default function MyMatchesScreen() {
                         </Text>
                       </View>
                       <Text style={[styles.teamPoints, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                        {team.players.length} players
+                        {team.playerIds.length} players
                       </Text>
                     </View>
                   ))}

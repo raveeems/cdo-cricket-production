@@ -6,14 +6,16 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
-import { MOCK_MATCHES, MOCK_PLAYERS, getTimeUntilMatch, canEditTeam, getRoleColor } from '@/lib/mock-data';
+import { getTimeUntilMatch, canEditTeam, getRoleColor, Match, Player } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function MatchDetailScreen() {
@@ -23,8 +25,18 @@ export default function MatchDetailScreen() {
   const insets = useSafeAreaInsets();
   const [timeLeft, setTimeLeft] = useState('');
 
-  const match = MOCK_MATCHES.find((m) => m.id === id);
-  const players = id ? (MOCK_PLAYERS[id] || []) : [];
+  const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
+    queryKey: ['/api/matches', id],
+    enabled: !!id,
+  });
+
+  const { data: playersData, isLoading: playersLoading } = useQuery<{ players: Player[] }>({
+    queryKey: ['/api/matches', id, 'players'],
+    enabled: !!id,
+  });
+
+  const match = matchData?.match;
+  const players = playersData?.players || [];
   const userTeams = id ? getTeamsForMatch(id) : [];
 
   useEffect(() => {
@@ -35,6 +47,14 @@ export default function MatchDetailScreen() {
     }, 1000);
     return () => clearInterval(interval);
   }, [match?.startTime]);
+
+  if (matchLoading || playersLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!match) {
     return (
@@ -191,7 +211,7 @@ export default function MatchDetailScreen() {
                 </View>
                 <View style={[styles.teamCardDetails, { borderTopColor: colors.border }]}>
                   <Text style={[styles.teamDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                    {team.players.length} players selected
+                    {team.playerIds.length} players selected
                   </Text>
                   <View style={styles.captainRow}>
                     <Text style={[styles.captainLabel, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>

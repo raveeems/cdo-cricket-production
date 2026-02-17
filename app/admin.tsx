@@ -8,24 +8,32 @@ import {
   ScrollView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetch } from 'expo/fetch';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiRequest, getApiUrl } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const CODES_STORAGE_KEY = '@cdo_ref_codes';
+interface ReferenceCode {
+  id: string;
+  code: string;
+  isActive: boolean;
+}
 
 export default function AdminScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const [codes, setCodes] = useState<string[]>([]);
+  const [codes, setCodes] = useState<ReferenceCode[]>([]);
   const [newCode, setNewCode] = useState('');
+  const [syncMessage, setSyncMessage] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -34,9 +42,16 @@ export default function AdminScreen() {
   }, []);
 
   const loadCodes = async () => {
-    const stored = await AsyncStorage.getItem(CODES_STORAGE_KEY);
-    if (stored) {
-      setCodes(JSON.parse(stored));
+    try {
+      const baseUrl = getApiUrl();
+      const url = new URL('/api/admin/codes', baseUrl);
+      const res = await fetch(url.toString(), { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setCodes(data.codes || []);
+      }
+    } catch (e) {
+      console.error('Failed to load codes:', e);
     }
   };
 
@@ -48,17 +63,39 @@ export default function AdminScreen() {
   const saveCode = async () => {
     if (newCode.length !== 4) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const updated = [...codes, newCode];
-    await AsyncStorage.setItem(CODES_STORAGE_KEY, JSON.stringify(updated));
-    setCodes(updated);
-    setNewCode('');
+    try {
+      const res = await apiRequest('POST', '/api/admin/codes', { code: newCode });
+      const data = await res.json();
+      setCodes((prev) => [...prev, data]);
+      setNewCode('');
+    } catch (e) {
+      console.error('Failed to save code:', e);
+    }
   };
 
-  const deleteCode = async (code: string) => {
+  const deleteCode = async (codeId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const updated = codes.filter((c) => c !== code);
-    await AsyncStorage.setItem(CODES_STORAGE_KEY, JSON.stringify(updated));
-    setCodes(updated);
+    try {
+      await apiRequest('DELETE', `/api/admin/codes/${codeId}`);
+      setCodes((prev) => prev.filter((c) => c.id !== codeId));
+    } catch (e) {
+      console.error('Failed to delete code:', e);
+    }
+  };
+
+  const syncMatches = async () => {
+    setIsSyncing(true);
+    setSyncMessage('');
+    try {
+      const res = await apiRequest('POST', '/api/admin/sync-matches');
+      const data = await res.json();
+      setSyncMessage(data.message || 'Matches synced successfully');
+    } catch (e: any) {
+      setSyncMessage('Failed to sync matches');
+      console.error('Sync failed:', e);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   return (
@@ -129,25 +166,21 @@ export default function AdminScreen() {
             </View>
 
             <View style={styles.codesList}>
-              <Text style={[styles.codesHeader, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
-                Default Codes: 1234, 5678, 9012, 3456
-              </Text>
-
               {codes.length > 0 && (
-                <Text style={[styles.codesHeader, { color: colors.textSecondary, fontFamily: 'Inter_500Medium', marginTop: 12 }]}>
-                  Custom Codes ({codes.length})
+                <Text style={[styles.codesHeader, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+                  Reference Codes ({codes.length})
                 </Text>
               )}
 
-              {codes.map((code, idx) => (
+              {codes.map((codeObj) => (
                 <View
-                  key={`${code}_${idx}`}
+                  key={codeObj.id}
                   style={[styles.codeItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                 >
                   <View style={styles.codeItemLeft}>
                     <View style={[styles.codeChip, { backgroundColor: colors.success + '20' }]}>
                       <Text style={[styles.codeChipText, { color: colors.success, fontFamily: 'Inter_700Bold' }]}>
-                        {code}
+                        {codeObj.code}
                       </Text>
                     </View>
                     <View style={[styles.activeBadge, { backgroundColor: colors.success + '15' }]}>
@@ -157,7 +190,7 @@ export default function AdminScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Pressable onPress={() => deleteCode(code)}>
+                  <Pressable onPress={() => deleteCode(codeObj.id)}>
                     <Ionicons name="trash-outline" size={18} color={colors.error} />
                   </Pressable>
                 </View>
@@ -170,15 +203,39 @@ export default function AdminScreen() {
               Match Management
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-              Manually add or edit match details.
+              Sync matches from the Cricket API.
             </Text>
 
-            <View style={[styles.comingSoon, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <MaterialCommunityIcons name="cricket" size={32} color={colors.textTertiary} />
-              <Text style={[styles.comingSoonText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
-                Match management via Cricket API integration coming soon
-              </Text>
-            </View>
+            <Pressable
+              onPress={syncMatches}
+              disabled={isSyncing}
+              style={[styles.syncBtn, { opacity: isSyncing ? 0.6 : 1 }]}
+            >
+              <LinearGradient
+                colors={[colors.primary, '#1E40AF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.syncBtnGradient}
+              >
+                {isSyncing ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <MaterialCommunityIcons name="sync" size={22} color="#FFF" />
+                )}
+                <Text style={[styles.syncBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                  {isSyncing ? 'Syncing...' : 'Sync Matches'}
+                </Text>
+              </LinearGradient>
+            </Pressable>
+
+            {syncMessage !== '' && (
+              <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="information-circle" size={18} color={colors.primary} />
+                <Text style={[styles.syncResultText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                  {syncMessage}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -357,17 +414,34 @@ const styles = StyleSheet.create({
   activeText: {
     fontSize: 11,
   },
-  comingSoon: {
+  syncBtn: {
     borderRadius: 14,
-    borderWidth: 1,
-    padding: 32,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  syncBtnGradient: {
+    height: 52,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
+    borderRadius: 14,
   },
-  comingSoonText: {
+  syncBtnText: {
+    fontSize: 16,
+    color: '#FFF',
+  },
+  syncResult: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  syncResultText: {
     fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
+    flex: 1,
   },
   scoringTable: {
     borderRadius: 14,

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { VALID_REFERENCE_CODES, ADMIN_USER_IDS } from '@/lib/mock-data';
+import { fetch } from 'expo/fetch';
+import { apiRequest, getApiUrl } from '@/lib/query-client';
 
 interface User {
   id: string;
@@ -27,9 +27,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const AUTH_STORAGE_KEY = '@cdo_auth_user';
-const CODES_STORAGE_KEY = '@cdo_ref_codes';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,9 +37,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUser = async () => {
     try {
-      const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
-      if (stored) {
-        setUser(JSON.parse(stored));
+      const baseUrl = getApiUrl();
+      const url = new URL('/api/auth/me', baseUrl);
+      const res = await fetch(url.toString(), { credentials: 'include' });
+      if (res.status === 401) {
+        setUser(null);
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data);
       }
     } catch (e) {
       console.error('Failed to load user:', e);
@@ -51,73 +55,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const saveUser = async (u: User) => {
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(u));
-    setUser(u);
-  };
-
   const login = async (email: string, password: string): Promise<boolean> => {
-    const storedUsers = await AsyncStorage.getItem('@cdo_users');
-    const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-    const found = users.find((u) => u.email === email);
-    if (found) {
-      await saveUser(found);
+    try {
+      const res = await apiRequest('POST', '/api/auth/login', { email, password });
+      const data = await res.json();
+      setUser(data);
       return true;
+    } catch (e: any) {
+      console.error('Login failed:', e);
+      return false;
     }
-    return false;
   };
 
   const signup = async (username: string, email: string, phone: string, password: string): Promise<boolean> => {
-    const uid = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    const isAdmin = ADMIN_USER_IDS.includes(uid);
-    const newUser: User = {
-      id: uid,
-      username,
-      email,
-      phone,
-      isVerified: false,
-      isAdmin,
-      joinedAt: new Date().toISOString(),
-    };
-
-    const storedUsers = await AsyncStorage.getItem('@cdo_users');
-    const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-    users.push(newUser);
-    await AsyncStorage.setItem('@cdo_users', JSON.stringify(users));
-    await saveUser(newUser);
-    return true;
+    try {
+      const res = await apiRequest('POST', '/api/auth/signup', { username, email, phone, password });
+      const data = await res.json();
+      setUser(data);
+      return true;
+    } catch (e: any) {
+      console.error('Signup failed:', e);
+      return false;
+    }
   };
 
   const verifyReferenceCode = async (code: string): Promise<boolean> => {
-    const storedCodes = await AsyncStorage.getItem(CODES_STORAGE_KEY);
-    const customCodes: string[] = storedCodes ? JSON.parse(storedCodes) : [];
-    const allCodes = [...VALID_REFERENCE_CODES, ...customCodes];
-
-    if (allCodes.includes(code) && user) {
-      const updatedUser = { ...user, isVerified: true };
-      await saveUser(updatedUser);
-
-      const storedUsers = await AsyncStorage.getItem('@cdo_users');
-      const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-      const idx = users.findIndex((u) => u.id === user.id);
-      if (idx >= 0) {
-        users[idx] = updatedUser;
-        await AsyncStorage.setItem('@cdo_users', JSON.stringify(users));
-      }
+    try {
+      const res = await apiRequest('POST', '/api/auth/verify-code', { code });
+      const data = await res.json();
+      setUser(data);
       return true;
+    } catch (e: any) {
+      console.error('Verify code failed:', e);
+      return false;
     }
-    return false;
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+    try {
+      await apiRequest('POST', '/api/auth/logout');
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
     setUser(null);
   };
 
   const updateUser = async (updates: Partial<User>) => {
     if (!user) return;
-    const updatedUser = { ...user, ...updates };
-    await saveUser(updatedUser);
+    setUser({ ...user, ...updates });
   };
 
   const value = useMemo(() => ({

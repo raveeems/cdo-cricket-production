@@ -6,18 +6,18 @@ import {
   StyleSheet,
   FlatList,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
 import {
-  MOCK_MATCHES,
-  MOCK_PLAYERS,
   Player,
-  UserTeam,
+  Match,
   getRoleColor,
 } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -183,8 +183,18 @@ export default function CreateTeamScreen() {
   const [vcId, setVcId] = useState<string | null>(null);
   const [filter, setFilter] = useState<RoleFilter>('ALL');
 
-  const match = MOCK_MATCHES.find((m) => m.id === matchId);
-  const allPlayers = matchId ? (MOCK_PLAYERS[matchId] || []) : [];
+  const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
+    queryKey: ['/api/matches', matchId],
+    enabled: !!matchId,
+  });
+
+  const { data: playersData, isLoading: playersLoading } = useQuery<{ players: Player[] }>({
+    queryKey: ['/api/matches', matchId, 'players'],
+    enabled: !!matchId,
+  });
+
+  const match = matchData?.match;
+  const allPlayers = playersData?.players || [];
   const existingTeams = matchId ? getTeamsForMatch(matchId) : [];
 
   const filteredPlayers = useMemo(() => {
@@ -240,23 +250,27 @@ export default function CreateTeamScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const teamNumber = existingTeams.length + 1;
-    const team: UserTeam = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    await saveTeam({
       matchId,
       name: `Team ${teamNumber}`,
-      players: Array.from(selectedIds),
+      playerIds: Array.from(selectedIds),
       captainId,
       viceCaptainId: vcId,
-      totalPoints: 0,
-      createdAt: new Date().toISOString(),
-    };
+    });
 
-    await saveTeam(team);
     router.back();
   };
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const filters: RoleFilter[] = ['ALL', 'WK', 'BAT', 'AR', 'BOWL'];
+
+  if (matchLoading || playersLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!match) {
     return (

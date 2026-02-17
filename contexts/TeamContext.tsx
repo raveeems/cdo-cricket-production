@@ -1,22 +1,39 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { UserTeam } from '@/lib/mock-data';
+import { fetch } from 'expo/fetch';
+import { apiRequest, getApiUrl } from '@/lib/query-client';
+
+interface Team {
+  id: string;
+  matchId: string;
+  name: string;
+  playerIds: string[];
+  captainId: string;
+  viceCaptainId: string;
+  totalPoints: number;
+  createdAt: string;
+}
+
+interface SaveTeamInput {
+  matchId: string;
+  name: string;
+  playerIds: string[];
+  captainId: string;
+  viceCaptainId: string;
+}
 
 interface TeamContextValue {
-  teams: UserTeam[];
+  teams: Team[];
   isLoading: boolean;
-  getTeamsForMatch: (matchId: string) => UserTeam[];
-  saveTeam: (team: UserTeam) => Promise<void>;
+  getTeamsForMatch: (matchId: string) => Team[];
+  saveTeam: (input: SaveTeamInput) => Promise<void>;
   deleteTeam: (teamId: string) => Promise<void>;
   refreshTeams: () => Promise<void>;
 }
 
 const TeamContext = createContext<TeamContextValue | null>(null);
 
-const TEAMS_KEY = '@cdo_user_teams';
-
 export function TeamProvider({ children }: { children: ReactNode }) {
-  const [teams, setTeams] = useState<UserTeam[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -25,9 +42,12 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 
   const loadTeams = async () => {
     try {
-      const stored = await AsyncStorage.getItem(TEAMS_KEY);
-      if (stored) {
-        setTeams(JSON.parse(stored));
+      const baseUrl = getApiUrl();
+      const url = new URL('/api/my-teams', baseUrl);
+      const res = await fetch(url.toString(), { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setTeams(data.teams || []);
       }
     } catch (e) {
       console.error('Failed to load teams:', e);
@@ -36,16 +56,25 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const saveTeam = async (team: UserTeam) => {
-    const updated = [...teams.filter((t) => t.id !== team.id), team];
-    await AsyncStorage.setItem(TEAMS_KEY, JSON.stringify(updated));
-    setTeams(updated);
+  const saveTeam = async (input: SaveTeamInput) => {
+    try {
+      const res = await apiRequest('POST', '/api/teams', input);
+      const data = await res.json();
+      setTeams((prev) => [...prev, data]);
+    } catch (e) {
+      console.error('Failed to save team:', e);
+      throw e;
+    }
   };
 
   const deleteTeam = async (teamId: string) => {
-    const updated = teams.filter((t) => t.id !== teamId);
-    await AsyncStorage.setItem(TEAMS_KEY, JSON.stringify(updated));
-    setTeams(updated);
+    try {
+      await apiRequest('DELETE', `/api/teams/${teamId}`);
+      setTeams((prev) => prev.filter((t) => t.id !== teamId));
+    } catch (e) {
+      console.error('Failed to delete team:', e);
+      throw e;
+    }
   };
 
   const getTeamsForMatch = (matchId: string) => {

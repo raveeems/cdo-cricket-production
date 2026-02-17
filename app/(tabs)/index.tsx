@@ -7,15 +7,18 @@ import {
   ScrollView,
   Platform,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/contexts/TeamContext';
-import { MOCK_MATCHES, getTimeUntilMatch, isMatchVisible, Match } from '@/lib/mock-data';
+import { getTimeUntilMatch, isMatchVisible, Match } from '@/lib/mock-data';
+import { queryClient } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
 
 function MatchCard({ match, teamsCount }: { match: Match; teamsCount: number }) {
@@ -140,13 +143,19 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
-  const visibleMatches = MOCK_MATCHES.filter((m) => isMatchVisible(m.startTime));
+  const { data, isLoading } = useQuery<{ matches: Match[] }>({
+    queryKey: ['/api/matches'],
+  });
+
+  const allMatches = data?.matches || [];
+  const visibleMatches = allMatches.filter((m) => isMatchVisible(m.startTime));
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    await queryClient.invalidateQueries({ queryKey: ['/api/matches'] });
+    setRefreshing(false);
   };
 
   return (
@@ -209,7 +218,11 @@ export default function HomeScreen() {
             <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
           </View>
 
-          {visibleMatches.length === 0 ? (
+          {isLoading ? (
+            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : visibleMatches.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
               <Ionicons name="calendar-outline" size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
