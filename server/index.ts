@@ -1,7 +1,8 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { syncMatchesFromApi } from "./cricket-api";
+import { syncMatchesFromApi, fetchMatchSquad, fetchSeriesSquad } from "./cricket-api";
+import { storage } from "./storage";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -257,6 +258,74 @@ function setupErrorHandler(app: express.Application) {
           console.error("Periodic match sync failed:", err);
         });
       }, TWO_HOURS);
+
+      const recentlyRefreshed = new Map<string, number>();
+      const TWO_MINUTES = 2 * 60 * 1000;
+      const TWENTY_MINUTES = 20 * 60 * 1000;
+
+      async function refreshPlayingXI() {
+        try {
+          const allMatches = await storage.getAllMatches();
+          const now = Date.now();
+
+          for (const match of allMatches) {
+            if (!match.externalId) continue;
+            if (match.status === "completed") continue;
+
+            const startMs = new Date(match.startTime).getTime();
+            const timeUntilStart = startMs - now;
+
+            const isInWindow = timeUntilStart <= TWENTY_MINUTES && timeUntilStart > -TWO_HOURS;
+            const isLive = match.status === "live";
+
+            if (!isInWindow && !isLive) continue;
+
+            const lastRefresh = recentlyRefreshed.get(match.id) || 0;
+            if (now - lastRefresh < TWO_MINUTES) continue;
+
+            log(`Playing XI refresh: ${match.team1} vs ${match.team2} (starts in ${Math.round(timeUntilStart / 60000)}m, status: ${match.status})`);
+
+            try {
+              let squad = await fetchMatchSquad(match.externalId);
+
+              if (squad.length === 0 && match.seriesId) {
+                const seriesPlayers = await fetchSeriesSquad(match.seriesId);
+                const t1 = match.team1.toLowerCase();
+                const t2 = match.team2.toLowerCase();
+                squad = seriesPlayers.filter((p) => {
+                  const pt = p.team.toLowerCase();
+                  return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
+                });
+              }
+
+              if (squad.length > 0) {
+                await storage.deletePlayersForMatch(match.id);
+                await storage.bulkCreatePlayers(
+                  squad.map((p) => ({
+                    matchId: match.id,
+                    externalId: p.externalId,
+                    name: p.name,
+                    team: p.team,
+                    teamShort: p.teamShort,
+                    role: p.role,
+                    credits: p.credits,
+                  }))
+                );
+                log(`Playing XI updated: ${squad.length} players for ${match.team1} vs ${match.team2}`);
+              }
+
+              recentlyRefreshed.set(match.id, now);
+            } catch (err) {
+              console.error(`Playing XI refresh failed for ${match.id}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error("Playing XI scheduler error:", err);
+        }
+      }
+
+      setInterval(refreshPlayingXI, TWO_MINUTES);
+      log("Playing XI auto-refresh scheduler started (every 2min, 20min before match)");
     },
   );
 })();
