@@ -523,7 +523,7 @@ export async function refreshStaleMatchStatuses(): Promise<void> {
 
       const updates: Record<string, any> = {};
       if (newStatus !== m.status) updates.status = newStatus;
-      if (statusNote && statusNote !== (m as any).statusNote) updates.statusNote = statusNote;
+      if (statusNote && statusNote !== m.statusNote) updates.statusNote = statusNote;
 
       if (Object.keys(updates).length > 0) {
         await storage.updateMatch(m.id, updates);

@@ -95,12 +95,12 @@ export default function MatchDetailScreen() {
 
   useEffect(() => {
     if (!match) return;
-    setTimeLeft(getTimeUntilMatch(match.startTime));
+    setTimeLeft(getTimeUntilMatch(match.startTime, match.status));
     const interval = setInterval(() => {
-      setTimeLeft(getTimeUntilMatch(match.startTime));
+      setTimeLeft(getTimeUntilMatch(match.startTime, match.status));
     }, 1000);
     return () => clearInterval(interval);
-  }, [match?.startTime]);
+  }, [match?.startTime, match?.status]);
 
   useEffect(() => {
     if (isLiveOrCompleted) {
@@ -124,7 +124,7 @@ export default function MatchDetailScreen() {
     );
   }
 
-  const canEdit = canEditTeam(match.startTime);
+  const canEdit = canEditTeam(match.startTime, match.status);
   const canCreateMore = userTeams.length < 3;
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
@@ -575,15 +575,26 @@ export default function MatchDetailScreen() {
                   <View style={styles.liveDot} />
                   <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
                 </View>
+              ) : match.status === 'delayed' ? (
+                <View style={styles.liveBadgeRow}>
+                  <Ionicons name="rainy-outline" size={14} color="#F39C12" />
+                  <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold', color: '#F39C12' }]}>DELAYED</Text>
+                </View>
               ) : (
                 <Text style={[styles.heroVs, { fontFamily: 'Inter_700Bold' }]}>VS</Text>
               )}
-              <View style={styles.timerPill}>
-                <Ionicons name="time" size={14} color="#FFD130" />
-                <Text style={[styles.timerPillText, { fontFamily: 'Inter_600SemiBold' }]}>
-                  {timeLeft}
+              {match.status === 'delayed' && match.statusNote ? (
+                <Text style={{ color: '#F39C12', fontSize: 11, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 4 }} numberOfLines={2}>
+                  {match.statusNote}
                 </Text>
-              </View>
+              ) : (
+                <View style={styles.timerPill}>
+                  <Ionicons name="time" size={14} color="#FFD130" />
+                  <Text style={[styles.timerPillText, { fontFamily: 'Inter_600SemiBold' }]}>
+                    {timeLeft}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={[styles.heroTeamInfo, { alignItems: 'flex-end' }]}>

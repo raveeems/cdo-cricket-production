@@ -27,14 +27,14 @@ interface MatchWithParticipants extends Match {
 
 function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants; teamsCount: number }) {
   const { colors } = useTheme();
-  const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(match.startTime));
+  const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(match.startTime, match.status));
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeLeft(getTimeUntilMatch(match.startTime));
+      setTimeLeft(getTimeUntilMatch(match.startTime, match.status));
     }, 60000);
     return () => clearInterval(interval);
-  }, [match.startTime]);
+  }, [match.startTime, match.status]);
 
   const participants = match.participantCount ?? 0;
 
@@ -62,6 +62,13 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
             <View style={[styles.statusDot, { backgroundColor: colors.error }]} />
             <Text style={[styles.statusText, { color: colors.error, fontFamily: 'Inter_700Bold' }]}>
               LIVE
+            </Text>
+          </View>
+        ) : match.status === 'delayed' ? (
+          <View style={[styles.statusBadge, { backgroundColor: '#F39C12' + '18' }]}>
+            <Ionicons name="rainy-outline" size={11} color="#F39C12" style={{ marginRight: 3 }} />
+            <Text style={[styles.statusText, { color: '#F39C12', fontFamily: 'Inter_700Bold' }]}>
+              DELAYED
             </Text>
           </View>
         ) : match.status === 'completed' ? (
