@@ -66,7 +66,7 @@ export default function AdminScreen() {
     try {
       const res = await apiRequest('POST', '/api/admin/codes', { code: newCode });
       const data = await res.json();
-      setCodes((prev) => [...prev, data]);
+      setCodes((prev) => [...prev, data.code]);
       setNewCode('');
     } catch (e) {
       console.error('Failed to save code:', e);

@@ -60,7 +60,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiRequest('POST', '/api/teams', input);
       const data = await res.json();
-      setTeams((prev) => [...prev, data]);
+      setTeams((prev) => [...prev, data.team]);
     } catch (e) {
       console.error('Failed to save team:', e);
       throw e;

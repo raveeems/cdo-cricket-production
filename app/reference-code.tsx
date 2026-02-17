@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,8 +26,13 @@ export default function ReferenceCodeScreen() {
   const [success, setSuccess] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
+  useEffect(() => {
+    if (isVerified) {
+      router.replace('/(tabs)');
+    }
+  }, [isVerified]);
+
   if (isVerified) {
-    router.replace('/(tabs)');
     return null;
   }
 

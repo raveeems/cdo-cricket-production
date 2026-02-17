@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (res.ok) {
         const data = await res.json();
-        setUser(data);
+        setUser(data.user);
       }
     } catch (e) {
       console.error('Failed to load user:', e);
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiRequest('POST', '/api/auth/login', { email, password });
       const data = await res.json();
-      setUser(data);
+      setUser(data.user);
       return true;
     } catch (e: any) {
       console.error('Login failed:', e);
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiRequest('POST', '/api/auth/signup', { username, email, phone, password });
       const data = await res.json();
-      setUser(data);
+      setUser(data.user);
       return true;
     } catch (e: any) {
       console.error('Signup failed:', e);
@@ -81,9 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyReferenceCode = async (code: string): Promise<boolean> => {
     try {
-      const res = await apiRequest('POST', '/api/auth/verify-code', { code });
-      const data = await res.json();
-      setUser(data);
+      await apiRequest('POST', '/api/auth/verify-code', { code });
+      if (user) {
+        setUser({ ...user, isVerified: true });
+      }
       return true;
     } catch (e: any) {
       console.error('Verify code failed:', e);
