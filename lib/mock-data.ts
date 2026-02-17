@@ -217,7 +217,6 @@ export function isMatchVisible(startTime: string): boolean {
 }
 
 export function canEditTeam(startTime: string, status?: string): boolean {
-  if (status === 'delayed') return true;
   if (status === 'live' || status === 'completed') return false;
   const diff = new Date(startTime).getTime() - Date.now();
   return diff > 1000;

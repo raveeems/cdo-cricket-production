@@ -72,7 +72,9 @@ export default function MatchDetailScreen() {
     enabled: !!id,
   });
 
-  const isLiveOrCompleted = matchData?.match?.status === 'live' || matchData?.match?.status === 'completed';
+  const matchStarted = matchData?.match?.startTime ? new Date(matchData.match.startTime).getTime() <= Date.now() : false;
+  const isLiveOrCompleted = matchData?.match?.status === 'live' || matchData?.match?.status === 'completed' || (matchData?.match?.status === 'delayed' && matchStarted);
+  const effectiveStatus = matchData?.match?.status === 'delayed' && matchStarted ? 'live' : matchData?.match?.status;
 
   const { data: scorecardData, isLoading: scorecardLoading } = useQuery<{ scorecard: LiveScorecard | null }>({
     queryKey: ['/api/matches', id, 'live-scorecard'],
@@ -322,7 +324,7 @@ export default function MatchDetailScreen() {
           </View>
         )}
 
-        {match.status === 'live' && (
+        {effectiveStatus === 'live' && (
           <View style={[styles.liveBadgeRow, { marginBottom: 12 }]}>
             <View style={styles.liveDot} />
             <Text style={[styles.liveText, { fontFamily: 'Inter_600SemiBold' }]}>LIVE</Text>
@@ -609,7 +611,7 @@ export default function MatchDetailScreen() {
             </View>
 
             <View style={styles.heroCenter}>
-              {match.status === 'live' ? (
+              {effectiveStatus === 'live' ? (
                 <View style={styles.liveBadgeRow}>
                   <View style={styles.liveDot} />
                   <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
@@ -622,7 +624,7 @@ export default function MatchDetailScreen() {
               ) : (
                 <Text style={[styles.heroVs, { fontFamily: 'Inter_700Bold' }]}>VS</Text>
               )}
-              {match.status === 'delayed' && match.statusNote ? (
+              {match.status === 'delayed' && !matchStarted && match.statusNote ? (
                 <Text style={{ color: '#F39C12', fontSize: 11, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 4 }} numberOfLines={2}>
                   {match.statusNote}
                 </Text>

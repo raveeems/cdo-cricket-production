@@ -28,6 +28,8 @@ interface MatchWithParticipants extends Match {
 function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants; teamsCount: number }) {
   const { colors } = useTheme();
   const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(match.startTime, match.status));
+  const matchStarted = new Date(match.startTime).getTime() <= Date.now();
+  const effectiveStatus = match.status === 'delayed' && matchStarted ? 'live' : match.status;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -57,7 +59,7 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
         <Text style={[styles.compactLeague, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
           {match.league}
         </Text>
-        {match.status === 'live' ? (
+        {effectiveStatus === 'live' ? (
           <View style={[styles.statusBadge, { backgroundColor: colors.error + '18' }]}>
             <View style={[styles.statusDot, { backgroundColor: colors.error }]} />
             <Text style={[styles.statusText, { color: colors.error, fontFamily: 'Inter_700Bold' }]}>
@@ -71,7 +73,7 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
               DELAYED
             </Text>
           </View>
-        ) : match.status === 'completed' ? (
+        ) : effectiveStatus === 'completed' ? (
           <View style={[styles.statusBadge, { backgroundColor: colors.textTertiary + '18' }]}>
             <Text style={[styles.statusText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
               Done
