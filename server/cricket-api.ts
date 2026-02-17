@@ -211,61 +211,198 @@ export async function fetchUpcomingMatches(): Promise<
   }
 }
 
+const TRACKED_SERIES: Array<{ id: string; name: string }> = [
+  { id: "0cdf6736-ad9b-4e95-a647-5ee3a99c5510", name: "ICC Men's T20 World Cup 2026" },
+];
+
+export async function fetchSeriesMatches(
+  seriesId: string,
+  seriesName: string
+): Promise<
+  Array<{
+    externalId: string;
+    seriesId: string;
+    team1: string;
+    team1Short: string;
+    team1Color: string;
+    team2: string;
+    team2Short: string;
+    team2Color: string;
+    venue: string;
+    startTime: Date;
+    status: string;
+    league: string;
+  }>
+> {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const url = `${CRICKET_API_BASE}/series_info?apikey=${apiKey}&id=${seriesId}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+
+    const json = (await res.json()) as CricApiResponse<{
+      info: { name: string };
+      matchList: Array<{
+        id: string;
+        name: string;
+        venue: string;
+        dateTimeGMT: string;
+        teams: string[];
+        teamInfo?: Array<{ name: string; shortname: string; img: string }>;
+        matchStarted?: boolean;
+        matchEnded?: boolean;
+        status: string;
+      }>;
+    }>;
+
+    if (json.status !== "success" || !json.data?.matchList) return [];
+
+    console.log(`Series Info API: fetched ${json.data.matchList.length} matches for ${seriesName}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
+
+    return json.data.matchList
+      .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && !m.teams.includes("Tbc"))
+      .map((m) => {
+        const team1 = m.teams[0];
+        const team2 = m.teams[1];
+        const team1Info = m.teamInfo?.find((t) => t.name === team1);
+        const team2Info = m.teamInfo?.find((t) => t.name === team2);
+        const team1Short = team1Info?.shortname || getTeamShort(team1);
+        const team2Short = team2Info?.shortname || getTeamShort(team2);
+
+        let status = "upcoming";
+        if (m.matchStarted && !m.matchEnded) status = "live";
+        if (m.matchEnded) status = "completed";
+
+        const nameParts = m.name?.split(",").map((s: string) => s.trim()) || [];
+        let league = nameParts[nameParts.length - 1] || nameParts[0] || "";
+        if (nameParts.length >= 3) {
+          league = nameParts.slice(2).join(", ");
+        } else if (nameParts.length === 2) {
+          league = nameParts[1];
+        }
+
+        return {
+          externalId: m.id,
+          seriesId,
+          team1,
+          team1Short,
+          team1Color: getTeamColor(team1Short),
+          team2,
+          team2Short,
+          team2Color: getTeamColor(team2Short),
+          venue: m.venue || "",
+          startTime: new Date(m.dateTimeGMT),
+          status,
+          league,
+        };
+      });
+  } catch (err) {
+    console.error("Series Info API error:", err);
+    return [];
+  }
+}
+
+async function upsertMatches(
+  apiMatches: Array<{
+    externalId: string;
+    seriesId: string;
+    team1: string;
+    team1Short: string;
+    team1Color: string;
+    team2: string;
+    team2Short: string;
+    team2Color: string;
+    venue: string;
+    startTime: Date;
+    status: string;
+    league: string;
+  }>,
+  existingMatches: any[]
+): Promise<{ created: number; updated: number }> {
+  const { storage } = await import("./storage");
+  let created = 0;
+  let updated = 0;
+
+  for (const m of apiMatches) {
+    const dup = existingMatches.find((e) => e.externalId === m.externalId);
+    if (!dup) {
+      await storage.createMatch({
+        externalId: m.externalId,
+        seriesId: m.seriesId,
+        team1: m.team1,
+        team1Short: m.team1Short,
+        team1Color: m.team1Color,
+        team2: m.team2,
+        team2Short: m.team2Short,
+        team2Color: m.team2Color,
+        venue: m.venue,
+        startTime: m.startTime,
+        status: m.status,
+        league: m.league,
+        totalPrize: "0",
+        entryFee: 0,
+        spotsTotal: 100,
+        spotsFilled: 0,
+      });
+      created++;
+    } else {
+      const updates: Record<string, any> = {};
+      if (dup.status !== m.status) updates.status = m.status;
+      if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
+      if (dup.league !== m.league) updates.league = m.league;
+      if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
+      if (m.venue && dup.venue !== m.venue) updates.venue = m.venue;
+      if (Object.keys(updates).length > 0) {
+        await storage.updateMatch(dup.id, updates);
+        updated++;
+      }
+    }
+  }
+
+  return { created, updated };
+}
+
 export async function syncMatchesFromApi(retryCount = 0): Promise<void> {
   const { storage } = await import("./storage");
   
   console.log("Auto-syncing matches from Cricket API...");
   try {
     const apiMatches = await fetchUpcomingMatches();
-    if (apiMatches.length === 0) {
-      if (retryCount < 3) {
-        const delayMin = retryCount === 0 ? 1 : retryCount === 1 ? 5 : 15;
-        console.log(`No matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/3)`);
-        setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1000);
-      } else {
-        console.log("No matches returned from Cricket API after 3 retries");
-      }
+    if (apiMatches.length === 0 && retryCount < 3) {
+      const delayMin = retryCount === 0 ? 1 : retryCount === 1 ? 5 : 15;
+      console.log(`No matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/3)`);
+      setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1000);
       return;
     }
 
     const existing = await storage.getAllMatches();
-    let created = 0;
+    const { created, updated } = await upsertMatches(apiMatches, existing);
+    console.log(`Cricket API sync: ${created} new, ${updated} updated from general endpoints`);
 
-    for (const m of apiMatches) {
-      const dup = existing.find((e) => e.externalId === m.externalId);
-      if (!dup) {
-        await storage.createMatch({
-          externalId: m.externalId,
-          seriesId: m.seriesId,
-          team1: m.team1,
-          team1Short: m.team1Short,
-          team1Color: m.team1Color,
-          team2: m.team2,
-          team2Short: m.team2Short,
-          team2Color: m.team2Color,
-          venue: m.venue,
-          startTime: m.startTime,
-          status: m.status,
-          league: m.league,
-          totalPrize: "0",
-          entryFee: 0,
-          spotsTotal: 100,
-          spotsFilled: 0,
-        });
-        created++;
-      } else {
-        const updates: Record<string, any> = {};
-        if (dup.status !== m.status) updates.status = m.status;
-        if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
-        if (dup.league !== m.league) updates.league = m.league;
-        if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
-        if (Object.keys(updates).length > 0) {
-          await storage.updateMatch(dup.id, updates);
+    const refreshedExisting = created > 0 ? await storage.getAllMatches() : existing;
+    let seriesCreated = 0;
+    let seriesUpdated = 0;
+    for (const series of TRACKED_SERIES) {
+      try {
+        const seriesMatches = await fetchSeriesMatches(series.id, series.name);
+        if (seriesMatches.length > 0) {
+          const result = await upsertMatches(seriesMatches, refreshedExisting);
+          seriesCreated += result.created;
+          seriesUpdated += result.updated;
+          if (result.created > 0) {
+            refreshedExisting.push(...await storage.getAllMatches());
+          }
         }
+      } catch (err) {
+        console.error(`Series sync error for ${series.name}:`, err);
       }
     }
 
-    console.log(`Cricket API sync: ${created} new matches added, ${apiMatches.length} total from API`);
+    if (seriesCreated > 0 || seriesUpdated > 0) {
+      console.log(`Series sync: ${seriesCreated} new, ${seriesUpdated} updated from tracked series`);
+    }
   } catch (err) {
     console.error("Auto-sync failed:", err);
   }

@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-import { fetchUpcomingMatches, refreshStaleMatchStatuses } from "./cricket-api";
+import { fetchUpcomingMatches, fetchSeriesMatches, refreshStaleMatchStatuses } from "./cricket-api";
 import session from "express-session";
 import { randomUUID } from "crypto";
 
