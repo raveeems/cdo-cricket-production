@@ -23,6 +23,32 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const PHRASES = [
+  { text: 'Vettu', color: '#FFD700', size: 13 },
+  { text: 'Cha', color: '#FF6B6B', size: 11 },
+  { text: 'Vettu Kili', color: '#4ECDC4', size: 12 },
+  { text: 'RCB fan daa', color: '#EE1C25', size: 10 },
+  { text: 'Thala', color: '#FFD700', size: 14 },
+  { text: 'Kholi fan daa', color: '#1A6FBF', size: 10 },
+  { text: 'Jadeja all rounder?', color: '#2ECC71', size: 9 },
+  { text: 'Best captain ever', color: '#E67E22', size: 10 },
+  { text: 'Star the message', color: '#9B59B6', size: 9 },
+  { text: 'Evolo sambathichi\nenna panna pora', color: '#FF69B4', size: 8 },
+];
+
+const PHRASE_POSITIONS: { top?: string; bottom?: string; left?: string; right?: string; rotate: string }[] = [
+  { top: '2%', left: '3%', rotate: '-8deg' },
+  { top: '3%', right: '5%', rotate: '6deg' },
+  { top: '10%', right: '2%', rotate: '10deg' },
+  { top: '11%', left: '2%', rotate: '-5deg' },
+  { bottom: '14%', right: '4%', rotate: '-7deg' },
+  { bottom: '10%', left: '3%', rotate: '9deg' },
+  { bottom: '5%', right: '6%', rotate: '5deg' },
+  { bottom: '2%', left: '5%', rotate: '-10deg' },
+  { bottom: '18%', left: '2%', rotate: '7deg' },
+  { bottom: '7%', left: '20%', rotate: '-4deg' },
+];
+
 export default function AuthScreen() {
   const { login, signup } = useAuth();
   const { colors, isDark } = useTheme();
@@ -84,8 +110,36 @@ export default function AuthScreen() {
       <View style={[styles.glowOrb, styles.glowOrb1, { backgroundColor: colors.primary }]} />
       <View style={[styles.glowOrb, styles.glowOrb2, { backgroundColor: colors.accent }]} />
 
+      {PHRASES.map((phrase, i) => {
+        const pos = PHRASE_POSITIONS[i];
+        const posStyle: any = {
+          position: 'absolute' as const,
+          zIndex: 0,
+          ...(pos.top ? { top: pos.top } : {}),
+          ...(pos.bottom ? { bottom: pos.bottom } : {}),
+          ...(pos.left ? { left: pos.left } : {}),
+          ...(pos.right ? { right: pos.right } : {}),
+        };
+        return (
+          <View key={phrase.text} style={posStyle}>
+            <Text
+              style={{
+                color: phrase.color,
+                fontSize: phrase.size,
+                fontFamily: 'Inter_600SemiBold',
+                opacity: 0.35,
+                transform: [{ rotate: pos.rotate }],
+                letterSpacing: 0.3,
+              }}
+            >
+              {phrase.text}
+            </Text>
+          </View>
+        );
+      })}
+
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, zIndex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
@@ -121,7 +175,7 @@ export default function AuthScreen() {
           <Animated.View
             entering={Platform.OS !== 'web' ? FadeInDown.duration(600).delay(400) : undefined}
           >
-            <View style={[styles.formCard, { backgroundColor: isDark ? 'rgba(19, 24, 41, 0.85)' : 'rgba(255, 255, 255, 0.9)', borderColor: colors.border }]}>
+            <View style={[styles.formCard, { backgroundColor: isDark ? 'rgba(19, 24, 41, 0.9)' : 'rgba(255, 255, 255, 0.92)', borderColor: colors.border }]}>
               <View style={styles.tabRow}>
                 <Pressable
                   style={[
