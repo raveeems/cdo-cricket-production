@@ -46,6 +46,7 @@ var init_schema = __esm({
       email: text("email").notNull().unique(),
       phone: text("phone").notNull().default(""),
       password: text("password").notNull(),
+      teamName: text("team_name").notNull().default(""),
       isVerified: boolean("is_verified").notNull().default(false),
       isAdmin: boolean("is_admin").notNull().default(false),
       joinedAt: timestamp("joined_at").notNull().defaultNow()
@@ -70,6 +71,7 @@ var init_schema = __esm({
       venue: text("venue").notNull().default(""),
       startTime: timestamp("start_time").notNull(),
       status: varchar("status", { length: 20 }).notNull().default("upcoming"),
+      statusNote: text("status_note").notNull().default(""),
       league: text("league").notNull().default(""),
       totalPrize: text("total_prize").notNull().default("0"),
       entryFee: integer("entry_fee").notNull().default(0),
@@ -89,7 +91,8 @@ var init_schema = __esm({
       points: integer("points").notNull().default(0),
       selectedBy: integer("selected_by").notNull().default(0),
       recentForm: jsonb("recent_form").$type().notNull().default([]),
-      isImpactPlayer: boolean("is_impact_player").notNull().default(false)
+      isImpactPlayer: boolean("is_impact_player").notNull().default(false),
+      isPlayingXI: boolean("is_playing_xi").notNull().default(false)
     });
     userTeams = pgTable("user_teams", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -158,7 +161,7 @@ __export(storage_exports, {
   DatabaseStorage: () => DatabaseStorage,
   storage: () => storage
 });
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql as sql2, desc } from "drizzle-orm";
 var DatabaseStorage, storage;
 var init_storage = __esm({
   "server/storage.ts"() {
@@ -191,6 +194,13 @@ var init_storage = __esm({
       }
       async setUserAdmin(userId, isAdmin2) {
         await db.update(users).set({ isAdmin: isAdmin2 }).where(eq(users.id, userId));
+      }
+      async updateUserTeamName(userId, teamName) {
+        await db.update(users).set({ teamName }).where(eq(users.id, userId));
+      }
+      async getUserTeam(teamId) {
+        const [team] = await db.select().from(userTeams).where(eq(userTeams.id, teamId));
+        return team;
       }
       // Reference Codes
       async getActiveCode(code) {
@@ -266,6 +276,39 @@ var init_storage = __esm({
       async updateUserTeamPoints(teamId, totalPoints) {
         await db.update(userTeams).set({ totalPoints }).where(eq(userTeams.id, teamId));
       }
+      async markPlayingXI(matchId, externalPlayerIds) {
+        if (externalPlayerIds.length === 0) return 0;
+        await db.update(players).set({ isPlayingXI: false }).where(eq(players.matchId, matchId));
+        let updated = 0;
+        for (const extId of externalPlayerIds) {
+          const result = await db.update(players).set({ isPlayingXI: true }).where(and(eq(players.matchId, matchId), eq(players.externalId, extId)));
+          updated++;
+        }
+        return updated;
+      }
+      async getPlayingXICount(matchId) {
+        const result = await db.select({ count: sql2`count(*)` }).from(players).where(and(eq(players.matchId, matchId), eq(players.isPlayingXI, true)));
+        return Number(result[0]?.count || 0);
+      }
+      async getLeaderboard() {
+        const result = await db.select({
+          userId: users.id,
+          username: users.username,
+          teamName: users.teamName,
+          totalPoints: sql2`COALESCE(SUM(${userTeams.totalPoints}), 0)`.as("total_points_sum"),
+          matchesPlayed: sql2`COUNT(DISTINCT ${userTeams.matchId})`.as("matches_played"),
+          teamsCreated: sql2`COUNT(${userTeams.id})`.as("teams_created")
+        }).from(users).leftJoin(userTeams, eq(users.id, userTeams.userId)).where(eq(users.isVerified, true)).groupBy(users.id, users.username, users.teamName).orderBy(desc(sql2`total_points_sum`));
+        return result.map((row, index) => ({
+          rank: index + 1,
+          userId: row.userId,
+          username: row.username,
+          teamName: row.teamName,
+          totalPoints: Number(row.totalPoints),
+          matchesPlayed: Number(row.matchesPlayed),
+          teamsCreated: Number(row.teamsCreated)
+        }));
+      }
     };
     storage = new DatabaseStorage();
   }
@@ -278,12 +321,37 @@ __export(cricket_api_exports, {
   fetchMatchInfo: () => fetchMatchInfo,
   fetchMatchScorecard: () => fetchMatchScorecard,
   fetchMatchSquad: () => fetchMatchSquad,
+  fetchPlayingXI: () => fetchPlayingXI,
   fetchSeriesMatches: () => fetchSeriesMatches,
   fetchSeriesSquad: () => fetchSeriesSquad,
   fetchUpcomingMatches: () => fetchUpcomingMatches,
+  refreshPlayingXIForLiveMatches: () => refreshPlayingXIForLiveMatches,
   refreshStaleMatchStatuses: () => refreshStaleMatchStatuses,
   syncMatchesFromApi: () => syncMatchesFromApi
 });
+function isMatchDelayed(apiStatusText) {
+  const lower = (apiStatusText || "").toLowerCase();
+  return DELAY_KEYWORDS.some((kw) => lower.includes(kw));
+}
+function determineMatchStatus(matchStarted, matchEnded, apiStatusText, hasScoreData) {
+  const statusNote = apiStatusText || "";
+  if (matchEnded) {
+    return { status: "completed", statusNote };
+  }
+  if (matchStarted) {
+    if (hasScoreData) {
+      return { status: "live", statusNote };
+    }
+    if (isMatchDelayed(apiStatusText)) {
+      return { status: "delayed", statusNote };
+    }
+    return { status: "live", statusNote: statusNote || "Toss completed" };
+  }
+  if (isMatchDelayed(apiStatusText)) {
+    return { status: "delayed", statusNote };
+  }
+  return { status: "upcoming", statusNote };
+}
 function getTeamColor(shortName) {
   return TEAM_COLORS[shortName.toUpperCase()] || "#333333";
 }
@@ -371,9 +439,13 @@ async function fetchUpcomingMatches() {
       const team2Info = m.teamInfo?.find((t) => t.name === team2);
       const team1Short = team1Info?.shortname || getTeamShort(team1);
       const team2Short = team2Info?.shortname || getTeamShort(team2);
-      let status = "upcoming";
-      if (m.matchStarted && !m.matchEnded) status = "live";
-      if (m.matchEnded) status = "completed";
+      const hasScoreData = !!(m.score && m.score.length > 0 && m.score.some((s) => s.r > 0 || s.w > 0 || s.o > 0));
+      const { status, statusNote } = determineMatchStatus(
+        m.matchStarted,
+        m.matchEnded,
+        m.status,
+        hasScoreData
+      );
       const nameParts = m.name?.split(",").map((s) => s.trim()) || [];
       let league = nameParts[nameParts.length - 1] || nameParts[0] || "";
       if (nameParts.length >= 3) {
@@ -393,6 +465,7 @@ async function fetchUpcomingMatches() {
         venue: m.venue || "",
         startTime: new Date(m.dateTimeGMT),
         status,
+        statusNote,
         league
       };
     });
@@ -418,9 +491,12 @@ async function fetchSeriesMatches(seriesId, seriesName) {
       const team2Info = m.teamInfo?.find((t) => t.name === team2);
       const team1Short = team1Info?.shortname || getTeamShort(team1);
       const team2Short = team2Info?.shortname || getTeamShort(team2);
-      let status = "upcoming";
-      if (m.matchStarted && !m.matchEnded) status = "live";
-      if (m.matchEnded) status = "completed";
+      const { status, statusNote } = determineMatchStatus(
+        m.matchStarted,
+        m.matchEnded,
+        m.status,
+        false
+      );
       const nameParts = m.name?.split(",").map((s) => s.trim()) || [];
       let league = nameParts[nameParts.length - 1] || nameParts[0] || "";
       if (nameParts.length >= 3) {
@@ -440,6 +516,7 @@ async function fetchSeriesMatches(seriesId, seriesName) {
         venue: m.venue || "",
         startTime: new Date(m.dateTimeGMT),
         status,
+        statusNote,
         league
       };
     });
@@ -467,6 +544,7 @@ async function upsertMatches(apiMatches, existingMatches) {
         venue: m.venue,
         startTime: m.startTime,
         status: m.status,
+        statusNote: m.statusNote,
         league: m.league,
         totalPrize: "0",
         entryFee: 0,
@@ -477,12 +555,14 @@ async function upsertMatches(apiMatches, existingMatches) {
     } else {
       const updates = {};
       if (dup.status !== m.status) updates.status = m.status;
+      if (m.statusNote && dup.statusNote !== m.statusNote) updates.statusNote = m.statusNote;
       if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
       if (dup.league !== m.league) updates.league = m.league;
       if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
       if (m.venue && dup.venue !== m.venue) updates.venue = m.venue;
       if (Object.keys(updates).length > 0) {
         await storage2.updateMatch(dup.id, updates);
+        console.log(`Match ${m.team1} vs ${m.team2}: updated [${Object.keys(updates).join(", ")}]`);
         updated++;
       }
     }
@@ -543,6 +623,55 @@ async function fetchMatchInfo(matchId) {
     return null;
   }
 }
+async function fetchPlayingXI(externalMatchId) {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return [];
+  try {
+    const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (json.status !== "success" || !json.data?.scorecard) return [];
+    const playerIds = /* @__PURE__ */ new Set();
+    for (const inning of json.data.scorecard) {
+      inning.batting?.forEach((b) => {
+        if (b.batsman?.id) playerIds.add(b.batsman.id);
+      });
+      inning.bowling?.forEach((b) => {
+        if (b.bowler?.id) playerIds.add(b.bowler.id);
+      });
+      inning.catching?.forEach((c) => {
+        if (c.catcher?.id) playerIds.add(c.catcher.id);
+      });
+    }
+    console.log(`Playing XI extraction: found ${playerIds.size} player IDs from scorecard for match ${externalMatchId}`);
+    return Array.from(playerIds);
+  } catch (err) {
+    console.error("Playing XI fetch error:", err);
+    return [];
+  }
+}
+async function refreshPlayingXIForLiveMatches() {
+  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const allMatches = await storage2.getAllMatches();
+  const liveMatches = allMatches.filter(
+    (m) => (m.status === "live" || m.status === "delayed") && m.externalId
+  );
+  if (liveMatches.length === 0) return;
+  for (const match of liveMatches) {
+    try {
+      const existingCount = await storage2.getPlayingXICount(match.id);
+      if (existingCount >= 22) continue;
+      const playingIds = await fetchPlayingXI(match.externalId);
+      if (playingIds.length >= 2) {
+        await storage2.markPlayingXI(match.id, playingIds);
+        console.log(`Playing XI updated for ${match.team1} vs ${match.team2}: ${playingIds.length} players marked`);
+      }
+    } catch (err) {
+      console.error(`Playing XI refresh failed for match ${match.id}:`, err);
+    }
+  }
+}
 async function refreshStaleMatchStatuses() {
   const now = Date.now();
   if (now - lastStatusRefresh < STATUS_REFRESH_INTERVAL) return;
@@ -556,7 +685,8 @@ async function refreshStaleMatchStatuses() {
     const start = new Date(m.startTime).getTime();
     const elapsed = now - start;
     if (m.status === "live") return true;
-    if (m.status === "upcoming" && elapsed > 0) return true;
+    if (m.status === "delayed") return true;
+    if (m.status === "upcoming" && elapsed > -30 * 60 * 1e3) return true;
     return false;
   });
   if (staleMatches.length === 0) return;
@@ -566,15 +696,29 @@ async function refreshStaleMatchStatuses() {
     try {
       const info = await fetchMatchInfo(m.externalId);
       if (!info) continue;
-      let newStatus = m.status;
-      if (info.matchEnded) {
-        newStatus = "completed";
-      } else if (info.matchStarted && !info.matchEnded) {
-        newStatus = "live";
+      const hasScoreData = !!(info.score && info.score.length > 0 && info.score.some((s) => s.r > 0 || s.w > 0 || s.o > 0));
+      const { status: newStatus, statusNote } = determineMatchStatus(
+        info.matchStarted,
+        info.matchEnded,
+        info.status,
+        hasScoreData
+      );
+      const updates = {};
+      if (newStatus !== m.status) updates.status = newStatus;
+      if (statusNote && statusNote !== m.statusNote) updates.statusNote = statusNote;
+      if (Object.keys(updates).length > 0) {
+        await storage2.updateMatch(m.id, updates);
+        console.log(`Status refresh: ${m.team1} vs ${m.team2}: ${m.status} -> ${newStatus} [${statusNote}]`);
       }
-      if (newStatus !== m.status) {
-        await storage2.updateMatch(m.id, { status: newStatus });
-        console.log(`Updated ${m.team1} vs ${m.team2}: ${m.status} -> ${newStatus}`);
+      if (newStatus === "live" || info.matchStarted && !info.matchEnded) {
+        const xiCount = await storage2.getPlayingXICount(m.id);
+        if (xiCount < 22) {
+          const playingIds = await fetchPlayingXI(m.externalId);
+          if (playingIds.length >= 2) {
+            await storage2.markPlayingXI(m.id, playingIds);
+            console.log(`Playing XI updated for ${m.team1} vs ${m.team2}: ${playingIds.length} players`);
+          }
+        }
       }
     } catch (err) {
       console.error(`Failed to refresh status for match ${m.id}:`, err);
@@ -787,11 +931,28 @@ async function fetchLiveScorecard(externalMatchId) {
     return null;
   }
 }
-var CRICKET_API_BASE, TEAM_COLORS, TRACKED_SERIES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
+var CRICKET_API_BASE, DELAY_KEYWORDS, TEAM_COLORS, TRACKED_SERIES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
     "use strict";
     CRICKET_API_BASE = "https://api.cricapi.com/v1";
+    DELAY_KEYWORDS = [
+      "rain",
+      "delay",
+      "delayed",
+      "no result",
+      "abandoned",
+      "postponed",
+      "wet outfield",
+      "weather",
+      "inspection",
+      "covers",
+      "drizzle",
+      "toss yet",
+      "start delayed",
+      "play yet to",
+      "yet to begin"
+    ];
     TEAM_COLORS = {
       MI: "#004BA0",
       CSK: "#FFCB05",
@@ -926,6 +1087,7 @@ async function registerRoutes(app2) {
           username: user.username,
           email: user.email,
           phone: user.phone,
+          teamName: user.teamName,
           isVerified: user.isVerified,
           isAdmin: user.isAdmin
         },
@@ -953,6 +1115,7 @@ async function registerRoutes(app2) {
           username: user.username,
           email: user.email,
           phone: user.phone,
+          teamName: user.teamName,
           isVerified: user.isVerified,
           isAdmin: user.isAdmin
         },
@@ -989,11 +1152,32 @@ async function registerRoutes(app2) {
         username: user.username,
         email: user.email,
         phone: user.phone,
+        teamName: user.teamName,
         isVerified: user.isVerified,
         isAdmin: user.isAdmin
       }
     });
   });
+  app2.put(
+    "/api/auth/team-name",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const { teamName } = req.body;
+        if (!teamName || typeof teamName !== "string" || teamName.trim().length === 0) {
+          return res.status(400).json({ message: "Team name is required" });
+        }
+        if (teamName.trim().length > 30) {
+          return res.status(400).json({ message: "Team name must be 30 characters or less" });
+        }
+        await storage.updateUserTeamName(req.session.userId, teamName.trim());
+        return res.json({ teamName: teamName.trim() });
+      } catch (err) {
+        console.error("Update team name error:", err);
+        return res.status(500).json({ message: "Failed to update team name" });
+      }
+    }
+  );
   app2.post(
     "/api/auth/verify-code",
     isAuthenticated,
@@ -1082,25 +1266,22 @@ async function registerRoutes(app2) {
       const start = new Date(m.startTime).getTime();
       const diff = start - now.getTime();
       const elapsed = now.getTime() - start;
-      let effectiveStatus = m.status;
-      if (m.status === "upcoming" && diff <= 0 && elapsed <= THREE_HOURS) {
-        effectiveStatus = "live";
-      }
+      const effectiveStatus = m.status;
       const teams = await storage.getAllTeamsForMatch(m.id);
       const participantCount = teams.length;
-      const isUpcoming = effectiveStatus !== "completed" && effectiveStatus !== "live" && diff > 0 && diff <= TWENTY_FOUR_HOURS;
+      const isUpcoming = (effectiveStatus === "upcoming" || effectiveStatus === "delayed") && diff > -THREE_HOURS && diff <= TWENTY_FOUR_HOURS;
       const isLive = effectiveStatus === "live";
+      const isDelayed = effectiveStatus === "delayed";
       const isRecentlyCompleted = effectiveStatus === "completed" && elapsed <= THREE_HOURS;
       const hasParticipants = participantCount > 0;
-      if (hasParticipants || isUpcoming || isLive || isRecentlyCompleted) {
-        const matchData = { ...m, status: effectiveStatus };
-        matchesWithParticipants.push({ match: matchData, participantCount });
+      if (hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted) {
+        matchesWithParticipants.push({ match: m, participantCount });
       }
     }
     matchesWithParticipants.sort((a, b) => {
       if (a.participantCount > 0 && b.participantCount === 0) return -1;
       if (a.participantCount === 0 && b.participantCount > 0) return 1;
-      const order = { upcoming: 0, live: 1, completed: 2 };
+      const order = { upcoming: 0, delayed: 0, live: 1, completed: 2 };
       const oa = order[a.match.status] ?? 1;
       const ob = order[b.match.status] ?? 1;
       if (oa !== ob) return oa - ob;
@@ -1128,22 +1309,22 @@ async function registerRoutes(app2) {
       const matchId = req.params.id;
       let matchPlayers = await storage.getPlayersForMatch(matchId);
       if (matchPlayers.length === 0) {
-        const match = await storage.getMatch(matchId);
-        if (match?.externalId) {
+        const match2 = await storage.getMatch(matchId);
+        if (match2?.externalId) {
           try {
             const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-            let squad = await fetchMatchSquad2(match.externalId);
-            if (squad.length === 0 && match.seriesId) {
-              console.log(`Match squad empty, trying series squad for series ${match.seriesId}...`);
-              const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
-              const team1 = match.team1.toLowerCase();
-              const team2 = match.team2.toLowerCase();
+            let squad = await fetchMatchSquad2(match2.externalId);
+            if (squad.length === 0 && match2.seriesId) {
+              console.log(`Match squad empty, trying series squad for series ${match2.seriesId}...`);
+              const seriesPlayers = await fetchSeriesSquad2(match2.seriesId);
+              const team1 = match2.team1.toLowerCase();
+              const team2 = match2.team2.toLowerCase();
               squad = seriesPlayers.filter((p) => {
                 const pTeam = p.team.toLowerCase();
                 return pTeam === team1 || pTeam === team2 || pTeam.includes(team1) || team1.includes(pTeam) || pTeam.includes(team2) || team2.includes(pTeam);
               });
               if (squad.length > 0) {
-                console.log(`Found ${squad.length} players from series squad for ${match.team1} vs ${match.team2}`);
+                console.log(`Found ${squad.length} players from series squad for ${match2.team1} vs ${match2.team2}`);
               }
             }
             if (squad.length > 0) {
@@ -1162,6 +1343,22 @@ async function registerRoutes(app2) {
             }
           } catch (err) {
             console.error("Auto-fetch squad error:", err);
+          }
+        }
+      }
+      const match = matchPlayers.length > 0 ? await storage.getMatch(matchId) : null;
+      if (match && (match.status === "live" || match.status === "delayed") && match.externalId) {
+        const xiCount = await storage.getPlayingXICount(matchId);
+        if (xiCount < 22) {
+          try {
+            const { fetchPlayingXI: fetchPlayingXI2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+            const playingIds = await fetchPlayingXI2(match.externalId);
+            if (playingIds.length >= 2) {
+              await storage.markPlayingXI(matchId, playingIds);
+              matchPlayers = await storage.getPlayersForMatch(matchId);
+            }
+          } catch (err) {
+            console.error("Playing XI auto-refresh error:", err);
           }
         }
       }
@@ -1329,6 +1526,9 @@ async function registerRoutes(app2) {
         if (now.getTime() >= matchStart.getTime() - 1e3) {
           return res.status(400).json({ message: "Entry deadline has passed" });
         }
+        if (match.status === "live" || match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
         const existingTeams = await storage.getUserTeamsForMatch(
           req.session.userId,
           matchId
@@ -1341,6 +1541,13 @@ async function registerRoutes(app2) {
         }
         if (!captainId || !viceCaptainId) {
           return res.status(400).json({ message: "Captain and Vice-Captain required" });
+        }
+        const sortedNewIds = [...playerIds].sort();
+        for (const et of existingTeams) {
+          const sortedExisting = [...et.playerIds || []].sort();
+          if (sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i])) {
+            return res.status(400).json({ message: "You already have a team with the same players" });
+          }
         }
         const team = await storage.createUserTeam({
           userId: req.session.userId,
@@ -1361,10 +1568,42 @@ async function registerRoutes(app2) {
     "/api/teams/:id",
     isAuthenticated,
     async (req, res) => {
-      await storage.deleteUserTeam(req.params.id, req.session.userId);
-      return res.json({ ok: true });
+      try {
+        const team = await storage.getUserTeam(req.params.id);
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+        if (team.userId !== req.session.userId) {
+          return res.status(403).json({ message: "Not your team" });
+        }
+        const match = await storage.getMatch(team.matchId);
+        if (match) {
+          const now = /* @__PURE__ */ new Date();
+          const matchStart = new Date(match.startTime);
+          const isDelayed = match.status === "delayed";
+          if (match.status === "live" || match.status === "completed") {
+            return res.status(400).json({ message: "Cannot delete team after match has started" });
+          }
+          if (!isDelayed && now.getTime() >= matchStart.getTime() - 1e3) {
+            return res.status(400).json({ message: "Cannot delete team after deadline has passed" });
+          }
+        }
+        await storage.deleteUserTeam(req.params.id, req.session.userId);
+        return res.json({ ok: true });
+      } catch (err) {
+        console.error("Delete team error:", err);
+        return res.status(500).json({ message: "Failed to delete team" });
+      }
     }
   );
+  app2.get("/api/leaderboard", isAuthenticated, async (_req, res) => {
+    try {
+      const leaderboard = await storage.getLeaderboard();
+      return res.json(leaderboard);
+    } catch (e) {
+      return res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
   app2.get("/api/server-time", (_req, res) => {
     return res.json({ serverTime: (/* @__PURE__ */ new Date()).toISOString() });
   });
@@ -1500,6 +1739,29 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Add players error:", err);
         return res.status(500).json({ message: "Failed to add players" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/refresh-playing-xi",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
+        const { fetchPlayingXI: fetchPlayingXI2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+        const playingIds = await fetchPlayingXI2(match.externalId);
+        if (playingIds.length === 0) {
+          return res.json({ message: "No Playing XI data available yet from scorecard", count: 0 });
+        }
+        await storage.markPlayingXI(matchId, playingIds);
+        return res.json({ message: `Playing XI updated: ${playingIds.length} players marked`, count: playingIds.length });
+      } catch (err) {
+        console.error("Refresh Playing XI error:", err);
+        return res.status(500).json({ message: "Failed to refresh Playing XI" });
       }
     }
   );
@@ -1706,6 +1968,21 @@ function setupErrorHandler(app2) {
   configureExpoAndLanding(app);
   const server = await registerRoutes(app);
   setupErrorHandler(app);
+  async function seedReferenceCodes() {
+    try {
+      const existing = await storage.getAllCodes();
+      if (existing.length === 0) {
+        log("No reference codes found, seeding defaults...");
+        const defaultCodes = ["1234", "5678", "9012", "3456"];
+        for (const code of defaultCodes) {
+          await storage.createCode(code);
+        }
+        log(`Seeded ${defaultCodes.length} default reference codes`);
+      }
+    } catch (err) {
+      console.error("Failed to seed reference codes:", err);
+    }
+  }
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(
     {
@@ -1715,6 +1992,9 @@ function setupErrorHandler(app2) {
     },
     () => {
       log(`express server serving on port ${port}`);
+      seedReferenceCodes().catch((err) => {
+        console.error("Reference code seeding failed:", err);
+      });
       syncMatchesFromApi().catch((err) => {
         console.error("Initial match sync failed:", err);
       });
@@ -1726,7 +2006,7 @@ function setupErrorHandler(app2) {
         });
       }, TWO_HOURS);
       const recentlyRefreshed = /* @__PURE__ */ new Map();
-      const TWO_MINUTES = 2 * 60 * 1e3;
+      const FIVE_MINUTES = 5 * 60 * 1e3;
       const TWENTY_MINUTES = 20 * 60 * 1e3;
       async function refreshPlayingXI() {
         try {
@@ -1738,10 +2018,10 @@ function setupErrorHandler(app2) {
             const startMs = new Date(match.startTime).getTime();
             const timeUntilStart = startMs - now;
             const isInWindow = timeUntilStart <= TWENTY_MINUTES && timeUntilStart > -TWO_HOURS;
-            const isLive = match.status === "live";
+            const isLive = match.status === "live" || match.status === "delayed";
             if (!isInWindow && !isLive) continue;
             const lastRefresh = recentlyRefreshed.get(match.id) || 0;
-            if (now - lastRefresh < TWO_MINUTES) continue;
+            if (now - lastRefresh < FIVE_MINUTES) continue;
             log(`Playing XI refresh: ${match.team1} vs ${match.team2} (starts in ${Math.round(timeUntilStart / 6e4)}m, status: ${match.status})`);
             try {
               let squad = await fetchMatchSquad(match.externalId);
@@ -1778,8 +2058,8 @@ function setupErrorHandler(app2) {
           console.error("Playing XI scheduler error:", err);
         }
       }
-      setInterval(refreshPlayingXI, TWO_MINUTES);
-      log("Playing XI auto-refresh scheduler started (every 2min, 20min before match)");
+      setInterval(refreshPlayingXI, FIVE_MINUTES);
+      log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
     }
   );
 })();
