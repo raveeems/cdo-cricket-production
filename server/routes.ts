@@ -3,7 +3,9 @@ import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { fetchUpcomingMatches, fetchSeriesMatches, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { randomUUID, createHmac } from "crypto";
+import pg from "pg";
 
 declare module "express-session" {
   interface SessionData {
@@ -65,8 +67,18 @@ async function isAdmin(req: Request, res: Response, next: Function) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const PgStore = connectPgSimple(session);
+  const sessionPool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+  });
+
   app.use(
     session({
+      store: new PgStore({
+        pool: sessionPool,
+        tableName: "session",
+        createTableIfMissing: true,
+      }),
       secret: process.env.SESSION_SECRET || "cdo-session-secret-dev",
       resave: false,
       saveUninitialized: false,
