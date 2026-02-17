@@ -545,7 +545,7 @@ export async function refreshPlayingXIForLiveMatches(): Promise<void> {
 }
 
 let lastStatusRefresh = 0;
-const STATUS_REFRESH_INTERVAL = 2 * 60 * 1000;
+const STATUS_REFRESH_INTERVAL = 5 * 60 * 1000;
 
 export async function refreshStaleMatchStatuses(): Promise<void> {
   const now = Date.now();

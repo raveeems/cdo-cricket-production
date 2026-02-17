@@ -312,7 +312,7 @@ function setupErrorHandler(app: express.Application) {
       }, TWO_HOURS);
 
       const recentlyRefreshed = new Map<string, number>();
-      const TWO_MINUTES = 2 * 60 * 1000;
+      const FIVE_MINUTES = 5 * 60 * 1000;
       const TWENTY_MINUTES = 20 * 60 * 1000;
 
       async function refreshPlayingXI() {
@@ -328,12 +328,12 @@ function setupErrorHandler(app: express.Application) {
             const timeUntilStart = startMs - now;
 
             const isInWindow = timeUntilStart <= TWENTY_MINUTES && timeUntilStart > -TWO_HOURS;
-            const isLive = match.status === "live";
+            const isLive = match.status === "live" || match.status === "delayed";
 
             if (!isInWindow && !isLive) continue;
 
             const lastRefresh = recentlyRefreshed.get(match.id) || 0;
-            if (now - lastRefresh < TWO_MINUTES) continue;
+            if (now - lastRefresh < FIVE_MINUTES) continue;
 
             log(`Playing XI refresh: ${match.team1} vs ${match.team2} (starts in ${Math.round(timeUntilStart / 60000)}m, status: ${match.status})`);
 
@@ -376,8 +376,8 @@ function setupErrorHandler(app: express.Application) {
         }
       }
 
-      setInterval(refreshPlayingXI, TWO_MINUTES);
-      log("Playing XI auto-refresh scheduler started (every 2min, 20min before match)");
+      setInterval(refreshPlayingXI, FIVE_MINUTES);
+      log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
     },
   );
 })();
