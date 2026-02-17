@@ -173,6 +173,7 @@ function configureExpoAndLanding(app: express.Application) {
   const appName = getAppName();
 
   const webDistCandidates = [
+    path.resolve(process.cwd(), "web-app"),
     path.resolve(process.cwd(), "dist", "web"),
     path.resolve(process.cwd(), "static-build", "web"),
   ];

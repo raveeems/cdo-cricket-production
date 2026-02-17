@@ -1631,6 +1631,7 @@ function configureExpoAndLanding(app2) {
   const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
   const appName = getAppName();
   const webDistCandidates = [
+    path.resolve(process.cwd(), "web-app"),
     path.resolve(process.cwd(), "dist", "web"),
     path.resolve(process.cwd(), "static-build", "web")
   ];
