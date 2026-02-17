@@ -9,6 +9,7 @@ export interface Player {
   selectedBy: number;
   recentForm: number[];
   isImpactPlayer?: boolean;
+  isPlayingXI?: boolean;
   imageUrl?: string;
 }
 

@@ -486,53 +486,92 @@ export default function MatchDetailScreen() {
     );
   };
 
-  const renderPlayersTab = () => (
-    <View style={styles.contentSection}>
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-          Squad ({players.length})
-        </Text>
-      </View>
+  const renderPlayersTab = () => {
+    const playingXI = players.filter((p) => p.isPlayingXI);
+    const bench = players.filter((p) => !p.isPlayingXI);
+    const hasPlayingXI = playingXI.length > 0;
 
-      {players.map((player) => (
-        <View
-          key={player.id}
-          style={[styles.playerRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-        >
-          <View style={styles.playerLeft}>
-            <View style={[styles.roleBadge, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-              <Text style={[styles.roleText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
-                {player.role}
-              </Text>
-            </View>
-            <View>
-              <View style={styles.playerNameRow}>
-                <Text style={[styles.playerName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
-                  {player.name}
-                </Text>
-                {player.isImpactPlayer && (
-                  <View style={[styles.impactBadge, { backgroundColor: colors.warning + '20' }]}>
-                    <MaterialCommunityIcons name="lightning-bolt" size={10} color={colors.warning} />
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.playerTeam, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-                {player.teamShort} | {player.credits} Cr
-              </Text>
-            </View>
-          </View>
-          <View style={styles.playerRight}>
-            <Text style={[styles.playerPoints, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              {player.points}
+    const renderPlayerCard = (player: Player) => (
+      <View
+        key={player.id}
+        style={[styles.playerRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+      >
+        <View style={styles.playerLeft}>
+          <View style={[styles.roleBadge, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+            <Text style={[styles.roleText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
+              {player.role}
             </Text>
-            <Text style={[styles.playerPointsLabel, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-              pts
+          </View>
+          <View>
+            <View style={styles.playerNameRow}>
+              <Text style={[styles.playerName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
+                {player.name}
+              </Text>
+              {player.isImpactPlayer && (
+                <View style={[styles.impactBadge, { backgroundColor: colors.warning + '20' }]}>
+                  <MaterialCommunityIcons name="lightning-bolt" size={10} color={colors.warning} />
+                </View>
+              )}
+            </View>
+            <Text style={[styles.playerTeam, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+              {player.teamShort} | {player.credits} Cr
             </Text>
           </View>
         </View>
-      ))}
-    </View>
-  );
+        <View style={styles.playerRight}>
+          <Text style={[styles.playerPoints, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            {player.points}
+          </Text>
+          <Text style={[styles.playerPointsLabel, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+            pts
+          </Text>
+        </View>
+      </View>
+    );
+
+    return (
+      <View style={styles.contentSection}>
+        {hasPlayingXI ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={[styles.playingXIBadge, { backgroundColor: colors.success + '20' }]}>
+                  <View style={[styles.playingXIDot, { backgroundColor: colors.success }]} />
+                  <Text style={[styles.playingXIText, { color: colors.success, fontFamily: 'Inter_700Bold' }]}>
+                    Playing XI
+                  </Text>
+                </View>
+                <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                  ({playingXI.length})
+                </Text>
+              </View>
+            </View>
+            {playingXI.map(renderPlayerCard)}
+
+            {bench.length > 0 && (
+              <>
+                <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                    Bench ({bench.length})
+                  </Text>
+                </View>
+                {bench.map(renderPlayerCard)}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                Squad ({players.length})
+              </Text>
+            </View>
+            {players.map(renderPlayerCard)}
+          </>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1028,5 +1067,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     flex: 1,
     textAlign: 'center',
+  },
+  playingXIBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
+  },
+  playingXIDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  playingXIText: {
+    fontSize: 12,
   },
 });

@@ -419,6 +419,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      const match = matchPlayers.length > 0
+        ? await storage.getMatch(matchId)
+        : null;
+      if (match && (match.status === "live" || match.status === "delayed") && match.externalId) {
+        const xiCount = await storage.getPlayingXICount(matchId);
+        if (xiCount < 22) {
+          try {
+            const { fetchPlayingXI } = await import("./cricket-api");
+            const playingIds = await fetchPlayingXI(match.externalId);
+            if (playingIds.length >= 2) {
+              await storage.markPlayingXI(matchId, playingIds);
+              matchPlayers = await storage.getPlayersForMatch(matchId);
+            }
+          } catch (err) {
+            console.error("Playing XI auto-refresh error:", err);
+          }
+        }
+      }
+
       return res.json({ players: matchPlayers });
     }
   );
@@ -860,6 +879,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("Add players error:", err);
         return res.status(500).json({ message: "Failed to add players" });
+      }
+    }
+  );
+
+  // ---- ADMIN: REFRESH PLAYING XI ----
+  app.post(
+    "/api/admin/matches/:id/refresh-playing-xi",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
+
+        const { fetchPlayingXI } = await import("./cricket-api");
+        const playingIds = await fetchPlayingXI(match.externalId);
+        if (playingIds.length === 0) {
+          return res.json({ message: "No Playing XI data available yet from scorecard", count: 0 });
+        }
+
+        await storage.markPlayingXI(matchId, playingIds);
+        return res.json({ message: `Playing XI updated: ${playingIds.length} players marked`, count: playingIds.length });
+      } catch (err: any) {
+        console.error("Refresh Playing XI error:", err);
+        return res.status(500).json({ message: "Failed to refresh Playing XI" });
       }
     }
   );
