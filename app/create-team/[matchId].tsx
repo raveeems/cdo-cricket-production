@@ -15,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Player,
   Match,
@@ -176,6 +177,7 @@ export default function CreateTeamScreen() {
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
   const { colors, isDark } = useTheme();
   const { saveTeam, getTeamsForMatch } = useTeams();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<Step>('select');
@@ -278,14 +280,15 @@ export default function CreateTeamScreen() {
     if (!captainId || !vcId || !matchId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    const baseName = user?.teamName || 'Team';
     const existingNames = new Set(existingTeams.map((t) => t.name));
     let teamNumber = existingTeams.length + 1;
-    while (existingNames.has(`Team ${teamNumber}`)) {
+    while (existingNames.has(`${baseName} ${teamNumber}`)) {
       teamNumber++;
     }
     await saveTeam({
       matchId,
-      name: `Team ${teamNumber}`,
+      name: `${baseName} ${teamNumber}`,
       playerIds: Array.from(selectedIds),
       captainId,
       viceCaptainId: vcId,

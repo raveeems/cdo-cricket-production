@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   ScrollView,
   Platform,
   Switch,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,9 +21,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, updateTeamName } = useAuth();
   const { teams } = useTeams();
   const insets = useSafeAreaInsets();
+
+  const [editingTeamName, setEditingTeamName] = useState(false);
+  const [teamNameInput, setTeamNameInput] = useState(user?.teamName || '');
+  const [teamNameSaving, setTeamNameSaving] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -32,6 +38,17 @@ export default function ProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await logout();
     router.replace('/auth');
+  };
+
+  const handleSaveTeamName = async () => {
+    if (!teamNameInput.trim()) return;
+    setTeamNameSaving(true);
+    const ok = await updateTeamName(teamNameInput.trim());
+    setTeamNameSaving(false);
+    if (ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setEditingTeamName(false);
+    }
   };
 
   return (
@@ -61,9 +78,11 @@ export default function ProfileScreen() {
               <Text style={[styles.profileName, { fontFamily: 'Inter_700Bold' }]}>
                 {user?.username || 'Player'}
               </Text>
-              <Text style={[styles.profileEmail, { fontFamily: 'Inter_400Regular' }]}>
-                {user?.email || ''}
-              </Text>
+              {user?.teamName ? (
+                <Text style={[styles.profileTeamName, { fontFamily: 'Inter_500Medium' }]}>
+                  {user.teamName}
+                </Text>
+              ) : null}
               {isAdmin && (
                 <View style={styles.adminBadge}>
                   <Ionicons name="shield-checkmark" size={12} color="#FFD130" />
@@ -74,6 +93,58 @@ export default function ProfileScreen() {
               )}
             </View>
           </LinearGradient>
+
+          {editingTeamName ? (
+            <View style={[styles.teamNameEditCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.teamNameEditLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+                Team Name
+              </Text>
+              <View style={styles.teamNameEditRow}>
+                <TextInput
+                  value={teamNameInput}
+                  onChangeText={setTeamNameInput}
+                  placeholder="Enter your team name"
+                  placeholderTextColor={colors.textTertiary}
+                  maxLength={30}
+                  style={[styles.teamNameInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceElevated, fontFamily: 'Inter_500Medium' }]}
+                  autoFocus
+                />
+                <Pressable
+                  onPress={handleSaveTeamName}
+                  disabled={teamNameSaving || !teamNameInput.trim()}
+                  style={[styles.teamNameSaveBtn, { backgroundColor: colors.primary, opacity: teamNameInput.trim() ? 1 : 0.5 }]}
+                >
+                  <Ionicons name="checkmark" size={20} color="#FFF" />
+                </Pressable>
+                <Pressable
+                  onPress={() => { setEditingTeamName(false); setTeamNameInput(user?.teamName || ''); }}
+                  style={[styles.teamNameCancelBtn, { borderColor: colors.border }]}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => { setTeamNameInput(user?.teamName || ''); setEditingTeamName(true); }}
+              style={[styles.teamNameCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+            >
+              <View style={styles.teamNameCardLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.accent + '20' }]}>
+                  <MaterialCommunityIcons name="cricket" size={18} color={colors.accent} />
+                </View>
+                <View>
+                  <Text style={[styles.teamNameLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    Team Name
+                  </Text>
+                  <Text style={[styles.teamNameValue, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
+                    {user?.teamName || 'Set your team name'}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="pencil" size={16} color={colors.textTertiary} />
+            </Pressable>
+          )}
 
           <View style={styles.statsRow}>
             <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -311,5 +382,69 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontSize: 15,
+  },
+  profileTeamName: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
+  },
+  teamNameCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  teamNameCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  teamNameLabel: {
+    fontSize: 11,
+  },
+  teamNameValue: {
+    fontSize: 15,
+    marginTop: 1,
+  },
+  teamNameEditCard: {
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 10,
+  },
+  teamNameEditLabel: {
+    fontSize: 13,
+  },
+  teamNameEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  teamNameInput: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 15,
+  },
+  teamNameSaveBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  teamNameCancelBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

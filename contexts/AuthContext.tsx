@@ -8,6 +8,7 @@ interface User {
   username: string;
   email: string;
   phone: string;
+  teamName: string;
   isVerified: boolean;
   isAdmin: boolean;
   joinedAt: string;
@@ -24,6 +25,7 @@ interface AuthContextValue {
   verifyReferenceCode: (code: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
+  updateTeamName: (teamName: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -123,6 +125,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ ...user, ...updates });
   };
 
+  const updateTeamName = async (teamName: string): Promise<boolean> => {
+    try {
+      const res = await apiRequest('PUT', '/api/auth/team-name', { teamName });
+      const data = await res.json();
+      if (user) {
+        setUser({ ...user, teamName: data.teamName });
+      }
+      return true;
+    } catch (e: any) {
+      console.error('Update team name failed:', e);
+      return false;
+    }
+  };
+
   const value = useMemo(() => ({
     user,
     isLoading,
@@ -134,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     verifyReferenceCode,
     logout,
     updateUser,
+    updateTeamName,
   }), [user, isLoading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

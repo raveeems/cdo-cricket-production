@@ -123,6 +123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: user.username,
           email: user.email,
           phone: user.phone,
+          teamName: user.teamName,
           isVerified: user.isVerified,
           isAdmin: user.isAdmin,
         },
@@ -155,6 +156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: user.username,
           email: user.email,
           phone: user.phone,
+          teamName: user.teamName,
           isVerified: user.isVerified,
           isAdmin: user.isAdmin,
         },
@@ -194,11 +196,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: user.username,
         email: user.email,
         phone: user.phone,
+        teamName: user.teamName,
         isVerified: user.isVerified,
         isAdmin: user.isAdmin,
       },
     });
   });
+
+  app.put(
+    "/api/auth/team-name",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const { teamName } = req.body;
+        if (!teamName || typeof teamName !== "string" || teamName.trim().length === 0) {
+          return res.status(400).json({ message: "Team name is required" });
+        }
+        if (teamName.trim().length > 30) {
+          return res.status(400).json({ message: "Team name must be 30 characters or less" });
+        }
+        await storage.updateUserTeamName(req.session.userId!, teamName.trim());
+        return res.json({ teamName: teamName.trim() });
+      } catch (err: any) {
+        console.error("Update team name error:", err);
+        return res.status(500).json({ message: "Failed to update team name" });
+      }
+    }
+  );
 
   // ---- REFERENCE CODES ----
   app.post(
@@ -614,6 +638,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .json({ message: "Captain and Vice-Captain required" });
         }
 
+        const sortedNewIds = [...playerIds].sort();
+        for (const et of existingTeams) {
+          const sortedExisting = [...(et.playerIds || [])].sort();
+          if (sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i])) {
+            return res.status(400).json({ message: "You already have a team with the same players" });
+          }
+        }
+
         const team = await storage.createUserTeam({
           userId: req.session.userId!,
           matchId,
@@ -635,8 +667,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/teams/:id",
     isAuthenticated,
     async (req: Request, res: Response) => {
-      await storage.deleteUserTeam(req.params.id, req.session.userId!);
-      return res.json({ ok: true });
+      try {
+        const team = await storage.getUserTeam(req.params.id);
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+        if (team.userId !== req.session.userId) {
+          return res.status(403).json({ message: "Not your team" });
+        }
+        const match = await storage.getMatch(team.matchId);
+        if (match) {
+          const now = new Date();
+          const matchStart = new Date(match.startTime);
+          const isDelayed = match.status === "delayed";
+          if (match.status === "live" || match.status === "completed") {
+            return res.status(400).json({ message: "Cannot delete team after match has started" });
+          }
+          if (!isDelayed && now.getTime() >= matchStart.getTime() - 1000) {
+            return res.status(400).json({ message: "Cannot delete team after deadline has passed" });
+          }
+        }
+        await storage.deleteUserTeam(req.params.id, req.session.userId!);
+        return res.json({ ok: true });
+      } catch (err: any) {
+        console.error("Delete team error:", err);
+        return res.status(500).json({ message: "Failed to delete team" });
+      }
     }
   );
 

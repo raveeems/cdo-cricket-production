@@ -58,6 +58,18 @@ export class DatabaseStorage {
       .where(eq(users.id, userId));
   }
 
+  async updateUserTeamName(userId: string, teamName: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ teamName })
+      .where(eq(users.id, userId));
+  }
+
+  async getUserTeam(teamId: string): Promise<UserTeam | undefined> {
+    const [team] = await db.select().from(userTeams).where(eq(userTeams.id, teamId));
+    return team;
+  }
+
   // Reference Codes
   async getActiveCode(code: string): Promise<ReferenceCode | undefined> {
     const [found] = await db

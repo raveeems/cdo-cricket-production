@@ -20,6 +20,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   phone: text("phone").notNull().default(""),
   password: text("password").notNull(),
+  teamName: text("team_name").notNull().default(""),
   isVerified: boolean("is_verified").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   joinedAt: timestamp("joined_at").notNull().defaultNow(),
