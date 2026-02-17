@@ -560,6 +560,12 @@ async function main() {
       env: { ...process.env, EXPO_PUBLIC_DOMAIN: domain },
     });
     console.log("Web export complete");
+    const webSrc = path.resolve("dist", "web");
+    const webDest = path.resolve("static-build", "web");
+    if (fs.existsSync(webSrc)) {
+      execSync(`cp -r ${webSrc} ${webDest}`, { stdio: "inherit" });
+      console.log("Copied web build to static-build/web");
+    }
   } catch (e) {
     console.error("Web export failed:", e.message);
   }

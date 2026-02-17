@@ -172,12 +172,24 @@ function configureExpoAndLanding(app: express.Application) {
   const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
   const appName = getAppName();
 
-  const webDistPath = path.resolve(process.cwd(), "dist", "web");
-  const hasWebBuild = fs.existsSync(path.join(webDistPath, "index.html"));
+  const webDistCandidates = [
+    path.resolve(process.cwd(), "dist", "web"),
+    path.resolve(process.cwd(), "static-build", "web"),
+  ];
+  let webDistPath = "";
+  for (const candidate of webDistCandidates) {
+    if (fs.existsSync(path.join(candidate, "index.html"))) {
+      webDistPath = candidate;
+      break;
+    }
+  }
+  const hasWebBuild = !!webDistPath;
 
   log("Serving static Expo files with dynamic manifest routing");
   if (hasWebBuild) {
-    log("Web build found at dist/web — serving web app to browsers");
+    log(`Web build found at ${webDistPath} — serving web app to browsers`);
+  } else {
+    log("No web build found, will serve landing page to browsers");
   }
 
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -185,28 +197,11 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
-    if (req.path !== "/" && req.path !== "/manifest") {
-      return next();
-    }
-
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
-      return serveExpoManifest(platform, res);
-    }
-
-    if (req.path === "/" && hasWebBuild) {
-      const indexHtml = fs.readFileSync(path.join(webDistPath, "index.html"), "utf-8");
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      return res.status(200).send(indexHtml);
-    }
-
-    if (req.path === "/") {
-      return serveLandingPage({
-        req,
-        res,
-        landingPageTemplate,
-        appName,
-      });
+      if (req.path === "/" || req.path === "/manifest") {
+        return serveExpoManifest(platform, res);
+      }
     }
 
     next();
@@ -222,10 +217,18 @@ function configureExpoAndLanding(app: express.Application) {
     if (req.path.startsWith("/api")) {
       return next();
     }
-    if (hasWebBuild && req.method === "GET" && req.accepts("html")) {
-      const indexHtml = fs.readFileSync(path.join(webDistPath, "index.html"), "utf-8");
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      return res.status(200).send(indexHtml);
+    if (req.method === "GET" && req.accepts("html")) {
+      if (hasWebBuild) {
+        const indexHtml = fs.readFileSync(path.join(webDistPath, "index.html"), "utf-8");
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(200).send(indexHtml);
+      }
+      return serveLandingPage({
+        req,
+        res,
+        landingPageTemplate,
+        appName,
+      });
     }
     next();
   });
