@@ -1,0 +1,700 @@
+import React, { useState, useMemo } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  FlatList,
+  Platform,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTeams } from '@/contexts/TeamContext';
+import {
+  MOCK_MATCHES,
+  MOCK_PLAYERS,
+  Player,
+  UserTeam,
+  getRoleColor,
+} from '@/lib/mock-data';
+import { LinearGradient } from 'expo-linear-gradient';
+
+type Step = 'select' | 'captain';
+type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
+
+const ROLE_LIMITS = {
+  WK: { min: 1, max: 4 },
+  BAT: { min: 3, max: 6 },
+  AR: { min: 1, max: 4 },
+  BOWL: { min: 3, max: 6 },
+};
+
+function PlayerItem({
+  player,
+  isSelected,
+  onToggle,
+  colors,
+  isDark,
+}: {
+  player: Player;
+  isSelected: boolean;
+  onToggle: () => void;
+  colors: any;
+  isDark: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={[
+        styles.playerItem,
+        {
+          backgroundColor: isSelected ? colors.primary + '15' : colors.card,
+          borderColor: isSelected ? colors.primary + '40' : colors.cardBorder,
+        },
+      ]}
+    >
+      <View style={styles.playerItemLeft}>
+        <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+          <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
+            {player.role}
+          </Text>
+        </View>
+        <View style={styles.playerItemInfo}>
+          <View style={styles.playerItemNameRow}>
+            <Text style={[styles.playerItemName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+              {player.name}
+            </Text>
+            {player.isImpactPlayer && (
+              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.warning} />
+            )}
+          </View>
+          <Text style={[styles.playerItemTeam, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+            {player.teamShort}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.playerItemRight}>
+        <Text style={[styles.playerCredits, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+          {player.credits}
+        </Text>
+        <View style={styles.formRow}>
+          {player.recentForm.slice(0, 3).map((v, i) => (
+            <View
+              key={i}
+              style={[
+                styles.formDot,
+                { backgroundColor: v > 30 || v > 2 ? colors.success + '40' : colors.textTertiary + '30' },
+              ]}
+            >
+              <Text style={[styles.formDotText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+                {v}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      <View style={[styles.checkCircle, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' }]}>
+        {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+      </View>
+    </Pressable>
+  );
+}
+
+function CaptainItem({
+  player,
+  isCaptain,
+  isVC,
+  onSelectC,
+  onSelectVC,
+  colors,
+  isDark,
+}: {
+  player: Player;
+  isCaptain: boolean;
+  isVC: boolean;
+  onSelectC: () => void;
+  onSelectVC: () => void;
+  colors: any;
+  isDark: boolean;
+}) {
+  return (
+    <View style={[styles.captainItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+      <View style={styles.captainLeft}>
+        <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+          <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
+            {player.role}
+          </Text>
+        </View>
+        <View>
+          <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+            {player.name}
+          </Text>
+          <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+            {player.teamShort} | {player.credits} Cr
+          </Text>
+        </View>
+      </View>
+      <View style={styles.captainButtons}>
+        <Pressable
+          onPress={onSelectC}
+          style={[
+            styles.captainBtn,
+            {
+              backgroundColor: isCaptain ? colors.accent : colors.surfaceElevated,
+              borderColor: isCaptain ? colors.accent : colors.border,
+            },
+          ]}
+        >
+          <Text style={[styles.captainBtnText, { color: isCaptain ? '#000' : colors.textSecondary, fontFamily: 'Inter_700Bold' }]}>
+            C
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={onSelectVC}
+          style={[
+            styles.captainBtn,
+            {
+              backgroundColor: isVC ? colors.primary : colors.surfaceElevated,
+              borderColor: isVC ? colors.primary : colors.border,
+            },
+          ]}
+        >
+          <Text style={[styles.captainBtnText, { color: isVC ? '#FFF' : colors.textSecondary, fontFamily: 'Inter_700Bold' }]}>
+            VC
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+export default function CreateTeamScreen() {
+  const { matchId } = useLocalSearchParams<{ matchId: string }>();
+  const { colors, isDark } = useTheme();
+  const { saveTeam, getTeamsForMatch } = useTeams();
+  const insets = useSafeAreaInsets();
+
+  const [step, setStep] = useState<Step>('select');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [captainId, setCaptainId] = useState<string | null>(null);
+  const [vcId, setVcId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<RoleFilter>('ALL');
+
+  const match = MOCK_MATCHES.find((m) => m.id === matchId);
+  const allPlayers = matchId ? (MOCK_PLAYERS[matchId] || []) : [];
+  const existingTeams = matchId ? getTeamsForMatch(matchId) : [];
+
+  const filteredPlayers = useMemo(() => {
+    if (filter === 'ALL') return allPlayers;
+    return allPlayers.filter((p) => p.role === filter);
+  }, [allPlayers, filter]);
+
+  const selectedPlayers = useMemo(() => {
+    return allPlayers.filter((p) => selectedIds.has(p.id));
+  }, [allPlayers, selectedIds]);
+
+  const roleCounts = useMemo(() => {
+    const counts = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+    selectedPlayers.forEach((p) => { counts[p.role]++; });
+    return counts;
+  }, [selectedPlayers]);
+
+  const totalCredits = useMemo(() => {
+    return selectedPlayers.reduce((sum, p) => sum + p.credits, 0);
+  }, [selectedPlayers]);
+
+  const isValidTeam = useMemo(() => {
+    if (selectedIds.size !== 11) return false;
+    for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
+      const count = roleCounts[role as keyof typeof roleCounts];
+      if (count < limits.min || count > limits.max) return false;
+    }
+    return true;
+  }, [selectedIds, roleCounts]);
+
+  const canSelectPlayer = (player: Player) => {
+    if (selectedIds.has(player.id)) return true;
+    if (selectedIds.size >= 11) return false;
+    const count = roleCounts[player.role];
+    if (count >= ROLE_LIMITS[player.role].max) return false;
+    return true;
+  };
+
+  const togglePlayer = (player: Player) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const newSet = new Set(selectedIds);
+    if (newSet.has(player.id)) {
+      newSet.delete(player.id);
+    } else {
+      if (!canSelectPlayer(player)) return;
+      newSet.add(player.id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleSaveTeam = async () => {
+    if (!captainId || !vcId || !matchId) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const teamNumber = existingTeams.length + 1;
+    const team: UserTeam = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      matchId,
+      name: `Team ${teamNumber}`,
+      players: Array.from(selectedIds),
+      captainId,
+      viceCaptainId: vcId,
+      totalPoints: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    await saveTeam(team);
+    router.back();
+  };
+
+  const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const filters: RoleFilter[] = ['ALL', 'WK', 'BAT', 'AR', 'BOWL'];
+
+  if (!match) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: colors.text }}>Match not found</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top + webTopInset + 4, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          {step === 'select' ? 'Select Players' : 'Choose C & VC'}
+        </Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {step === 'select' && (
+        <>
+          <View style={[styles.statusBar, { backgroundColor: colors.surfaceElevated }]}>
+            <View style={styles.statusItem}>
+              <Text style={[styles.statusLabel, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>Players</Text>
+              <Text style={[styles.statusValue, { color: selectedIds.size === 11 ? colors.success : colors.text, fontFamily: 'Inter_700Bold' }]}>
+                {selectedIds.size}/11
+              </Text>
+            </View>
+            <View style={[styles.statusDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.statusItem}>
+              <Text style={[styles.statusLabel, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>Credits</Text>
+              <Text style={[styles.statusValue, { color: totalCredits > 100 ? colors.error : colors.text, fontFamily: 'Inter_700Bold' }]}>
+                {totalCredits.toFixed(1)}
+              </Text>
+            </View>
+            {(['WK', 'BAT', 'AR', 'BOWL'] as const).map((role) => (
+              <React.Fragment key={role}>
+                <View style={[styles.statusDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.statusItem}>
+                  <Text style={[styles.statusLabel, { color: getRoleColor(role, isDark), fontFamily: 'Inter_600SemiBold' }]}>{role}</Text>
+                  <Text style={[styles.statusValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                    {roleCounts[role]}
+                  </Text>
+                </View>
+              </React.Fragment>
+            ))}
+          </View>
+
+          <View style={styles.filterRow}>
+            {filters.map((f) => (
+              <Pressable
+                key={f}
+                onPress={() => setFilter(f)}
+                style={[
+                  styles.filterBtn,
+                  {
+                    backgroundColor: filter === f ? colors.primary : colors.surfaceElevated,
+                    borderColor: filter === f ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    {
+                      color: filter === f ? '#FFF' : colors.textSecondary,
+                      fontFamily: 'Inter_600SemiBold',
+                    },
+                  ]}
+                >
+                  {f}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <FlatList
+            data={filteredPlayers}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <PlayerItem
+                player={item}
+                isSelected={selectedIds.has(item.id)}
+                onToggle={() => togglePlayer(item)}
+                colors={colors}
+                isDark={isDark}
+              />
+            )}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={filteredPlayers.length > 0}
+          />
+
+          <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+            <Pressable
+              onPress={() => {
+                if (isValidTeam) {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setStep('captain');
+                }
+              }}
+              disabled={!isValidTeam}
+              style={[styles.nextBtn, { opacity: isValidTeam ? 1 : 0.5 }]}
+            >
+              <LinearGradient
+                colors={[colors.accent, colors.accentDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.nextBtnGradient}
+              >
+                <Text style={[styles.nextBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                  Next: Choose Captain
+                </Text>
+                <Ionicons name="arrow-forward" size={20} color="#000" />
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </>
+      )}
+
+      {step === 'captain' && (
+        <>
+          <View style={[styles.captainInfo, { backgroundColor: colors.surfaceElevated }]}>
+            <View style={styles.captainInfoRow}>
+              <View style={[styles.captainInfoBadge, { backgroundColor: colors.accent + '20' }]}>
+                <Text style={[styles.captainInfoLabel, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>C</Text>
+              </View>
+              <Text style={[styles.captainInfoText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Captain gets 2x points
+              </Text>
+            </View>
+            <View style={styles.captainInfoRow}>
+              <View style={[styles.captainInfoBadge, { backgroundColor: colors.primary + '20' }]}>
+                <Text style={[styles.captainInfoLabel, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>VC</Text>
+              </View>
+              <Text style={[styles.captainInfoText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Vice-Captain gets 1.5x points
+              </Text>
+            </View>
+          </View>
+
+          <FlatList
+            data={selectedPlayers}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <CaptainItem
+                player={item}
+                isCaptain={captainId === item.id}
+                isVC={vcId === item.id}
+                onSelectC={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (vcId === item.id) setVcId(null);
+                  setCaptainId(item.id);
+                }}
+                onSelectVC={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (captainId === item.id) setCaptainId(null);
+                  setVcId(item.id);
+                }}
+                colors={colors}
+                isDark={isDark}
+              />
+            )}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={selectedPlayers.length > 0}
+          />
+
+          <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+            <View style={styles.bottomBarRow}>
+              <Pressable
+                onPress={() => setStep('select')}
+                style={[styles.backStepBtn, { borderColor: colors.border }]}
+              >
+                <Ionicons name="arrow-back" size={20} color={colors.text} />
+              </Pressable>
+              <Pressable
+                onPress={handleSaveTeam}
+                disabled={!captainId || !vcId}
+                style={[styles.saveBtn, { flex: 1, opacity: captainId && vcId ? 1 : 0.5 }]}
+              >
+                <LinearGradient
+                  colors={[colors.accent, colors.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.saveBtnGradient}
+                >
+                  <Ionicons name="checkmark" size={22} color="#000" />
+                  <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                    Save Team
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+  },
+  statusBar: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    justifyContent: 'space-around',
+  },
+  statusItem: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  statusLabel: {
+    fontSize: 10,
+  },
+  statusValue: {
+    fontSize: 14,
+  },
+  statusDivider: {
+    width: 1,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  filterBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  filterText: {
+    fontSize: 12,
+  },
+  playerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  playerItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  rolePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  rolePillText: {
+    fontSize: 10,
+  },
+  playerItemInfo: {
+    flex: 1,
+  },
+  playerItemNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  playerItemName: {
+    fontSize: 14,
+  },
+  playerItemTeam: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  playerItemRight: {
+    alignItems: 'flex-end',
+    marginRight: 10,
+    gap: 4,
+  },
+  playerCredits: {
+    fontSize: 14,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  formDot: {
+    width: 22,
+    height: 18,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  formDotText: {
+    fontSize: 9,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  nextBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  nextBtnGradient: {
+    height: 52,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+  },
+  nextBtnText: {
+    fontSize: 16,
+    color: '#000',
+  },
+  captainInfo: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  captainInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  captainInfoBadge: {
+    width: 30,
+    height: 24,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  captainInfoLabel: {
+    fontSize: 12,
+  },
+  captainInfoText: {
+    fontSize: 13,
+  },
+  captainItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  captainLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  captainName: {
+    fontSize: 14,
+  },
+  captainMeta: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  captainButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  captainBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  captainBtnText: {
+    fontSize: 15,
+  },
+  bottomBarRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  backStepBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  saveBtnGradient: {
+    height: 52,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+  },
+  saveBtnText: {
+    fontSize: 16,
+    color: '#000',
+  },
+});

@@ -1,0 +1,315 @@
+import React from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  Platform,
+  Switch,
+} from 'react-native';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTeams } from '@/contexts/TeamContext';
+import { LinearGradient } from 'expo-linear-gradient';
+
+export default function ProfileScreen() {
+  const { colors, isDark, toggleTheme } = useTheme();
+  const { user, logout, isAdmin } = useAuth();
+  const { teams } = useTeams();
+  const insets = useSafeAreaInsets();
+
+  const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  const matchesJoined = new Set(teams.map((t) => t.matchId)).size;
+  const totalTeams = teams.length;
+
+  const handleLogout = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await logout();
+    router.replace('/auth');
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100 }}
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16 }}>
+          <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            Profile
+          </Text>
+
+          <LinearGradient
+            colors={[colors.primary, '#1E40AF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.profileCard}
+          >
+            <View style={styles.profileAvatar}>
+              <Text style={[styles.profileInitial, { fontFamily: 'Inter_700Bold' }]}>
+                {(user?.username || 'U')[0].toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={[styles.profileName, { fontFamily: 'Inter_700Bold' }]}>
+                {user?.username || 'Player'}
+              </Text>
+              <Text style={[styles.profileEmail, { fontFamily: 'Inter_400Regular' }]}>
+                {user?.email || ''}
+              </Text>
+              {isAdmin && (
+                <View style={styles.adminBadge}>
+                  <Ionicons name="shield-checkmark" size={12} color="#FFD130" />
+                  <Text style={[styles.adminBadgeText, { fontFamily: 'Inter_600SemiBold' }]}>
+                    Admin
+                  </Text>
+                </View>
+              )}
+            </View>
+          </LinearGradient>
+
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <MaterialCommunityIcons name="cricket" size={24} color={colors.accent} />
+              <Text style={[styles.statValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                {matchesJoined}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Matches
+              </Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Ionicons name="people" size={24} color={colors.primary} />
+              <Text style={[styles.statValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                {totalTeams}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Teams
+              </Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Ionicons name="trophy" size={24} color={colors.success} />
+              <Text style={[styles.statValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                0
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Wins
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.settingsSection, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.accent + '20' }]}>
+                  <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={colors.accent} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                  Dark Mode
+                </Text>
+              </View>
+              <Switch
+                value={isDark}
+                onValueChange={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  toggleTheme();
+                }}
+                trackColor={{ false: '#767577', true: colors.primary }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <Pressable style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.primary + '20' }]}>
+                  <Ionicons name="notifications-outline" size={18} color={colors.primary} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                  Notifications
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <Pressable style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
+                  <Feather name="help-circle" size={18} color={colors.success} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                  How to Play
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            {isAdmin && (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Pressable
+                  style={styles.settingRow}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/admin');
+                  }}
+                >
+                  <View style={styles.settingLeft}>
+                    <View style={[styles.settingIcon, { backgroundColor: colors.error + '20' }]}>
+                      <Ionicons name="shield" size={18} color={colors.error} />
+                    </View>
+                    <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                      Admin Panel
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+                </Pressable>
+              </>
+            )}
+          </View>
+
+          <Pressable
+            onPress={handleLogout}
+            style={[styles.logoutButton, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}
+          >
+            <Ionicons name="log-out-outline" size={20} color={colors.error} />
+            <Text style={[styles.logoutText, { color: colors.error, fontFamily: 'Inter_600SemiBold' }]}>
+              Log Out
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  pageTitle: {
+    fontSize: 24,
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  profileCard: {
+    borderRadius: 18,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 20,
+  },
+  profileAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileInitial: {
+    fontSize: 24,
+    color: '#FFF',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 20,
+    color: '#FFF',
+    marginBottom: 2,
+  },
+  profileEmail: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  adminBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    backgroundColor: 'rgba(255,209,48,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  adminBadgeText: {
+    fontSize: 11,
+    color: '#FFD130',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  statValue: {
+    fontSize: 22,
+  },
+  statLabel: {
+    fontSize: 11,
+  },
+  settingsSection: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  settingIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  settingText: {
+    fontSize: 15,
+  },
+  divider: {
+    height: 1,
+    marginLeft: 62,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  logoutText: {
+    fontSize: 15,
+  },
+});
