@@ -102,32 +102,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyReferenceCode = async (code: string): Promise<boolean> => {
     try {
-      const baseUrl = getApiUrl();
-      const url = new URL('/api/auth/verify-code', baseUrl);
-      const token = getCachedToken() || await getAuthToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      const res = await apiRequest('POST', '/api/auth/verify-code', { code });
+      const data = await res.json();
+      if (data.verified) {
+        if (user) {
+          setUser({ ...user, isVerified: true });
+        }
+        return true;
       }
-      const res = await fetchFn(url.toString(), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ code }),
-        credentials: 'include',
-      });
-      if (res.status === 401) {
-        throw new Error('AUTH_FAILED');
-      }
-      if (!res.ok) {
-        return false;
-      }
-      if (user) {
-        setUser({ ...user, isVerified: true });
-      }
-      return true;
+      return false;
     } catch (e: any) {
       console.error('Verify code failed:', e?.message || e);
-      if (e?.message === 'AUTH_FAILED') {
+      if (e?.message?.includes('401')) {
         await clearAuthToken();
         setUser(null);
       }
