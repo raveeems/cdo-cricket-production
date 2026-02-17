@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import { fetch } from 'expo/fetch';
+import { Platform } from 'react-native';
+import { fetch as expoFetch } from 'expo/fetch';
 import { apiRequest, getApiUrl } from '@/lib/query-client';
+
+const fetchFn = Platform.OS === 'web' ? globalThis.fetch.bind(globalThis) : expoFetch;
 import { getAuthToken, setAuthToken, clearAuthToken } from '@/lib/auth-token';
 
 interface User {
@@ -47,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      const res = await fetch(url.toString(), {
+      const res = await fetchFn(url.toString(), {
         credentials: 'include',
         headers,
       });

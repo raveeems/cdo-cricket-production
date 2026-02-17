@@ -190,7 +190,7 @@ export default function ReferenceCodeScreen() {
         <View style={[styles.hintCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
           <Text style={[styles.hintText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-            Demo codes: 1234, 5678, 9012, 3456
+            Contact your group admin for a valid reference code
           </Text>
         </View>
       </View>
