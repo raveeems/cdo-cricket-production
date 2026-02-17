@@ -2000,8 +2000,8 @@ function setupErrorHandler(app2) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
-  configureExpoAndLanding(app);
   const server = await registerRoutes(app);
+  configureExpoAndLanding(app);
   setupErrorHandler(app);
   async function seedReferenceCodes() {
     try {

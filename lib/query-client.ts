@@ -10,14 +10,14 @@ const fetchFn = Platform.OS === "web" ? globalThis.fetch.bind(globalThis) : expo
  * @returns {string} The API base URL
  */
 export function getApiUrl(): string {
-  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
-    return window.location.origin;
+  const publicDomain = process.env.EXPO_PUBLIC_DOMAIN;
+
+  if (publicDomain) {
+    return `https://${publicDomain}`;
   }
 
-  let host = process.env.EXPO_PUBLIC_DOMAIN;
-  if (host) {
-    const url = new URL(`https://${host}`);
-    return url.href;
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
+    return window.location.origin;
   }
 
   return "";
