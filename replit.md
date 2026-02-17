@@ -21,7 +21,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend (Express.js)
 - **Location**: `server/` directory — `index.ts` (entry), `routes.ts` (API routes), `storage.ts` (database access layer), `cricket-api.ts` (external cricket data), `db.ts` (database connection)
-- **Authentication**: Session-based auth using `express-session` with cookies. No JWT. Sessions stored server-side with a configurable secret
+- **Authentication**: Session-based auth using `express-session` with cookies + Bearer token fallback. Sessions stored in PostgreSQL via `connect-pg-simple` (persistent across deploys). Token auth uses HMAC-SHA256 signed tokens
 - **Authorization**: Middleware functions `isAuthenticated` and `isAdmin` protect routes. Admin determined by email whitelist (`admin@cdo.com`) and `isAdmin` flag in database
 - **API Pattern**: RESTful JSON API under `/api/` prefix. Routes include auth (signup/login/logout/me), matches, players, teams (CRUD), admin (reference codes, match sync)
 - **CORS**: Dynamic CORS configuration supporting Replit domains and localhost for development
