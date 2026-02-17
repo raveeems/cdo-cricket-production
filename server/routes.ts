@@ -260,7 +260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teams = await storage.getAllTeamsForMatch(m.id);
       const participantCount = teams.length;
 
-      const isUpcoming = effectiveStatus !== "completed" && effectiveStatus !== "live" && diff > 0;
+      const isUpcoming = effectiveStatus !== "completed" && effectiveStatus !== "live" && diff > 0 && diff <= FORTY_EIGHT_HOURS;
       const isLive = effectiveStatus === "live";
       const isRecentlyCompleted = effectiveStatus === "completed" && elapsed <= THREE_HOURS;
       const hasParticipants = participantCount > 0;
