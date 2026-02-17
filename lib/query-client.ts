@@ -9,13 +9,16 @@ import { getCachedToken } from "./auth-token";
 export function getApiUrl(): string {
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
-  if (!host) {
-    throw new Error("EXPO_PUBLIC_DOMAIN is not set");
+  if (host) {
+    const url = new URL(`https://${host}`);
+    return url.href;
   }
 
-  let url = new URL(`https://${host}`);
+  if (typeof window !== "undefined" && window.location) {
+    return window.location.origin;
+  }
 
-  return url.href;
+  return "";
 }
 
 async function throwIfResNotOk(res: Response) {
