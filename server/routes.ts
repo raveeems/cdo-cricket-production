@@ -1234,6 +1234,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: GET LAST PLAYING XI FOR A TEAM ----
+  app.get(
+    "/api/admin/teams/:teamShort/last-playing-xi",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const teamShort = req.params.teamShort;
+        const excludeMatchId = req.query.excludeMatch as string | undefined;
+        const allMatches = await storage.getAllMatches();
+        const relevantMatches = allMatches
+          .filter(m => (m.team1Short === teamShort || m.team2Short === teamShort) &&
+                       (m.status === 'completed' || m.status === 'live') &&
+                       m.id !== excludeMatchId)
+          .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+        if (relevantMatches.length === 0) {
+          return res.json({ found: false, message: "No previous match found", playerNames: [] });
+        }
+
+        const prevMatch = relevantMatches[0];
+        const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
+        const xiPlayers = prevPlayers.filter(p => p.isPlayingXI && p.teamShort === teamShort);
+        const playerNames = xiPlayers.map(p => p.name);
+
+        return res.json({
+          found: true,
+          matchId: prevMatch.id,
+          matchLabel: `${prevMatch.team1Short} vs ${prevMatch.team2Short}`,
+          playerNames,
+          count: playerNames.length,
+        });
+      } catch (err: any) {
+        console.error("Last playing XI error:", err);
+        return res.status(500).json({ message: "Failed to fetch last playing XI" });
+      }
+    }
+  );
+
   // ---- ADMIN: MARK MATCH AS COMPLETED ----
   app.post(
     "/api/admin/matches/:id/mark-completed",
