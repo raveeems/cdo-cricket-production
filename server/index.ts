@@ -365,8 +365,8 @@ function setupErrorHandler(app: express.Application) {
               }
 
               if (squad.length > 0) {
-                await storage.deletePlayersForMatch(match.id);
-                await storage.bulkCreatePlayers(
+                await storage.upsertPlayersForMatch(
+                  match.id,
                   squad.map((p) => ({
                     matchId: match.id,
                     externalId: p.externalId,
@@ -377,7 +377,7 @@ function setupErrorHandler(app: express.Application) {
                     credits: p.credits,
                   }))
                 );
-                log(`Playing XI updated: ${squad.length} players for ${match.team1} vs ${match.team2}`);
+                log(`Playing XI upserted: ${squad.length} players for ${match.team1} vs ${match.team2}`);
               }
 
               const playingXICount = await storage.getPlayingXICount(match.id);
@@ -449,10 +449,90 @@ function setupErrorHandler(app: express.Application) {
         }
       }
 
+      const TWO_MINUTES = 2 * 60 * 1000;
+      const scorecardLastSync = new Map<string, number>();
+
+      async function autoSyncScorecard() {
+        try {
+          const allMatches = await storage.getAllMatches();
+          const now = Date.now();
+
+          for (const match of allMatches) {
+            if (!match.externalId) continue;
+
+            const isLive = match.status === "live" || match.status === "delayed";
+            if (!isLive) continue;
+
+            const lastSync = scorecardLastSync.get(match.id) || 0;
+            if (now - lastSync < TWO_MINUTES) continue;
+
+            try {
+              const { fetchMatchScorecard } = await import("./cricket-api");
+              let pointsMap = await fetchMatchScorecard(match.externalId);
+
+              if (pointsMap.size === 0 && match.team1Short && match.team2Short) {
+                const { calculatePointsFromApiCricket } = await import("./api-cricket");
+                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+                pointsMap = await calculatePointsFromApiCricket(match.id, match.team1Short, match.team2Short, matchDateStr);
+                if (pointsMap.size > 0) {
+                  log(`Scorecard fallback: api-cricket.com returned points for ${pointsMap.size} players (${match.team1Short} vs ${match.team2Short})`);
+                }
+              }
+
+              if (pointsMap.size > 0) {
+                const matchPlayers = await storage.getPlayersForMatch(match.id);
+                let updated = 0;
+                for (const player of matchPlayers) {
+                  if (player.externalId && pointsMap.has(player.externalId)) {
+                    const pts = pointsMap.get(player.externalId)!;
+                    if (pts !== player.points) {
+                      await storage.updatePlayer(player.id, { points: pts });
+                      updated++;
+                    }
+                  }
+                }
+
+                if (updated > 0) {
+                  const updatedPlayers = await storage.getPlayersForMatch(match.id);
+                  const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
+                  const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
+                  const allTeams = await storage.getAllTeamsForMatch(match.id);
+                  for (const team of allTeams) {
+                    const teamPlayerIds = team.playerIds as string[];
+                    let totalPoints = 0;
+                    for (const pid of teamPlayerIds) {
+                      const p = playerById.get(pid) || playerByExtId.get(pid);
+                      if (p) {
+                        let pts = p.points || 0;
+                        if (pid === team.captainId) pts *= 2;
+                        else if (pid === team.viceCaptainId) pts *= 1.5;
+                        totalPoints += pts;
+                      }
+                    }
+                    if (totalPoints !== (team.totalPoints || 0)) {
+                      await storage.updateUserTeamPoints(team.id, totalPoints);
+                    }
+                  }
+                  log(`Scorecard auto-sync: updated ${updated} player scores, recalculated team points for ${match.team1Short} vs ${match.team2Short}`);
+                }
+              }
+
+              scorecardLastSync.set(match.id, now);
+            } catch (err) {
+              console.error(`Scorecard auto-sync failed for ${match.id}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error("Scorecard auto-sync scheduler error:", err);
+        }
+      }
+
       setInterval(refreshPlayingXI, FIVE_MINUTES);
       setInterval(cricbuzzAutoVerifyPlayingXI, FIVE_MINUTES);
+      setInterval(autoSyncScorecard, TWO_MINUTES);
       log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
       log("Cricbuzz auto-verify scheduler started (every 5min, 10min before match)");
+      log("Scorecard auto-sync scheduler started (every 2min for live matches)");
     },
   );
 })();
