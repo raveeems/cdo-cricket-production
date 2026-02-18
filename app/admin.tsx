@@ -105,7 +105,12 @@ export default function AdminScreen() {
       setMatchPlayers(players);
       const existing = new Set<string>();
       players.forEach(p => { if (p.isPlayingXI) existing.add(p.id); });
-      setXiPlayerIds(existing);
+      const totalWithXI = players.filter(p => p.isPlayingXI).length;
+      if (totalWithXI > 22) {
+        setXiPlayerIds(new Set());
+      } else {
+        setXiPlayerIds(existing);
+      }
     } catch (e) {
       console.error('Failed to load players:', e);
     } finally {
@@ -353,7 +358,7 @@ export default function AdminScreen() {
               Playing XI
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-              Manually set the Playing XI for a match. Select a match, then tap players to include.
+              Tap a match, then tap players to select/deselect. Green = Playing, tap to toggle.
             </Text>
 
             {matches.length === 0 ? (
@@ -363,206 +368,187 @@ export default function AdminScreen() {
                 </Text>
               </View>
             ) : (
-              <View style={styles.matchPickerList}>
-                {matches.map(m => (
-                  <Pressable
-                    key={m.id}
-                    onPress={() => selectMatch(m.id)}
-                    style={[
-                      styles.matchPickerItem,
-                      {
-                        backgroundColor: selectedMatchId === m.id ? colors.primary + '15' : colors.card,
-                        borderColor: selectedMatchId === m.id ? colors.primary + '40' : colors.cardBorder,
-                      },
-                    ]}
-                  >
-                    <View style={styles.matchPickerRow}>
-                      <Text style={[styles.matchPickerTeams, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
-                        {m.team1Short} vs {m.team2Short}
-                      </Text>
-                      <View style={[styles.matchStatusBadge, { backgroundColor: m.status === 'live' ? '#22C55E20' : colors.primary + '15' }]}>
-                        <Text style={[styles.matchStatusText, { color: m.status === 'live' ? '#22C55E' : colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-                          {m.status.toUpperCase()}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {matches.map(m => {
+                    const isSelected = selectedMatchId === m.id;
+                    return (
+                      <Pressable
+                        key={m.id}
+                        onPress={() => selectMatch(m.id)}
+                        style={[
+                          styles.matchChip,
+                          {
+                            backgroundColor: isSelected ? colors.primary : colors.card,
+                            borderColor: isSelected ? colors.primary : colors.cardBorder,
+                          },
+                        ]}
+                      >
+                        <Text style={[{
+                          color: isSelected ? '#FFF' : colors.text,
+                          fontFamily: 'Inter_700Bold' as const,
+                          fontSize: 13,
+                        }]}>
+                          {m.team1Short} v {m.team2Short}
                         </Text>
-                      </View>
-                    </View>
-                    <Text style={[{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }]}>
-                      {new Date(m.startTime).toLocaleString()}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+                        <Text style={[{
+                          color: isSelected ? '#FFFFFF90' : colors.textTertiary,
+                          fontFamily: 'Inter_500Medium' as const,
+                          fontSize: 10,
+                          marginTop: 1,
+                        }]}>
+                          {m.status === 'live' ? 'LIVE' : new Date(m.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
             )}
 
             {selectedMatchId && loadingPlayers && (
               <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 16 }} />
             )}
 
-            {selectedMatchId && !loadingPlayers && matchPlayers.length > 0 && (
-              <View style={{ marginTop: 16 }}>
-                <View style={styles.xiCountRow}>
-                  <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
-                    Selected: {xiCount} players
-                  </Text>
-                  <Text style={[{
-                    color: xiCount >= 11 && xiCount <= 22 ? '#22C55E' : colors.error,
-                    fontFamily: 'Inter_500Medium',
-                    fontSize: 12,
+            {selectedMatchId && !loadingPlayers && matchPlayers.length > 0 && selectedMatch && (
+              <View style={{ marginTop: 8 }}>
+                <View style={[styles.xiSummaryBar, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="people" size={16} color={colors.primary} />
+                    <Text style={[{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 15 }]}>
+                      {xiCount}
+                    </Text>
+                    <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular' as const, fontSize: 12 }]}>
+                      selected
+                    </Text>
+                  </View>
+                  <View style={[styles.xiValidBadge, {
+                    backgroundColor: xiCount >= 22 ? '#22C55E20' : xiCount >= 11 ? '#F59E0B20' : '#EF444420',
                   }]}>
-                    {xiCount >= 11 && xiCount <= 22 ? 'Valid' : 'Need 11-22'}
-                  </Text>
+                    <Text style={[{
+                      color: xiCount >= 22 ? '#22C55E' : xiCount >= 11 ? '#F59E0B' : '#EF4444',
+                      fontFamily: 'Inter_700Bold' as const,
+                      fontSize: 11,
+                    }]}>
+                      {xiCount >= 22 ? 'READY' : xiCount >= 11 ? `NEED ${22 - xiCount} MORE` : `NEED ${22 - xiCount} MORE`}
+                    </Text>
+                  </View>
                 </View>
 
-                {selectedMatch && (
-                  <>
-                    <View style={styles.xiTeamHeaderRow}>
-                      <Text style={[styles.xiTeamHeader, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
-                        {selectedMatch.team1Short} ({team1Players.filter(p => xiPlayerIds.has(p.id)).length}/11)
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable onPress={() => {
-                          setXiPlayerIds(prev => {
-                            const next = new Set(prev);
-                            team1Players.forEach(p => next.delete(p.id));
-                            return next;
-                          });
-                        }}>
-                          <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>Clear</Text>
-                        </Pressable>
-                        <Pressable onPress={() => {
-                          setXiPlayerIds(prev => {
-                            const next = new Set(prev);
-                            team1Players.forEach(p => next.add(p.id));
-                            return next;
-                          });
-                        }}>
-                          <Text style={{ color: '#22C55E', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>All</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                    {team1Players.map(p => {
-                      const isIn = xiPlayerIds.has(p.id);
-                      return (
-                        <Pressable
-                          key={p.id}
-                          onPress={() => toggleXIPlayer(p.id)}
-                          style={[
-                            styles.xiPlayerRow,
-                            {
-                              backgroundColor: isIn ? '#22C55E10' : colors.card,
-                              borderColor: isIn ? '#22C55E40' : colors.cardBorder,
-                              borderLeftWidth: 3,
-                              borderLeftColor: isIn ? '#22C55E' : '#EF4444',
-                            },
-                          ]}
-                        >
-                          <View style={styles.xiPlayerLeft}>
-                            <View style={[styles.xiRolePill, { backgroundColor: colors.primary + '15' }]}>
-                              <Text style={[{ color: colors.primary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }]}>
-                                {p.role}
-                              </Text>
-                            </View>
-                            <Text style={[{ color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 13 }]} numberOfLines={1}>
-                              {p.name}
+                {[
+                  { label: selectedMatch.team1Short, players: team1Players, teamNum: 1 },
+                  { label: selectedMatch.team2Short, players: team2Players, teamNum: 2 },
+                ].map(({ label, players: teamPlayers, teamNum }) => {
+                  const teamSelected = teamPlayers.filter(p => xiPlayerIds.has(p.id)).length;
+                  return (
+                    <View key={teamNum} style={{ marginTop: teamNum === 1 ? 12 : 16 }}>
+                      <View style={styles.xiTeamHeaderRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 14 }]}>
+                            {label}
+                          </Text>
+                          <View style={[styles.xiTeamCount, {
+                            backgroundColor: teamSelected === 11 ? '#22C55E' : teamSelected > 11 ? '#EF4444' : colors.primary,
+                          }]}>
+                            <Text style={[{ color: '#FFF', fontFamily: 'Inter_700Bold' as const, fontSize: 11 }]}>
+                              {teamSelected}/11
                             </Text>
                           </View>
-                          <View style={[
-                            styles.xiCheckCircle,
-                            {
-                              borderColor: isIn ? '#22C55E' : colors.border,
-                              backgroundColor: isIn ? '#22C55E' : 'transparent',
-                            },
-                          ]}>
-                            {isIn && <Ionicons name="checkmark" size={12} color="#FFF" />}
-                          </View>
-                        </Pressable>
-                      );
-                    })}
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                          <Pressable
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setXiPlayerIds(prev => {
+                                const next = new Set(prev);
+                                teamPlayers.forEach(p => next.delete(p.id));
+                                return next;
+                              });
+                            }}
+                            style={[styles.xiQuickBtn, { backgroundColor: '#EF444415' }]}
+                          >
+                            <Ionicons name="close-circle" size={14} color="#EF4444" />
+                            <Text style={{ color: '#EF4444', fontSize: 11, fontFamily: 'Inter_600SemiBold' as const }}>Clear</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setXiPlayerIds(prev => {
+                                const next = new Set(prev);
+                                teamPlayers.forEach(p => next.add(p.id));
+                                return next;
+                              });
+                            }}
+                            style={[styles.xiQuickBtn, { backgroundColor: '#22C55E15' }]}
+                          >
+                            <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
+                            <Text style={{ color: '#22C55E', fontSize: 11, fontFamily: 'Inter_600SemiBold' as const }}>All</Text>
+                          </Pressable>
+                        </View>
+                      </View>
 
-                    <View style={[styles.xiTeamHeaderRow, { marginTop: 12 }]}>
-                      <Text style={[styles.xiTeamHeader, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
-                        {selectedMatch.team2Short} ({team2Players.filter(p => xiPlayerIds.has(p.id)).length}/11)
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable onPress={() => {
-                          setXiPlayerIds(prev => {
-                            const next = new Set(prev);
-                            team2Players.forEach(p => next.delete(p.id));
-                            return next;
-                          });
-                        }}>
-                          <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>Clear</Text>
-                        </Pressable>
-                        <Pressable onPress={() => {
-                          setXiPlayerIds(prev => {
-                            const next = new Set(prev);
-                            team2Players.forEach(p => next.add(p.id));
-                            return next;
-                          });
-                        }}>
-                          <Text style={{ color: '#22C55E', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>All</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                    {team2Players.map(p => {
-                      const isIn = xiPlayerIds.has(p.id);
-                      return (
-                        <Pressable
-                          key={p.id}
-                          onPress={() => toggleXIPlayer(p.id)}
-                          style={[
-                            styles.xiPlayerRow,
-                            {
-                              backgroundColor: isIn ? '#22C55E10' : colors.card,
-                              borderColor: isIn ? '#22C55E40' : colors.cardBorder,
-                              borderLeftWidth: 3,
-                              borderLeftColor: isIn ? '#22C55E' : '#EF4444',
-                            },
-                          ]}
-                        >
-                          <View style={styles.xiPlayerLeft}>
-                            <View style={[styles.xiRolePill, { backgroundColor: colors.primary + '15' }]}>
-                              <Text style={[{ color: colors.primary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }]}>
+                      <View style={styles.xiChipGrid}>
+                        {teamPlayers.map(p => {
+                          const isIn = xiPlayerIds.has(p.id);
+                          return (
+                            <Pressable
+                              key={p.id}
+                              onPress={() => toggleXIPlayer(p.id)}
+                              style={[
+                                styles.xiChip,
+                                {
+                                  backgroundColor: isIn ? '#22C55E' : colors.card,
+                                  borderColor: isIn ? '#22C55E' : colors.cardBorder,
+                                },
+                              ]}
+                            >
+                              <Text style={[{
+                                color: isIn ? '#FFF' : colors.textSecondary,
+                                fontSize: 9,
+                                fontFamily: 'Inter_700Bold' as const,
+                              }]}>
                                 {p.role}
                               </Text>
-                            </View>
-                            <Text style={[{ color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 13 }]} numberOfLines={1}>
-                              {p.name}
-                            </Text>
-                          </View>
-                          <View style={[
-                            styles.xiCheckCircle,
-                            {
-                              borderColor: isIn ? '#22C55E' : colors.border,
-                              backgroundColor: isIn ? '#22C55E' : 'transparent',
-                            },
-                          ]}>
-                            {isIn && <Ionicons name="checkmark" size={12} color="#FFF" />}
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </>
-                )}
+                              <Text style={[{
+                                color: isIn ? '#FFF' : colors.text,
+                                fontSize: 12,
+                                fontFamily: 'Inter_600SemiBold' as const,
+                              }]} numberOfLines={1}>
+                                {p.name.split(' ').pop()}
+                              </Text>
+                              <Text style={[{
+                                color: isIn ? '#FFFFFFAA' : colors.textTertiary,
+                                fontSize: 9,
+                                fontFamily: 'Inter_400Regular' as const,
+                              }]} numberOfLines={1}>
+                                {p.name.split(' ').slice(0, -1).join(' ').substring(0, 12) || p.name}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })}
 
                 <Pressable
                   onPress={savePlayingXI}
                   disabled={savingXI || xiCount < 11 || xiCount > 22}
-                  style={[styles.syncBtn, { opacity: (savingXI || xiCount < 11 || xiCount > 22) ? 0.5 : 1, marginTop: 14 }]}
+                  style={[styles.xiSaveBtn, { opacity: (savingXI || xiCount < 11 || xiCount > 22) ? 0.4 : 1 }]}
                 >
                   <LinearGradient
                     colors={['#22C55E', '#16A34A']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={styles.syncBtnGradient}
+                    style={styles.xiSaveBtnInner}
                   >
                     {savingXI ? (
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
-                      <Ionicons name="shield-checkmark" size={20} color="#FFF" />
+                      <Ionicons name="shield-checkmark" size={18} color="#FFF" />
                     )}
-                    <Text style={[styles.syncBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                      {savingXI ? 'Saving...' : 'Save Playing XI'}
+                    <Text style={[{ color: '#FFF', fontFamily: 'Inter_700Bold' as const, fontSize: 15 }]}>
+                      {savingXI ? 'Saving...' : `Save Playing XI (${xiCount})`}
                     </Text>
                   </LinearGradient>
                 </Pressable>
@@ -802,29 +788,12 @@ const styles = StyleSheet.create({
   scoringPoints: {
     fontSize: 14,
   },
-  matchPickerList: {
-    gap: 8,
-  },
-  matchPickerItem: {
-    padding: 12,
-    borderRadius: 12,
+  matchChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
-  },
-  matchPickerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  matchPickerTeams: {
-    fontSize: 15,
-  },
-  matchStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  matchStatusText: {
-    fontSize: 10,
   },
   xiEmptyCard: {
     padding: 16,
@@ -832,48 +801,62 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
   },
-  xiCountRow: {
+  xiSummaryBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  xiValidBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   xiTeamHeaderRow: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
-    marginBottom: 6,
-    marginTop: 4,
+    marginBottom: 8,
   },
-  xiTeamHeader: {
-    fontSize: 13,
-  },
-  xiPlayerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 4,
-  },
-  xiPlayerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  xiRolePill: {
-    paddingHorizontal: 6,
+  xiTeamCount: {
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 10,
   },
-  xiCheckCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+  xiQuickBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  xiChipGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 6,
+  },
+  xiChip: {
+    width: '31%' as any,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center' as const,
+  },
+  xiSaveBtn: {
+    borderRadius: 14,
+    overflow: 'hidden' as const,
+    marginTop: 16,
+  },
+  xiSaveBtnInner: {
+    height: 50,
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    borderRadius: 14,
   },
 });
