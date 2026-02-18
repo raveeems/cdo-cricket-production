@@ -64,6 +64,7 @@ export default function AdminScreen() {
   const [loadingDebug, setLoadingDebug] = useState(false);
   const [forceSyncing, setForceSyncing] = useState(false);
   const [forceSyncResult, setForceSyncResult] = useState('');
+  const [loadingPrevXI, setLoadingPrevXI] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -155,6 +156,44 @@ export default function AdminScreen() {
       console.error('Save XI failed:', e);
     } finally {
       setSavingXI(false);
+    }
+  };
+
+  const loadPreviousXI = async (teamShort: string) => {
+    if (!selectedMatchId) return;
+    setLoadingPrevXI(true);
+    try {
+      const res = await apiRequest('GET', `/api/admin/teams/${teamShort}/last-playing-xi?excludeMatch=${selectedMatchId}`);
+      const data = await res.json();
+      if (!data.found || data.playerNames.length === 0) {
+        setXiMessage(`No previous Playing XI found for ${teamShort}`);
+        return;
+      }
+      const nameSet = new Set((data.playerNames as string[]).map((n: string) => n.toLowerCase()));
+      const currentSquad = matchPlayers.filter(p => p.teamShort === teamShort);
+      const matchedIds: string[] = [];
+      for (const p of currentSquad) {
+        if (nameSet.has(p.name.toLowerCase())) {
+          matchedIds.push(p.id);
+        }
+      }
+      setXiPlayerIds(prev => {
+        const next = new Set(prev);
+        matchedIds.forEach(id => next.add(id));
+        return next;
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const total = data.playerNames.length;
+      const matched = matchedIds.length;
+      if (matched === total) {
+        setXiMessage(`Loaded ${matched} players from ${data.matchLabel}`);
+      } else {
+        setXiMessage(`Loaded ${matched}/${total} players from ${data.matchLabel} (${total - matched} not in current squad)`);
+      }
+    } catch (e: any) {
+      setXiMessage('Failed to load previous XI');
+    } finally {
+      setLoadingPrevXI(false);
     }
   };
 
@@ -465,6 +504,41 @@ export default function AdminScreen() {
                       {xiCount >= 22 ? 'READY' : xiCount >= 11 ? `NEED ${22 - xiCount} MORE` : `NEED ${22 - xiCount} MORE`}
                     </Text>
                   </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 4 }}>
+                  <Pressable
+                    onPress={() => loadPreviousXI(selectedMatch.team1Short)}
+                    disabled={loadingPrevXI}
+                    style={[styles.xiQuickBtn, { backgroundColor: colors.primary + '15', flex: 1, paddingVertical: 8, justifyContent: 'center' }]}
+                  >
+                    {loadingPrevXI ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="clipboard-outline" size={14} color={colors.primary} />
+                        <Text style={{ color: colors.primary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, marginLeft: 4 }}>
+                          Copy {selectedMatch.team1Short} Last XI
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => loadPreviousXI(selectedMatch.team2Short)}
+                    disabled={loadingPrevXI}
+                    style={[styles.xiQuickBtn, { backgroundColor: colors.primary + '15', flex: 1, paddingVertical: 8, justifyContent: 'center' }]}
+                  >
+                    {loadingPrevXI ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="clipboard-outline" size={14} color={colors.primary} />
+                        <Text style={{ color: colors.primary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, marginLeft: 4 }}>
+                          Copy {selectedMatch.team2Short} Last XI
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
                 </View>
 
                 {[
