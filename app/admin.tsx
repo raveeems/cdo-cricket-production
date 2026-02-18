@@ -415,9 +415,31 @@ export default function AdminScreen() {
 
                 {selectedMatch && (
                   <>
-                    <Text style={[styles.xiTeamHeader, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
-                      {selectedMatch.team1Short} ({team1Players.filter(p => xiPlayerIds.has(p.id)).length}/11)
-                    </Text>
+                    <View style={styles.xiTeamHeaderRow}>
+                      <Text style={[styles.xiTeamHeader, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
+                        {selectedMatch.team1Short} ({team1Players.filter(p => xiPlayerIds.has(p.id)).length}/11)
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable onPress={() => {
+                          setXiPlayerIds(prev => {
+                            const next = new Set(prev);
+                            team1Players.forEach(p => next.delete(p.id));
+                            return next;
+                          });
+                        }}>
+                          <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>Clear</Text>
+                        </Pressable>
+                        <Pressable onPress={() => {
+                          setXiPlayerIds(prev => {
+                            const next = new Set(prev);
+                            team1Players.forEach(p => next.add(p.id));
+                            return next;
+                          });
+                        }}>
+                          <Text style={{ color: '#22C55E', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>All</Text>
+                        </Pressable>
+                      </View>
+                    </View>
                     {team1Players.map(p => {
                       const isIn = xiPlayerIds.has(p.id);
                       return (
@@ -457,9 +479,31 @@ export default function AdminScreen() {
                       );
                     })}
 
-                    <Text style={[styles.xiTeamHeader, { color: colors.primary, fontFamily: 'Inter_700Bold', marginTop: 12 }]}>
-                      {selectedMatch.team2Short} ({team2Players.filter(p => xiPlayerIds.has(p.id)).length}/11)
-                    </Text>
+                    <View style={[styles.xiTeamHeaderRow, { marginTop: 12 }]}>
+                      <Text style={[styles.xiTeamHeader, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
+                        {selectedMatch.team2Short} ({team2Players.filter(p => xiPlayerIds.has(p.id)).length}/11)
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable onPress={() => {
+                          setXiPlayerIds(prev => {
+                            const next = new Set(prev);
+                            team2Players.forEach(p => next.delete(p.id));
+                            return next;
+                          });
+                        }}>
+                          <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>Clear</Text>
+                        </Pressable>
+                        <Pressable onPress={() => {
+                          setXiPlayerIds(prev => {
+                            const next = new Set(prev);
+                            team2Players.forEach(p => next.add(p.id));
+                            return next;
+                          });
+                        }}>
+                          <Text style={{ color: '#22C55E', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>All</Text>
+                        </Pressable>
+                      </View>
+                    </View>
                     {team2Players.map(p => {
                       const isIn = xiPlayerIds.has(p.id);
                       return (
@@ -794,10 +838,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  xiTeamHeader: {
-    fontSize: 13,
+  xiTeamHeaderRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
     marginBottom: 6,
     marginTop: 4,
+  },
+  xiTeamHeader: {
+    fontSize: 13,
   },
   xiPlayerRow: {
     flexDirection: 'row',
