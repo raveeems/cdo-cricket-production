@@ -2195,6 +2195,7 @@ async function registerRoutes(app2) {
       const matchStart = new Date(match.startTime);
       const isLive = now.getTime() >= matchStart.getTime();
       const allTeams = await storage.getAllTeamsForMatch(req.params.id);
+      const matchPlayers = await storage.getPlayersForMatch(req.params.id);
       const allUsers = {};
       for (const t of allTeams) {
         if (!allUsers[t.userId]) {
@@ -2211,7 +2212,7 @@ async function registerRoutes(app2) {
           username: allUsers[t.userId]?.username || "Unknown",
           userTeamName: allUsers[t.userId]?.teamName || ""
         }));
-        return res.json({ teams: teamsWithInfo, visibility: "full" });
+        return res.json({ teams: teamsWithInfo, visibility: "full", players: matchPlayers });
       } else {
         const hiddenTeams = allTeams.map((t) => ({
           id: t.id,
