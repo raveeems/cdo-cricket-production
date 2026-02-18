@@ -35,59 +35,6 @@ interface CricbuzzMatchInfo {
   currBatTeamId?: number;
 }
 
-interface CricbuzzMatchScore {
-  team1Score?: {
-    inngs1?: { runs: number; wickets: number; overs: number };
-    inngs2?: { runs: number; wickets: number; overs: number };
-  };
-  team2Score?: {
-    inngs1?: { runs: number; wickets: number; overs: number };
-    inngs2?: { runs: number; wickets: number; overs: number };
-  };
-}
-
-interface CricbuzzBatsman {
-  batId: number;
-  batName: string;
-  batShortName?: string;
-  runs: number;
-  balls: number;
-  fours: number;
-  sixes: number;
-  strikeRate: number;
-  isCaptain?: boolean;
-  isKeeper?: boolean;
-  outDesc?: string;
-  wicketCode?: string;
-}
-
-interface CricbuzzBowler {
-  bowlId: number;
-  bowlName: string;
-  bowlShortName?: string;
-  overs: number;
-  maidens: number;
-  runs: number;
-  wickets: number;
-  economy: number;
-}
-
-interface CricbuzzInningsScore {
-  inningsId: number;
-  batTeamDetails?: {
-    batTeamName: string;
-    batTeamShortName: string;
-  };
-  batTeamName?: string;
-  scoreDetails?: {
-    runs: number;
-    wickets: number;
-    overs: number;
-  };
-  batsmenData?: Record<string, CricbuzzBatsman>;
-  bowlersData?: Record<string, CricbuzzBowler>;
-}
-
 async function cricbuzzFetch<T>(path: string): Promise<T | null> {
   try {
     if (!CRICBUZZ_HEADERS["x-rapidapi-key"]) {
@@ -158,10 +105,11 @@ interface VerifyResult {
   status?: string;
   statusText?: string;
   startDate?: string;
-  score?: {
-    team1Score?: string;
-    team2Score?: string;
+  playingXI?: {
+    matched: number;
+    playerNames: string[];
   };
+  scorecardSynced?: boolean;
   scorecard?: {
     innings: Array<{
       inning: string;
@@ -186,16 +134,11 @@ interface VerifyResult {
   };
 }
 
-function formatInningsScore(inngs: { runs: number; wickets: number; overs: number } | undefined): string {
-  if (!inngs) return "";
-  return `${inngs.runs}/${inngs.wickets} (${inngs.overs} ov)`;
-}
-
-export async function verifyMatch(
+export async function findCricbuzzMatch(
   team1Short: string,
   team2Short: string,
   matchDate?: string
-): Promise<VerifyResult> {
+): Promise<CricbuzzMatchInfo | null> {
   const t1 = team1Short.toUpperCase();
   const t2 = team2Short.toUpperCase();
 
@@ -206,12 +149,12 @@ export async function verifyMatch(
   ]);
 
   const allMatches = [
+    ...extractMatches(liveData),
     ...extractMatches(recentData),
     ...extractMatches(upcomingData),
-    ...extractMatches(liveData),
   ];
 
-  const match = allMatches.find((m) => {
+  return allMatches.find((m) => {
     const s1 = m.team1?.teamSName?.toUpperCase();
     const s2 = m.team2?.teamSName?.toUpperCase();
     const teamsMatch =
@@ -224,7 +167,212 @@ export async function verifyMatch(
       return mDate === targetDate;
     }
     return true;
-  });
+  }) || null;
+}
+
+export async function verifyMatch(
+  team1Short: string,
+  team2Short: string,
+  matchDate?: string
+): Promise<VerifyResult> {
+  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
+
+  if (!match) {
+    return { source: "cricbuzz", found: false };
+  }
+
+  return {
+    source: "cricbuzz",
+    found: true,
+    matchId: match.matchId,
+    team1: match.team1.teamName,
+    team1Short: match.team1.teamSName,
+    team2: match.team2.teamName,
+    team2Short: match.team2.teamSName,
+    venue: match.venueInfo
+      ? `${match.venueInfo.ground}, ${match.venueInfo.city}`
+      : undefined,
+    status: match.state,
+    statusText: match.status,
+    startDate: new Date(parseInt(match.startDate)).toISOString(),
+  };
+}
+
+function normalizePlayerName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function playerNameMatch(cricbuzzName: string, dbName: string): boolean {
+  const n1 = normalizePlayerName(cricbuzzName);
+  const n2 = normalizePlayerName(dbName);
+
+  if (n1 === n2) return true;
+
+  const parts1 = n1.split(" ");
+  const parts2 = n2.split(" ");
+
+  if (parts1.length > 0 && parts2.length > 0) {
+    const lastName1 = parts1[parts1.length - 1];
+    const lastName2 = parts2[parts2.length - 1];
+    if (lastName1 === lastName2 && lastName1.length > 2) {
+      if (parts1[0][0] === parts2[0][0]) return true;
+    }
+  }
+
+  if (n1.includes(n2) || n2.includes(n1)) return true;
+
+  return false;
+}
+
+export async function extractPlayingXIFromCricbuzz(
+  cricbuzzMatchId: number
+): Promise<string[]> {
+  const data = await cricbuzzGetScorecard(cricbuzzMatchId);
+  if (!data?.scoreCard) return [];
+
+  const playerNames = new Set<string>();
+
+  for (const sc of data.scoreCard) {
+    if (sc.batsman) {
+      for (const bat of sc.batsman) {
+        if (bat.batName) playerNames.add(bat.batName);
+      }
+    }
+    if (sc.bowler) {
+      for (const bowl of sc.bowler) {
+        if (bowl.bowlName) playerNames.add(bowl.bowlName);
+      }
+    }
+  }
+
+  return Array.from(playerNames);
+}
+
+export async function markPlayingXIFromCricbuzz(
+  matchId: string,
+  cricbuzzMatchId: number
+): Promise<{ matched: number; playerNames: string[] }> {
+  const { storage } = await import("./storage");
+
+  const cricbuzzPlayers = await extractPlayingXIFromCricbuzz(cricbuzzMatchId);
+  if (cricbuzzPlayers.length === 0) {
+    return { matched: 0, playerNames: [] };
+  }
+
+  const dbPlayers = await storage.getPlayersForMatch(matchId);
+  const matchedPlayerIds: string[] = [];
+  const matchedNames: string[] = [];
+
+  for (const cbName of cricbuzzPlayers) {
+    const found = dbPlayers.find((p) => playerNameMatch(cbName, p.name));
+    if (found && found.externalId) {
+      matchedPlayerIds.push(found.externalId);
+      matchedNames.push(found.name);
+    }
+  }
+
+  if (matchedPlayerIds.length > 0) {
+    await storage.markPlayingXI(matchId, matchedPlayerIds);
+    console.log(`Cricbuzz Playing XI: matched ${matchedPlayerIds.length} players for match ${matchId}`);
+  }
+
+  return {
+    matched: matchedPlayerIds.length,
+    playerNames: matchedNames,
+  };
+}
+
+export async function fetchCricbuzzLiveScorecard(
+  cricbuzzMatchId: number
+): Promise<{
+  score: Array<{ r: number; w: number; o: number; inning: string }>;
+  innings: Array<{
+    inning: string;
+    batting: Array<{
+      name: string;
+      r: number;
+      b: number;
+      fours: number;
+      sixes: number;
+      sr: number;
+      dismissal: string;
+      fantasyPoints: number;
+    }>;
+    bowling: Array<{
+      name: string;
+      o: number;
+      m: number;
+      r: number;
+      w: number;
+      eco: number;
+      fantasyPoints: number;
+    }>;
+  }>;
+  status: string;
+} | null> {
+  const data = await cricbuzzGetScorecard(cricbuzzMatchId);
+  if (!data?.scoreCard) return null;
+
+  const score: Array<{ r: number; w: number; o: number; inning: string }> = [];
+  const innings: any[] = [];
+
+  for (const sc of data.scoreCard) {
+    const inningName = sc.batTeamDetails?.batTeamName
+      ? `${sc.batTeamDetails.batTeamName} Inning`
+      : `Innings ${sc.inningsId}`;
+
+    if (sc.scoreDetails) {
+      score.push({
+        r: sc.scoreDetails.runs || 0,
+        w: sc.scoreDetails.wickets || 0,
+        o: sc.scoreDetails.overs || 0,
+        inning: inningName,
+      });
+    }
+
+    const batting = (sc.batsman || []).map((bat: any) => ({
+      name: bat.batName || "",
+      r: bat.runs || 0,
+      b: bat.balls || 0,
+      fours: bat.fours || 0,
+      sixes: bat.sixes || 0,
+      sr: bat.strikeRate || 0,
+      dismissal: bat.outDesc || "not out",
+      fantasyPoints: 0,
+    }));
+
+    const bowling = (sc.bowler || []).map((bowl: any) => ({
+      name: bowl.bowlName || "",
+      o: bowl.overs || 0,
+      m: bowl.maidens || 0,
+      r: bowl.runs || 0,
+      w: bowl.wickets || 0,
+      eco: bowl.economy || 0,
+      fantasyPoints: 0,
+    }));
+
+    innings.push({ inning: inningName, batting, bowling });
+  }
+
+  return {
+    score,
+    innings,
+    status: data.matchHeader?.status || "",
+  };
+}
+
+export async function verifyAndSyncMatch(
+  dbMatchId: string,
+  team1Short: string,
+  team2Short: string,
+  matchDate?: string,
+  syncScorecard?: boolean
+): Promise<VerifyResult> {
+  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
 
   if (!match) {
     return { source: "cricbuzz", found: false };
@@ -246,59 +394,59 @@ export async function verifyMatch(
     startDate: new Date(parseInt(match.startDate)).toISOString(),
   };
 
+  const isLiveOrComplete = match.state === "In Progress" || match.state === "Complete";
+
+  if (isLiveOrComplete) {
+    const xiResult = await markPlayingXIFromCricbuzz(dbMatchId, match.matchId);
+    result.playingXI = xiResult;
+  }
+
+  if (syncScorecard && isLiveOrComplete) {
+    const scorecard = await fetchCricbuzzLiveScorecard(match.matchId);
+    if (scorecard) {
+      result.scorecardSynced = true;
+      result.scorecard = {
+        innings: scorecard.innings.map((inn) => ({
+          inning: inn.inning,
+          batting: inn.batting.map((b) => ({
+            name: b.name,
+            runs: b.r,
+            balls: b.b,
+            fours: b.fours,
+            sixes: b.sixes,
+            sr: b.sr,
+            dismissal: b.dismissal,
+          })),
+          bowling: inn.bowling.map((b) => ({
+            name: b.name,
+            overs: b.o,
+            maidens: b.m,
+            runs: b.r,
+            wickets: b.w,
+            economy: b.eco,
+          })),
+        })),
+      };
+    }
+  }
+
   return result;
 }
 
-export async function verifyScorecard(cricbuzzMatchId: number): Promise<VerifyResult> {
-  const data = await cricbuzzGetScorecard(cricbuzzMatchId);
-
-  if (!data || !data.scoreCard) {
-    return { source: "cricbuzz", found: false };
+export async function autoVerifyPlayingXI(
+  dbMatchId: string,
+  team1Short: string,
+  team2Short: string,
+  matchDate?: string
+): Promise<{ matched: number; playerNames: string[] } | null> {
+  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
+  if (!match) {
+    console.log(`Cricbuzz auto-verify: match not found for ${team1Short} vs ${team2Short}`);
+    return null;
   }
 
-  const innings: VerifyResult["scorecard"] = { innings: [] };
+  console.log(`Cricbuzz auto-verify: found match ${match.matchId} (${match.team1.teamSName} vs ${match.team2.teamSName}, state: ${match.state})`);
 
-  for (const sc of data.scoreCard) {
-    const inning: any = {
-      inning: sc.batTeamDetails?.batTeamName || `Innings ${sc.inningsId}`,
-      batting: [],
-      bowling: [],
-    };
-
-    if (sc.batsman) {
-      for (const bat of sc.batsman) {
-        inning.batting.push({
-          name: bat.batName,
-          runs: bat.runs,
-          balls: bat.balls,
-          fours: bat.fours,
-          sixes: bat.sixes,
-          sr: bat.strikeRate,
-          dismissal: bat.outDesc || "not out",
-        });
-      }
-    }
-
-    if (sc.bowler) {
-      for (const bowl of sc.bowler) {
-        inning.bowling.push({
-          name: bowl.bowlName,
-          overs: bowl.overs,
-          maidens: bowl.maidens,
-          runs: bowl.runs,
-          wickets: bowl.wickets,
-          economy: bowl.economy,
-        });
-      }
-    }
-
-    innings.innings.push(inning);
-  }
-
-  return {
-    source: "cricbuzz",
-    found: true,
-    matchId: cricbuzzMatchId,
-    scorecard: innings,
-  };
+  const result = await markPlayingXIFromCricbuzz(dbMatchId, match.matchId);
+  return result;
 }
