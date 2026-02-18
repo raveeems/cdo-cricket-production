@@ -270,6 +270,15 @@ var init_storage = __esm({
         const [team] = await db.insert(userTeams).values(data).returning();
         return team;
       }
+      async updateUserTeam(teamId, userId, data) {
+        const [updated] = await db.update(userTeams).set({
+          playerIds: data.playerIds,
+          captainId: data.captainId,
+          viceCaptainId: data.viceCaptainId,
+          ...data.name ? { name: data.name } : {}
+        }).where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId))).returning();
+        return updated;
+      }
       async deleteUserTeam(teamId, userId) {
         await db.delete(userTeams).where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId)));
       }
@@ -983,6 +992,296 @@ var init_cricket_api = __esm({
   }
 });
 
+// server/cricbuzz-api.ts
+var cricbuzz_api_exports = {};
+__export(cricbuzz_api_exports, {
+  autoVerifyPlayingXI: () => autoVerifyPlayingXI,
+  cricbuzzGetLiveMatches: () => cricbuzzGetLiveMatches,
+  cricbuzzGetMatchInfo: () => cricbuzzGetMatchInfo,
+  cricbuzzGetRecentMatches: () => cricbuzzGetRecentMatches,
+  cricbuzzGetScorecard: () => cricbuzzGetScorecard,
+  cricbuzzGetUpcomingMatches: () => cricbuzzGetUpcomingMatches,
+  extractPlayingXIFromCricbuzz: () => extractPlayingXIFromCricbuzz,
+  fetchCricbuzzLiveScorecard: () => fetchCricbuzzLiveScorecard,
+  findCricbuzzMatch: () => findCricbuzzMatch,
+  markPlayingXIFromCricbuzz: () => markPlayingXIFromCricbuzz,
+  verifyAndSyncMatch: () => verifyAndSyncMatch,
+  verifyMatch: () => verifyMatch
+});
+async function cricbuzzFetch(path2) {
+  try {
+    if (!CRICBUZZ_HEADERS["x-rapidapi-key"]) {
+      console.log("Cricbuzz API: No API key configured");
+      return null;
+    }
+    const url = `${CRICBUZZ_BASE}${path2}`;
+    const res = await fetch(url, { headers: CRICBUZZ_HEADERS });
+    if (!res.ok) {
+      console.log(`Cricbuzz API error: ${res.status} for ${path2}`);
+      return null;
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Cricbuzz API fetch error:", err);
+    return null;
+  }
+}
+async function cricbuzzGetRecentMatches() {
+  return cricbuzzFetch("/matches/v1/recent");
+}
+async function cricbuzzGetUpcomingMatches() {
+  return cricbuzzFetch("/matches/v1/upcoming");
+}
+async function cricbuzzGetLiveMatches() {
+  return cricbuzzFetch("/matches/v1/live");
+}
+async function cricbuzzGetScorecard(matchId) {
+  return cricbuzzFetch(`/mcenter/v1/${matchId}/scard`);
+}
+async function cricbuzzGetMatchInfo(matchId) {
+  return cricbuzzFetch(`/mcenter/v1/${matchId}`);
+}
+function extractMatches(data) {
+  const matches2 = [];
+  if (!data?.typeMatches) return matches2;
+  for (const typeMatch of data.typeMatches) {
+    if (!typeMatch.seriesMatches) continue;
+    for (const series of typeMatch.seriesMatches) {
+      const wrapper = series.seriesAdWrapper;
+      if (!wrapper?.matches) continue;
+      for (const m of wrapper.matches) {
+        if (m.matchInfo) {
+          matches2.push(m.matchInfo);
+        }
+      }
+    }
+  }
+  return matches2;
+}
+async function findCricbuzzMatch(team1Short, team2Short, matchDate) {
+  const t1 = team1Short.toUpperCase();
+  const t2 = team2Short.toUpperCase();
+  const [recentData, upcomingData, liveData] = await Promise.all([
+    cricbuzzGetRecentMatches(),
+    cricbuzzGetUpcomingMatches(),
+    cricbuzzGetLiveMatches()
+  ]);
+  const allMatches = [
+    ...extractMatches(liveData),
+    ...extractMatches(recentData),
+    ...extractMatches(upcomingData)
+  ];
+  return allMatches.find((m) => {
+    const s1 = m.team1?.teamSName?.toUpperCase();
+    const s2 = m.team2?.teamSName?.toUpperCase();
+    const teamsMatch = s1 === t1 && s2 === t2 || s1 === t2 && s2 === t1;
+    if (!teamsMatch) return false;
+    if (matchDate) {
+      const mDate = new Date(parseInt(m.startDate)).toISOString().split("T")[0];
+      const targetDate = new Date(matchDate).toISOString().split("T")[0];
+      return mDate === targetDate;
+    }
+    return true;
+  }) || null;
+}
+async function verifyMatch(team1Short, team2Short, matchDate) {
+  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
+  if (!match) {
+    return { source: "cricbuzz", found: false };
+  }
+  return {
+    source: "cricbuzz",
+    found: true,
+    matchId: match.matchId,
+    team1: match.team1.teamName,
+    team1Short: match.team1.teamSName,
+    team2: match.team2.teamName,
+    team2Short: match.team2.teamSName,
+    venue: match.venueInfo ? `${match.venueInfo.ground}, ${match.venueInfo.city}` : void 0,
+    status: match.state,
+    statusText: match.status,
+    startDate: new Date(parseInt(match.startDate)).toISOString()
+  };
+}
+function normalizePlayerName(name) {
+  return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
+function playerNameMatch(cricbuzzName, dbName) {
+  const n1 = normalizePlayerName(cricbuzzName);
+  const n2 = normalizePlayerName(dbName);
+  if (n1 === n2) return true;
+  const parts1 = n1.split(" ");
+  const parts2 = n2.split(" ");
+  if (parts1.length > 0 && parts2.length > 0) {
+    const lastName1 = parts1[parts1.length - 1];
+    const lastName2 = parts2[parts2.length - 1];
+    if (lastName1 === lastName2 && lastName1.length > 2) {
+      if (parts1[0][0] === parts2[0][0]) return true;
+    }
+  }
+  if (n1.includes(n2) || n2.includes(n1)) return true;
+  return false;
+}
+async function extractPlayingXIFromCricbuzz(cricbuzzMatchId) {
+  const data = await cricbuzzGetScorecard(cricbuzzMatchId);
+  if (!data?.scoreCard) return [];
+  const playerNames = /* @__PURE__ */ new Set();
+  for (const sc of data.scoreCard) {
+    if (sc.batsman) {
+      for (const bat of sc.batsman) {
+        if (bat.batName) playerNames.add(bat.batName);
+      }
+    }
+    if (sc.bowler) {
+      for (const bowl of sc.bowler) {
+        if (bowl.bowlName) playerNames.add(bowl.bowlName);
+      }
+    }
+  }
+  return Array.from(playerNames);
+}
+async function markPlayingXIFromCricbuzz(matchId, cricbuzzMatchId) {
+  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const cricbuzzPlayers = await extractPlayingXIFromCricbuzz(cricbuzzMatchId);
+  if (cricbuzzPlayers.length === 0) {
+    return { matched: 0, playerNames: [] };
+  }
+  const dbPlayers = await storage2.getPlayersForMatch(matchId);
+  const matchedPlayerIds = [];
+  const matchedNames = [];
+  for (const cbName of cricbuzzPlayers) {
+    const found = dbPlayers.find((p) => playerNameMatch(cbName, p.name));
+    if (found && found.externalId) {
+      matchedPlayerIds.push(found.externalId);
+      matchedNames.push(found.name);
+    }
+  }
+  if (matchedPlayerIds.length > 0) {
+    await storage2.markPlayingXI(matchId, matchedPlayerIds);
+    console.log(`Cricbuzz Playing XI: matched ${matchedPlayerIds.length} players for match ${matchId}`);
+  }
+  return {
+    matched: matchedPlayerIds.length,
+    playerNames: matchedNames
+  };
+}
+async function fetchCricbuzzLiveScorecard(cricbuzzMatchId) {
+  const data = await cricbuzzGetScorecard(cricbuzzMatchId);
+  if (!data?.scoreCard) return null;
+  const score = [];
+  const innings = [];
+  for (const sc of data.scoreCard) {
+    const inningName = sc.batTeamDetails?.batTeamName ? `${sc.batTeamDetails.batTeamName} Inning` : `Innings ${sc.inningsId}`;
+    if (sc.scoreDetails) {
+      score.push({
+        r: sc.scoreDetails.runs || 0,
+        w: sc.scoreDetails.wickets || 0,
+        o: sc.scoreDetails.overs || 0,
+        inning: inningName
+      });
+    }
+    const batting = (sc.batsman || []).map((bat) => ({
+      name: bat.batName || "",
+      r: bat.runs || 0,
+      b: bat.balls || 0,
+      fours: bat.fours || 0,
+      sixes: bat.sixes || 0,
+      sr: bat.strikeRate || 0,
+      dismissal: bat.outDesc || "not out",
+      fantasyPoints: 0
+    }));
+    const bowling = (sc.bowler || []).map((bowl) => ({
+      name: bowl.bowlName || "",
+      o: bowl.overs || 0,
+      m: bowl.maidens || 0,
+      r: bowl.runs || 0,
+      w: bowl.wickets || 0,
+      eco: bowl.economy || 0,
+      fantasyPoints: 0
+    }));
+    innings.push({ inning: inningName, batting, bowling });
+  }
+  return {
+    score,
+    innings,
+    status: data.matchHeader?.status || ""
+  };
+}
+async function verifyAndSyncMatch(dbMatchId, team1Short, team2Short, matchDate, syncScorecard) {
+  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
+  if (!match) {
+    return { source: "cricbuzz", found: false };
+  }
+  const result = {
+    source: "cricbuzz",
+    found: true,
+    matchId: match.matchId,
+    team1: match.team1.teamName,
+    team1Short: match.team1.teamSName,
+    team2: match.team2.teamName,
+    team2Short: match.team2.teamSName,
+    venue: match.venueInfo ? `${match.venueInfo.ground}, ${match.venueInfo.city}` : void 0,
+    status: match.state,
+    statusText: match.status,
+    startDate: new Date(parseInt(match.startDate)).toISOString()
+  };
+  const isLiveOrComplete = match.state === "In Progress" || match.state === "Complete";
+  if (isLiveOrComplete) {
+    const xiResult = await markPlayingXIFromCricbuzz(dbMatchId, match.matchId);
+    result.playingXI = xiResult;
+  }
+  if (syncScorecard && isLiveOrComplete) {
+    const scorecard = await fetchCricbuzzLiveScorecard(match.matchId);
+    if (scorecard) {
+      result.scorecardSynced = true;
+      result.scorecard = {
+        innings: scorecard.innings.map((inn) => ({
+          inning: inn.inning,
+          batting: inn.batting.map((b) => ({
+            name: b.name,
+            runs: b.r,
+            balls: b.b,
+            fours: b.fours,
+            sixes: b.sixes,
+            sr: b.sr,
+            dismissal: b.dismissal
+          })),
+          bowling: inn.bowling.map((b) => ({
+            name: b.name,
+            overs: b.o,
+            maidens: b.m,
+            runs: b.r,
+            wickets: b.w,
+            economy: b.eco
+          }))
+        }))
+      };
+    }
+  }
+  return result;
+}
+async function autoVerifyPlayingXI(dbMatchId, team1Short, team2Short, matchDate) {
+  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
+  if (!match) {
+    console.log(`Cricbuzz auto-verify: match not found for ${team1Short} vs ${team2Short}`);
+    return null;
+  }
+  console.log(`Cricbuzz auto-verify: found match ${match.matchId} (${match.team1.teamSName} vs ${match.team2.teamSName}, state: ${match.state})`);
+  const result = await markPlayingXIFromCricbuzz(dbMatchId, match.matchId);
+  return result;
+}
+var CRICBUZZ_BASE, CRICBUZZ_HEADERS;
+var init_cricbuzz_api = __esm({
+  "server/cricbuzz-api.ts"() {
+    "use strict";
+    CRICBUZZ_BASE = "https://cricbuzz-cricket.p.rapidapi.com";
+    CRICBUZZ_HEADERS = {
+      "x-rapidapi-key": process.env.CRICBUZZ_RAPIDAPI_KEY || "",
+      "x-rapidapi-host": "cricbuzz-cricket.p.rapidapi.com"
+    };
+  }
+});
+
 // server/index.ts
 import express from "express";
 
@@ -1587,6 +1886,58 @@ async function registerRoutes(app2) {
       }
     }
   );
+  app2.put(
+    "/api/teams/:id",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const team = await storage.getUserTeam(req.params.id);
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+        if (team.userId !== req.session.userId) {
+          return res.status(403).json({ message: "Not your team" });
+        }
+        const match = await storage.getMatch(team.matchId);
+        if (!match) {
+          return res.status(404).json({ message: "Match not found" });
+        }
+        const now = /* @__PURE__ */ new Date();
+        const matchStart = new Date(match.startTime);
+        if (now.getTime() >= matchStart.getTime() - 1e3) {
+          return res.status(400).json({ message: "Entry deadline has passed" });
+        }
+        if (match.status === "live" || match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
+        const { playerIds, captainId, viceCaptainId } = req.body;
+        if (!playerIds || playerIds.length !== 11) {
+          return res.status(400).json({ message: "Must select exactly 11 players" });
+        }
+        if (!captainId || !viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain required" });
+        }
+        const existingTeams = await storage.getUserTeamsForMatch(req.session.userId, team.matchId);
+        const sortedNewIds = [...playerIds].sort();
+        for (const et of existingTeams) {
+          if (et.id === team.id) continue;
+          const sortedExisting = [...et.playerIds || []].sort();
+          if (sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i])) {
+            return res.status(400).json({ message: "You already have a team with the same players" });
+          }
+        }
+        const updated = await storage.updateUserTeam(req.params.id, req.session.userId, {
+          playerIds,
+          captainId,
+          viceCaptainId
+        });
+        return res.json({ team: updated });
+      } catch (err) {
+        console.error("Update team error:", err);
+        return res.status(500).json({ message: "Failed to update team" });
+      }
+    }
+  );
   app2.delete(
     "/api/teams/:id",
     isAuthenticated,
@@ -1785,6 +2136,103 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Refresh Playing XI error:", err);
         return res.status(500).json({ message: "Failed to refresh Playing XI" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/verify-cricbuzz",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const syncScorecard = req.body?.syncScorecard === true;
+        const { verifyAndSyncMatch: verifyAndSyncMatch2 } = await Promise.resolve().then(() => (init_cricbuzz_api(), cricbuzz_api_exports));
+        const result = await verifyAndSyncMatch2(
+          matchId,
+          match.team1Short,
+          match.team2Short,
+          match.startTime?.toISOString(),
+          syncScorecard
+        );
+        return res.json({
+          match: {
+            id: match.id,
+            team1: match.team1,
+            team1Short: match.team1Short,
+            team2: match.team2,
+            team2Short: match.team2Short,
+            venue: match.venue,
+            startTime: match.startTime,
+            status: match.status
+          },
+          verification: result
+        });
+      } catch (err) {
+        console.error("Cricbuzz verify error:", err);
+        return res.status(500).json({ message: "Failed to verify via Cricbuzz" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/sync-cricbuzz-scorecard",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const { findCricbuzzMatch: findCricbuzzMatch2, fetchCricbuzzLiveScorecard: fetchCricbuzzLiveScorecard2 } = await Promise.resolve().then(() => (init_cricbuzz_api(), cricbuzz_api_exports));
+        const cbMatch = await findCricbuzzMatch2(
+          match.team1Short,
+          match.team2Short,
+          match.startTime?.toISOString()
+        );
+        if (!cbMatch) {
+          return res.status(404).json({ message: "Match not found on Cricbuzz" });
+        }
+        const scorecard = await fetchCricbuzzLiveScorecard2(cbMatch.matchId);
+        if (!scorecard) {
+          return res.json({ message: "No scorecard data available from Cricbuzz yet", scorecard: null });
+        }
+        return res.json({
+          message: "Scorecard fetched from Cricbuzz",
+          scorecard,
+          cricbuzzMatchId: cbMatch.matchId
+        });
+      } catch (err) {
+        console.error("Cricbuzz scorecard sync error:", err);
+        return res.status(500).json({ message: "Failed to sync Cricbuzz scorecard" });
+      }
+    }
+  );
+  app2.get(
+    "/api/matches/:id/cricbuzz-scorecard",
+    isAuthenticated,
+    async (req, res) => {
+      const match = await storage.getMatch(req.params.id);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      try {
+        const { findCricbuzzMatch: findCricbuzzMatch2, fetchCricbuzzLiveScorecard: fetchCricbuzzLiveScorecard2 } = await Promise.resolve().then(() => (init_cricbuzz_api(), cricbuzz_api_exports));
+        const cbMatch = await findCricbuzzMatch2(
+          match.team1Short,
+          match.team2Short,
+          match.startTime?.toISOString()
+        );
+        if (!cbMatch) {
+          return res.json({ scorecard: null, message: "Match not found on Cricbuzz" });
+        }
+        const scorecard = await fetchCricbuzzLiveScorecard2(cbMatch.matchId);
+        if (!scorecard) {
+          return res.json({ scorecard: null, message: "No scorecard data from Cricbuzz yet" });
+        }
+        return res.json({ scorecard, source: "cricbuzz" });
+      } catch (err) {
+        console.error("Cricbuzz scorecard fallback error:", err);
+        return res.status(500).json({ message: "Failed to fetch Cricbuzz scorecard" });
       }
     }
   );
@@ -2041,7 +2489,9 @@ function setupErrorHandler(app2) {
         });
       }, TWO_HOURS);
       const recentlyRefreshed = /* @__PURE__ */ new Map();
+      const cricbuzzVerified = /* @__PURE__ */ new Map();
       const FIVE_MINUTES = 5 * 60 * 1e3;
+      const TEN_MINUTES = 10 * 60 * 1e3;
       const TWENTY_MINUTES = 20 * 60 * 1e3;
       async function refreshPlayingXI() {
         try {
@@ -2093,8 +2543,44 @@ function setupErrorHandler(app2) {
           console.error("Playing XI scheduler error:", err);
         }
       }
+      async function cricbuzzAutoVerifyPlayingXI() {
+        try {
+          const allMatches = await storage.getAllMatches();
+          const now = Date.now();
+          for (const match of allMatches) {
+            if (match.status === "completed") continue;
+            const startMs = new Date(match.startTime).getTime();
+            const timeUntilStart = startMs - now;
+            const isNearStart = timeUntilStart <= TEN_MINUTES && timeUntilStart > -TWO_HOURS;
+            const isLive = match.status === "live" || match.status === "delayed";
+            if (!isNearStart && !isLive) continue;
+            const lastVerify = cricbuzzVerified.get(match.id) || 0;
+            if (now - lastVerify < TEN_MINUTES) continue;
+            log(`Cricbuzz auto-verify: ${match.team1Short} vs ${match.team2Short} (starts in ${Math.round(timeUntilStart / 6e4)}m)`);
+            try {
+              const { autoVerifyPlayingXI: autoVerifyPlayingXI2 } = await Promise.resolve().then(() => (init_cricbuzz_api(), cricbuzz_api_exports));
+              const result = await autoVerifyPlayingXI2(
+                match.id,
+                match.team1Short,
+                match.team2Short,
+                match.startTime?.toISOString()
+              );
+              if (result && result.matched > 0) {
+                log(`Cricbuzz Playing XI verified: ${result.matched} players matched for ${match.team1Short} vs ${match.team2Short}`);
+              }
+              cricbuzzVerified.set(match.id, now);
+            } catch (err) {
+              console.error(`Cricbuzz auto-verify failed for ${match.id}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error("Cricbuzz auto-verify scheduler error:", err);
+        }
+      }
       setInterval(refreshPlayingXI, FIVE_MINUTES);
+      setInterval(cricbuzzAutoVerifyPlayingXI, FIVE_MINUTES);
       log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
+      log("Cricbuzz auto-verify scheduler started (every 5min, 10min before match)");
     }
   );
 })();
