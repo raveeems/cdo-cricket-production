@@ -107,7 +107,7 @@ export default function MatchDetailScreen() {
     retry: 1,
   });
 
-  const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string }>({
+  const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string; players?: Player[] }>({
     queryKey: ['/api/matches', id, 'teams'],
     enabled: !!id,
     retry: 1,
@@ -127,7 +127,9 @@ export default function MatchDetailScreen() {
   const userTeams = id ? getTeamsForMatch(id) : [];
   const scorecard = scorecardData?.scorecard;
   const contestTeams = contestData?.teams || [];
+  const contestPlayers = contestData?.players || [];
   const teamsVisibility = contestData?.visibility || 'hidden';
+  const allKnownPlayers = contestPlayers.length > 0 ? contestPlayers : players;
 
   const pickedPlayerNames = new Set<string>();
   for (const team of userTeams) {
@@ -994,9 +996,10 @@ export default function MatchDetailScreen() {
 
               {data.teams.map((team) => {
                 const isExpanded = expandedTeamId === team.id && canViewDetails;
-                const teamPlayers = isExpanded ? team.playerIds.map(pid => players.find(p => p.id === pid)).filter(Boolean) : [];
-                const captain = isExpanded ? players.find(p => p.id === team.captainId) : null;
-                const viceCaptain = isExpanded ? players.find(p => p.id === team.viceCaptainId) : null;
+                const teamPlayers = isExpanded ? team.playerIds.map(pid => allKnownPlayers.find(p => p.id === pid)).filter(Boolean) : [];
+                const captain = isExpanded ? allKnownPlayers.find(p => p.id === team.captainId) : null;
+                const viceCaptain = isExpanded ? allKnownPlayers.find(p => p.id === team.viceCaptainId) : null;
+                const hasOrphanedIds = isExpanded && teamPlayers.length < team.playerIds.length;
 
                 return (
                   <Pressable
@@ -1025,6 +1028,13 @@ export default function MatchDetailScreen() {
                       )}
                     </View>
 
+                    {isExpanded && hasOrphanedIds && teamPlayers.length === 0 && (
+                      <View style={[styles.expandedTeamDetails, { backgroundColor: colors.surface }]}>
+                        <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 12 }}>
+                          Player data being refreshed. Points will update automatically.
+                        </Text>
+                      </View>
+                    )}
                     {isExpanded && teamPlayers.length > 0 && (
                       <View style={[styles.expandedTeamDetails, { backgroundColor: colors.surface }]}>
                         {captain && (
