@@ -108,23 +108,29 @@ export default function MatchDetailScreen() {
   const isLiveOrCompleted = matchData?.match?.status === 'live' || matchData?.match?.status === 'completed' || ((matchData?.match?.status === 'delayed' || matchData?.match?.status === 'upcoming') && matchStarted);
   const effectiveStatus = (matchData?.match?.status === 'delayed' || matchData?.match?.status === 'upcoming') && matchStarted ? 'live' : matchData?.match?.status;
 
+  const isEffectivelyLive = effectiveStatus === 'live';
+
   const { data: scorecardData, isLoading: scorecardLoading } = useQuery<{ scorecard: LiveScorecard | null }>({
     queryKey: ['/api/matches', id, 'live-scorecard'],
-    enabled: !!id && activeTab === 'scorecard' && isLiveOrCompleted,
-    refetchInterval: isLiveOrCompleted && matchData?.match?.status === 'live' ? 30000 : false,
+    enabled: !!id && isLiveOrCompleted,
+    staleTime: 10000,
+    refetchInterval: isEffectivelyLive ? 30000 : false,
     retry: 1,
   });
 
   const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string; players?: Player[] }>({
     queryKey: ['/api/matches', id, 'teams'],
     enabled: !!id,
+    staleTime: 15000,
+    refetchInterval: isEffectivelyLive ? 45000 : false,
     retry: 1,
   });
 
   const { data: standingsData } = useQuery<{ standings: StandingEntry[]; isLive: boolean; players?: Player[] }>({
     queryKey: ['/api/matches', id, 'standings'],
     enabled: !!id && isLiveOrCompleted,
-    refetchInterval: isLiveOrCompleted && matchData?.match?.status !== 'completed' ? 20000 : false,
+    staleTime: 15000,
+    refetchInterval: isEffectivelyLive ? 45000 : false,
     retry: 1,
   });
 
@@ -460,9 +466,17 @@ export default function MatchDetailScreen() {
         )}
 
         {effectiveStatus === 'live' && (
-          <View style={[styles.liveBadgeRow, { marginBottom: 12 }]}>
-            <View style={styles.liveDot} />
-            <Text style={[styles.liveText, { fontFamily: 'Inter_600SemiBold' }]}>LIVE</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <View style={styles.liveBadgeRow}>
+              <View style={styles.liveDot} />
+              <Text style={[styles.liveText, { fontFamily: 'Inter_600SemiBold' }]}>LIVE</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22C55E' }} />
+              <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                Updates every 30s
+              </Text>
+            </View>
           </View>
         )}
 
@@ -660,7 +674,7 @@ export default function MatchDetailScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: effectiveStatus === 'live' ? '#22C55E' : colors.textTertiary }} />
             <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
-              {effectiveStatus === 'live' ? 'Updates every 20s' : 'Final'}
+              {effectiveStatus === 'live' ? 'Updates every 45s' : 'Final'}
             </Text>
           </View>
         </View>
