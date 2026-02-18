@@ -700,6 +700,41 @@ export async function fetchSeriesSquad(
   }
 }
 
+export async function fetchPlayingXIFromMatchInfo(
+  externalMatchId: string
+): Promise<string[]> {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const url = `${CRICKET_API_BASE}/match_info?apikey=${apiKey}&id=${externalMatchId}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+
+    const json = await res.json() as any;
+    if (json.status !== "success" || !json.data) return [];
+
+    const playerIds: string[] = [];
+    if (json.data.teamInfo) {
+      for (const team of json.data.teamInfo) {
+        if (team.playing11 && Array.isArray(team.playing11)) {
+          for (const p of team.playing11) {
+            if (p.id) playerIds.push(p.id);
+          }
+        }
+      }
+    }
+
+    if (playerIds.length > 0) {
+      console.log(`Playing XI from match_info: ${playerIds.length} players for ${externalMatchId}`);
+    }
+    return playerIds;
+  } catch (err) {
+    console.error("match_info Playing XI error:", err);
+    return [];
+  }
+}
+
 export async function fetchMatchSquad(
   externalMatchId: string
 ): Promise<Array<{
