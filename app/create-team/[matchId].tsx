@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   FlatList,
+  ScrollView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -24,7 +25,7 @@ import {
 } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
 
-type Step = 'select' | 'captain';
+type Step = 'select' | 'captain' | 'preview';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
 
 const ROLE_LIMITS = {
@@ -174,17 +175,26 @@ function CaptainItem({
 }
 
 export default function CreateTeamScreen() {
-  const { matchId } = useLocalSearchParams<{ matchId: string }>();
+  const params = useLocalSearchParams<{ matchId: string; editTeamId?: string }>();
+  const matchId = params.matchId;
+  const editTeamId = params.editTeamId;
   const { colors, isDark } = useTheme();
-  const { saveTeam, getTeamsForMatch } = useTeams();
+  const { saveTeam, updateTeam, getTeamsForMatch, getTeamById } = useTeams();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
+  const isEditMode = !!editTeamId;
+  const editingTeam = isEditMode ? getTeamById(editTeamId!) : undefined;
+
   const [step, setStep] = useState<Step>('select');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [captainId, setCaptainId] = useState<string | null>(null);
-  const [vcId, setVcId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    if (editingTeam) return new Set(editingTeam.playerIds);
+    return new Set();
+  });
+  const [captainId, setCaptainId] = useState<string | null>(() => editingTeam?.captainId || null);
+  const [vcId, setVcId] = useState<string | null>(() => editingTeam?.viceCaptainId || null);
   const [filter, setFilter] = useState<RoleFilter>('ALL');
+  const [isSaving, setIsSaving] = useState(false);
 
   const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', matchId],
@@ -250,11 +260,12 @@ export default function CreateTeamScreen() {
     if (selectedIds.size !== 11) return false;
     const selectedArray = Array.from(selectedIds).sort();
     return existingTeams.some((team) => {
+      if (isEditMode && team.id === editTeamId) return false;
       const teamIds = [...team.playerIds].sort();
       if (teamIds.length !== selectedArray.length) return false;
       return teamIds.every((id, i) => id === selectedArray[i]);
     });
-  }, [selectedIds, existingTeams]);
+  }, [selectedIds, existingTeams, isEditMode, editTeamId]);
 
   const canSelectPlayer = (player: Player) => {
     if (selectedIds.has(player.id)) return true;
@@ -277,24 +288,40 @@ export default function CreateTeamScreen() {
   };
 
   const handleSaveTeam = async () => {
-    if (!captainId || !vcId || !matchId) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (!captainId || !vcId || !matchId || isSaving) return;
+    setIsSaving(true);
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const baseName = user?.teamName || 'Team';
-    const existingNames = new Set(existingTeams.map((t) => t.name));
-    let teamNumber = existingTeams.length + 1;
-    while (existingNames.has(`${baseName} ${teamNumber}`)) {
-      teamNumber++;
+      if (isEditMode && editTeamId) {
+        await updateTeam({
+          teamId: editTeamId,
+          playerIds: Array.from(selectedIds),
+          captainId,
+          viceCaptainId: vcId,
+        });
+      } else {
+        const baseName = user?.teamName || 'Team';
+        const existingNames = new Set(existingTeams.map((t) => t.name));
+        let teamNumber = existingTeams.length + 1;
+        while (existingNames.has(`${baseName} ${teamNumber}`)) {
+          teamNumber++;
+        }
+        await saveTeam({
+          matchId,
+          name: `${baseName} ${teamNumber}`,
+          playerIds: Array.from(selectedIds),
+          captainId,
+          viceCaptainId: vcId,
+        });
+      }
+
+      router.back();
+    } catch (e) {
+      console.error('Save team error:', e);
+    } finally {
+      setIsSaving(false);
     }
-    await saveTeam({
-      matchId,
-      name: `${baseName} ${teamNumber}`,
-      playerIds: Array.from(selectedIds),
-      captainId,
-      viceCaptainId: vcId,
-    });
-
-    router.back();
   };
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
@@ -323,7 +350,7 @@ export default function CreateTeamScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-          {step === 'select' ? 'Select Players' : 'Choose C & VC'}
+          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'captain' ? 'Choose C & VC' : 'Team Preview'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -506,7 +533,12 @@ export default function CreateTeamScreen() {
                 <Ionicons name="arrow-back" size={20} color={colors.text} />
               </Pressable>
               <Pressable
-                onPress={handleSaveTeam}
+                onPress={() => {
+                  if (captainId && vcId) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setStep('preview');
+                  }
+                }}
                 disabled={!captainId || !vcId}
                 style={[styles.saveBtn, { flex: 1, opacity: captainId && vcId ? 1 : 0.5 }]}
               >
@@ -516,10 +548,136 @@ export default function CreateTeamScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.saveBtnGradient}
                 >
-                  <Ionicons name="checkmark" size={22} color="#000" />
                   <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                    Save Team
+                    Preview Team
                   </Text>
+                  <Ionicons name="arrow-forward" size={20} color="#000" />
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </>
+      )}
+
+      {step === 'preview' && (
+        <>
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, paddingTop: 12 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.previewMatchInfo, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.previewMatchTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                {match.team1Short} vs {match.team2Short}
+              </Text>
+              <Text style={[styles.previewMatchVenue, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                {match.venue}
+              </Text>
+            </View>
+
+            <View style={[styles.previewCaptainRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <View style={styles.previewCaptainItem}>
+                <View style={[styles.previewCaptainBadge, { backgroundColor: colors.accent }]}>
+                  <Text style={[styles.previewCaptainBadgeText, { fontFamily: 'Inter_700Bold' }]}>C</Text>
+                </View>
+                <Text style={[styles.previewCaptainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                  {selectedPlayers.find((p) => p.id === captainId)?.name || 'N/A'}
+                </Text>
+                <Text style={[styles.previewCaptainMult, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>2x</Text>
+              </View>
+              <View style={[styles.previewDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.previewCaptainItem}>
+                <View style={[styles.previewCaptainBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.previewCaptainBadgeText, { color: '#FFF', fontFamily: 'Inter_700Bold' }]}>VC</Text>
+                </View>
+                <Text style={[styles.previewCaptainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                  {selectedPlayers.find((p) => p.id === vcId)?.name || 'N/A'}
+                </Text>
+                <Text style={[styles.previewCaptainMult, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>1.5x</Text>
+              </View>
+            </View>
+
+            {(['WK', 'BAT', 'AR', 'BOWL'] as const).map((role) => {
+              const rolePlayers = selectedPlayers.filter((p) => p.role === role);
+              if (rolePlayers.length === 0) return null;
+              return (
+                <View key={role} style={styles.previewSection}>
+                  <View style={styles.previewSectionHeader}>
+                    <View style={[styles.previewRolePill, { backgroundColor: getRoleColor(role, isDark) + '20' }]}>
+                      <Text style={[styles.previewRolePillText, { color: getRoleColor(role, isDark), fontFamily: 'Inter_700Bold' }]}>
+                        {role}
+                      </Text>
+                    </View>
+                    <Text style={[styles.previewRoleCount, { color: colors.textTertiary, fontFamily: 'Inter_500Medium' }]}>
+                      {rolePlayers.length} player{rolePlayers.length > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  {rolePlayers.map((p) => (
+                    <View key={p.id} style={[styles.previewPlayerRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                      <View style={styles.previewPlayerLeft}>
+                        <Text style={[styles.previewPlayerName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        <Text style={[styles.previewPlayerTeam, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                          {p.teamShort} | {p.credits} Cr
+                        </Text>
+                      </View>
+                      {p.id === captainId && (
+                        <View style={[styles.previewBadgePill, { backgroundColor: colors.accent }]}>
+                          <Text style={[styles.previewBadgePillText, { fontFamily: 'Inter_700Bold' }]}>C</Text>
+                        </View>
+                      )}
+                      {p.id === vcId && (
+                        <View style={[styles.previewBadgePill, { backgroundColor: colors.primary }]}>
+                          <Text style={[styles.previewBadgePillText, { color: '#FFF', fontFamily: 'Inter_700Bold' }]}>VC</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              );
+            })}
+
+            <View style={[styles.previewSummary, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <View style={styles.previewSummaryRow}>
+                <Text style={[styles.previewSummaryLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>Total Players</Text>
+                <Text style={[styles.previewSummaryValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>{selectedIds.size}</Text>
+              </View>
+              <View style={styles.previewSummaryRow}>
+                <Text style={[styles.previewSummaryLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>Total Credits</Text>
+                <Text style={[styles.previewSummaryValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>{totalCredits.toFixed(1)}</Text>
+              </View>
+            </View>
+          </ScrollView>
+
+          <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+            <View style={styles.bottomBarRow}>
+              <Pressable
+                onPress={() => setStep('captain')}
+                style={[styles.backStepBtn, { borderColor: colors.border }]}
+              >
+                <Ionicons name="arrow-back" size={20} color={colors.text} />
+              </Pressable>
+              <Pressable
+                onPress={handleSaveTeam}
+                disabled={isSaving}
+                style={[styles.saveBtn, { flex: 1, opacity: isSaving ? 0.5 : 1 }]}
+              >
+                <LinearGradient
+                  colors={[colors.accent, colors.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.saveBtnGradient}
+                >
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark" size={22} color="#000" />
+                      <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                        {isEditMode ? 'Update Team' : 'Save Team'}
+                      </Text>
+                    </>
+                  )}
                 </LinearGradient>
               </Pressable>
             </View>
@@ -779,5 +937,123 @@ const styles = StyleSheet.create({
   saveBtnText: {
     fontSize: 16,
     color: '#000',
+  },
+  previewMatchInfo: {
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  previewMatchTitle: {
+    fontSize: 18,
+  },
+  previewMatchVenue: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  previewCaptainRow: {
+    flexDirection: 'row',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  previewCaptainItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  previewCaptainBadge: {
+    width: 32,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewCaptainBadgeText: {
+    fontSize: 13,
+    color: '#000',
+  },
+  previewCaptainName: {
+    fontSize: 13,
+    flex: 1,
+  },
+  previewCaptainMult: {
+    fontSize: 12,
+  },
+  previewDivider: {
+    width: 1,
+    height: 30,
+    marginHorizontal: 10,
+  },
+  previewSection: {
+    marginBottom: 14,
+  },
+  previewSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  previewRolePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  previewRolePillText: {
+    fontSize: 11,
+  },
+  previewRoleCount: {
+    fontSize: 12,
+  },
+  previewPlayerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 6,
+  },
+  previewPlayerLeft: {
+    flex: 1,
+  },
+  previewPlayerName: {
+    fontSize: 14,
+  },
+  previewPlayerTeam: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  previewBadgePill: {
+    width: 28,
+    height: 24,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewBadgePillText: {
+    fontSize: 12,
+    color: '#000',
+  },
+  previewSummary: {
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 4,
+    gap: 8,
+  },
+  previewSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  previewSummaryLabel: {
+    fontSize: 13,
+  },
+  previewSummaryValue: {
+    fontSize: 14,
   },
 });

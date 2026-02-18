@@ -213,14 +213,24 @@ export default function MatchDetailScreen() {
                 </Text>
               </View>
               {canEdit && (
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    deleteTeam(team.id);
-                  }}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.error} />
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({ pathname: '/create-team/[matchId]', params: { matchId: match.id, editTeamId: team.id } });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={18} color={colors.primary} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      deleteTeam(team.id);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </Pressable>
+                </View>
               )}
             </View>
             <View style={[styles.teamCardDetails, { borderTopColor: colors.border }]}>
