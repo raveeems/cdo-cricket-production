@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -80,11 +81,16 @@ export default function MatchDetailScreen() {
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [repairingTeams, setRepairingTeams] = useState(false);
   const [repairResult, setRepairResult] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
+  const { data: matchData, isLoading: matchLoading, refetch: refetchMatch } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
     enabled: !!id,
     retry: 1,
+    refetchInterval: (query) => {
+      const status = query.state.data?.match?.status;
+      return (status === 'live' || status === 'delayed') ? 10000 : false;
+    },
   });
 
   const { data: playersData, isLoading: playersLoading } = useQuery<{ players: Player[] }>({
@@ -150,6 +156,16 @@ export default function MatchDetailScreen() {
       setActiveTab('standings');
     }
   }, [isLiveOrCompleted]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetchMatch();
+    setRefreshing(false);
+  }, [refetchMatch]);
+
+  const lastUpdatedText = match?.lastSyncAt
+    ? new Date(match.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : null;
 
   if (matchLoading || playersLoading) {
     return (
@@ -1041,6 +1057,14 @@ export default function MatchDetailScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FFF"
+            colors={[colors.primary]}
+          />
+        }
       >
         <LinearGradient
           colors={[colors.primary, '#1E40AF']}
@@ -1072,10 +1096,27 @@ export default function MatchDetailScreen() {
             </View>
 
             <View style={styles.heroCenter}>
-              {effectiveStatus === 'live' ? (
-                <View style={styles.liveBadgeRow}>
-                  <View style={styles.liveDot} />
-                  <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
+              {(effectiveStatus === 'live' || match.status === 'completed') && match.scoreString ? (
+                <View style={{ alignItems: 'center' }}>
+                  <View style={styles.liveBadgeRow}>
+                    <View style={[styles.liveDot, match.status === 'completed' && { backgroundColor: '#9CA3AF' }]} />
+                    <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>
+                      {match.status === 'completed' ? 'COMPLETED' : 'LIVE'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.heroScoreString, { fontFamily: 'Inter_700Bold' }]} numberOfLines={3}>
+                    {match.scoreString}
+                  </Text>
+                </View>
+              ) : effectiveStatus === 'live' ? (
+                <View style={{ alignItems: 'center' }}>
+                  <View style={styles.liveBadgeRow}>
+                    <View style={styles.liveDot} />
+                    <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
+                  </View>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 4, textAlign: 'center' }}>
+                    Waiting for first ball...
+                  </Text>
                 </View>
               ) : match.status === 'delayed' ? (
                 <View style={styles.liveBadgeRow}>
@@ -1089,14 +1130,14 @@ export default function MatchDetailScreen() {
                 <Text style={{ color: '#F39C12', fontSize: 11, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 4 }} numberOfLines={2}>
                   {match.statusNote}
                 </Text>
-              ) : (
+              ) : effectiveStatus !== 'live' && match.status !== 'completed' ? (
                 <View style={styles.timerPill}>
                   <Ionicons name="time" size={14} color="#FFD130" />
                   <Text style={[styles.timerPillText, { fontFamily: 'Inter_600SemiBold' }]}>
                     {timeLeft}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </View>
 
             <View style={[styles.heroTeamInfo, { alignItems: 'flex-end' }]}>
@@ -1157,6 +1198,14 @@ export default function MatchDetailScreen() {
         {activeTab === 'participants' && renderParticipantsTab()}
         {activeTab === 'scorecard' && renderScorecardTab()}
         {activeTab === 'players' && renderPlayersTab()}
+
+        {isLiveOrCompleted && (
+          <View style={styles.lastUpdatedRow}>
+            <Text style={[styles.lastUpdatedText, { color: colors.textTertiary }]}>
+              {lastUpdatedText ? `Last Updated: ${lastUpdatedText}` : 'Syncing...'}
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -1220,6 +1269,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255,255,255,0.5)',
     letterSpacing: 3,
+  },
+  heroScoreString: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    textAlign: 'center' as const,
+    marginTop: 6,
+    lineHeight: 18,
+    maxWidth: 140,
+  },
+  lastUpdatedRow: {
+    alignItems: 'center' as const,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  lastUpdatedText: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
   },
   timerPill: {
     flexDirection: 'row',

@@ -25,6 +25,8 @@ export interface Match {
   startTime: string;
   status: 'upcoming' | 'live' | 'completed' | 'delayed';
   statusNote: string;
+  scoreString?: string;
+  lastSyncAt?: string;
   league: string;
   totalPrize: string;
   entryFee: number;
