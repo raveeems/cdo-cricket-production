@@ -65,6 +65,12 @@ export default function AdminScreen() {
   const [forceSyncing, setForceSyncing] = useState(false);
   const [forceSyncResult, setForceSyncResult] = useState('');
   const [loadingPrevXI, setLoadingPrevXI] = useState(false);
+  const [playerMapMatch, setPlayerMapMatch] = useState<string | null>(null);
+  const [playerMapData, setPlayerMapData] = useState<{ dbPlayers: any[]; scorecardNames: string[] } | null>(null);
+  const [loadingPlayerMap, setLoadingPlayerMap] = useState(false);
+  const [selectedDbPlayer, setSelectedDbPlayer] = useState<string | null>(null);
+  const [playerMapNewName, setPlayerMapNewName] = useState('');
+  const [playerMapMsg, setPlayerMapMsg] = useState('');
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -852,6 +858,156 @@ export default function AdminScreen() {
                       </View>
                     </View>
                   ))
+                )}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Player Name Mapping
+            </Text>
+            <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 12 }]}>
+              Fix scorecard name mismatches (e.g. "Chakravarthy" vs "Chakaravarthy")
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              {matches.filter(m => m.status === 'live' || m.status === 'delayed').map(m => (
+                <Pressable
+                  key={m.id}
+                  onPress={async () => {
+                    setPlayerMapMatch(m.id);
+                    setPlayerMapData(null);
+                    setSelectedDbPlayer(null);
+                    setPlayerMapNewName('');
+                    setPlayerMapMsg('');
+                    setLoadingPlayerMap(true);
+                    try {
+                      const res = await apiRequest('GET', `/api/admin/matches/${m.id}/player-mapping`);
+                      const data = await res.json();
+                      setPlayerMapData(data);
+                    } catch (e: any) {
+                      setPlayerMapMsg('Failed to load: ' + (e.message || ''));
+                    }
+                    setLoadingPlayerMap(false);
+                  }}
+                  style={[styles.debugBtn, { backgroundColor: playerMapMatch === m.id ? colors.primary + '30' : colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}
+                >
+                  <Text style={[{ color: playerMapMatch === m.id ? colors.primary : colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12 }]}>
+                    {m.team1Short} vs {m.team2Short}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {loadingPlayerMap && <ActivityIndicator size="small" color={colors.primary} />}
+            {playerMapMsg !== '' && (
+              <Text style={[{ color: colors.accent, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 8 }]}>
+                {playerMapMsg}
+              </Text>
+            )}
+
+            {playerMapData && (
+              <View style={[{ backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, padding: 14 }]}>
+                <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginBottom: 10 }]}>
+                  DB Players (0 pts = possibly unmatched)
+                </Text>
+                {playerMapData.dbPlayers
+                  .filter(p => p.isPlayingXI)
+                  .sort((a: any, b: any) => (a.points || 0) - (b.points || 0))
+                  .map((p: any) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => {
+                      setSelectedDbPlayer(p.id);
+                      setPlayerMapNewName(p.name);
+                    }}
+                    style={[{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingVertical: 8,
+                      paddingHorizontal: 8,
+                      borderRadius: 8,
+                      backgroundColor: selectedDbPlayer === p.id ? colors.primary + '15' : 'transparent',
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.border + '30',
+                    }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[{ color: p.points === 0 ? colors.error : colors.text, fontFamily: 'Inter_500Medium', fontSize: 13 }]}>
+                        {p.name}
+                      </Text>
+                      <Text style={[{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 10 }]}>
+                        {p.role} | pts: {p.points || 0}
+                      </Text>
+                    </View>
+                    {selectedDbPlayer === p.id && (
+                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                    )}
+                  </Pressable>
+                ))}
+
+                {selectedDbPlayer && (
+                  <View style={{ marginTop: 14, gap: 8 }}>
+                    <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12 }]}>
+                      Rename to match scorecard:
+                    </Text>
+                    <TextInput
+                      value={playerMapNewName}
+                      onChangeText={setPlayerMapNewName}
+                      placeholder="Correct player name"
+                      placeholderTextColor={colors.textTertiary}
+                      style={[styles.codeInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
+                    />
+
+                    {playerMapData.scorecardNames.length > 0 && (
+                      <View>
+                        <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 11, marginBottom: 4 }]}>
+                          Scorecard names (tap to use):
+                        </Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                          {playerMapData.scorecardNames.map((n: string) => (
+                            <Pressable
+                              key={n}
+                              onPress={() => setPlayerMapNewName(n)}
+                              style={[{ backgroundColor: colors.primary + '15', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }]}
+                            >
+                              <Text style={[{ color: colors.primary, fontFamily: 'Inter_500Medium', fontSize: 11 }]}>
+                                {n}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    <Pressable
+                      onPress={async () => {
+                        if (!selectedDbPlayer || !playerMapNewName.trim()) return;
+                        try {
+                          const res = await apiRequest('POST', `/api/admin/matches/${playerMapMatch}/map-player`, {
+                            dbPlayerId: selectedDbPlayer,
+                            newName: playerMapNewName.trim(),
+                          });
+                          const data = await res.json();
+                          setPlayerMapMsg(data.message || 'Player mapped successfully');
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          const res2 = await apiRequest('GET', `/api/admin/matches/${playerMapMatch}/player-mapping`);
+                          const data2 = await res2.json();
+                          setPlayerMapData(data2);
+                          setSelectedDbPlayer(null);
+                        } catch (e: any) {
+                          setPlayerMapMsg('Failed: ' + (e.message || ''));
+                        }
+                      }}
+                      style={[styles.debugBtn, { backgroundColor: colors.success + '15', alignSelf: 'flex-start' }]}
+                    >
+                      <Ionicons name="link" size={14} color={colors.success} />
+                      <Text style={[{ color: colors.success, fontFamily: 'Inter_600SemiBold', fontSize: 12, marginLeft: 4 }]}>
+                        Map Player
+                      </Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
             )}

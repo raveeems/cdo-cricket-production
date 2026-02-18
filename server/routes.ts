@@ -490,7 +490,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         const { fetchMatchScorecard } = await import("./cricket-api");
-        const pointsMap = await fetchMatchScorecard(match.externalId);
+        const result = await fetchMatchScorecard(match.externalId);
+        const pointsMap = result.pointsMap;
+        const namePointsMap = result.namePointsMap;
 
         if (pointsMap.size === 0) {
           return res.json({ message: "No scorecard data available yet", updated: 0 });
@@ -499,8 +501,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const matchPlayers = await storage.getPlayersForMatch(matchId);
         let updated = 0;
         for (const player of matchPlayers) {
+          let pts: number | undefined = undefined;
           if (player.externalId && pointsMap.has(player.externalId)) {
-            const pts = pointsMap.get(player.externalId)!;
+            pts = pointsMap.get(player.externalId)!;
+          }
+          if (pts === undefined && namePointsMap.size > 0 && player.name) {
+            const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+            if (namePointsMap.has(normName)) {
+              pts = namePointsMap.get(normName)!;
+            } else {
+              for (const [apiName, apiPts] of namePointsMap) {
+                if (apiName.includes(normName) || normName.includes(apiName)) {
+                  pts = apiPts;
+                  break;
+                }
+                const p1 = apiName.split(" "), p2 = normName.split(" ");
+                if (p1.length > 0 && p2.length > 0 && p1[0][0] === p2[0][0]) {
+                  const l1 = p1[p1.length-1], l2 = p2[p2.length-1];
+                  if (l1 === l2 || (l1.substring(0,3) === l2.substring(0,3) && p1[0].substring(0,3) === p2[0].substring(0,3))) {
+                    pts = apiPts;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+          if (pts !== undefined) {
             await storage.updatePlayer(player.id, { points: pts });
             updated++;
           }
@@ -1311,6 +1337,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("Last playing XI error:", err);
         return res.status(500).json({ message: "Failed to fetch last playing XI" });
+      }
+    }
+  );
+
+  // ---- ADMIN: MAP PLAYER MANUALLY ----
+  app.post(
+    "/api/admin/matches/:matchId/map-player",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { matchId } = req.params;
+        const { dbPlayerId, newName, newExternalId } = req.body;
+        if (!dbPlayerId) return res.status(400).json({ message: "dbPlayerId required" });
+
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const player = await storage.getPlayersForMatch(matchId);
+        const target = player.find(p => p.id === dbPlayerId);
+        if (!target) return res.status(404).json({ message: "Player not found in this match" });
+
+        const updates: any = {};
+        if (newName) updates.name = newName;
+        if (newExternalId) updates.externalId = newExternalId;
+
+        if (Object.keys(updates).length > 0) {
+          await storage.updatePlayer(dbPlayerId, updates);
+          console.log(`[Admin] Mapped player ${target.name} -> name=${newName || target.name}, extId=${newExternalId || target.externalId}`);
+        }
+
+        return res.json({
+          message: `Player updated: ${target.name} -> ${newName || target.name}`,
+          updated: updates,
+        });
+      } catch (err: any) {
+        console.error("Map player error:", err);
+        return res.status(500).json({ message: "Failed to map player" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/admin/matches/:matchId/player-mapping",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { matchId } = req.params;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const dbPlayers = await storage.getPlayersForMatch(matchId);
+
+        let scorecardNames: string[] = [];
+        if (match.externalId) {
+          try {
+            const { fetchMatchScorecard } = await import("./cricket-api");
+            const result = await fetchMatchScorecard(match.externalId);
+            scorecardNames = Array.from(result.namePointsMap.keys());
+          } catch (e) {}
+        }
+
+        return res.json({
+          dbPlayers: dbPlayers.map(p => ({
+            id: p.id,
+            name: p.name,
+            externalId: p.externalId,
+            points: p.points,
+            role: p.role,
+            isPlayingXI: p.isPlayingXI,
+          })),
+          scorecardNames,
+        });
+      } catch (err: any) {
+        console.error("Player mapping error:", err);
+        return res.status(500).json({ message: "Failed to get player mapping" });
       }
     }
   );
