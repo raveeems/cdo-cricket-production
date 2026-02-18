@@ -530,6 +530,11 @@ export async function refreshPlayingXIForLiveMatches(): Promise<void> {
 
   for (const match of liveMatches) {
     try {
+      if ((match as any).playingXIManual) {
+        console.log(`Playing XI skipped (admin manual): ${match.team1} vs ${match.team2}`);
+        continue;
+      }
+
       const existingCount = await storage.getPlayingXICount(match.id);
       if (existingCount >= 22) continue;
 

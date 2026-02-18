@@ -1149,6 +1149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const updated = await storage.markPlayingXIByIds(matchId, playerIds);
+        await storage.updateMatch(matchId, { playingXIManual: true });
         return res.json({
           message: `Playing XI manually set: ${updated} players marked`,
           count: updated,

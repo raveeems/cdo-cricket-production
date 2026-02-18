@@ -380,34 +380,38 @@ function setupErrorHandler(app: express.Application) {
                 log(`Playing XI upserted: ${squad.length} players for ${match.team1} vs ${match.team2}`);
               }
 
-              const playingXICount = await storage.getPlayingXICount(match.id);
-              if (playingXICount === 0) {
-                const { markPlayingXIFromApiCricket } = await import("./api-cricket");
-                const matchDate = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-                const apiCricketResult = await markPlayingXIFromApiCricket(
-                  match.id,
-                  match.team1Short,
-                  match.team2Short,
-                  matchDate
-                );
+              if ((match as any).playingXIManual) {
+                log(`Playing XI skipped (admin manual): ${match.team1} vs ${match.team2}`);
+              } else {
+                const playingXICount = await storage.getPlayingXICount(match.id);
+                if (playingXICount === 0) {
+                  const { markPlayingXIFromApiCricket } = await import("./api-cricket");
+                  const matchDate = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+                  const apiCricketResult = await markPlayingXIFromApiCricket(
+                    match.id,
+                    match.team1Short,
+                    match.team2Short,
+                    matchDate
+                  );
 
-                if (apiCricketResult.matched >= 11) {
-                  log(`Playing XI from api-cricket.com: ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}`);
-                } else {
-                  if (apiCricketResult.matched > 0) {
-                    log(`Playing XI partial from api-cricket.com: ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}, trying CricAPI...`);
-                  }
+                  if (apiCricketResult.matched >= 11) {
+                    log(`Playing XI from api-cricket.com: ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}`);
+                  } else {
+                    if (apiCricketResult.matched > 0) {
+                      log(`Playing XI partial from api-cricket.com: ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}, trying CricAPI...`);
+                    }
 
-                  if (match.externalId) {
-                    let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
-                    if (playingXIIds.length > 0) {
-                      await storage.markPlayingXI(match.id, playingXIIds);
-                      log(`Playing XI from CricAPI scorecard: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
-                    } else {
-                      playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+                    if (match.externalId) {
+                      let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
                       if (playingXIIds.length > 0) {
                         await storage.markPlayingXI(match.id, playingXIIds);
-                        log(`Playing XI from CricAPI match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                        log(`Playing XI from CricAPI scorecard: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                      } else {
+                        playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+                        if (playingXIIds.length > 0) {
+                          await storage.markPlayingXI(match.id, playingXIIds);
+                          log(`Playing XI from CricAPI match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                        }
                       }
                     }
                   }
@@ -431,6 +435,7 @@ function setupErrorHandler(app: express.Application) {
 
           for (const match of allMatches) {
             if (match.status === "completed") continue;
+            if ((match as any).playingXIManual) continue;
 
             const startMs = new Date(match.startTime).getTime();
             const timeUntilStart = startMs - now;
