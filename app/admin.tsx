@@ -60,6 +60,10 @@ export default function AdminScreen() {
   const [loadingPlayers, setLoadingPlayers] = useState(false);
   const [savingXI, setSavingXI] = useState(false);
   const [xiMessage, setXiMessage] = useState('');
+  const [matchDebugData, setMatchDebugData] = useState<any>(null);
+  const [loadingDebug, setLoadingDebug] = useState(false);
+  const [forceSyncing, setForceSyncing] = useState(false);
+  const [forceSyncResult, setForceSyncResult] = useState('');
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -204,6 +208,34 @@ export default function AdminScreen() {
       console.error('Sync failed:', e);
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const loadMatchDebug = async () => {
+    setLoadingDebug(true);
+    try {
+      const res = await apiRequest('GET', '/api/debug/match-status');
+      const data = await res.json();
+      setMatchDebugData(data);
+    } catch (e: any) {
+      setMatchDebugData({ error: e.message || 'Failed to load debug data' });
+    } finally {
+      setLoadingDebug(false);
+    }
+  };
+
+  const forceSync = async (matchId?: string) => {
+    setForceSyncing(true);
+    setForceSyncResult('');
+    try {
+      const res = await apiRequest('POST', '/api/debug/force-sync', matchId ? { matchId } : {});
+      const data = await res.json();
+      setForceSyncResult(data.message || 'Sync complete');
+      loadMatchDebug();
+    } catch (e: any) {
+      setForceSyncResult('Force sync failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setForceSyncing(false);
     }
   };
 
@@ -609,6 +641,107 @@ export default function AdminScreen() {
               ))}
             </View>
           </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Match Debug
+            </Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Raw database data for all active matches. Verify score_string values.
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              <Pressable
+                onPress={loadMatchDebug}
+                disabled={loadingDebug}
+                style={[styles.debugBtn, { backgroundColor: colors.primary + '20', opacity: loadingDebug ? 0.6 : 1 }]}
+              >
+                {loadingDebug ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="bug" size={18} color={colors.primary} />
+                )}
+                <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginLeft: 6 }]}>
+                  Load Debug Data
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => forceSync()}
+                disabled={forceSyncing}
+                style={[styles.debugBtn, { backgroundColor: colors.warning + '20', opacity: forceSyncing ? 0.6 : 1 }]}
+              >
+                {forceSyncing ? (
+                  <ActivityIndicator size="small" color={colors.warning} />
+                ) : (
+                  <Ionicons name="flash" size={18} color={colors.warning} />
+                )}
+                <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginLeft: 6 }]}>
+                  Force Sync All
+                </Text>
+              </Pressable>
+            </View>
+
+            {forceSyncResult !== '' && (
+              <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 8 }]}>
+                <Ionicons name="flash" size={16} color={colors.warning} />
+                <Text style={[{ color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 12, marginLeft: 6, flex: 1 }]}>
+                  {forceSyncResult}
+                </Text>
+              </View>
+            )}
+
+            {matchDebugData && (
+              <View style={[styles.debugDataCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                {matchDebugData.serverTime && (
+                  <Text style={[{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11, marginBottom: 8 }]}>
+                    Server: {new Date(matchDebugData.serverTime).toLocaleString()}
+                  </Text>
+                )}
+                {matchDebugData.error ? (
+                  <Text style={[{ color: colors.error, fontFamily: 'Inter_500Medium', fontSize: 12 }]}>
+                    {matchDebugData.error}
+                  </Text>
+                ) : (
+                  (matchDebugData.matches || []).map((m: any) => (
+                    <View key={m.id} style={[styles.debugMatchRow, { borderBottomColor: colors.border }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={[{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>
+                          {m.teams}
+                        </Text>
+                        <View style={[styles.debugStatusBadge, { backgroundColor: m.status === 'live' ? colors.success + '20' : m.status === 'completed' ? colors.textTertiary + '20' : colors.primary + '20' }]}>
+                          <Text style={[{ color: m.status === 'live' ? colors.success : m.status === 'completed' ? colors.textTertiary : colors.primary, fontFamily: 'Inter_600SemiBold', fontSize: 10 }]}>
+                            {m.status.toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
+                        score_string: {m.scoreString ? `"${m.scoreString}"` : '(empty)'}
+                      </Text>
+                      <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
+                        last_sync: {m.lastSyncAt ? new Date(m.lastSyncAt).toLocaleString() : '(never)'}
+                      </Text>
+                      <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
+                        locked: {m.isLocked ? 'YES' : 'NO'} | ext_id: {m.hasExternalId ? 'YES' : 'NO'} | start: {m.minutesUntilStart}min
+                      </Text>
+                      {m.status === 'live' && (
+                        <Pressable
+                          onPress={() => forceSync(m.id)}
+                          disabled={forceSyncing}
+                          style={[styles.debugBtn, { backgroundColor: colors.warning + '15', marginTop: 6, alignSelf: 'flex-start' }]}
+                        >
+                          <Ionicons name="flash" size={14} color={colors.warning} />
+                          <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                            Force Sync This Match
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -858,5 +991,26 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 8,
     borderRadius: 14,
+  },
+  debugBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  debugDataCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  debugMatchRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  debugStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
 });

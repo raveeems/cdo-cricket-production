@@ -29,7 +29,7 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
   const { colors } = useTheme();
   const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(match.startTime, match.status));
   const matchStarted = new Date(match.startTime).getTime() <= Date.now();
-  const effectiveStatus = match.status === 'delayed' && matchStarted ? 'live' : match.status;
+  const effectiveStatus = (match.status === 'delayed' || match.status === 'upcoming') && matchStarted ? 'live' : match.status;
 
   useEffect(() => {
     const interval = setInterval(() => {

@@ -1240,13 +1240,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     isAdmin,
     async (req: Request, res: Response) => {
-      const matchId = req.body.matchId as string | undefined;
+      const matchId = req.body?.matchId as string | undefined;
       try {
         const heartbeat = (globalThis as any).__matchHeartbeat;
         if (!heartbeat) {
           return res.status(500).json({ message: "Heartbeat not initialized" });
         }
-        log(`[Force Sync] Admin triggered manual sync${matchId ? ` for match ${matchId}` : ' for all live matches'}`);
+        console.log(`[Force Sync] Admin triggered manual sync${matchId ? ` for match ${matchId}` : ' for all live matches'}`);
         await heartbeat(matchId);
         
         if (matchId) {

@@ -87,9 +87,14 @@ export default function MatchDetailScreen() {
     queryKey: ['/api/matches', id],
     enabled: !!id,
     retry: 1,
+    staleTime: 5000,
     refetchInterval: (query) => {
       const status = query.state.data?.match?.status;
-      return (status === 'live' || status === 'delayed') ? 10000 : false;
+      const startTime = query.state.data?.match?.startTime;
+      const isPastStart = startTime ? new Date(startTime).getTime() <= Date.now() : false;
+      if (status === 'live' || status === 'delayed' || (status === 'upcoming' && isPastStart)) return 10000;
+      if (status === 'upcoming') return 30000;
+      return false;
     },
   });
 
@@ -100,8 +105,8 @@ export default function MatchDetailScreen() {
   });
 
   const matchStarted = matchData?.match?.startTime ? new Date(matchData.match.startTime).getTime() <= Date.now() : false;
-  const isLiveOrCompleted = matchData?.match?.status === 'live' || matchData?.match?.status === 'completed' || (matchData?.match?.status === 'delayed' && matchStarted);
-  const effectiveStatus = matchData?.match?.status === 'delayed' && matchStarted ? 'live' : matchData?.match?.status;
+  const isLiveOrCompleted = matchData?.match?.status === 'live' || matchData?.match?.status === 'completed' || ((matchData?.match?.status === 'delayed' || matchData?.match?.status === 'upcoming') && matchStarted);
+  const effectiveStatus = (matchData?.match?.status === 'delayed' || matchData?.match?.status === 'upcoming') && matchStarted ? 'live' : matchData?.match?.status;
 
   const { data: scorecardData, isLoading: scorecardLoading } = useQuery<{ scorecard: LiveScorecard | null }>({
     queryKey: ['/api/matches', id, 'live-scorecard'],
@@ -124,6 +129,13 @@ export default function MatchDetailScreen() {
   });
 
   const match = matchData?.match;
+  
+  useEffect(() => {
+    if (match) {
+      console.log("Match Data:", { id: match.id, status: match.status, scoreString: match.scoreString, lastSyncAt: match.lastSyncAt, team1: match.team1Short, team2: match.team2Short });
+    }
+  }, [match?.status, match?.scoreString, match?.lastSyncAt]);
+
   const basePlayers = playersData?.players || [];
   const standingsPlayers = standingsData?.players || [];
   const players = standingsPlayers.length > 0 ? standingsPlayers : basePlayers;
@@ -1271,12 +1283,12 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
   },
   heroScoreString: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#FFFFFF',
     textAlign: 'center' as const,
     marginTop: 6,
-    lineHeight: 18,
-    maxWidth: 140,
+    lineHeight: 20,
+    maxWidth: 200,
   },
   lastUpdatedRow: {
     alignItems: 'center' as const,
