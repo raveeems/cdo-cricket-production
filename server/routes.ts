@@ -448,19 +448,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const { fetchPlayingXIFromScorecard, fetchPlayingXIFromMatchInfo } = await import("./cricket-api");
             let playingIds = await fetchPlayingXIFromScorecard(match.externalId);
             if (playingIds.length === 0) {
-              playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
-            }
-            if (playingIds.length === 0) {
               try {
                 const { markPlayingXIFromApiCricket } = await import("./api-cricket");
                 const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
                 const result = await markPlayingXIFromApiCricket(matchId, match.team1Short, match.team2Short, matchDateStr);
                 if (result.matched > 0) {
-                  console.log(`api-cricket.com fallback: matched ${result.matched} Playing XI players`);
+                  console.log(`api-cricket.com (2nd tier): matched ${result.matched} Playing XI players`);
                 }
               } catch (e) {
-                console.error("api-cricket.com Playing XI fallback error:", e);
+                console.error("api-cricket.com Playing XI error:", e);
               }
+            }
+            if (playingIds.length === 0) {
+              playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
             }
             if (playingIds.length >= 2) {
               await storage.markPlayingXI(matchId, playingIds);
@@ -1085,10 +1085,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let playingIds = await fetchPlayingXIFromScorecard(match.externalId);
         let source = "scorecard";
         if (playingIds.length === 0) {
-          playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
-          source = "match_info";
-        }
-        if (playingIds.length === 0) {
           try {
             const { markPlayingXIFromApiCricket } = await import("./api-cricket");
             const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
@@ -1098,8 +1094,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return res.json({ message: `Playing XI updated via api-cricket.com: ${result.matched} players matched`, count: result.matched, source });
             }
           } catch (e) {
-            console.error("api-cricket.com Playing XI fallback error:", e);
+            console.error("api-cricket.com Playing XI error:", e);
           }
+        }
+        if (playingIds.length === 0) {
+          playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+          source = "match_info";
+        }
+        if (playingIds.length === 0) {
           return res.json({ message: "No Playing XI data available yet - match may not have started", count: 0 });
         }
 
