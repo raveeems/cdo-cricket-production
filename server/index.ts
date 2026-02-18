@@ -485,7 +485,15 @@ function setupErrorHandler(app: express.Application) {
             if (!match.externalId) continue;
 
             const isLive = match.status === "live" || match.status === "delayed";
-            if (!isLive) continue;
+            const startMs = match.startTime ? new Date(match.startTime).getTime() : 0;
+            const isStarted = startMs > 0 && now > startMs && match.status !== "completed";
+            
+            if (isStarted && !isLive) {
+              log(`Auto-updating match status to live: ${match.team1Short} vs ${match.team2Short} (was ${match.status}, started ${Math.round((now - startMs) / 60000)}m ago)`);
+              await storage.updateMatch(match.id, { status: "live" });
+            }
+
+            if (!isLive && !isStarted) continue;
 
             const lastSync = scorecardLastSync.get(match.id) || 0;
             if (now - lastSync < TWO_MINUTES) continue;
