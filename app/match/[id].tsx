@@ -129,12 +129,6 @@ export default function MatchDetailScreen() {
   });
 
   const match = matchData?.match;
-  
-  useEffect(() => {
-    if (match) {
-      console.log("Match Data:", { id: match.id, status: match.status, scoreString: match.scoreString, lastSyncAt: match.lastSyncAt, team1: match.team1Short, team2: match.team2Short });
-    }
-  }, [match?.status, match?.scoreString, match?.lastSyncAt]);
 
   const basePlayers = playersData?.players || [];
   const standingsPlayers = standingsData?.players || [];
@@ -1113,7 +1107,24 @@ export default function MatchDetailScreen() {
                 const hasScore = rawScore && rawScore.length > 3;
                 const isLiveish = effectiveStatus === 'live' || match.status === 'completed';
 
+                const parseScore = (raw: string) => {
+                  const scoreMatch = raw.match(/(\d+\/\d+)\s*\(([^)]+)\)/);
+                  if (!scoreMatch) return { scoreLine: raw, statusLine: '' };
+                  const scoreLine = `${scoreMatch[1]} (${scoreMatch[2]})`;
+                  let statusLine = '';
+                  const innMatch = raw.match(/^(.+?)\s*(?:INN|Inn|Innings?)?\s*:/i) || raw.match(/^(.+?)\s+\d+\/\d+/);
+                  const teamName = innMatch ? innMatch[1].replace(/\s*\d+\s*$/, '').trim() : '';
+                  const afterScore = raw.substring(raw.indexOf(scoreMatch[0]) + scoreMatch[0].length).trim();
+                  const statusPart = afterScore.replace(/^[—\-•|]\s*/, '').trim();
+                  const parts: string[] = [];
+                  if (teamName) parts.push(teamName);
+                  if (statusPart) parts.push(statusPart);
+                  statusLine = parts.join(' \u2022 ');
+                  return { scoreLine, statusLine };
+                };
+
                 if (isLiveish && hasScore) {
+                  const { scoreLine, statusLine } = parseScore(rawScore);
                   return (
                     <View style={{ alignItems: 'center' }}>
                       <View style={styles.liveBadgeRow}>
@@ -1122,9 +1133,14 @@ export default function MatchDetailScreen() {
                           {match.status === 'completed' ? 'COMPLETED' : 'LIVE'}
                         </Text>
                       </View>
-                      <Text style={[styles.heroScoreString, { fontFamily: 'Inter_700Bold' }]} numberOfLines={3}>
-                        {rawScore}
+                      <Text style={{ fontSize: 26, color: '#FFFFFF', fontFamily: 'Inter_700Bold' as const, textAlign: 'center' as const, marginTop: 4, letterSpacing: 1 }} numberOfLines={1}>
+                        {scoreLine}
                       </Text>
+                      {statusLine ? (
+                        <Text style={{ fontSize: 12, color: '#FFD130', fontFamily: 'Inter_600SemiBold' as const, textAlign: 'center' as const, marginTop: 3, maxWidth: 180 }} numberOfLines={1}>
+                          {statusLine}
+                        </Text>
+                      ) : null}
                     </View>
                   );
                 } else if (effectiveStatus === 'live') {
@@ -1183,15 +1199,6 @@ export default function MatchDetailScreen() {
             </Text>
           </View>
         </LinearGradient>
-
-        <View style={{ backgroundColor: '#DC2626', padding: 12, marginHorizontal: 8, marginTop: 4, borderRadius: 8 }}>
-          <Text style={{ color: '#FFF', fontSize: 11, fontFamily: 'Inter_700Bold' as const, marginBottom: 4 }}>DEBUG: Raw Match Data</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <Text style={{ color: '#FFF', fontSize: 10, fontFamily: 'Inter_400Regular' as const }} selectable>
-              {JSON.stringify({ id: match.id, status: match.status, effectiveStatus, scoreString: (match as any).scoreString, score_string: (match as any).score_string, score: (match as any).score, liveScore: (match as any).liveScore, lastSyncAt: match.lastSyncAt, matchStarted }, null, 2)}
-            </Text>
-          </ScrollView>
-        </View>
 
         <View style={styles.tabBar}>
           {tabs.map((tab) => (
