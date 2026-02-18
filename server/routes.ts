@@ -663,23 +663,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
             }
+          }
+        }
 
-            const allTeams = await storage.getAllTeamsForMatch(matchId);
-            const updatedPlayers = await storage.getPlayersForMatch(matchId);
-            const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
-            const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
-            for (const team of allTeams) {
-              const teamPlayerIds = team.playerIds as string[];
-              let totalPoints = 0;
-              for (const pid of teamPlayerIds) {
-                const p = playerById.get(pid) || playerByExtId.get(pid);
-                if (p) {
-                  let pts = p.points || 0;
-                  if (pid === team.captainId) pts *= 2;
-                  else if (pid === team.viceCaptainId) pts *= 1.5;
-                  totalPoints += pts;
-                }
+        {
+          const allTeamsForCalc = await storage.getAllTeamsForMatch(matchId);
+          const updatedPlayers = await storage.getPlayersForMatch(matchId);
+          const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
+          const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
+          for (const team of allTeamsForCalc) {
+            const teamPlayerIds = team.playerIds as string[];
+            let totalPoints = 0;
+            for (const pid of teamPlayerIds) {
+              const p = playerById.get(pid) || playerByExtId.get(pid);
+              if (p) {
+                let pts = p.points || 0;
+                if (pid === team.captainId) pts *= 2;
+                else if (pid === team.viceCaptainId) pts *= 1.5;
+                totalPoints += pts;
               }
+            }
+            if (totalPoints !== (team.totalPoints || 0)) {
               await storage.updateUserTeamPoints(team.id, totalPoints);
             }
           }

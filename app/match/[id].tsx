@@ -166,6 +166,27 @@ export default function MatchDetailScreen() {
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
+  const [repairingTeams, setRepairingTeams] = useState(false);
+  const [repairResult, setRepairResult] = useState<string | null>(null);
+
+  const handleRepairTeams = async () => {
+    if (!match) return;
+    setRepairingTeams(true);
+    setRepairResult(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/matches/${match.id}/repair-teams`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      setRepairResult(data.message || 'Repair complete');
+    } catch {
+      setRepairResult('Failed to repair teams');
+    }
+    setRepairingTeams(false);
+  };
+
   const handleVerifyCricbuzz = async (syncScorecard = false) => {
     if (syncScorecard) {
       setSyncingScorecard(true);
@@ -384,7 +405,33 @@ export default function MatchDetailScreen() {
                 {syncingScorecard ? 'Syncing...' : 'Sync Scorecard'}
               </Text>
             </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                handleRepairTeams();
+              }}
+              disabled={repairingTeams}
+              style={[styles.verifyBtn, { flex: 1, backgroundColor: '#f59e0b15', borderColor: '#f59e0b40' }]}
+            >
+              {repairingTeams ? (
+                <ActivityIndicator size="small" color="#f59e0b" />
+              ) : (
+                <Ionicons name="construct" size={16} color="#f59e0b" />
+              )}
+              <Text style={[styles.verifyBtnText, { color: '#f59e0b', fontFamily: 'Inter_600SemiBold' }]}>
+                {repairingTeams ? 'Repairing...' : 'Repair Teams'}
+              </Text>
+            </Pressable>
           </View>
+
+          {repairResult && (
+            <View style={[styles.verifyResultBox, { backgroundColor: isDark ? '#1a1a2e' : '#fffbeb', borderColor: '#f59e0b40' }]}>
+              <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const }}>
+                {repairResult}
+              </Text>
+            </View>
+          )}
 
           {verifyResult && (
             <View style={[styles.verifyResultBox, { backgroundColor: isDark ? '#1a1a2e' : '#f0f4ff', borderColor: colors.border }]}>
@@ -1774,7 +1821,8 @@ const styles = StyleSheet.create({
   },
   adminBtnRow: {
     flexDirection: 'row',
-    gap: 10,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   verifySubSection: {
     marginTop: 10,
