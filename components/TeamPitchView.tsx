@@ -25,6 +25,35 @@ interface TeamPitchViewProps {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const TEAM_COLORS: Record<string, string> = {
+  IND: '#0077FF',
+  PAK: '#009900',
+  AUS: '#FFD700',
+  ENG: '#CC0000',
+  SA: '#006400',
+  NZ: '#000000',
+  WI: '#800000',
+  SL: '#000080',
+  BAN: '#006400',
+  AFG: '#0066CC',
+  NED: '#FF8000',
+  CSK: '#FFFF3C',
+  RCB: '#EC1C24',
+  MI: '#004B8D',
+  KKR: '#3A225D',
+  SRH: '#F7A721',
+  RR: '#EA1A85',
+  DC: '#00008B',
+  PBKS: '#DD1F2D',
+  LSG: '#3FD5F3',
+  GT: '#1B2133',
+};
+
+function getTeamColor(teamCode?: string): string {
+  if (!teamCode) return '#FFFFFF';
+  return TEAM_COLORS[teamCode.toUpperCase()] || '#FFFFFF';
+}
+
 function shortenName(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length <= 1) return name;
@@ -40,11 +69,13 @@ function PitchPlayerNode({ player, isCaptain, isVC }: { player: PitchPlayer; isC
   if (isCaptain) displayPts = pts * 2;
   else if (isVC) displayPts = Math.round(pts * 1.5);
 
+  const jerseyColor = getTeamColor(player.teamShort);
+
   return (
     <View style={pitchStyles.playerNode}>
       <View style={pitchStyles.jerseyContainer}>
         <View style={pitchStyles.jersey}>
-          <Ionicons name="shirt" size={30} color="#FFFFFF" />
+          <Ionicons name="shirt" size={30} color={jerseyColor} />
         </View>
         {(isCaptain || isVC) && (
           <View style={[pitchStyles.cvBadge, isCaptain ? pitchStyles.captainBadge : pitchStyles.vcBadge]}>
