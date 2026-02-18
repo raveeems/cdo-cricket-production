@@ -85,11 +85,13 @@ export default function MatchDetailScreen() {
   const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
     enabled: !!id,
+    retry: 1,
   });
 
   const { data: playersData, isLoading: playersLoading } = useQuery<{ players: Player[] }>({
     queryKey: ['/api/matches', id, 'players'],
     enabled: !!id,
+    retry: 1,
   });
 
   const matchStarted = matchData?.match?.startTime ? new Date(matchData.match.startTime).getTime() <= Date.now() : false;
@@ -100,17 +102,20 @@ export default function MatchDetailScreen() {
     queryKey: ['/api/matches', id, 'live-scorecard'],
     enabled: !!id && activeTab === 'scorecard' && isLiveOrCompleted,
     refetchInterval: isLiveOrCompleted && matchData?.match?.status === 'live' ? 30000 : false,
+    retry: 1,
   });
 
   const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string }>({
     queryKey: ['/api/matches', id, 'teams'],
     enabled: !!id,
+    retry: 1,
   });
 
   const { data: standingsData } = useQuery<{ standings: StandingEntry[]; isLive: boolean; players?: Player[] }>({
     queryKey: ['/api/matches', id, 'standings'],
     enabled: !!id && isLiveOrCompleted,
     refetchInterval: isLiveOrCompleted && matchData?.match?.status !== 'completed' ? 20000 : false,
+    retry: 1,
   });
 
   const match = matchData?.match;
@@ -667,7 +672,7 @@ export default function MatchDetailScreen() {
                     {bat.sixes}
                   </Text>
                   <Text style={[styles.scorecardStat, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                    {bat.sr.toFixed(1)}
+                    {(Number(bat.sr) || 0).toFixed(1)}
                   </Text>
                   <Text style={[styles.scorecardStat, { color: bat.fantasyPoints >= 30 ? colors.success : colors.accent, fontFamily: 'Inter_700Bold' }]}>
                     {bat.fantasyPoints}
@@ -725,8 +730,8 @@ export default function MatchDetailScreen() {
                   <Text style={[styles.scorecardStat, { color: bowl.w >= 3 ? colors.success : colors.text, fontFamily: bowl.w >= 3 ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
                     {bowl.w}
                   </Text>
-                  <Text style={[styles.scorecardStat, { color: bowl.eco < 7 ? colors.success : bowl.eco > 10 ? colors.error : colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                    {bowl.eco.toFixed(1)}
+                  <Text style={[styles.scorecardStat, { color: (Number(bowl.eco) || 0) < 7 ? colors.success : (Number(bowl.eco) || 0) > 10 ? colors.error : colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                    {(Number(bowl.eco) || 0).toFixed(1)}
                   </Text>
                   <Text style={[styles.scorecardStat, { color: bowl.fantasyPoints >= 30 ? colors.success : colors.accent, fontFamily: 'Inter_700Bold' }]}>
                     {bowl.fantasyPoints}
