@@ -102,9 +102,31 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
           </Text>
         </View>
 
-        <Text style={[styles.compactVs, { color: colors.textTertiary, fontFamily: 'Inter_600SemiBold' }]}>
-          vs
-        </Text>
+        {(() => {
+          const rawScore = (match as any).scoreString || "";
+          if (effectiveStatus === 'live' && rawScore.length > 3) {
+            const segments = rawScore.split(/\s*\|\s*/);
+            const lastSeg = segments[segments.length - 1].replace(/\s*[—\-]\s*.+$/, '').trim();
+            const scoreMatch = lastSeg.match(/(\d+\/\d+)\s*\(([^)]+)\)/);
+            if (scoreMatch) {
+              return (
+                <View style={{ alignItems: 'center', minWidth: 60 }}>
+                  <Text style={{ fontSize: 16, color: colors.error, fontFamily: 'Inter_700Bold' as const }}>
+                    {scoreMatch[1]}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.textTertiary, fontFamily: 'Inter_500Medium' as const, marginTop: 1 }}>
+                    {scoreMatch[2].trim()}
+                  </Text>
+                </View>
+              );
+            }
+          }
+          return (
+            <Text style={[styles.compactVs, { color: colors.textTertiary, fontFamily: 'Inter_600SemiBold' }]}>
+              vs
+            </Text>
+          );
+        })()}
 
         <View style={[styles.compactTeamSide, { alignItems: 'flex-end' as const }]}>
           <View style={[styles.compactCircle, { backgroundColor: match.team2Color }]}>

@@ -92,17 +92,40 @@ export default function MyMatchesScreen() {
                     <Text style={[styles.teamName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
                       {match.team1Short}
                     </Text>
-                    <Text style={[styles.vsSmall, { color: colors.textTertiary, fontFamily: 'Inter_500Medium' }]}>
-                      vs
-                    </Text>
+                    {(() => {
+                      const rawS = (match as any).scoreString || "";
+                      const started = new Date(match.startTime).getTime() <= Date.now();
+                      const eff = (match.status === 'delayed' || match.status === 'upcoming') && started ? 'live' : match.status;
+                      if (eff === 'live' && rawS.length > 3) {
+                        const segs = rawS.split(/\s*\|\s*/);
+                        const last = segs[segs.length - 1].replace(/\s*[—\-]\s*.+$/, '').trim();
+                        const sm = last.match(/(\d+\/\d+)\s*\(([^)]+)\)/);
+                        if (sm) {
+                          return (
+                            <View style={{ alignItems: 'center', marginHorizontal: 4 }}>
+                              <Text style={{ fontSize: 13, color: '#EF4444', fontFamily: 'Inter_700Bold' as const }}>{sm[1]}</Text>
+                              <Text style={{ fontSize: 9, color: colors.textTertiary, fontFamily: 'Inter_400Regular' as const }}>{sm[2].trim()}</Text>
+                            </View>
+                          );
+                        }
+                      }
+                      return (
+                        <Text style={[styles.vsSmall, { color: colors.textTertiary, fontFamily: 'Inter_500Medium' }]}>vs</Text>
+                      );
+                    })()}
                     <Text style={[styles.teamName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
                       {match.team2Short}
                     </Text>
                     <View style={[styles.teamDot, { backgroundColor: match.team2Color }]} />
                   </View>
                   {(() => {
+                    const rawScore = (match as any).scoreString || "";
                     const matchStarted = new Date(match.startTime).getTime() <= Date.now();
                     const effectiveStatus = (match.status === 'delayed' || match.status === 'upcoming') && matchStarted ? 'live' : match.status;
+                    const showLiveScore = effectiveStatus === 'live' && rawScore.length > 3;
+                    const scoreSegments = rawScore.split(/\s*\|\s*/);
+                    const lastSeg = showLiveScore ? scoreSegments[scoreSegments.length - 1].replace(/\s*[—\-]\s*.+$/, '').trim() : '';
+                    const scoreInfo = showLiveScore ? lastSeg.match(/(\d+\/\d+)\s*\(([^)]+)\)/) : null;
                     if (effectiveStatus === 'live') {
                       return (
                         <View style={[styles.timerBadge, { backgroundColor: '#EF444418', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
