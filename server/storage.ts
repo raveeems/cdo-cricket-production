@@ -140,6 +140,34 @@ export class DatabaseStorage {
     await db.insert(players).values(data as any);
   }
 
+  async upsertPlayersForMatch(matchId: string, data: Array<Partial<Player> & { matchId: string; name: string; team: string; teamShort: string; role: string; externalId?: string }>): Promise<void> {
+    if (data.length === 0) return;
+    const existing = await this.getPlayersForMatch(matchId);
+    const existingByExtId = new Map(existing.filter(p => p.externalId).map(p => [p.externalId!, p]));
+    const existingByName = new Map(existing.map(p => [`${p.name.toLowerCase()}__${p.teamShort.toLowerCase()}`, p]));
+
+    const toInsert: typeof data = [];
+    for (const p of data) {
+      const found = (p.externalId && existingByExtId.get(p.externalId)) ||
+        existingByName.get(`${p.name.toLowerCase()}__${p.teamShort.toLowerCase()}`);
+      if (found) {
+        const updates: Record<string, any> = {};
+        if (p.externalId && !found.externalId) updates.externalId = p.externalId;
+        if (p.role && p.role !== found.role) updates.role = p.role;
+        if (p.credits !== undefined && p.credits !== found.credits) updates.credits = p.credits;
+        if (p.team && p.team !== found.team) updates.team = p.team;
+        if (Object.keys(updates).length > 0) {
+          await this.updatePlayer(found.id, updates);
+        }
+      } else {
+        toInsert.push(p);
+      }
+    }
+    if (toInsert.length > 0) {
+      await db.insert(players).values(toInsert as any);
+    }
+  }
+
   async deletePlayersForMatch(matchId: string): Promise<void> {
     await db.delete(players).where(eq(players.matchId, matchId));
   }

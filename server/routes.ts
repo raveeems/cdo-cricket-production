@@ -428,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 role: p.role,
                 credits: p.credits,
               }));
-              await storage.bulkCreatePlayers(playersToCreate);
+              await storage.upsertPlayersForMatch(matchId, playersToCreate);
               matchPlayers = await storage.getPlayersForMatch(matchId);
               console.log(`Auto-fetched ${matchPlayers.length} players for match ${matchId}`);
             }
@@ -503,14 +503,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        const updatedMatchPlayers = await storage.getPlayersForMatch(matchId);
+        const playerById = new Map(updatedMatchPlayers.map(p => [p.id, p]));
+        const playerByExtId = new Map(updatedMatchPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
         const allTeams = await storage.getAllTeamsForMatch(matchId);
         for (const team of allTeams) {
           const teamPlayerIds = team.playerIds as string[];
           let totalPoints = 0;
           for (const pid of teamPlayerIds) {
-            const p = matchPlayers.find((mp) => mp.id === pid);
-            if (p && p.externalId) {
-              let pts = pointsMap.get(p.externalId) || 0;
+            const p = playerById.get(pid) || playerByExtId.get(pid);
+            if (p) {
+              let pts = p.points || 0;
               if (pid === team.captainId) pts *= 2;
               else if (pid === team.viceCaptainId) pts *= 1.5;
               totalPoints += pts;
@@ -660,11 +663,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             const allTeams = await storage.getAllTeamsForMatch(matchId);
             const updatedPlayers = await storage.getPlayersForMatch(matchId);
+            const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
+            const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
             for (const team of allTeams) {
               const teamPlayerIds = team.playerIds as string[];
               let totalPoints = 0;
               for (const pid of teamPlayerIds) {
-                const p = updatedPlayers.find((mp) => mp.id === pid);
+                const p = playerById.get(pid) || playerByExtId.get(pid);
                 if (p) {
                   let pts = p.points || 0;
                   if (pid === team.captainId) pts *= 2;
@@ -711,7 +716,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return { ...s, rank };
         });
 
-        return res.json({ standings: rankedStandings, isLive: true });
+        const matchPlayersForResponse = await storage.getPlayersForMatch(matchId);
+        return res.json({ standings: rankedStandings, isLive: true, players: matchPlayersForResponse });
       } catch (err: any) {
         console.error("Standings error:", err);
         return res.status(500).json({ message: "Failed to load standings" });
