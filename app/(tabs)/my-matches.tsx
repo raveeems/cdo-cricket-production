@@ -24,6 +24,15 @@ export default function MyMatchesScreen() {
 
   const { data, isLoading } = useQuery<{ matches: Match[] }>({
     queryKey: ['/api/matches'],
+    refetchInterval: (query) => {
+      const matches = query.state.data?.matches || [];
+      const now = Date.now();
+      const hasLive = matches.some(m => {
+        const started = new Date(m.startTime).getTime() <= now;
+        return m.status === 'live' || ((m.status === 'delayed' || m.status === 'upcoming') && started);
+      });
+      return hasLive ? 10000 : 60000;
+    },
   });
 
   const allMatches = data?.matches || [];

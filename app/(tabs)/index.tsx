@@ -167,8 +167,6 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
   );
 }
 
-const AUTO_REFRESH_INTERVAL = 2 * 60 * 60 * 1000;
-
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
@@ -178,7 +176,15 @@ export default function HomeScreen() {
 
   const { data, isLoading } = useQuery<{ matches: MatchWithParticipants[] }>({
     queryKey: ['/api/matches'],
-    refetchInterval: AUTO_REFRESH_INTERVAL,
+    refetchInterval: (query) => {
+      const matches = query.state.data?.matches || [];
+      const now = Date.now();
+      const hasLive = matches.some(m => {
+        const started = new Date(m.startTime).getTime() <= now;
+        return m.status === 'live' || ((m.status === 'delayed' || m.status === 'upcoming') && started);
+      });
+      return hasLive ? 10000 : 60000;
+    },
   });
 
   const visibleMatches = data?.matches || [];
