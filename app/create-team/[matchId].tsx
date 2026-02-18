@@ -32,10 +32,12 @@ type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
 
 const ROLE_LIMITS = {
   WK: { min: 1, max: 4 },
-  BAT: { min: 3, max: 6 },
+  BAT: { min: 1, max: 6 },
   AR: { min: 1, max: 4 },
-  BOWL: { min: 3, max: 6 },
+  BOWL: { min: 1, max: 4 },
 };
+
+const MAX_FROM_ONE_TEAM = 10;
 
 function PlayerItem({
   player,
@@ -44,6 +46,7 @@ function PlayerItem({
   colors,
   isDark,
   showPlayingXI,
+  isDisabled,
 }: {
   player: Player;
   isSelected: boolean;
@@ -51,6 +54,7 @@ function PlayerItem({
   colors: any;
   isDark: boolean;
   showPlayingXI: boolean;
+  isDisabled: boolean;
 }) {
   const isInXI = player.isPlayingXI === true;
   const xiIndicatorColor = isInXI ? '#22C55E' : '#EF4444';
@@ -58,6 +62,7 @@ function PlayerItem({
   return (
     <Pressable
       onPress={onToggle}
+      disabled={isDisabled && !isSelected}
       style={[
         styles.playerItem,
         {
@@ -65,6 +70,7 @@ function PlayerItem({
           borderColor: isSelected ? colors.primary + '40' : colors.cardBorder,
           borderLeftWidth: showPlayingXI ? 3 : 1,
           borderLeftColor: showPlayingXI ? xiIndicatorColor : (isSelected ? colors.primary + '40' : colors.cardBorder),
+          opacity: (isDisabled && !isSelected) ? 0.4 : 1,
         },
       ]}
     >
@@ -249,14 +255,28 @@ export default function CreateTeamScreen() {
     return selectedPlayers.reduce((sum, p) => sum + p.credits, 0);
   }, [selectedPlayers]);
 
+  const teamCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    selectedPlayers.forEach((p) => {
+      const key = p.teamShort || p.team || '';
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }, [selectedPlayers]);
+
+  const maxTeamExceeded = useMemo(() => {
+    return Object.entries(teamCounts).find(([, count]) => count > MAX_FROM_ONE_TEAM);
+  }, [teamCounts]);
+
   const isValidTeam = useMemo(() => {
     if (selectedIds.size !== 11) return false;
     for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
       const count = roleCounts[role as keyof typeof roleCounts];
       if (count < limits.min || count > limits.max) return false;
     }
+    if (maxTeamExceeded) return false;
     return true;
-  }, [selectedIds, roleCounts]);
+  }, [selectedIds, roleCounts, maxTeamExceeded]);
 
   const validationError = useMemo(() => {
     if (selectedIds.size > 0 && selectedIds.size !== 11) {
@@ -265,33 +285,41 @@ export default function CreateTeamScreen() {
     for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
       const count = roleCounts[role as keyof typeof roleCounts];
       if (count < limits.min) {
-        return `Need at least ${limits.min} ${getRoleLabel(role)}${limits.min > 1 ? 's' : ''} (you have ${count})`;
+        return `Need at least ${limits.min} ${getRoleLabel(role)} (you have ${count})`;
       }
       if (count > limits.max) {
-        return `Too many ${getRoleLabel(role)}s (max ${limits.max})`;
+        return `You must select between ${limits.min}-${limits.max} ${getRoleLabel(role)}s`;
       }
     }
+    if (maxTeamExceeded) {
+      return `You can only select a maximum of ${MAX_FROM_ONE_TEAM} players from one team.`;
+    }
     return null;
-  }, [selectedIds, roleCounts]);
+  }, [selectedIds, roleCounts, maxTeamExceeded]);
 
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
-  const isDuplicateTeam = useMemo(() => {
-    if (selectedIds.size !== 11) return false;
+  const isDuplicateTeam = (cId: string | null, vId: string | null) => {
+    if (selectedIds.size !== 11 || !cId || !vId) return false;
     const selectedArray = Array.from(selectedIds).sort();
     return existingTeams.some((team) => {
       if (isEditMode && team.id === editTeamId) return false;
       const teamIds = [...team.playerIds].sort();
       if (teamIds.length !== selectedArray.length) return false;
-      return teamIds.every((id, i) => id === selectedArray[i]);
+      const samePlayerIds = teamIds.every((id, i) => id === selectedArray[i]);
+      const sameCaptain = team.captainId === cId;
+      const sameVC = team.viceCaptainId === vId;
+      return samePlayerIds && sameCaptain && sameVC;
     });
-  }, [selectedIds, existingTeams, isEditMode, editTeamId]);
+  };
 
   const canSelectPlayer = (player: Player) => {
     if (selectedIds.has(player.id)) return true;
     if (selectedIds.size >= 11) return false;
     const count = roleCounts[player.role];
     if (count >= ROLE_LIMITS[player.role].max) return false;
+    const playerTeam = player.teamShort || player.team || '';
+    if (playerTeam && (teamCounts[playerTeam] || 0) >= MAX_FROM_ONE_TEAM) return false;
     return true;
   };
 
@@ -309,7 +337,13 @@ export default function CreateTeamScreen() {
 
   const handleSaveTeam = async () => {
     if (!captainId || !vcId || !matchId || isSaving) return;
+    if (isDuplicateTeam(captainId, vcId)) {
+      setDuplicateError('You have already created this exact team. Please change at least one player or the Captain/VC.');
+      setStep('captain');
+      return;
+    }
     setIsSaving(true);
+    setDuplicateError(null);
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -410,31 +444,35 @@ export default function CreateTeamScreen() {
           </View>
 
           <View style={styles.filterRow}>
-            {filters.map((f) => (
-              <Pressable
-                key={f}
-                onPress={() => setFilter(f)}
-                style={[
-                  styles.filterBtn,
-                  {
-                    backgroundColor: filter === f ? colors.primary : colors.surfaceElevated,
-                    borderColor: filter === f ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Text
+            {filters.map((f) => {
+              const isMaxed = f !== 'ALL' && roleCounts[f] >= ROLE_LIMITS[f].max;
+              return (
+                <Pressable
+                  key={f}
+                  onPress={() => setFilter(f)}
                   style={[
-                    styles.filterText,
+                    styles.filterBtn,
                     {
-                      color: filter === f ? '#FFF' : colors.textSecondary,
-                      fontFamily: 'Inter_600SemiBold',
+                      backgroundColor: filter === f ? colors.primary : colors.surfaceElevated,
+                      borderColor: filter === f ? colors.primary : isMaxed ? colors.error + '40' : colors.border,
                     },
                   ]}
                 >
-                  {f}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={[
+                      styles.filterText,
+                      {
+                        color: filter === f ? '#FFF' : isMaxed ? colors.error : colors.textSecondary,
+                        fontFamily: 'Inter_600SemiBold',
+                      },
+                    ]}
+                  >
+                    {f}
+                    {isMaxed ? ' MAX' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
           <FlatList
@@ -448,6 +486,7 @@ export default function CreateTeamScreen() {
                 colors={colors}
                 isDark={isDark}
                 showPlayingXI={hasPlayingXIData}
+                isDisabled={!canSelectPlayer(item)}
               />
             )}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
@@ -469,10 +508,6 @@ export default function CreateTeamScreen() {
             <Pressable
               onPress={() => {
                 if (isValidTeam) {
-                  if (isDuplicateTeam) {
-                    setDuplicateError('This team already exists. Change at least one player.');
-                    return;
-                  }
                   setDuplicateError(null);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   setStep('captain');
@@ -546,6 +581,11 @@ export default function CreateTeamScreen() {
           />
 
           <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+            {duplicateError && (
+              <Text style={[styles.validationErrorText, { color: colors.error, fontFamily: 'Inter_600SemiBold' }]}>
+                {duplicateError}
+              </Text>
+            )}
             <View style={styles.bottomBarRow}>
               <Pressable
                 onPress={() => setStep('select')}
@@ -556,6 +596,7 @@ export default function CreateTeamScreen() {
               <Pressable
                 onPress={() => {
                   if (captainId && vcId) {
+                    setDuplicateError(null);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setStep('preview');
                   }
