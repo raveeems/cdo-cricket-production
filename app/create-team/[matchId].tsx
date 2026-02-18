@@ -41,13 +41,18 @@ function PlayerItem({
   onToggle,
   colors,
   isDark,
+  showPlayingXI,
 }: {
   player: Player;
   isSelected: boolean;
   onToggle: () => void;
   colors: any;
   isDark: boolean;
+  showPlayingXI: boolean;
 }) {
+  const isInXI = player.isPlayingXI === true;
+  const xiIndicatorColor = isInXI ? '#22C55E' : '#EF4444';
+
   return (
     <Pressable
       onPress={onToggle}
@@ -56,6 +61,8 @@ function PlayerItem({
         {
           backgroundColor: isSelected ? colors.primary + '15' : colors.card,
           borderColor: isSelected ? colors.primary + '40' : colors.cardBorder,
+          borderLeftWidth: showPlayingXI ? 3 : 1,
+          borderLeftColor: showPlayingXI ? xiIndicatorColor : (isSelected ? colors.primary + '40' : colors.cardBorder),
         },
       ]}
     >
@@ -70,6 +77,13 @@ function PlayerItem({
             <Text style={[styles.playerItemName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
               {player.name}
             </Text>
+            {showPlayingXI && (
+              <View style={{ backgroundColor: xiIndicatorColor + '20', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, marginLeft: 4 }}>
+                <Text style={{ color: xiIndicatorColor, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>
+                  {isInXI ? 'XI' : 'OUT'}
+                </Text>
+              </View>
+            )}
             {player.isImpactPlayer && (
               <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.warning} />
             )}
@@ -214,6 +228,10 @@ export default function CreateTeamScreen() {
     if (filter === 'ALL') return allPlayers;
     return allPlayers.filter((p) => p.role === filter);
   }, [allPlayers, filter]);
+
+  const hasPlayingXIData = useMemo(() => {
+    return allPlayers.some((p) => p.isPlayingXI !== undefined && p.isPlayingXI !== null);
+  }, [allPlayers]);
 
   const selectedPlayers = useMemo(() => {
     return allPlayers.filter((p) => selectedIds.has(p.id));
@@ -427,6 +445,7 @@ export default function CreateTeamScreen() {
                 onToggle={() => togglePlayer(item)}
                 colors={colors}
                 isDark={isDark}
+                showPlayingXI={hasPlayingXIData}
               />
             )}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}

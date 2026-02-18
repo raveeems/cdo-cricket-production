@@ -1128,6 +1128,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: MANUAL PLAYING XI ENTRY ----
+  app.post(
+    "/api/admin/matches/:id/set-playing-xi",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const { playerIds } = req.body;
+        if (!playerIds || !Array.isArray(playerIds) || playerIds.length === 0) {
+          return res.status(400).json({ message: "playerIds array required" });
+        }
+
+        if (playerIds.length < 11 || playerIds.length > 22) {
+          return res.status(400).json({ message: "Expected 11-22 player IDs (Playing XI for both teams)" });
+        }
+
+        const updated = await storage.markPlayingXIByIds(matchId, playerIds);
+        return res.json({
+          message: `Playing XI manually set: ${updated} players marked`,
+          count: updated,
+          source: "admin_manual",
+        });
+      } catch (err: any) {
+        console.error("Manual Playing XI error:", err);
+        return res.status(500).json({ message: "Failed to set Playing XI" });
+      }
+    }
+  );
+
   // ---- ADMIN: VERIFY & SYNC MATCH VIA CRICBUZZ ----
   app.post(
     "/api/admin/matches/:id/verify-cricbuzz",

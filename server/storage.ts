@@ -251,6 +251,25 @@ export class DatabaseStorage {
     return updated;
   }
 
+  async markPlayingXIByIds(matchId: string, playerIds: string[]): Promise<number> {
+    if (playerIds.length === 0) return 0;
+
+    await db
+      .update(players)
+      .set({ isPlayingXI: false })
+      .where(eq(players.matchId, matchId));
+
+    let updated = 0;
+    for (const pid of playerIds) {
+      await db
+        .update(players)
+        .set({ isPlayingXI: true })
+        .where(and(eq(players.matchId, matchId), eq(players.id, pid)));
+      updated++;
+    }
+    return updated;
+  }
+
   async getPlayingXICount(matchId: string): Promise<number> {
     const result = await db
       .select({ count: sql<number>`count(*)` })

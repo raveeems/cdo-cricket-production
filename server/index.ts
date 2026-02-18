@@ -381,16 +381,35 @@ function setupErrorHandler(app: express.Application) {
               }
 
               const playingXICount = await storage.getPlayingXICount(match.id);
-              if (playingXICount === 0 && match.externalId) {
-                let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
-                if (playingXIIds.length > 0) {
-                  await storage.markPlayingXI(match.id, playingXIIds);
-                  log(`Playing XI marked from scorecard: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+              if (playingXICount === 0) {
+                const { markPlayingXIFromApiCricket } = await import("./api-cricket");
+                const matchDate = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+                const apiCricketResult = await markPlayingXIFromApiCricket(
+                  match.id,
+                  match.team1Short,
+                  match.team2Short,
+                  matchDate
+                );
+
+                if (apiCricketResult.matched >= 11) {
+                  log(`Playing XI from api-cricket.com: ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}`);
                 } else {
-                  playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
-                  if (playingXIIds.length > 0) {
-                    await storage.markPlayingXI(match.id, playingXIIds);
-                    log(`Playing XI marked from match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                  if (apiCricketResult.matched > 0) {
+                    log(`Playing XI partial from api-cricket.com: ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}, trying CricAPI...`);
+                  }
+
+                  if (match.externalId) {
+                    let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
+                    if (playingXIIds.length > 0) {
+                      await storage.markPlayingXI(match.id, playingXIIds);
+                      log(`Playing XI from CricAPI scorecard: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                    } else {
+                      playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+                      if (playingXIIds.length > 0) {
+                        await storage.markPlayingXI(match.id, playingXIIds);
+                        log(`Playing XI from CricAPI match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                      }
+                    }
                   }
                 }
               }
