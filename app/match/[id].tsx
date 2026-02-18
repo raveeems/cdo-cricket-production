@@ -20,6 +20,8 @@ import { getTimeUntilMatch, canEditTeam, getRoleColor, Match, Player, ContestTea
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/query-client';
+import TeamPitchView from '@/components/TeamPitchView';
+import type { PitchPlayer } from '@/components/TeamPitchView';
 
 type TabKey = 'overview' | 'scorecard' | 'players' | 'participants' | 'standings';
 
@@ -766,43 +768,28 @@ export default function MatchDetailScreen() {
                 />
               </View>
 
-              {expandedTeamId === entry.teamId && (
-                <View style={[styles.expandedTeamDetails, { backgroundColor: colors.surface, marginTop: 8 }]}>
-                  {entry.playerIds.map((pid) => {
-                    const p = players.find(pl => pl.id === pid);
-                    if (!p) return null;
-                    const isCaptain = pid === entry.captainId;
-                    const isVC = pid === entry.viceCaptainId;
-                    let multipliedPts = p.points || 0;
-                    if (isCaptain) multipliedPts *= 2;
-                    else if (isVC) multipliedPts *= 1.5;
-
-                    return (
-                      <View key={pid} style={styles.expandedPlayerRow}>
-                        <View style={[styles.miniRoleBadge, { backgroundColor: getRoleColor(p.role, isDark) + '20' }]}>
-                          <Text style={{ color: getRoleColor(p.role, isDark), fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>{p.role}</Text>
-                        </View>
-                        <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const, flex: 1 }} numberOfLines={1}>
-                          {p.name}
-                        </Text>
-                        {isCaptain && (
-                          <View style={[styles.miniCVBadge, { backgroundColor: colors.accent + '30' }]}>
-                            <Text style={{ color: colors.accent, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>C</Text>
-                          </View>
-                        )}
-                        {isVC && (
-                          <View style={[styles.miniCVBadge, { backgroundColor: colors.primary + '30' }]}>
-                            <Text style={{ color: colors.primary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>VC</Text>
-                          </View>
-                        )}
-                        <Text style={{ color: multipliedPts > 0 ? '#22C55E' : colors.textTertiary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, width: 40, textAlign: 'right' }}>
-                          {multipliedPts}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
+              {expandedTeamId === entry.teamId && (() => {
+                const pitchPlayers: PitchPlayer[] = entry.playerIds
+                  .map(pid => players.find(pl => pl.id === pid))
+                  .filter((p): p is Player => !!p)
+                  .map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
+                    points: p.points || 0,
+                    teamShort: p.teamShort,
+                  }));
+                return (
+                  <View style={{ marginTop: 10 }}>
+                    <TeamPitchView
+                      players={pitchPlayers}
+                      captainId={entry.captainId}
+                      viceCaptainId={entry.viceCaptainId}
+                      totalPoints={entry.totalPoints}
+                    />
+                  </View>
+                );
+              })()}
             </Pressable>
           );
         })}
@@ -926,55 +913,28 @@ export default function MatchDetailScreen() {
                         </Text>
                       </View>
                     )}
-                    {isExpanded && teamPlayers.length > 0 && (
-                      <View style={[styles.expandedTeamDetails, { backgroundColor: colors.surface }]}>
-                        {captain && (
-                          <View style={styles.cvRow}>
-                            <View style={[styles.cvBadge, { backgroundColor: colors.accent + '20' }]}>
-                              <Text style={{ color: colors.accent, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>C</Text>
-                            </View>
-                            <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const }}>{captain.name}</Text>
-                            <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>({captain.teamShort})</Text>
-                          </View>
-                        )}
-                        {viceCaptain && (
-                          <View style={styles.cvRow}>
-                            <View style={[styles.cvBadge, { backgroundColor: colors.primary + '20' }]}>
-                              <Text style={{ color: colors.primary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>VC</Text>
-                            </View>
-                            <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const }}>{viceCaptain.name}</Text>
-                            <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>({viceCaptain.teamShort})</Text>
-                          </View>
-                        )}
-                        <View style={{ height: 8 }} />
-                        {teamPlayers.map((p) => {
-                          if (!p) return null;
-                          const isCaptain = p.id === team.captainId;
-                          const isVC = p.id === team.viceCaptainId;
-                          return (
-                            <View key={p.id} style={styles.expandedPlayerRow}>
-                              <View style={[styles.miniRoleBadge, { backgroundColor: getRoleColor(p.role, isDark) + '20' }]}>
-                                <Text style={{ color: getRoleColor(p.role, isDark), fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>{p.role}</Text>
-                              </View>
-                              <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const, flex: 1 }} numberOfLines={1}>
-                                {p.name}
-                              </Text>
-                              <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>{p.teamShort}</Text>
-                              {isCaptain && (
-                                <View style={[styles.miniCVBadge, { backgroundColor: colors.accent + '30' }]}>
-                                  <Text style={{ color: colors.accent, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>C</Text>
-                                </View>
-                              )}
-                              {isVC && (
-                                <View style={[styles.miniCVBadge, { backgroundColor: colors.primary + '30' }]}>
-                                  <Text style={{ color: colors.primary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>VC</Text>
-                                </View>
-                              )}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
+                    {isExpanded && teamPlayers.length > 0 && (() => {
+                      const pitchPlayers: PitchPlayer[] = teamPlayers
+                        .filter((p): p is Player => !!p)
+                        .map(p => ({
+                          id: p.id,
+                          name: p.name,
+                          role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
+                          points: p.points || 0,
+                          teamShort: p.teamShort,
+                        }));
+                      return (
+                        <View style={{ marginTop: 10 }}>
+                          <TeamPitchView
+                            players={pitchPlayers}
+                            captainId={team.captainId}
+                            viceCaptainId={team.viceCaptainId}
+                            teamName={team.name}
+                            totalPoints={team.totalPoints}
+                          />
+                        </View>
+                      );
+                    })()}
                   </Pressable>
                 );
               })}
