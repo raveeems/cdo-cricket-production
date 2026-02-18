@@ -327,8 +327,14 @@ export async function fetchApiCricketScorecard(
 
     const totalRuns = batsmen.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
     const totalWickets = bowlers.reduce((sum, b) => sum + parseInt(b.W || "0"), 0);
-    const lastBowler = bowlers.length > 0 ? bowlers[bowlers.length - 1] : null;
-    const totalOvers = lastBowler?.O ? parseFloat(lastBowler.O) : 0;
+    let totalBalls = 0;
+    for (const b of bowlers) {
+      const ov = parseFloat(b.O || "0");
+      const fullOvers = Math.floor(ov);
+      const partialBalls = Math.round((ov - fullOvers) * 10);
+      totalBalls += fullOvers * 6 + partialBalls;
+    }
+    const totalOvers = Math.floor(totalBalls / 6) + (totalBalls % 6) / 10;
 
     score.push({ r: totalRuns, w: totalWickets, o: totalOvers, inning: innKey });
 
