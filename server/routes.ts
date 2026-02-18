@@ -704,6 +704,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.put(
+    "/api/teams/:id",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const team = await storage.getUserTeam(req.params.id);
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+        if (team.userId !== req.session.userId) {
+          return res.status(403).json({ message: "Not your team" });
+        }
+        const match = await storage.getMatch(team.matchId);
+        if (!match) {
+          return res.status(404).json({ message: "Match not found" });
+        }
+        const now = new Date();
+        const matchStart = new Date(match.startTime);
+        if (now.getTime() >= matchStart.getTime() - 1000) {
+          return res.status(400).json({ message: "Entry deadline has passed" });
+        }
+        if (match.status === "live" || match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
+
+        const { playerIds, captainId, viceCaptainId } = req.body;
+        if (!playerIds || playerIds.length !== 11) {
+          return res.status(400).json({ message: "Must select exactly 11 players" });
+        }
+        if (!captainId || !viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain required" });
+        }
+
+        const existingTeams = await storage.getUserTeamsForMatch(req.session.userId!, team.matchId);
+        const sortedNewIds = [...playerIds].sort();
+        for (const et of existingTeams) {
+          if (et.id === team.id) continue;
+          const sortedExisting = [...(et.playerIds || [])].sort();
+          if (sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id: string, i: number) => id === sortedExisting[i])) {
+            return res.status(400).json({ message: "You already have a team with the same players" });
+          }
+        }
+
+        const updated = await storage.updateUserTeam(req.params.id, req.session.userId!, {
+          playerIds,
+          captainId,
+          viceCaptainId,
+        });
+        return res.json({ team: updated });
+      } catch (err: any) {
+        console.error("Update team error:", err);
+        return res.status(500).json({ message: "Failed to update team" });
+      }
+    }
+  );
+
   app.delete(
     "/api/teams/:id",
     isAuthenticated,

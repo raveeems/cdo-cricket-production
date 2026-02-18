@@ -176,6 +176,24 @@ export class DatabaseStorage {
     return team;
   }
 
+  async updateUserTeam(teamId: string, userId: string, data: {
+    playerIds: string[];
+    captainId: string;
+    viceCaptainId: string;
+    name?: string;
+  }): Promise<UserTeam> {
+    const [updated] = await db.update(userTeams)
+      .set({
+        playerIds: data.playerIds,
+        captainId: data.captainId,
+        viceCaptainId: data.viceCaptainId,
+        ...(data.name ? { name: data.name } : {}),
+      })
+      .where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId)))
+      .returning();
+    return updated;
+  }
+
   async deleteUserTeam(teamId: string, userId: string): Promise<void> {
     await db
       .delete(userTeams)

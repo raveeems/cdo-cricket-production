@@ -21,11 +21,20 @@ interface SaveTeamInput {
   viceCaptainId: string;
 }
 
+interface UpdateTeamInput {
+  teamId: string;
+  playerIds: string[];
+  captainId: string;
+  viceCaptainId: string;
+}
+
 interface TeamContextValue {
   teams: Team[];
   isLoading: boolean;
   getTeamsForMatch: (matchId: string) => Team[];
+  getTeamById: (teamId: string) => Team | undefined;
   saveTeam: (input: SaveTeamInput) => Promise<void>;
+  updateTeam: (input: UpdateTeamInput) => Promise<void>;
   deleteTeam: (teamId: string) => Promise<void>;
   refreshTeams: () => Promise<void>;
 }
@@ -67,6 +76,25 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const getTeamById = (teamId: string) => {
+    return teams.find((t) => t.id === teamId);
+  };
+
+  const updateTeam = async (input: UpdateTeamInput) => {
+    try {
+      const res = await apiRequest('PUT', `/api/teams/${input.teamId}`, {
+        playerIds: input.playerIds,
+        captainId: input.captainId,
+        viceCaptainId: input.viceCaptainId,
+      });
+      const data = await res.json();
+      setTeams((prev) => prev.map((t) => t.id === input.teamId ? data.team : t));
+    } catch (e) {
+      console.error('Failed to update team:', e);
+      throw e;
+    }
+  };
+
   const deleteTeam = async (teamId: string) => {
     try {
       await apiRequest('DELETE', `/api/teams/${teamId}`);
@@ -89,7 +117,9 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     teams,
     isLoading,
     getTeamsForMatch,
+    getTeamById,
     saveTeam,
+    updateTeam,
     deleteTeam,
     refreshTeams,
   }), [teams, isLoading]);

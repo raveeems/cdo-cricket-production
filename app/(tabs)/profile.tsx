@@ -213,7 +213,7 @@ export default function ProfileScreen() {
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            <Pressable style={styles.settingRow}>
+            <Pressable style={styles.settingRow} onPress={() => router.push('/how-to-play')}>
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
                   <Feather name="help-circle" size={18} color={colors.success} />
