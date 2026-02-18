@@ -988,6 +988,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: VERIFY MATCH VIA CRICBUZZ ----
+  app.post(
+    "/api/admin/matches/:id/verify-cricbuzz",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const { verifyMatch } = await import("./cricbuzz-api");
+        const result = await verifyMatch(
+          match.team1Short,
+          match.team2Short,
+          match.startTime?.toISOString()
+        );
+
+        return res.json({
+          match: {
+            id: match.id,
+            team1: match.team1,
+            team1Short: match.team1Short,
+            team2: match.team2,
+            team2Short: match.team2Short,
+            venue: match.venue,
+            startTime: match.startTime,
+            status: match.status,
+          },
+          verification: result,
+        });
+      } catch (err: any) {
+        console.error("Cricbuzz verify error:", err);
+        return res.status(500).json({ message: "Failed to verify via Cricbuzz" });
+      }
+    }
+  );
+
+  // ---- ADMIN: GET CRICBUZZ SCORECARD ----
+  app.get(
+    "/api/admin/cricbuzz/scorecard/:cricbuzzMatchId",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const cricbuzzMatchId = parseInt(req.params.cricbuzzMatchId);
+        if (isNaN(cricbuzzMatchId)) {
+          return res.status(400).json({ message: "Invalid Cricbuzz match ID" });
+        }
+
+        const { verifyScorecard } = await import("./cricbuzz-api");
+        const result = await verifyScorecard(cricbuzzMatchId);
+        return res.json(result);
+      } catch (err: any) {
+        console.error("Cricbuzz scorecard error:", err);
+        return res.status(500).json({ message: "Failed to fetch Cricbuzz scorecard" });
+      }
+    }
+  );
+
   const httpServer = createServer(app);
   return httpServer;
 }
