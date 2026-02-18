@@ -1,0 +1,63 @@
+CRITICAL REFACTOR REQUIRED:
+
+Current Status: The app is failing. Live scores do not sync, opponent teams do not unlock, and deadlines do not extend. The current architecture is too reliant on the client-side.
+
+The Fix: Stop editing the frontend. You must rewrite the Backend Logic (Node.js) to create a dedicated MatchSyncService.
+
+Requirement 1: The "Heartbeat" (Fixes Issue 1 & 3)
+
+Create a server-side loop (using node-cron or setInterval) that runs every 60 seconds.
+
+Task A (Score Sync): Fetch the Live Scorecard endpoint for all active matches. Update the database matches table with the new score string immediately.
+
+Task B (Points Engine): Immediately after fetching scores, trigger a calculateFantasyPoints() function.
+
+Logic: Parse the API scorecard -> Calculate points for every player in the DB -> Update the user_teams table -> Update the leaderboard table.
+
+This MUST happen on the server, not the user's phone.
+
+Requirement 2: The "Lockout Protocol" (Fixes Issue 2)
+
+The visibility of opponent teams must be controlled by the Server Status, not the API Status.
+
+Create a database field: contest_status (OPEN/LOCKED).
+
+Logic:
+
+IF current_server_time > match_start_time OR match_status is 'Live':
+
+Set contest_status = 'LOCKED'.
+
+The API endpoint /get-contest-teams must now return ALL team data (remove the "hidden" filter).
+
+Requirement 3: The "Toss & Lineup" Failsafe (Fixes Issue 4)
+
+APIs are often slow with Lineups. Build a Manual Admin Override for Lineups.
+
+Create an Admin API endpoint: /admin/update-lineups.
+
+Allow me (Admin) to manually paste a list of Player IDs or Player Names to mark them as "Playing" if the API is delayed.
+
+Crucial: If I manually update lineups, the app must trust MY data over the API data for that match.
+
+Requirement 4: Match Delay Handler (Fixes Issue 5)
+
+In the 60-second Sync Loop, check the start_at time from the API.
+
+Logic:
+
+IF api_start_time != db_start_time:
+
+Update db_start_time.
+
+Automatically extend the contest_entry_deadline to (new_start_time - 1 second).
+
+Send a system notification/log: "Match Delayed - Deadline Extended".
+
+Action Plan:
+
+Delete the old client-side polling code.
+
+Write the MatchSyncService.js file.
+
+Expose a /debug/force-sync endpoint so I can trigger an update manually to test it.

@@ -426,47 +426,84 @@ function setupErrorHandler(app: express.Application) {
         }
       }
 
-      const TWO_MINUTES = 2 * 60 * 1000;
-      const scorecardLastSync = new Map<string, number>();
+      const HEARTBEAT_INTERVAL = 60 * 1000;
 
-      async function autoSyncScorecard() {
+      async function matchHeartbeat(forcedMatchId?: string) {
         try {
           const allMatches = await storage.getAllMatches();
           const now = Date.now();
 
           for (const match of allMatches) {
-            const isLive = match.status === "live" || match.status === "delayed";
+            if (forcedMatchId && match.id !== forcedMatchId) continue;
+
             const startMs = match.startTime ? new Date(match.startTime).getTime() : 0;
             const isStarted = startMs > 0 && now > startMs && match.status !== "completed";
-            
+            const isLive = match.status === "live" || match.status === "delayed";
+
             if (isStarted && !isLive) {
-              log(`Auto-updating match status to live: ${match.team1Short} vs ${match.team2Short} (was ${match.status}, started ${Math.round((now - startMs) / 60000)}m ago)`);
+              log(`[Heartbeat] LOCKOUT: ${match.team1Short} vs ${match.team2Short} -> status=live (was ${match.status}, started ${Math.round((now - startMs) / 60000)}m ago)`);
               await storage.updateMatch(match.id, { status: "live" });
             }
 
-            if (!isLive && !isStarted) continue;
-
-            const lastSync = scorecardLastSync.get(match.id) || 0;
-            if (now - lastSync < TWO_MINUTES) continue;
+            if (!isLive && !isStarted && !forcedMatchId) continue;
 
             try {
               let pointsMap = new Map<string, number>();
+              let scoreString = "";
+              let source = "";
+              let matchEnded = false;
 
               if (match.externalId) {
-                const { fetchMatchScorecard } = await import("./cricket-api");
-                pointsMap = await fetchMatchScorecard(match.externalId);
-                if (pointsMap.size > 0) {
-                  log(`Tier 1 (CricAPI): scorecard for ${pointsMap.size} players (${match.team1Short} vs ${match.team2Short})`);
+                try {
+                  const { fetchLiveScorecard } = await import("./cricket-api");
+                  const liveData = await fetchLiveScorecard(match.externalId);
+                  if (liveData && liveData.score && liveData.score.length > 0) {
+                    source = "CricAPI";
+                    scoreString = liveData.score.map(s => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
+                    matchEnded = liveData.status?.toLowerCase().includes("won") || 
+                                 liveData.status?.toLowerCase().includes("draw") ||
+                                 liveData.status?.toLowerCase().includes("tied") || false;
+                    if (liveData.status && !matchEnded) {
+                      scoreString += ` — ${liveData.status}`;
+                    }
+                  }
+                } catch (e) {}
+
+                if (!source) {
+                  const { fetchMatchScorecard } = await import("./cricket-api");
+                  pointsMap = await fetchMatchScorecard(match.externalId);
+                  if (pointsMap.size > 0) source = "CricAPI";
                 }
               }
 
-              if (pointsMap.size === 0 && match.team1Short && match.team2Short) {
-                const { calculatePointsFromApiCricket } = await import("./api-cricket");
+              if (!source && match.team1Short && match.team2Short) {
+                const { fetchApiCricketScorecard, calculatePointsFromApiCricket } = await import("./api-cricket");
                 const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-                pointsMap = await calculatePointsFromApiCricket(match.id, match.team1Short, match.team2Short, matchDateStr);
-                if (pointsMap.size > 0) {
-                  log(`Tier 2 (api-cricket.com): scorecard for ${pointsMap.size} players (${match.team1Short} vs ${match.team2Short})`);
+
+                const scData = await fetchApiCricketScorecard(match.team1Short, match.team2Short, matchDateStr);
+                if (scData && scData.score && scData.score.length > 0) {
+                  source = "api-cricket.com";
+                  scoreString = scData.score.map((s: any) => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
+                  matchEnded = scData.status?.toLowerCase().includes("won") ||
+                               scData.status?.toLowerCase().includes("draw") ||
+                               scData.status?.toLowerCase().includes("tied") || false;
+                  if (scData.status && !matchEnded) {
+                    scoreString += ` — ${scData.status}`;
+                  }
                 }
+
+                if (pointsMap.size === 0) {
+                  pointsMap = await calculatePointsFromApiCricket(match.id, match.team1Short, match.team2Short, matchDateStr);
+                }
+              }
+
+              if (scoreString && scoreString !== (match as any).scoreString) {
+                await storage.updateMatch(match.id, { scoreString, lastSyncAt: new Date() } as any);
+              }
+
+              if (matchEnded && match.status !== "completed") {
+                log(`[Heartbeat] COMPLETED: ${match.team1Short} vs ${match.team2Short}`);
+                await storage.updateMatch(match.id, { status: "completed" });
               }
 
               if (pointsMap.size > 0) {
@@ -503,26 +540,28 @@ function setupErrorHandler(app: express.Application) {
                       await storage.updateUserTeamPoints(team.id, totalPoints);
                     }
                   }
-                  log(`Scorecard auto-sync: updated ${updated} player scores, recalculated team points for ${match.team1Short} vs ${match.team2Short}`);
+                  log(`[Heartbeat] ${source}: updated ${updated} player scores, recalculated teams for ${match.team1Short} vs ${match.team2Short}`);
                 }
               }
 
-              scorecardLastSync.set(match.id, now);
+              if (source) {
+                log(`[Heartbeat] ${match.team1Short} vs ${match.team2Short} synced via ${source}${scoreString ? ` — ${scoreString.substring(0, 60)}` : ''}`);
+              }
             } catch (err) {
-              console.error(`Scorecard auto-sync failed for ${match.id}:`, err);
+              console.error(`[Heartbeat] sync failed for ${match.team1Short} vs ${match.team2Short}:`, err);
             }
           }
         } catch (err) {
-          console.error("Scorecard auto-sync scheduler error:", err);
+          console.error("[Heartbeat] scheduler error:", err);
         }
       }
 
+      (globalThis as any).__matchHeartbeat = matchHeartbeat;
+
       setInterval(refreshPlayingXI, FIVE_MINUTES);
-
-      setInterval(autoSyncScorecard, TWO_MINUTES);
+      setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
       log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
-
-      log("Scorecard auto-sync scheduler started (every 2min for live matches)");
+      log("Match Heartbeat started (every 60s — score sync, points, lockout, delay detection)");
     },
   );
 })();

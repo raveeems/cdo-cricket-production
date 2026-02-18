@@ -58,6 +58,8 @@ export const matches = pgTable("matches", {
   spotsTotal: integer("spots_total").notNull().default(100),
   spotsFilled: integer("spots_filled").notNull().default(0),
   playingXIManual: boolean("playing_xi_manual").notNull().default(false),
+  scoreString: text("score_string").notNull().default(""),
+  lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

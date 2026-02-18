@@ -686,46 +686,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       try {
-        if (match.externalId && (match.status === "live" || match.status === "delayed")) {
-          const { fetchMatchScorecard } = await import("./cricket-api");
-          const pointsMap = await fetchMatchScorecard(match.externalId);
-
-          if (pointsMap.size > 0) {
-            const matchPlayers = await storage.getPlayersForMatch(matchId);
-            for (const player of matchPlayers) {
-              if (player.externalId && pointsMap.has(player.externalId)) {
-                const pts = pointsMap.get(player.externalId)!;
-                if (pts !== player.points) {
-                  await storage.updatePlayer(player.id, { points: pts });
-                }
-              }
-            }
-          }
-        }
-
-        {
-          const allTeamsForCalc = await storage.getAllTeamsForMatch(matchId);
-          const updatedPlayers = await storage.getPlayersForMatch(matchId);
-          const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
-          const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
-          for (const team of allTeamsForCalc) {
-            const teamPlayerIds = team.playerIds as string[];
-            let totalPoints = 0;
-            for (const pid of teamPlayerIds) {
-              const p = playerById.get(pid) || playerByExtId.get(pid);
-              if (p) {
-                let pts = p.points || 0;
-                if (pid === team.captainId) pts *= 2;
-                else if (pid === team.viceCaptainId) pts *= 1.5;
-                totalPoints += pts;
-              }
-            }
-            if (totalPoints !== (team.totalPoints || 0)) {
-              await storage.updateUserTeamPoints(team.id, totalPoints);
-            }
-          }
-        }
-
         const allTeams = await storage.getAllTeamsForMatch(matchId);
         const allUsers: Record<string, { username: string; teamName: string }> = {};
         for (const t of allTeams) {
@@ -1270,6 +1230,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("Repair teams error:", err);
         return res.status(500).json({ message: "Failed to repair teams" });
+      }
+    }
+  );
+
+  // ---- DEBUG: FORCE SYNC (Admin only) ----
+  app.post(
+    "/api/debug/force-sync",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      const matchId = req.body.matchId as string | undefined;
+      try {
+        const heartbeat = (globalThis as any).__matchHeartbeat;
+        if (!heartbeat) {
+          return res.status(500).json({ message: "Heartbeat not initialized" });
+        }
+        log(`[Force Sync] Admin triggered manual sync${matchId ? ` for match ${matchId}` : ' for all live matches'}`);
+        await heartbeat(matchId);
+        
+        if (matchId) {
+          const match = await storage.getMatch(matchId);
+          const matchPlayers = await storage.getPlayersForMatch(matchId);
+          const teams = await storage.getAllTeamsForMatch(matchId);
+          return res.json({
+            message: "Force sync completed",
+            match: match ? {
+              id: match.id,
+              teams: `${match.team1Short} vs ${match.team2Short}`,
+              status: match.status,
+              scoreString: (match as any).scoreString || "",
+              lastSyncAt: (match as any).lastSyncAt,
+            } : null,
+            playersWithPoints: matchPlayers.filter(p => p.points > 0).length,
+            totalPlayers: matchPlayers.length,
+            teamsCount: teams.length,
+          });
+        }
+        
+        return res.json({ message: "Force sync completed for all live matches" });
+      } catch (err: any) {
+        console.error("Force sync error:", err);
+        return res.status(500).json({ message: "Force sync failed: " + err.message });
+      }
+    }
+  );
+
+  // ---- DEBUG: MATCH STATUS (Admin only) ----
+  app.get(
+    "/api/debug/match-status",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const allMatches = await storage.getAllMatches();
+        const now = Date.now();
+        const matchStatuses = allMatches.map(m => {
+          const startMs = new Date(m.startTime).getTime();
+          return {
+            id: m.id,
+            teams: `${m.team1Short} vs ${m.team2Short}`,
+            status: m.status,
+            scoreString: (m as any).scoreString || "",
+            lastSyncAt: (m as any).lastSyncAt,
+            startTime: m.startTime,
+            hasExternalId: !!m.externalId,
+            isLocked: now >= startMs,
+            minutesUntilStart: Math.round((startMs - now) / 60000),
+          };
+        });
+        return res.json({ matches: matchStatuses, serverTime: new Date().toISOString() });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
       }
     }
   );
