@@ -1107,24 +1107,48 @@ export default function MatchDetailScreen() {
                 const hasScore = rawScore && rawScore.length > 3;
                 const isLiveish = effectiveStatus === 'live' || match.status === 'completed';
 
+                const parseInningSegment = (seg: string) => {
+                  const scoreMatch = seg.match(/(\d+)\/(\d+)\s*\(([^)]+)\)/);
+                  if (!scoreMatch) return null;
+                  const runs = parseInt(scoreMatch[1], 10);
+                  const wickets = scoreMatch[2];
+                  const overs = scoreMatch[3];
+                  const teamMatch = seg.match(/^(.+?)\s*(?:\d+\s*)?(?:INN|Inn|Innings?)?\s*:/i);
+                  const teamName = teamMatch ? teamMatch[1].replace(/\s*\d+\s*$/, '').trim() : '';
+                  return { runs, wickets, overs, teamName, raw: `${runs}/${wickets} (${overs})` };
+                };
+
                 const parseScore = (raw: string) => {
-                  const scoreMatch = raw.match(/(\d+\/\d+)\s*\(([^)]+)\)/);
-                  if (!scoreMatch) return { scoreLine: raw, statusLine: '' };
-                  const scoreLine = `${scoreMatch[1]} (${scoreMatch[2]})`;
-                  let statusLine = '';
-                  const innMatch = raw.match(/^(.+?)\s*(?:INN|Inn|Innings?)?\s*:/i) || raw.match(/^(.+?)\s+\d+\/\d+/);
-                  const teamName = innMatch ? innMatch[1].replace(/\s*\d+\s*$/, '').trim() : '';
-                  const afterScore = raw.substring(raw.indexOf(scoreMatch[0]) + scoreMatch[0].length).trim();
-                  const statusPart = afterScore.replace(/^[—\-•|]\s*/, '').trim();
-                  const parts: string[] = [];
-                  if (teamName) parts.push(teamName);
-                  if (statusPart) parts.push(statusPart);
-                  statusLine = parts.join(' \u2022 ');
-                  return { scoreLine, statusLine };
+                  const segments = raw.split(/\s*\|\s*/);
+                  const statusMatch = raw.match(/[—\-]\s*(.+)$/);
+                  const statusText = statusMatch ? statusMatch[1].trim() : '';
+                  const parsed = segments.map(s => parseInningSegment(s)).filter(Boolean) as Array<{ runs: number; wickets: string; overs: string; teamName: string; raw: string }>;
+
+                  if (parsed.length === 0) return { scoreLine: raw, contextLines: [] as string[] };
+
+                  if (parsed.length >= 2) {
+                    const active = parsed[parsed.length - 1];
+                    const previous = parsed[parsed.length - 2];
+                    const target = previous.runs + 1;
+                    const remaining = target - active.runs;
+                    const contextLines: string[] = [];
+                    contextLines.push(`${previous.teamName}: ${previous.raw}`);
+                    if (remaining > 0 && statusText !== 'Completed') {
+                      contextLines.push(`Need ${remaining} to win`);
+                    }
+                    if (statusText) contextLines.push(statusText);
+                    return { scoreLine: active.raw, activeTeam: active.teamName, contextLines };
+                  }
+
+                  const single = parsed[0];
+                  const contextLines: string[] = [];
+                  if (single.teamName) contextLines.push(single.teamName);
+                  if (statusText) contextLines.push(statusText);
+                  return { scoreLine: single.raw, activeTeam: single.teamName, contextLines };
                 };
 
                 if (isLiveish && hasScore) {
-                  const { scoreLine, statusLine } = parseScore(rawScore);
+                  const { scoreLine, activeTeam, contextLines } = parseScore(rawScore);
                   return (
                     <View style={{ alignItems: 'center' }}>
                       <View style={styles.liveBadgeRow}>
@@ -1133,12 +1157,12 @@ export default function MatchDetailScreen() {
                           {match.status === 'completed' ? 'COMPLETED' : 'LIVE'}
                         </Text>
                       </View>
-                      <Text style={{ fontSize: 26, color: '#FFFFFF', fontFamily: 'Inter_700Bold' as const, textAlign: 'center' as const, marginTop: 4, letterSpacing: 1 }} numberOfLines={1}>
+                      <Text style={{ fontSize: 28, color: '#FFFFFF', fontFamily: 'Inter_700Bold' as const, textAlign: 'center' as const, marginTop: 4, letterSpacing: 1 }}>
                         {scoreLine}
                       </Text>
-                      {statusLine ? (
-                        <Text style={{ fontSize: 12, color: '#FFD130', fontFamily: 'Inter_600SemiBold' as const, textAlign: 'center' as const, marginTop: 3, maxWidth: 180 }} numberOfLines={1}>
-                          {statusLine}
+                      {contextLines && contextLines.length > 0 ? (
+                        <Text style={{ fontSize: 12, color: '#FFD130', fontFamily: 'Inter_600SemiBold' as const, textAlign: 'center' as const, marginTop: 3, maxWidth: 220, lineHeight: 18 }}>
+                          {contextLines.join(' \u2022 ')}
                         </Text>
                       ) : null}
                     </View>
