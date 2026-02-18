@@ -1108,38 +1108,50 @@ export default function MatchDetailScreen() {
             </View>
 
             <View style={styles.heroCenter}>
-              {(effectiveStatus === 'live' || match.status === 'completed') && match.scoreString ? (
-                <View style={{ alignItems: 'center' }}>
-                  <View style={styles.liveBadgeRow}>
-                    <View style={[styles.liveDot, match.status === 'completed' && { backgroundColor: '#9CA3AF' }]} />
-                    <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>
-                      {match.status === 'completed' ? 'COMPLETED' : 'LIVE'}
-                    </Text>
-                  </View>
-                  <Text style={[styles.heroScoreString, { fontFamily: 'Inter_700Bold' }]} numberOfLines={3}>
-                    {match.scoreString}
-                  </Text>
-                </View>
-              ) : effectiveStatus === 'live' ? (
-                <View style={{ alignItems: 'center' }}>
-                  <View style={styles.liveBadgeRow}>
-                    <View style={styles.liveDot} />
-                    <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
-                  </View>
-                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 4, textAlign: 'center' }}>
-                    Waiting for first ball...
-                  </Text>
-                </View>
-              ) : match.status === 'delayed' ? (
-                <View style={styles.liveBadgeRow}>
-                  <Ionicons name="rainy-outline" size={14} color="#F39C12" />
-                  <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold', color: '#F39C12' }]}>DELAYED</Text>
-                </View>
-              ) : (
-                <Text style={[styles.heroVs, { fontFamily: 'Inter_700Bold' }]}>VS</Text>
-              )}
+              {(() => {
+                const rawScore = (match as any).scoreString || (match as any).score_string || (match as any).score || (match as any).liveScore || (match as any).status_overview || "";
+                const hasScore = rawScore && rawScore.length > 3;
+                const isLiveish = effectiveStatus === 'live' || match.status === 'completed';
+
+                if (isLiveish && hasScore) {
+                  return (
+                    <View style={{ alignItems: 'center' }}>
+                      <View style={styles.liveBadgeRow}>
+                        <View style={[styles.liveDot, match.status === 'completed' && { backgroundColor: '#9CA3AF' }]} />
+                        <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>
+                          {match.status === 'completed' ? 'COMPLETED' : 'LIVE'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.heroScoreString, { fontFamily: 'Inter_700Bold' }]} numberOfLines={3}>
+                        {rawScore}
+                      </Text>
+                    </View>
+                  );
+                } else if (effectiveStatus === 'live') {
+                  return (
+                    <View style={{ alignItems: 'center' }}>
+                      <View style={styles.liveBadgeRow}>
+                        <View style={styles.liveDot} />
+                        <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
+                      </View>
+                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'Inter_500Medium' as const, marginTop: 4, textAlign: 'center' as const }}>
+                        Syncing score...
+                      </Text>
+                    </View>
+                  );
+                } else if (match.status === 'delayed') {
+                  return (
+                    <View style={styles.liveBadgeRow}>
+                      <Ionicons name="rainy-outline" size={14} color="#F39C12" />
+                      <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold', color: '#F39C12' }]}>DELAYED</Text>
+                    </View>
+                  );
+                } else {
+                  return <Text style={[styles.heroVs, { fontFamily: 'Inter_700Bold' }]}>VS</Text>;
+                }
+              })()}
               {match.status === 'delayed' && !matchStarted && match.statusNote ? (
-                <Text style={{ color: '#F39C12', fontSize: 11, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 4 }} numberOfLines={2}>
+                <Text style={{ color: '#F39C12', fontSize: 11, fontFamily: 'Inter_500Medium' as const, textAlign: 'center' as const, marginTop: 4 }} numberOfLines={2}>
                   {match.statusNote}
                 </Text>
               ) : effectiveStatus !== 'live' && match.status !== 'completed' ? (
@@ -1171,6 +1183,15 @@ export default function MatchDetailScreen() {
             </Text>
           </View>
         </LinearGradient>
+
+        <View style={{ backgroundColor: '#DC2626', padding: 12, marginHorizontal: 8, marginTop: 4, borderRadius: 8 }}>
+          <Text style={{ color: '#FFF', fontSize: 11, fontFamily: 'Inter_700Bold' as const, marginBottom: 4 }}>DEBUG: Raw Match Data</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <Text style={{ color: '#FFF', fontSize: 10, fontFamily: 'Inter_400Regular' as const }} selectable>
+              {JSON.stringify({ id: match.id, status: match.status, effectiveStatus, scoreString: (match as any).scoreString, score_string: (match as any).score_string, score: (match as any).score, liveScore: (match as any).liveScore, lastSyncAt: match.lastSyncAt, matchStarted }, null, 2)}
+            </Text>
+          </ScrollView>
+        </View>
 
         <View style={styles.tabBar}>
           {tabs.map((tab) => (
