@@ -875,6 +875,37 @@ function calculateFantasyPoints(
   return points;
 }
 
+export async function fetchPlayingXIFromScorecard(
+  externalMatchId: string
+): Promise<string[]> {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+
+    const json = (await res.json()) as CricApiResponse<ScorecardData>;
+    if (json.status !== "success" || !json.data?.scorecard) return [];
+
+    const playerIds = new Set<string>();
+    for (const inning of json.data.scorecard) {
+      inning.batting?.forEach((b) => { if (b.batsman?.id) playerIds.add(b.batsman.id); });
+      inning.bowling?.forEach((b) => { if (b.bowler?.id) playerIds.add(b.bowler.id); });
+      inning.catching?.forEach((c) => { if (c.catcher?.id) playerIds.add(c.catcher.id); });
+    }
+
+    if (playerIds.size > 0) {
+      console.log(`Playing XI from scorecard: ${playerIds.size} players for ${externalMatchId}`);
+    }
+    return Array.from(playerIds);
+  } catch (err) {
+    console.error("Scorecard Playing XI error:", err);
+    return [];
+  }
+}
+
 export async function fetchMatchScorecard(
   externalMatchId: string
 ): Promise<Map<string, number>> {

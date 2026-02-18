@@ -1,7 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { syncMatchesFromApi, fetchMatchSquad, fetchSeriesSquad, fetchPlayingXIFromMatchInfo } from "./cricket-api";
+import { syncMatchesFromApi, fetchMatchSquad, fetchSeriesSquad, fetchPlayingXIFromMatchInfo, fetchPlayingXIFromScorecard } from "./cricket-api";
 import { storage } from "./storage";
 import * as fs from "fs";
 import * as path from "path";
@@ -382,10 +382,16 @@ function setupErrorHandler(app: express.Application) {
 
               const playingXICount = await storage.getPlayingXICount(match.id);
               if (playingXICount === 0 && match.externalId) {
-                const playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+                let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
                 if (playingXIIds.length > 0) {
                   await storage.markPlayingXI(match.id, playingXIIds);
-                  log(`Playing XI marked from match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                  log(`Playing XI marked from scorecard: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                } else {
+                  playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+                  if (playingXIIds.length > 0) {
+                    await storage.markPlayingXI(match.id, playingXIIds);
+                    log(`Playing XI marked from match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                  }
                 }
               }
 

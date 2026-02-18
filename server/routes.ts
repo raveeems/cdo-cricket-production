@@ -445,8 +445,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const xiCount = await storage.getPlayingXICount(matchId);
         if (xiCount < 22) {
           try {
-            const { fetchPlayingXI } = await import("./cricket-api");
-            const playingIds = await fetchPlayingXI(match.externalId);
+            const { fetchPlayingXIFromScorecard, fetchPlayingXIFromMatchInfo } = await import("./cricket-api");
+            let playingIds = await fetchPlayingXIFromScorecard(match.externalId);
+            if (playingIds.length === 0) {
+              playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+            }
             if (playingIds.length >= 2) {
               await storage.markPlayingXI(matchId, playingIds);
               matchPlayers = await storage.getPlayersForMatch(matchId);
@@ -973,10 +976,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!match) return res.status(404).json({ message: "Match not found" });
         if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
 
-        const { fetchPlayingXI } = await import("./cricket-api");
-        const playingIds = await fetchPlayingXI(match.externalId);
+        const { fetchPlayingXIFromScorecard, fetchPlayingXIFromMatchInfo } = await import("./cricket-api");
+        let playingIds = await fetchPlayingXIFromScorecard(match.externalId);
+        let source = "scorecard";
         if (playingIds.length === 0) {
-          return res.json({ message: "No Playing XI data available yet from scorecard", count: 0 });
+          playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+          source = "match_info";
+        }
+        if (playingIds.length === 0) {
+          return res.json({ message: "No Playing XI data available yet - match may not have started", count: 0 });
         }
 
         await storage.markPlayingXI(matchId, playingIds);
