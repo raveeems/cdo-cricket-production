@@ -615,6 +615,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get(
+    "/api/matches/:id/standings",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      const matchId = req.params.id as string;
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const now = new Date();
+      const matchStart = new Date(match.startTime);
+      const isLive = now.getTime() >= matchStart.getTime();
+
+      if (!isLive) {
+        return res.json({ standings: [], isLive: false, message: "Match has not started yet" });
+      }
+
+      try {
+        if (match.externalId && (match.status === "live" || match.status === "delayed")) {
+          const { fetchMatchScorecard } = await import("./cricket-api");
+          const pointsMap = await fetchMatchScorecard(match.externalId);
+
+          if (pointsMap.size > 0) {
+            const matchPlayers = await storage.getPlayersForMatch(matchId);
+            for (const player of matchPlayers) {
+              if (player.externalId && pointsMap.has(player.externalId)) {
+                const pts = pointsMap.get(player.externalId)!;
+                if (pts !== player.points) {
+                  await storage.updatePlayer(player.id, { points: pts });
+                }
+              }
+            }
+
+            const allTeams = await storage.getAllTeamsForMatch(matchId);
+            const updatedPlayers = await storage.getPlayersForMatch(matchId);
+            for (const team of allTeams) {
+              const teamPlayerIds = team.playerIds as string[];
+              let totalPoints = 0;
+              for (const pid of teamPlayerIds) {
+                const p = updatedPlayers.find((mp) => mp.id === pid);
+                if (p) {
+                  let pts = p.points || 0;
+                  if (pid === team.captainId) pts *= 2;
+                  else if (pid === team.viceCaptainId) pts *= 1.5;
+                  totalPoints += pts;
+                }
+              }
+              await storage.updateUserTeamPoints(team.id, totalPoints);
+            }
+          }
+        }
+
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        const allUsers: Record<string, { username: string; teamName: string }> = {};
+        for (const t of allTeams) {
+          if (!allUsers[t.userId]) {
+            const u = await storage.getUser(t.userId);
+            allUsers[t.userId] = {
+              username: u?.username || "Unknown",
+              teamName: u?.teamName || "",
+            };
+          }
+        }
+
+        const standings = allTeams
+          .map((t) => ({
+            teamId: t.id,
+            teamName: t.name,
+            userId: t.userId,
+            username: allUsers[t.userId]?.username || "Unknown",
+            userTeamName: allUsers[t.userId]?.teamName || "",
+            totalPoints: t.totalPoints || 0,
+            playerIds: t.playerIds,
+            captainId: t.captainId,
+            viceCaptainId: t.viceCaptainId,
+          }))
+          .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+
+        let rank = 1;
+        const rankedStandings = standings.map((s, i) => {
+          if (i > 0 && s.totalPoints < standings[i - 1].totalPoints) {
+            rank = i + 1;
+          }
+          return { ...s, rank };
+        });
+
+        return res.json({ standings: rankedStandings, isLive: true });
+      } catch (err: any) {
+        console.error("Standings error:", err);
+        return res.status(500).json({ message: "Failed to load standings" });
+      }
+    }
+  );
+
+  app.get(
     "/api/my-teams",
     isAuthenticated,
     async (req: Request, res: Response) => {

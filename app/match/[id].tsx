@@ -20,7 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/query-client';
 
-type TabKey = 'overview' | 'scorecard' | 'players' | 'participants';
+type TabKey = 'overview' | 'scorecard' | 'players' | 'participants' | 'standings';
 
 interface ScorecardBatter {
   name: string;
@@ -53,6 +53,19 @@ interface LiveScorecard {
   score: Array<{ r: number; w: number; o: number; inning: string }>;
   innings: ScorecardInning[];
   status: string;
+}
+
+interface StandingEntry {
+  rank: number;
+  teamId: string;
+  teamName: string;
+  userId: string;
+  username: string;
+  userTeamName: string;
+  totalPoints: number;
+  playerIds: string[];
+  captainId: string | null;
+  viceCaptainId: string | null;
 }
 
 export default function MatchDetailScreen() {
@@ -91,7 +104,13 @@ export default function MatchDetailScreen() {
 
   const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string }>({
     queryKey: ['/api/matches', id, 'teams'],
-    enabled: !!id && activeTab === 'participants',
+    enabled: !!id,
+  });
+
+  const { data: standingsData } = useQuery<{ standings: StandingEntry[]; isLive: boolean }>({
+    queryKey: ['/api/matches', id, 'standings'],
+    enabled: !!id && isLiveOrCompleted,
+    refetchInterval: isLiveOrCompleted && matchData?.match?.status !== 'completed' ? 20000 : false,
   });
 
   const match = matchData?.match;
@@ -120,7 +139,7 @@ export default function MatchDetailScreen() {
 
   useEffect(() => {
     if (isLiveOrCompleted) {
-      setActiveTab('scorecard');
+      setActiveTab('standings');
     }
   }, [isLiveOrCompleted]);
 
@@ -168,10 +187,14 @@ export default function MatchDetailScreen() {
     setSyncingScorecard(false);
   };
 
-  const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = isLiveOrCompleted ? [
+    { key: 'standings', label: 'Standings', icon: 'podium-outline' },
+    { key: 'scorecard', label: 'Scorecard', icon: 'stats-chart-outline' },
+    { key: 'participants', label: 'Contest', icon: 'trophy-outline' },
+    { key: 'players', label: 'Players', icon: 'people-outline' },
+  ] : [
     { key: 'overview', label: 'Overview', icon: 'grid-outline' },
     { key: 'participants', label: 'Contest', icon: 'trophy-outline' },
-    { key: 'scorecard', label: 'Scorecard', icon: 'stats-chart-outline' },
     { key: 'players', label: 'Players', icon: 'people-outline' },
   ];
 
@@ -668,6 +691,179 @@ export default function MatchDetailScreen() {
     );
   };
 
+  const renderStandingsTab = () => {
+    const standings = standingsData?.standings || [];
+
+    if (!isLiveOrCompleted) {
+      return (
+        <View style={[styles.contentSection, { alignItems: 'center', paddingTop: 40 }]}>
+          <Ionicons name="time-outline" size={48} color={colors.textTertiary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_500Medium' as const, marginTop: 12, textAlign: 'center' }}>
+            Standings will be available once the match starts
+          </Text>
+        </View>
+      );
+    }
+
+    if (standings.length === 0) {
+      return (
+        <View style={[styles.contentSection, { alignItems: 'center', paddingTop: 40 }]}>
+          <Ionicons name="podium-outline" size={48} color={colors.textTertiary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_500Medium' as const, marginTop: 12, textAlign: 'center' }}>
+            No teams have joined this contest yet
+          </Text>
+        </View>
+      );
+    }
+
+    const userStandings = standings.filter(s => s.userId === user?.id);
+    const bestUserRank = userStandings.length > 0 ? Math.min(...userStandings.map(s => s.rank)) : null;
+
+    return (
+      <View style={styles.contentSection}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            Live Standings
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: effectiveStatus === 'live' ? '#22C55E' : colors.textTertiary }} />
+            <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+              {effectiveStatus === 'live' ? 'Updates every 20s' : 'Final'}
+            </Text>
+          </View>
+        </View>
+
+        {bestUserRank !== null && (
+          <View style={[styles.yourRankCard, { backgroundColor: colors.accent + '15', borderColor: colors.accent + '40' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={[styles.rankCircle, { backgroundColor: colors.accent }]}>
+                <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>#{bestUserRank}</Text>
+              </View>
+              <View>
+                <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>Your Best Rank</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular' as const }}>
+                  {userStandings.length} {userStandings.length === 1 ? 'team' : 'teams'} in contest
+                </Text>
+              </View>
+            </View>
+            <Text style={{ color: colors.accent, fontSize: 18, fontFamily: 'Inter_700Bold' as const }}>
+              {Math.max(...userStandings.map(s => s.totalPoints))} pts
+            </Text>
+          </View>
+        )}
+
+        <View style={[styles.standingsHeader, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, width: 36, textAlign: 'center' }}>#</Text>
+          <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, flex: 1 }}>Team</Text>
+          <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, width: 60, textAlign: 'right' }}>Points</Text>
+        </View>
+
+        {standings.map((entry, index) => {
+          const isCurrentUser = entry.userId === user?.id;
+          const getRankIcon = (rank: number) => {
+            if (rank === 1) return { icon: 'trophy' as const, color: '#F59E0B' };
+            if (rank === 2) return { icon: 'medal' as const, color: '#94A3B8' };
+            if (rank === 3) return { icon: 'medal' as const, color: '#CD7F32' };
+            return null;
+          };
+          const rankIcon = getRankIcon(entry.rank);
+
+          return (
+            <Pressable
+              key={entry.teamId}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setExpandedTeamId(expandedTeamId === entry.teamId ? null : entry.teamId);
+              }}
+              style={[
+                styles.standingRow,
+                {
+                  backgroundColor: isCurrentUser ? colors.accent + '08' : colors.card,
+                  borderColor: isCurrentUser ? colors.accent + '30' : colors.cardBorder,
+                  borderLeftColor: isCurrentUser ? colors.accent : 'transparent',
+                  borderLeftWidth: isCurrentUser ? 3 : 0,
+                },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <View style={{ width: 36, alignItems: 'center' }}>
+                  {rankIcon ? (
+                    <Ionicons name={rankIcon.icon} size={18} color={rankIcon.color} />
+                  ) : (
+                    <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>{entry.rank}</Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>
+                      {entry.teamName}
+                    </Text>
+                    {isCurrentUser && (
+                      <View style={[styles.youBadge, { backgroundColor: colors.accent + '20' }]}>
+                        <Text style={{ color: colors.accent, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>YOU</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                    {entry.userTeamName || entry.username}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ color: isCurrentUser ? colors.accent : colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const, width: 60, textAlign: 'right' }}>
+                  {entry.totalPoints}
+                </Text>
+                <Ionicons
+                  name={expandedTeamId === entry.teamId ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={colors.textTertiary}
+                />
+              </View>
+
+              {expandedTeamId === entry.teamId && (
+                <View style={[styles.expandedTeamDetails, { backgroundColor: colors.surface, marginTop: 8 }]}>
+                  {entry.playerIds.map((pid) => {
+                    const p = players.find(pl => pl.id === pid);
+                    if (!p) return null;
+                    const isCaptain = pid === entry.captainId;
+                    const isVC = pid === entry.viceCaptainId;
+                    let multipliedPts = p.points || 0;
+                    if (isCaptain) multipliedPts *= 2;
+                    else if (isVC) multipliedPts *= 1.5;
+
+                    return (
+                      <View key={pid} style={styles.expandedPlayerRow}>
+                        <View style={[styles.miniRoleBadge, { backgroundColor: getRoleColor(p.role, isDark) + '20' }]}>
+                          <Text style={{ color: getRoleColor(p.role, isDark), fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>{p.role}</Text>
+                        </View>
+                        <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_500Medium' as const, flex: 1 }} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        {isCaptain && (
+                          <View style={[styles.miniCVBadge, { backgroundColor: colors.accent + '30' }]}>
+                            <Text style={{ color: colors.accent, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>C</Text>
+                          </View>
+                        )}
+                        {isVC && (
+                          <View style={[styles.miniCVBadge, { backgroundColor: colors.primary + '30' }]}>
+                            <Text style={{ color: colors.primary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>VC</Text>
+                          </View>
+                        )}
+                        <Text style={{ color: multipliedPts > 0 ? '#22C55E' : colors.textTertiary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, width: 40, textAlign: 'right' }}>
+                          {multipliedPts}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  };
+
   const renderParticipantsTab = () => {
     const grouped: Record<string, { username: string; userTeamName: string; teams: ContestTeam[] }> = {};
     for (const t of contestTeams) {
@@ -1039,6 +1235,7 @@ export default function MatchDetailScreen() {
         </View>
 
         {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'standings' && renderStandingsTab()}
         {activeTab === 'participants' && renderParticipantsTab()}
         {activeTab === 'scorecard' && renderScorecardTab()}
         {activeTab === 'players' && renderPlayersTab()}
@@ -1526,6 +1723,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 4,
+  },
+  yourRankCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  rankCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  standingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 6,
+  },
+  standingRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 6,
   },
   adminSection: {
     marginTop: 20,
