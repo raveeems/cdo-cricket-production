@@ -838,6 +838,7 @@ function calculateFantasyPoints(
   scorecard: ScorecardInning[]
 ): number {
   let points = 0;
+  let totalCatches = 0;
 
   for (const inning of scorecard) {
     const bat = inning.batting?.find((b) => b.batsman?.id === playerId);
@@ -846,36 +847,68 @@ function calculateFantasyPoints(
       points += bat["4s"];
       points += bat["6s"] * 2;
       if (bat.r >= 100) points += 16;
-      else if (bat.r >= 50) points += 8;
-      else if (bat.r >= 30) points += 4;
+      if (bat.r >= 50) points += 8;
+      if (bat.r >= 30) points += 4;
       if (bat.r === 0 && bat.b > 0) points -= 2;
-      if (bat.sr > 170) points += 6;
-      else if (bat.sr > 150) points += 4;
-      else if (bat.sr > 130) points += 2;
-      else if (bat.sr < 50 && bat.b >= 10) points -= 6;
-      else if (bat.sr < 60 && bat.b >= 10) points -= 4;
+      if (bat.b >= 10) {
+        if (bat.sr > 170) points += 6;
+        else if (bat.sr > 150) points += 4;
+        else if (bat.sr >= 130) points += 2;
+        else if (bat.sr >= 60 && bat.sr < 70) points -= 2;
+        else if (bat.sr >= 50 && bat.sr < 60) points -= 4;
+        else if (bat.sr < 50) points -= 6;
+      }
     }
 
     const bowl = inning.bowling?.find((b) => b.bowler?.id === playerId);
     if (bowl) {
-      points += bowl.w * 25;
+      points += bowl.w * 30;
       if (bowl.w >= 5) points += 16;
-      else if (bowl.w >= 4) points += 8;
-      else if (bowl.w >= 3) points += 4;
+      if (bowl.w >= 4) points += 8;
+      if (bowl.w >= 3) points += 4;
       if (bowl.m > 0) points += bowl.m * 12;
-      if (bowl.eco < 5) points += 6;
-      else if (bowl.eco < 6) points += 4;
-      else if (bowl.eco < 7) points += 2;
-      else if (bowl.eco > 12) points -= 6;
-      else if (bowl.eco > 11) points -= 4;
-      else if (bowl.eco > 10) points -= 2;
+      const totalOvers = bowl.o;
+      if (totalOvers >= 2) {
+        if (bowl.eco < 5) points += 6;
+        else if (bowl.eco >= 5 && bowl.eco < 6) points += 4;
+        else if (bowl.eco >= 6 && bowl.eco <= 7) points += 2;
+        else if (bowl.eco >= 10 && bowl.eco <= 11) points -= 2;
+        else if (bowl.eco > 11 && bowl.eco <= 12) points -= 4;
+        else if (bowl.eco > 12) points -= 6;
+      }
+      const battingEntries = inning.batting || [];
+      for (const b of battingEntries) {
+        const d = (b.dismissal || "").toLowerCase();
+        if (d.startsWith("lbw") || d.startsWith("b ")) {
+          if (bowl.bowler?.name && d.includes(bowl.bowler.name.toLowerCase())) {
+            points += 8;
+          }
+        }
+      }
     }
 
     const catcher = inning.catching?.find((c) => c.catcher?.id === playerId);
     if (catcher) {
-      points += (catcher.catches || 0) * 8;
+      const catches = catcher.catches || 0;
+      points += catches * 8;
+      totalCatches += catches;
+    }
+
+    const battingEntries = inning.batting || [];
+    for (const b of battingEntries) {
+      const d = (b.dismissal || "").toLowerCase();
+      if (d.includes("st ") && d.includes(playerId)) {
+        points += 12;
+      }
+      if (d.includes("run out")) {
+        if (d.includes(playerId)) {
+          points += 12;
+        }
+      }
     }
   }
+
+  if (totalCatches >= 3) points += 4;
 
   return points;
 }

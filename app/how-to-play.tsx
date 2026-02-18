@@ -19,26 +19,48 @@ interface PointRow {
 }
 
 const battingPoints: PointRow[] = [
-  { action: 'Run', points: '1' },
-  { action: 'Boundary (4s)', points: '1' },
-  { action: 'Six', points: '2' },
-  { action: 'Half Century (50)', points: '20' },
-  { action: 'Century (100)', points: '50' },
-  { action: 'Duck (0 runs)', points: '-5' },
+  { action: 'Run', points: '+1' },
+  { action: 'Boundary Bonus (4s)', points: '+1' },
+  { action: 'Six Bonus (6s)', points: '+2' },
+  { action: '30 Run Bonus', points: '+4' },
+  { action: 'Half Century (50)', points: '+8' },
+  { action: 'Century (100)', points: '+16' },
+  { action: 'Duck (0 runs, dismissed)', points: '-2' },
 ];
 
 const bowlingPoints: PointRow[] = [
-  { action: 'Wicket', points: '25' },
-  { action: '3-Wicket Haul (Bonus)', points: '10' },
-  { action: '5-Wicket Haul (Bonus)', points: '20' },
-  { action: 'Maiden Over', points: '15' },
+  { action: 'Wicket (excl. Run Out)', points: '+30' },
+  { action: 'LBW / Bowled Bonus', points: '+8' },
+  { action: '3 Wicket Bonus', points: '+4' },
+  { action: '4 Wicket Bonus', points: '+8' },
+  { action: '5 Wicket Bonus', points: '+16' },
+  { action: 'Maiden Over', points: '+12' },
 ];
 
 const fieldingPoints: PointRow[] = [
-  { action: 'Catch', points: '10' },
-  { action: 'Stumping', points: '15' },
-  { action: 'Run Out (Direct)', points: '15' },
-  { action: 'Run Out (Indirect)', points: '10' },
+  { action: 'Catch', points: '+8' },
+  { action: '3 Catch Bonus', points: '+4' },
+  { action: 'Stumping', points: '+12' },
+  { action: 'Run Out (Direct)', points: '+12' },
+  { action: 'Run Out (Throw/Indirect)', points: '+6' },
+];
+
+const economyPoints: PointRow[] = [
+  { action: 'Below 5 RPO (min 2 ov)', points: '+6' },
+  { action: '5 - 5.99 RPO', points: '+4' },
+  { action: '6 - 7 RPO', points: '+2' },
+  { action: '10 - 11 RPO', points: '-2' },
+  { action: '11.01 - 12 RPO', points: '-4' },
+  { action: 'Above 12 RPO', points: '-6' },
+];
+
+const strikeRatePoints: PointRow[] = [
+  { action: 'Above 170 SR (min 10 balls)', points: '+6' },
+  { action: '150.01 - 170 SR', points: '+4' },
+  { action: '130 - 150 SR', points: '+2' },
+  { action: '60 - 70 SR', points: '-2' },
+  { action: '50 - 59.99 SR', points: '-4' },
+  { action: 'Below 50 SR', points: '-6' },
 ];
 
 const otherPoints: PointRow[] = [
@@ -86,17 +108,17 @@ export default function HowToPlayScreen() {
           <Text style={[styles.pointsAction, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
             {row.action}
           </Text>
-          <View style={[styles.pointsBadge, { backgroundColor: Number(row.points) < 0 ? colors.error + '20' : colors.accent + '20' }]}>
+          <View style={[styles.pointsBadge, { backgroundColor: row.points.startsWith('-') ? colors.error + '20' : colors.accent + '20' }]}>
             <Text
               style={[
                 styles.pointsValue,
                 {
-                  color: Number(row.points) < 0 ? colors.error : colors.accent,
+                  color: row.points.startsWith('-') ? colors.error : colors.accent,
                   fontFamily: 'Inter_700Bold',
                 },
               ]}
             >
-              {row.points.startsWith('-') ? row.points : row.points.includes('x') ? row.points : '+' + row.points}
+              {row.points}
             </Text>
           </View>
         </View>
@@ -204,11 +226,18 @@ export default function HowToPlayScreen() {
           </View>
 
           <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-            Points System
+            Points System (T20)
           </Text>
+          <View style={[{ backgroundColor: colors.primary + '10', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: colors.primary + '20' }]}>
+            <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 18 }]}>
+              Bonuses are cumulative. e.g. 50 runs = +4 (30 bonus) + +8 (50 bonus) = +12 total bonus on top of run points.
+            </Text>
+          </View>
           {renderPointsTable('Batting', battingPoints, 'cricket', colors.accent)}
           {renderPointsTable('Bowling', bowlingPoints, 'bowling', colors.primary)}
           {renderPointsTable('Fielding', fieldingPoints, 'hand-back-right', colors.success)}
+          {renderPointsTable('Economy Rate', economyPoints, 'speedometer', '#8B5CF6')}
+          {renderPointsTable('Strike Rate (Batting)', strikeRatePoints, 'lightning-bolt', '#EC4899')}
           {renderPointsTable('Captain / Vice Captain', otherPoints, 'star-four-points', '#F59E0B')}
 
           <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>

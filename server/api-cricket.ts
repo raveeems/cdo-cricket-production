@@ -386,6 +386,8 @@ export async function calculatePointsFromApiCricket(
 
   const dbPlayers = await storage.getPlayersForMatch(dbMatchId);
 
+  const catchCountMap = new Map<string, number>();
+
   for (const inn of scorecard.innings) {
     for (const bat of inn.batting) {
       const found = dbPlayers.find(p => playerNameMatch(bat.name, p.name));
@@ -396,15 +398,78 @@ export async function calculatePointsFromApiCricket(
         pts += bat.fours;
         pts += bat.sixes * 2;
         if (bat.r >= 100) pts += 16;
-        else if (bat.r >= 50) pts += 8;
-        else if (bat.r >= 30) pts += 4;
+        if (bat.r >= 50) pts += 8;
+        if (bat.r >= 30) pts += 4;
         if (bat.r === 0 && bat.b > 0) pts -= 2;
-        if (bat.sr > 170) pts += 6;
-        else if (bat.sr > 150) pts += 4;
-        else if (bat.sr > 130) pts += 2;
-        else if (bat.sr < 50 && bat.b >= 10) pts -= 6;
-        else if (bat.sr < 60 && bat.b >= 10) pts -= 4;
+        if (bat.b >= 10) {
+          if (bat.sr > 170) pts += 6;
+          else if (bat.sr > 150) pts += 4;
+          else if (bat.sr >= 130) pts += 2;
+          else if (bat.sr >= 60 && bat.sr < 70) pts -= 2;
+          else if (bat.sr >= 50 && bat.sr < 60) pts -= 4;
+          else if (bat.sr < 50) pts -= 6;
+        }
         pointsMap.set(found.externalId, existing + pts);
+      }
+
+      const d = (bat.dismissal || "").toLowerCase();
+      if (d.startsWith("lbw") || d.startsWith("b ")) {
+        for (const bowl of inn.bowling) {
+          const bowlerPlayer = dbPlayers.find(p => playerNameMatch(bowl.name, p.name));
+          if (bowlerPlayer && bowlerPlayer.externalId && d.includes(bowl.name.toLowerCase())) {
+            const existing = pointsMap.get(bowlerPlayer.externalId) || 0;
+            pointsMap.set(bowlerPlayer.externalId, existing + 8);
+          }
+        }
+      }
+
+      if (d.includes("c ")) {
+        const catcherName = d.replace(/^c\s+/, "").split(" b ")[0].trim();
+        if (catcherName) {
+          const catcherPlayer = dbPlayers.find(p => playerNameMatch(catcherName, p.name));
+          if (catcherPlayer && catcherPlayer.externalId) {
+            const existing = pointsMap.get(catcherPlayer.externalId) || 0;
+            pointsMap.set(catcherPlayer.externalId, existing + 8);
+            const prevCatches = catchCountMap.get(catcherPlayer.externalId) || 0;
+            catchCountMap.set(catcherPlayer.externalId, prevCatches + 1);
+          }
+        }
+      }
+
+      if (d.includes("st ")) {
+        const stumpName = d.replace(/^.*st\s+/, "").split(" b ")[0].trim();
+        if (stumpName) {
+          const stumperPlayer = dbPlayers.find(p => playerNameMatch(stumpName, p.name));
+          if (stumperPlayer && stumperPlayer.externalId) {
+            const existing = pointsMap.get(stumperPlayer.externalId) || 0;
+            pointsMap.set(stumperPlayer.externalId, existing + 12);
+          }
+        }
+      }
+
+      if (d.includes("run out")) {
+        const roMatch = d.match(/run out\s*\(([^)]+)\)/i);
+        if (roMatch) {
+          const names = roMatch[1].split("/").map(n => n.trim());
+          if (names.length === 1) {
+            const roPlayer = dbPlayers.find(p => playerNameMatch(names[0], p.name));
+            if (roPlayer && roPlayer.externalId) {
+              const existing = pointsMap.get(roPlayer.externalId) || 0;
+              pointsMap.set(roPlayer.externalId, existing + 12);
+            }
+          } else if (names.length >= 2) {
+            const thrower = dbPlayers.find(p => playerNameMatch(names[0], p.name));
+            if (thrower && thrower.externalId) {
+              const existing = pointsMap.get(thrower.externalId) || 0;
+              pointsMap.set(thrower.externalId, existing + 6);
+            }
+            const collector = dbPlayers.find(p => playerNameMatch(names[names.length - 1], p.name));
+            if (collector && collector.externalId) {
+              const existing = pointsMap.get(collector.externalId) || 0;
+              pointsMap.set(collector.externalId, existing + 6);
+            }
+          }
+        }
       }
     }
 
@@ -413,19 +478,29 @@ export async function calculatePointsFromApiCricket(
       if (found && found.externalId) {
         const existing = pointsMap.get(found.externalId) || 0;
         let pts = 0;
-        pts += bowl.w * 25;
+        pts += bowl.w * 30;
         if (bowl.w >= 5) pts += 16;
-        else if (bowl.w >= 4) pts += 8;
-        else if (bowl.w >= 3) pts += 4;
+        if (bowl.w >= 4) pts += 8;
+        if (bowl.w >= 3) pts += 4;
         if (bowl.m > 0) pts += bowl.m * 12;
-        if (bowl.eco < 5) pts += 6;
-        else if (bowl.eco < 6) pts += 4;
-        else if (bowl.eco < 7) pts += 2;
-        else if (bowl.eco > 12) pts -= 6;
-        else if (bowl.eco > 11) pts -= 4;
-        else if (bowl.eco > 10) pts -= 2;
+        const totalOvers = bowl.o;
+        if (totalOvers >= 2) {
+          if (bowl.eco < 5) pts += 6;
+          else if (bowl.eco >= 5 && bowl.eco < 6) pts += 4;
+          else if (bowl.eco >= 6 && bowl.eco <= 7) pts += 2;
+          else if (bowl.eco >= 10 && bowl.eco <= 11) pts -= 2;
+          else if (bowl.eco > 11 && bowl.eco <= 12) pts -= 4;
+          else if (bowl.eco > 12) pts -= 6;
+        }
         pointsMap.set(found.externalId, existing + pts);
       }
+    }
+  }
+
+  for (const [externalId, catches] of catchCountMap) {
+    if (catches >= 3) {
+      const existing = pointsMap.get(externalId) || 0;
+      pointsMap.set(externalId, existing + 4);
     }
   }
 
