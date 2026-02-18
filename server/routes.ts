@@ -450,10 +450,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (playingIds.length === 0) {
               playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
             }
+            if (playingIds.length === 0) {
+              try {
+                const { markPlayingXIFromApiCricket } = await import("./api-cricket");
+                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+                const result = await markPlayingXIFromApiCricket(matchId, match.team1Short, match.team2Short, matchDateStr);
+                if (result.matched > 0) {
+                  console.log(`api-cricket.com fallback: matched ${result.matched} Playing XI players`);
+                }
+              } catch (e) {
+                console.error("api-cricket.com Playing XI fallback error:", e);
+              }
+            }
             if (playingIds.length >= 2) {
               await storage.markPlayingXI(matchId, playingIds);
-              matchPlayers = await storage.getPlayersForMatch(matchId);
             }
+            matchPlayers = await storage.getPlayersForMatch(matchId);
           } catch (err) {
             console.error("Playing XI auto-refresh error:", err);
           }
@@ -1077,11 +1089,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           source = "match_info";
         }
         if (playingIds.length === 0) {
+          try {
+            const { markPlayingXIFromApiCricket } = await import("./api-cricket");
+            const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+            const result = await markPlayingXIFromApiCricket(matchId, match.team1Short, match.team2Short, matchDateStr);
+            if (result.matched > 0) {
+              source = "api-cricket.com";
+              return res.json({ message: `Playing XI updated via api-cricket.com: ${result.matched} players matched`, count: result.matched, source });
+            }
+          } catch (e) {
+            console.error("api-cricket.com Playing XI fallback error:", e);
+          }
           return res.json({ message: "No Playing XI data available yet - match may not have started", count: 0 });
         }
 
         await storage.markPlayingXI(matchId, playingIds);
-        return res.json({ message: `Playing XI updated: ${playingIds.length} players marked`, count: playingIds.length });
+        return res.json({ message: `Playing XI updated: ${playingIds.length} players marked`, count: playingIds.length, source });
       } catch (err: any) {
         console.error("Refresh Playing XI error:", err);
         return res.status(500).json({ message: "Failed to refresh Playing XI" });
