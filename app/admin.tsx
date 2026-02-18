@@ -798,38 +798,58 @@ export default function AdminScreen() {
                       <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
                         locked: {m.isLocked ? 'YES' : 'NO'} | ext_id: {m.hasExternalId ? 'YES' : 'NO'} | start: {m.minutesUntilStart}min
                       </Text>
-                      {(m.status === 'live' || m.status === 'delayed') && (
-                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                          <Pressable
-                            onPress={() => forceSync(m.id)}
-                            disabled={forceSyncing}
-                            style={[styles.debugBtn, { backgroundColor: colors.warning + '15' }]}
-                          >
-                            <Ionicons name="flash" size={14} color={colors.warning} />
-                            <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                              Force Sync
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={async () => {
-                              try {
-                                const res = await apiRequest('POST', `/api/admin/matches/${m.id}/mark-completed`);
-                                const data = await res.json();
-                                setForceSyncResult(data.message || 'Marked as completed');
-                                loadMatchDebug();
-                              } catch (e: any) {
-                                setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
-                              }
-                            }}
-                            style={[styles.debugBtn, { backgroundColor: '#EF444415' }]}
-                          >
-                            <Ionicons name="flag" size={14} color="#EF4444" />
-                            <Text style={[{ color: '#EF4444', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                              Mark Completed
-                            </Text>
-                          </Pressable>
-                        </View>
-                      )}
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                        {(m.status === 'live' || m.status === 'delayed') && (
+                          <>
+                            <Pressable
+                              onPress={() => forceSync(m.id)}
+                              disabled={forceSyncing}
+                              style={[styles.debugBtn, { backgroundColor: colors.warning + '15' }]}
+                            >
+                              <Ionicons name="flash" size={14} color={colors.warning} />
+                              <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                                Force Sync
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={async () => {
+                                try {
+                                  const res = await apiRequest('POST', `/api/admin/matches/${m.id}/mark-completed`);
+                                  const data = await res.json();
+                                  setForceSyncResult(data.message || 'Marked as completed');
+                                  loadMatchDebug();
+                                } catch (e: any) {
+                                  setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
+                                }
+                              }}
+                              style={[styles.debugBtn, { backgroundColor: '#EF444415' }]}
+                            >
+                              <Ionicons name="flag" size={14} color="#EF4444" />
+                              <Text style={[{ color: '#EF4444', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                                Mark Completed
+                              </Text>
+                            </Pressable>
+                          </>
+                        )}
+                        <Pressable
+                          onPress={async () => {
+                            try {
+                              const res = await apiRequest('POST', `/api/admin/matches/${m.id}/purge-points`);
+                              const data = await res.json();
+                              setForceSyncResult(data.message || 'Points purged');
+                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                            } catch (e: any) {
+                              setForceSyncResult('Purge failed: ' + (e.message || 'Unknown error'));
+                            }
+                          }}
+                          style={[styles.debugBtn, { backgroundColor: '#F59E0B15' }]}
+                        >
+                          <Ionicons name="trash-outline" size={14} color="#F59E0B" />
+                          <Text style={[{ color: '#F59E0B', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                            Purge Points
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ))
                 )}

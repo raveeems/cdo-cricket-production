@@ -526,6 +526,9 @@ function setupErrorHandler(app: express.Application) {
                       await storage.updatePlayer(player.id, { points: pts });
                       updated++;
                     }
+                  } else if (player.points !== 0) {
+                    await storage.updatePlayer(player.id, { points: 0 });
+                    updated++;
                   }
                 }
 

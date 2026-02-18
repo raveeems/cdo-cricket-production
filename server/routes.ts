@@ -1234,6 +1234,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: PURGE MATCH POINTS ----
+  app.post(
+    "/api/admin/matches/:id/purge-points",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        let playersReset = 0;
+        for (const p of matchPlayers) {
+          if (p.points !== 0) {
+            await storage.updatePlayer(p.id, { points: 0 });
+            playersReset++;
+          }
+        }
+
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        let teamsReset = 0;
+        for (const t of allTeams) {
+          if ((t.totalPoints || 0) !== 0) {
+            await storage.updateUserTeamPoints(t.id, 0);
+            teamsReset++;
+          }
+        }
+
+        console.log(`[Admin] Purged points for ${match.team1Short} vs ${match.team2Short}: ${playersReset} players, ${teamsReset} teams zeroed`);
+        return res.json({
+          message: `Purged: ${playersReset} players and ${teamsReset} teams reset to 0`,
+          playersReset,
+          teamsReset,
+        });
+      } catch (err: any) {
+        console.error("Purge points error:", err);
+        return res.status(500).json({ message: "Failed to purge points" });
+      }
+    }
+  );
+
   // ---- ADMIN: GET LAST PLAYING XI FOR A TEAM ----
   app.get(
     "/api/admin/teams/:teamShort/last-playing-xi",
