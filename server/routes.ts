@@ -988,7 +988,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // ---- ADMIN: VERIFY MATCH VIA CRICBUZZ ----
+  // ---- ADMIN: VERIFY & SYNC MATCH VIA CRICBUZZ ----
   app.post(
     "/api/admin/matches/:id/verify-cricbuzz",
     isAuthenticated,
@@ -999,11 +999,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
 
-        const { verifyMatch } = await import("./cricbuzz-api");
-        const result = await verifyMatch(
+        const syncScorecard = req.body?.syncScorecard === true;
+
+        const { verifyAndSyncMatch } = await import("./cricbuzz-api");
+        const result = await verifyAndSyncMatch(
+          matchId,
           match.team1Short,
           match.team2Short,
-          match.startTime?.toISOString()
+          match.startTime?.toISOString(),
+          syncScorecard
         );
 
         return res.json({
@@ -1026,23 +1030,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // ---- ADMIN: GET CRICBUZZ SCORECARD ----
-  app.get(
-    "/api/admin/cricbuzz/scorecard/:cricbuzzMatchId",
+  // ---- ADMIN: SYNC SCORECARD FROM CRICBUZZ ----
+  app.post(
+    "/api/admin/matches/:id/sync-cricbuzz-scorecard",
     isAuthenticated,
     isAdmin,
     async (req: Request, res: Response) => {
       try {
-        const cricbuzzMatchId = parseInt(req.params.cricbuzzMatchId);
-        if (isNaN(cricbuzzMatchId)) {
-          return res.status(400).json({ message: "Invalid Cricbuzz match ID" });
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const { findCricbuzzMatch, fetchCricbuzzLiveScorecard } = await import("./cricbuzz-api");
+        const cbMatch = await findCricbuzzMatch(
+          match.team1Short,
+          match.team2Short,
+          match.startTime?.toISOString()
+        );
+
+        if (!cbMatch) {
+          return res.status(404).json({ message: "Match not found on Cricbuzz" });
         }
 
-        const { verifyScorecard } = await import("./cricbuzz-api");
-        const result = await verifyScorecard(cricbuzzMatchId);
-        return res.json(result);
+        const scorecard = await fetchCricbuzzLiveScorecard(cbMatch.matchId);
+        if (!scorecard) {
+          return res.json({ message: "No scorecard data available from Cricbuzz yet", scorecard: null });
+        }
+
+        return res.json({
+          message: "Scorecard fetched from Cricbuzz",
+          scorecard,
+          cricbuzzMatchId: cbMatch.matchId,
+        });
       } catch (err: any) {
-        console.error("Cricbuzz scorecard error:", err);
+        console.error("Cricbuzz scorecard sync error:", err);
+        return res.status(500).json({ message: "Failed to sync Cricbuzz scorecard" });
+      }
+    }
+  );
+
+  // ---- CRICBUZZ LIVE SCORECARD FALLBACK ----
+  app.get(
+    "/api/matches/:id/cricbuzz-scorecard",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      const match = await storage.getMatch(req.params.id);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      try {
+        const { findCricbuzzMatch, fetchCricbuzzLiveScorecard } = await import("./cricbuzz-api");
+        const cbMatch = await findCricbuzzMatch(
+          match.team1Short,
+          match.team2Short,
+          match.startTime?.toISOString()
+        );
+
+        if (!cbMatch) {
+          return res.json({ scorecard: null, message: "Match not found on Cricbuzz" });
+        }
+
+        const scorecard = await fetchCricbuzzLiveScorecard(cbMatch.matchId);
+        if (!scorecard) {
+          return res.json({ scorecard: null, message: "No scorecard data from Cricbuzz yet" });
+        }
+
+        return res.json({ scorecard, source: "cricbuzz" });
+      } catch (err: any) {
+        console.error("Cricbuzz scorecard fallback error:", err);
         return res.status(500).json({ message: "Failed to fetch Cricbuzz scorecard" });
       }
     }
