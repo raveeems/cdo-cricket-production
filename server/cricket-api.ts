@@ -946,39 +946,42 @@ export async function fetchPlayingXIFromScorecard(
 
 export async function fetchMatchScorecard(
   externalMatchId: string
-): Promise<Map<string, number>> {
+): Promise<{ pointsMap: Map<string, number>; namePointsMap: Map<string, number> }> {
   const apiKey = process.env.CRICKET_API_KEY;
   const pointsMap = new Map<string, number>();
-  if (!apiKey) return pointsMap;
+  const namePointsMap = new Map<string, number>();
+  if (!apiKey) return { pointsMap, namePointsMap };
 
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
     const res = await fetch(url);
-    if (!res.ok) return pointsMap;
+    if (!res.ok) return { pointsMap, namePointsMap };
 
     const json = (await res.json()) as CricApiResponse<ScorecardData>;
-    if (json.status !== "success" || !json.data?.scorecard) return pointsMap;
+    if (json.status !== "success" || !json.data?.scorecard) return { pointsMap, namePointsMap };
 
     console.log(`Scorecard API: fetched ${json.data.scorecard.length} innings for match ${externalMatchId}`);
 
-    const allPlayerIds = new Set<string>();
+    const allPlayers = new Map<string, string>();
     for (const inning of json.data.scorecard) {
-      inning.batting?.forEach((b) => allPlayerIds.add(b.batsman?.id));
-      inning.bowling?.forEach((b) => allPlayerIds.add(b.bowler?.id));
-      inning.catching?.forEach((c) => allPlayerIds.add(c.catcher?.id));
+      inning.batting?.forEach((b) => { if (b.batsman?.id) allPlayers.set(b.batsman.id, b.batsman.name || ""); });
+      inning.bowling?.forEach((b) => { if (b.bowler?.id) allPlayers.set(b.bowler.id, b.bowler.name || ""); });
+      inning.catching?.forEach((c) => { if (c.catcher?.id) allPlayers.set(c.catcher.id, c.catcher.name || ""); });
     }
 
-    for (const pid of allPlayerIds) {
-      if (pid) {
-        const pts = calculateFantasyPoints(pid, json.data.scorecard);
-        pointsMap.set(pid, pts);
+    for (const [pid, pname] of allPlayers) {
+      const pts = calculateFantasyPoints(pid, json.data.scorecard);
+      pointsMap.set(pid, pts);
+      if (pname) {
+        const normalizedName = pname.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+        namePointsMap.set(normalizedName, pts);
       }
     }
 
-    return pointsMap;
+    return { pointsMap, namePointsMap };
   } catch (err) {
     console.error("Scorecard API error:", err);
-    return pointsMap;
+    return { pointsMap, namePointsMap };
   }
 }
 

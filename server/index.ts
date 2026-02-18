@@ -428,6 +428,40 @@ function setupErrorHandler(app: express.Application) {
 
       const HEARTBEAT_INTERVAL = 60 * 1000;
 
+      function fuzzyNameMatch(name1: string, name2: string): boolean {
+        if (name1 === name2) return true;
+        if (name1.includes(name2) || name2.includes(name1)) return true;
+        const p1 = name1.split(" ");
+        const p2 = name2.split(" ");
+        if (p1.length > 0 && p2.length > 0) {
+          const last1 = p1[p1.length - 1], last2 = p2[p2.length - 1];
+          if (last1 === last2 && last1.length > 2 && p1[0][0] === p2[0][0]) return true;
+          if (last1.length >= 4 && last2.length >= 4) {
+            let dist = 0;
+            const a = last1, b = last2;
+            const m = a.length, n = b.length;
+            const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+            for (let i = 0; i <= m; i++) dp[i][0] = i;
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+            for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+            dist = dp[m][n];
+            if (dist <= 2 && p1[0][0] === p2[0][0]) return true;
+          }
+          if (p1[0].substring(0,3) === p2[0].substring(0,3) && p1[0].length >= 3) {
+            if (last1.substring(0,3) === last2.substring(0,3)) return true;
+          }
+        }
+        if (name1.length >= 5 && name2.length >= 5) {
+          const a = name1, b = name2, m = a.length, n = b.length;
+          const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+          for (let i = 0; i <= m; i++) dp[i][0] = i;
+          for (let j = 0; j <= n; j++) dp[0][j] = j;
+          for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+          if (dp[m][n] <= 2 && Math.max(m, n) >= 8) return true;
+        }
+        return false;
+      }
+
       async function matchHeartbeat(forcedMatchId?: string) {
         try {
           const allMatches = await storage.getAllMatches();
@@ -449,6 +483,7 @@ function setupErrorHandler(app: express.Application) {
 
             try {
               let pointsMap = new Map<string, number>();
+              let namePointsMap = new Map<string, number>();
               let scoreString = "";
               let source = "";
               let matchEnded = false;
@@ -476,7 +511,9 @@ function setupErrorHandler(app: express.Application) {
 
                 if (!source) {
                   const { fetchMatchScorecard } = await import("./cricket-api");
-                  pointsMap = await fetchMatchScorecard(match.externalId);
+                  const result = await fetchMatchScorecard(match.externalId);
+                  pointsMap = result.pointsMap;
+                  namePointsMap = result.namePointsMap;
                   if (pointsMap.size > 0) source = "CricAPI";
                 }
               }
@@ -520,8 +557,25 @@ function setupErrorHandler(app: express.Application) {
                 const matchPlayers = await storage.getPlayersForMatch(match.id);
                 let updated = 0;
                 for (const player of matchPlayers) {
+                  let pts: number | undefined = undefined;
                   if (player.externalId && pointsMap.has(player.externalId)) {
-                    const pts = pointsMap.get(player.externalId)!;
+                    pts = pointsMap.get(player.externalId)!;
+                  }
+                  if (pts === undefined && namePointsMap.size > 0 && player.name) {
+                    const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+                    if (namePointsMap.has(normName)) {
+                      pts = namePointsMap.get(normName)!;
+                    } else {
+                      for (const [apiName, apiPts] of namePointsMap) {
+                        if (fuzzyNameMatch(apiName, normName)) {
+                          pts = apiPts;
+                          log(`[Heartbeat] Fuzzy matched "${player.name}" -> "${apiName}" (${apiPts} pts)`);
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  if (pts !== undefined) {
                     if (pts !== player.points) {
                       await storage.updatePlayer(player.id, { points: pts });
                       updated++;
