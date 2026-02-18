@@ -1,6 +1,9 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { userTeams } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { fetchUpcomingMatches, fetchSeriesMatches, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -1230,6 +1233,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("Cricbuzz scorecard fallback error:", err);
         return res.status(500).json({ message: "Failed to fetch Cricbuzz scorecard" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/matches/:id/repair-teams",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        if (matchPlayers.length === 0) {
+          return res.json({ message: "No players found for this match", repaired: 0 });
+        }
+
+        const playerById = new Map(matchPlayers.map(p => [p.id, p]));
+        const playerByExtId = new Map(matchPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
+
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        let repaired = 0;
+
+        for (const team of allTeams) {
+          const teamPlayerIds = team.playerIds as string[];
+          let hasOrphans = false;
+          for (const pid of teamPlayerIds) {
+            if (!playerById.has(pid)) {
+              hasOrphans = true;
+              break;
+            }
+          }
+          if (!hasOrphans) continue;
+
+          const newPlayerIds: string[] = [];
+          let newCaptainId = team.captainId;
+          let newViceCaptainId = team.viceCaptainId;
+          const usedPlayerIds = new Set<string>();
+
+          for (const pid of teamPlayerIds) {
+            if (playerById.has(pid)) {
+              newPlayerIds.push(pid);
+              usedPlayerIds.add(pid);
+            } else {
+              const byExt = playerByExtId.get(pid);
+              if (byExt && !usedPlayerIds.has(byExt.id)) {
+                newPlayerIds.push(byExt.id);
+                usedPlayerIds.add(byExt.id);
+                if (pid === team.captainId) newCaptainId = byExt.id;
+                if (pid === team.viceCaptainId) newViceCaptainId = byExt.id;
+              }
+            }
+          }
+
+          if (newPlayerIds.length === teamPlayerIds.length) {
+            await db.update(userTeams)
+              .set({
+                playerIds: newPlayerIds,
+                captainId: newCaptainId,
+                viceCaptainId: newViceCaptainId,
+              })
+              .where(eq(userTeams.id, team.id));
+            repaired++;
+          }
+        }
+
+        return res.json({
+          message: `Repaired ${repaired} teams out of ${allTeams.length}`,
+          repaired,
+          total: allTeams.length,
+        });
+      } catch (err: any) {
+        console.error("Repair teams error:", err);
+        return res.status(500).json({ message: "Failed to repair teams" });
       }
     }
   );

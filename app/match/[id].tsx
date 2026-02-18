@@ -107,14 +107,16 @@ export default function MatchDetailScreen() {
     enabled: !!id,
   });
 
-  const { data: standingsData } = useQuery<{ standings: StandingEntry[]; isLive: boolean }>({
+  const { data: standingsData } = useQuery<{ standings: StandingEntry[]; isLive: boolean; players?: Player[] }>({
     queryKey: ['/api/matches', id, 'standings'],
     enabled: !!id && isLiveOrCompleted,
     refetchInterval: isLiveOrCompleted && matchData?.match?.status !== 'completed' ? 20000 : false,
   });
 
   const match = matchData?.match;
-  const players = playersData?.players || [];
+  const basePlayers = playersData?.players || [];
+  const standingsPlayers = standingsData?.players || [];
+  const players = standingsPlayers.length > 0 ? standingsPlayers : basePlayers;
   const userTeams = id ? getTeamsForMatch(id) : [];
   const scorecard = scorecardData?.scorecard;
   const contestTeams = contestData?.teams || [];
