@@ -324,7 +324,9 @@ function setupErrorHandler(app: express.Application) {
       }, TWO_HOURS);
 
       const recentlyRefreshed = new Map<string, number>();
+      const cricbuzzVerified = new Map<string, number>();
       const FIVE_MINUTES = 5 * 60 * 1000;
+      const TEN_MINUTES = 10 * 60 * 1000;
       const TWENTY_MINUTES = 20 * 60 * 1000;
 
       async function refreshPlayingXI() {
@@ -388,8 +390,54 @@ function setupErrorHandler(app: express.Application) {
         }
       }
 
+      async function cricbuzzAutoVerifyPlayingXI() {
+        try {
+          const allMatches = await storage.getAllMatches();
+          const now = Date.now();
+
+          for (const match of allMatches) {
+            if (match.status === "completed") continue;
+
+            const startMs = new Date(match.startTime).getTime();
+            const timeUntilStart = startMs - now;
+
+            const isNearStart = timeUntilStart <= TEN_MINUTES && timeUntilStart > -TWO_HOURS;
+            const isLive = match.status === "live" || match.status === "delayed";
+
+            if (!isNearStart && !isLive) continue;
+
+            const lastVerify = cricbuzzVerified.get(match.id) || 0;
+            if (now - lastVerify < TEN_MINUTES) continue;
+
+            log(`Cricbuzz auto-verify: ${match.team1Short} vs ${match.team2Short} (starts in ${Math.round(timeUntilStart / 60000)}m)`);
+
+            try {
+              const { autoVerifyPlayingXI } = await import("./cricbuzz-api");
+              const result = await autoVerifyPlayingXI(
+                match.id,
+                match.team1Short,
+                match.team2Short,
+                match.startTime?.toISOString()
+              );
+
+              if (result && result.matched > 0) {
+                log(`Cricbuzz Playing XI verified: ${result.matched} players matched for ${match.team1Short} vs ${match.team2Short}`);
+              }
+
+              cricbuzzVerified.set(match.id, now);
+            } catch (err) {
+              console.error(`Cricbuzz auto-verify failed for ${match.id}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error("Cricbuzz auto-verify scheduler error:", err);
+        }
+      }
+
       setInterval(refreshPlayingXI, FIVE_MINUTES);
+      setInterval(cricbuzzAutoVerifyPlayingXI, FIVE_MINUTES);
       log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
+      log("Cricbuzz auto-verify scheduler started (every 5min, 10min before match)");
     },
   );
 })();
