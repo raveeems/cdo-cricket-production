@@ -100,12 +100,41 @@ export default function MyMatchesScreen() {
                     </Text>
                     <View style={[styles.teamDot, { backgroundColor: match.team2Color }]} />
                   </View>
-                  <View style={styles.timerBadge}>
-                    <Ionicons name="time-outline" size={12} color={colors.accent} />
-                    <Text style={[styles.timerSmall, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
-                      {getTimeUntilMatch(match.startTime)}
-                    </Text>
-                  </View>
+                  {(() => {
+                    const matchStarted = new Date(match.startTime).getTime() <= Date.now();
+                    const effectiveStatus = (match.status === 'delayed' || match.status === 'upcoming') && matchStarted ? 'live' : match.status;
+                    if (effectiveStatus === 'live') {
+                      return (
+                        <View style={[styles.timerBadge, { backgroundColor: '#EF444418', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' }} />
+                          <Text style={[styles.timerSmall, { color: '#EF4444', fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
+                        </View>
+                      );
+                    } else if (effectiveStatus === 'completed') {
+                      return (
+                        <View style={[styles.timerBadge, { backgroundColor: '#22C55E18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
+                          <Ionicons name="checkmark-circle" size={12} color="#22C55E" />
+                          <Text style={[styles.timerSmall, { color: '#22C55E', fontFamily: 'Inter_600SemiBold' }]}>Completed</Text>
+                        </View>
+                      );
+                    } else if (match.status === 'delayed') {
+                      return (
+                        <View style={[styles.timerBadge, { backgroundColor: '#F39C1218', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
+                          <Ionicons name="rainy-outline" size={12} color="#F39C12" />
+                          <Text style={[styles.timerSmall, { color: '#F39C12', fontFamily: 'Inter_600SemiBold' }]}>Delayed</Text>
+                        </View>
+                      );
+                    } else {
+                      return (
+                        <View style={styles.timerBadge}>
+                          <Ionicons name="time-outline" size={12} color={colors.accent} />
+                          <Text style={[styles.timerSmall, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
+                            {getTimeUntilMatch(match.startTime)}
+                          </Text>
+                        </View>
+                      );
+                    }
+                  })()}
                 </View>
 
                 <View style={[styles.teamsListSection, { borderTopColor: colors.border }]}>

@@ -1234,6 +1234,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: MARK MATCH AS COMPLETED ----
+  app.post(
+    "/api/admin/matches/:id/mark-completed",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (match.status === "completed") {
+          return res.json({ message: "Match is already completed" });
+        }
+        await storage.updateMatch(matchId, { status: "completed" });
+        console.log(`[Admin] Match ${(match as any).team1Short} vs ${(match as any).team2Short} manually marked as completed`);
+        return res.json({ message: `${(match as any).team1Short} vs ${(match as any).team2Short} marked as completed` });
+      } catch (err: any) {
+        console.error("Mark completed error:", err);
+        return res.status(500).json({ message: "Failed to mark match as completed" });
+      }
+    }
+  );
+
   // ---- DEBUG: FORCE SYNC (Admin only) ----
   app.post(
     "/api/debug/force-sync",

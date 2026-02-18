@@ -460,10 +460,15 @@ function setupErrorHandler(app: express.Application) {
                   if (liveData && liveData.score && liveData.score.length > 0) {
                     source = "CricAPI";
                     scoreString = liveData.score.map(s => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
-                    matchEnded = liveData.status?.toLowerCase().includes("won") || 
-                                 liveData.status?.toLowerCase().includes("draw") ||
-                                 liveData.status?.toLowerCase().includes("tied") || false;
+                    const lcStatus = (liveData.status || "").toLowerCase();
+                    matchEnded = lcStatus.includes("won") || lcStatus.includes("draw") ||
+                                 lcStatus.includes("tied") || lcStatus.includes("finished") ||
+                                 lcStatus.includes("ended") || lcStatus.includes("result") ||
+                                 lcStatus.includes("aban") || lcStatus.includes("no result") ||
+                                 lcStatus.includes("d/l") || lcStatus.includes("dls");
                     if (liveData.status && !matchEnded) {
+                      scoreString += ` — ${liveData.status}`;
+                    } else if (liveData.status && matchEnded) {
                       scoreString += ` — ${liveData.status}`;
                     }
                   }
@@ -484,10 +489,15 @@ function setupErrorHandler(app: express.Application) {
                 if (scData && scData.score && scData.score.length > 0) {
                   source = "api-cricket.com";
                   scoreString = scData.score.map((s: any) => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
-                  matchEnded = scData.status?.toLowerCase().includes("won") ||
-                               scData.status?.toLowerCase().includes("draw") ||
-                               scData.status?.toLowerCase().includes("tied") || false;
+                  const lcStatus2 = (scData.status || "").toLowerCase();
+                  matchEnded = lcStatus2.includes("won") || lcStatus2.includes("draw") ||
+                               lcStatus2.includes("tied") || lcStatus2.includes("finished") ||
+                               lcStatus2.includes("ended") || lcStatus2.includes("result") ||
+                               lcStatus2.includes("aban") || lcStatus2.includes("no result") ||
+                               lcStatus2.includes("d/l") || lcStatus2.includes("dls");
                   if (scData.status && !matchEnded) {
+                    scoreString += ` — ${scData.status}`;
+                  } else if (scData.status && matchEnded) {
                     scoreString += ` — ${scData.status}`;
                   }
                 }

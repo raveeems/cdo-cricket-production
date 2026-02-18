@@ -74,9 +74,10 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
             </Text>
           </View>
         ) : effectiveStatus === 'completed' ? (
-          <View style={[styles.statusBadge, { backgroundColor: colors.textTertiary + '18' }]}>
-            <Text style={[styles.statusText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
-              Done
+          <View style={[styles.statusBadge, { backgroundColor: '#22C55E18' }]}>
+            <Ionicons name="checkmark-circle" size={11} color="#22C55E" style={{ marginRight: 3 }} />
+            <Text style={[styles.statusText, { color: '#22C55E', fontFamily: 'Inter_600SemiBold' }]}>
+              Completed
             </Text>
           </View>
         ) : (
