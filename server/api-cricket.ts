@@ -198,6 +198,11 @@ function extractLineups(match: ApiCricketEvent): { homeXI: string[]; awayXI: str
     return null;
   }
 
+  if (homeLineups.length > 11 || awayLineups.length > 11) {
+    console.log(`api-cricket.com: full squad returned (${homeLineups.length} + ${awayLineups.length}), not confirmed Playing XI — skipping`);
+    return null;
+  }
+
   const homeXI = homeLineups.map(p => p.player);
   const awayXI = awayLineups.map(p => p.player);
 
