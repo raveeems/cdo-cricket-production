@@ -291,7 +291,7 @@ const pitchStyles = StyleSheet.create({
   },
   cvBadgeText: {
     fontSize: 9,
-    fontFamily: 'Inter_800ExtraBold',
+    fontFamily: 'Inter_700Bold',
   },
   namePill: {
     backgroundColor: 'rgba(0,0,0,0.7)',

@@ -24,8 +24,10 @@ import {
   getRoleLabel,
 } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
+import TeamPitchView from '@/components/TeamPitchView';
+import type { PitchPlayer } from '@/components/TeamPitchView';
 
-type Step = 'select' | 'captain' | 'preview';
+type Step = 'select' | 'captain' | 'preview' | 'success';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
 
 const ROLE_LIMITS = {
@@ -334,7 +336,7 @@ export default function CreateTeamScreen() {
         });
       }
 
-      router.back();
+      setStep('success');
     } catch (e) {
       console.error('Save team error:', e);
     } finally {
@@ -368,7 +370,7 @@ export default function CreateTeamScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'captain' ? 'Choose C & VC' : 'Team Preview'}
+          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Team Saved!' : 'Team Preview'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -703,6 +705,59 @@ export default function CreateTeamScreen() {
           </View>
         </>
       )}
+
+      {step === 'success' && (() => {
+        const pitchPlayers: PitchPlayer[] = selectedPlayers.map(p => ({
+          id: p.id,
+          name: p.name,
+          role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
+          points: p.points || 0,
+          teamShort: p.teamShort,
+        }));
+        return (
+          <>
+            <ScrollView
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, paddingTop: 12 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#22C55E20', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+                  <Ionicons name="checkmark-circle" size={40} color="#22C55E" />
+                </View>
+                <Text style={{ color: colors.text, fontSize: 18, fontFamily: 'Inter_700Bold' as const }}>
+                  {isEditMode ? 'Team Updated!' : 'Team Created!'}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, marginTop: 4 }}>
+                  {match?.team1Short} vs {match?.team2Short}
+                </Text>
+              </View>
+              <TeamPitchView
+                players={pitchPlayers}
+                captainId={captainId}
+                viceCaptainId={vcId}
+              />
+            </ScrollView>
+            <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+              <Pressable
+                onPress={() => router.back()}
+                style={[styles.saveBtn, { flex: 1 }]}
+              >
+                <LinearGradient
+                  colors={[colors.accent, colors.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.saveBtnGradient}
+                >
+                  <Ionicons name="home" size={20} color="#000" />
+                  <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                    Back to Match
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </>
+        );
+      })()}
     </View>
   );
 }
