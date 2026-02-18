@@ -18,6 +18,7 @@ import { useTeams } from '@/contexts/TeamContext';
 import { getTimeUntilMatch, canEditTeam, getRoleColor, Match, Player, ContestTeam } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
+import { getApiUrl } from '@/lib/query-client';
 
 type TabKey = 'overview' | 'scorecard' | 'players' | 'participants';
 
@@ -64,6 +65,8 @@ export default function MatchDetailScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [selectedInning, setSelectedInning] = useState(0);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<any>(null);
 
   const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
@@ -140,6 +143,23 @@ export default function MatchDetailScreen() {
   const canCreateMore = userTeams.length < 3;
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  const handleVerifyCricbuzz = async () => {
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/matches/${match.id}/verify-cricbuzz`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      setVerifyResult(data);
+    } catch (err) {
+      setVerifyResult({ error: 'Failed to connect to Cricbuzz API' });
+    }
+    setVerifying(false);
+  };
 
   const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { key: 'overview', label: 'Overview', icon: 'grid-outline' },
@@ -284,6 +304,79 @@ export default function MatchDetailScreen() {
           <Text style={[styles.deadlineText, { color: colors.error, fontFamily: 'Inter_500Medium' }]}>
             Entry deadline has passed
           </Text>
+        </View>
+      )}
+
+      {user?.isAdmin && (
+        <View style={[styles.adminSection, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
+          <View style={styles.adminHeader}>
+            <Ionicons name="shield-checkmark" size={18} color={colors.accent} />
+            <Text style={[styles.adminTitle, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
+              Admin Verification
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              handleVerifyCricbuzz();
+            }}
+            disabled={verifying}
+            style={[styles.verifyBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}
+          >
+            {verifying ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="checkmark-circle-outline" size={18} color={colors.primary} />
+            )}
+            <Text style={[styles.verifyBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+              {verifying ? 'Verifying...' : 'Verify via Cricbuzz'}
+            </Text>
+          </Pressable>
+
+          {verifyResult && (
+            <View style={[styles.verifyResultBox, { backgroundColor: isDark ? '#1a1a2e' : '#f0f4ff', borderColor: colors.border }]}>
+              {verifyResult.error ? (
+                <Text style={[styles.verifyError, { color: colors.error, fontFamily: 'Inter_500Medium' }]}>
+                  {verifyResult.error}
+                </Text>
+              ) : verifyResult.verification?.found ? (
+                <>
+                  <View style={styles.verifyRow}>
+                    <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+                    <Text style={[styles.verifyLabel, { color: '#22c55e', fontFamily: 'Inter_600SemiBold' }]}>
+                      Match found on Cricbuzz
+                    </Text>
+                  </View>
+                  <View style={styles.verifyDetails}>
+                    <Text style={[styles.verifyDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                      {verifyResult.verification.team1} vs {verifyResult.verification.team2}
+                    </Text>
+                    {verifyResult.verification.venue && (
+                      <Text style={[styles.verifyDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                        Venue: {verifyResult.verification.venue}
+                      </Text>
+                    )}
+                    <Text style={[styles.verifyDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                      Status: {verifyResult.verification.statusText || verifyResult.verification.status}
+                    </Text>
+                    {verifyResult.verification.startDate && (
+                      <Text style={[styles.verifyDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                        Start: {new Date(verifyResult.verification.startDate).toLocaleString()}
+                      </Text>
+                    )}
+                  </View>
+                </>
+              ) : (
+                <View style={styles.verifyRow}>
+                  <Ionicons name="close-circle" size={16} color={colors.error} />
+                  <Text style={[styles.verifyLabel, { color: colors.error, fontFamily: 'Inter_600SemiBold' }]}>
+                    Match not found on Cricbuzz
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -1367,5 +1460,59 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 4,
+  },
+  adminSection: {
+    marginTop: 20,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+  },
+  adminHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  adminTitle: {
+    fontSize: 14,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 1,
+  },
+  verifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  verifyBtnText: {
+    fontSize: 14,
+  },
+  verifyResultBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  verifyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  verifyLabel: {
+    fontSize: 13,
+  },
+  verifyDetails: {
+    marginTop: 8,
+    gap: 4,
+  },
+  verifyDetailText: {
+    fontSize: 12,
+  },
+  verifyError: {
+    fontSize: 13,
   },
 });
