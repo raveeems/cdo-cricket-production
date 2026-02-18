@@ -805,37 +805,35 @@ export default function AdminScreen() {
                         locked: {m.isLocked ? 'YES' : 'NO'} | ext_id: {m.hasExternalId ? 'YES' : 'NO'} | start: {m.minutesUntilStart}min
                       </Text>
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                        <Pressable
+                          onPress={() => forceSync(m.id)}
+                          disabled={forceSyncing}
+                          style={[styles.debugBtn, { backgroundColor: colors.warning + '15' }]}
+                        >
+                          <Ionicons name="flash" size={14} color={colors.warning} />
+                          <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                            {m.status === 'upcoming' ? 'Sync Squad' : 'Force Sync'}
+                          </Text>
+                        </Pressable>
                         {(m.status === 'live' || m.status === 'delayed') && (
-                          <>
-                            <Pressable
-                              onPress={() => forceSync(m.id)}
-                              disabled={forceSyncing}
-                              style={[styles.debugBtn, { backgroundColor: colors.warning + '15' }]}
-                            >
-                              <Ionicons name="flash" size={14} color={colors.warning} />
-                              <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                                Force Sync
-                              </Text>
-                            </Pressable>
-                            <Pressable
-                              onPress={async () => {
-                                try {
-                                  const res = await apiRequest('POST', `/api/admin/matches/${m.id}/mark-completed`);
-                                  const data = await res.json();
-                                  setForceSyncResult(data.message || 'Marked as completed');
-                                  loadMatchDebug();
-                                } catch (e: any) {
-                                  setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
-                                }
-                              }}
-                              style={[styles.debugBtn, { backgroundColor: '#EF444415' }]}
-                            >
-                              <Ionicons name="flag" size={14} color="#EF4444" />
-                              <Text style={[{ color: '#EF4444', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                                Mark Completed
-                              </Text>
-                            </Pressable>
-                          </>
+                          <Pressable
+                            onPress={async () => {
+                              try {
+                                const res = await apiRequest('POST', `/api/admin/matches/${m.id}/mark-completed`);
+                                const data = await res.json();
+                                setForceSyncResult(data.message || 'Marked as completed');
+                                loadMatchDebug();
+                              } catch (e: any) {
+                                setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
+                              }
+                            }}
+                            style={[styles.debugBtn, { backgroundColor: '#EF444415' }]}
+                          >
+                            <Ionicons name="flag" size={14} color="#EF4444" />
+                            <Text style={[{ color: '#EF4444', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                              Mark Completed
+                            </Text>
+                          </Pressable>
                         )}
                         <Pressable
                           onPress={async () => {

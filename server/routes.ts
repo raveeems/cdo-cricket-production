@@ -1507,11 +1507,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       const matchId = req.body?.matchId as string | undefined;
       try {
+        console.log(`[Force Sync] Admin triggered manual sync${matchId ? ` for match ${matchId}` : ' for all live matches'}`);
+
+        if (matchId) {
+          const match = await storage.getMatch(matchId);
+          if (!match) {
+            return res.status(404).json({ message: "Match not found" });
+          }
+
+          if (match.status === "upcoming" || match.status === "delayed") {
+            const { fetchMatchSquad, fetchSeriesSquad } = await import("./cricket-api");
+            let squad = await fetchMatchSquad(match.externalId!);
+            console.log(`[Force Sync] Match squad API returned ${squad.length} players for ${match.team1Short} vs ${match.team2Short}`);
+
+            if (squad.length === 0 && match.seriesId) {
+              console.log(`[Force Sync] Match squad empty, trying tournament/series squad for series ${match.seriesId}...`);
+              const seriesPlayers = await fetchSeriesSquad(match.seriesId);
+              const team1 = match.team1.toLowerCase();
+              const team2 = match.team2.toLowerCase();
+              const t1Short = match.team1Short.toLowerCase();
+              const t2Short = match.team2Short.toLowerCase();
+              squad = seriesPlayers.filter((p) => {
+                const pTeam = p.team.toLowerCase();
+                const pShort = p.teamShort.toLowerCase();
+                return pTeam === team1 || pTeam === team2 ||
+                  pTeam.includes(team1) || team1.includes(pTeam) ||
+                  pTeam.includes(team2) || team2.includes(pTeam) ||
+                  pShort === t1Short || pShort === t2Short;
+              });
+              console.log(`[Force Sync] Tournament squad: filtered ${squad.length} players for ${match.team1} vs ${match.team2} from ${seriesPlayers.length} total`);
+            }
+
+            if (squad.length === 0) {
+              try {
+                const apiCricket = await import("./api-cricket");
+                if (typeof apiCricket.fetchSquadFromApiCricket === 'function') {
+                  const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+                  const tier2Squad = await apiCricket.fetchSquadFromApiCricket(match.team1Short, match.team2Short, matchDateStr);
+                  if (tier2Squad.length > 0) {
+                    squad = tier2Squad;
+                    console.log(`[Force Sync] Tier 2 (api-cricket.com) returned ${squad.length} players`);
+                  }
+                }
+              } catch (e) {
+                console.log(`[Force Sync] Tier 2 squad fetch not available or failed`);
+              }
+            }
+
+            if (squad.length > 0) {
+              const playersToCreate = squad.map((p) => ({
+                matchId,
+                externalId: p.externalId,
+                name: p.name,
+                team: p.team,
+                teamShort: p.teamShort,
+                role: p.role,
+                credits: p.credits,
+              }));
+              await storage.upsertPlayersForMatch(matchId, playersToCreate);
+              const matchPlayers = await storage.getPlayersForMatch(matchId);
+              return res.json({
+                message: `Squad synced: ${matchPlayers.length} players loaded for ${match.team1Short} vs ${match.team2Short}`,
+                match: {
+                  id: match.id,
+                  teams: `${match.team1Short} vs ${match.team2Short}`,
+                  status: match.status,
+                },
+                totalPlayers: matchPlayers.length,
+                teamsCount: 0,
+              });
+            } else {
+              return res.json({
+                message: `No squad data found for ${match.team1Short} vs ${match.team2Short}. The API may not have squads for this match yet.`,
+                totalPlayers: 0,
+              });
+            }
+          }
+        }
+
         const heartbeat = (globalThis as any).__matchHeartbeat;
         if (!heartbeat) {
           return res.status(500).json({ message: "Heartbeat not initialized" });
         }
-        console.log(`[Force Sync] Admin triggered manual sync${matchId ? ` for match ${matchId}` : ' for all live matches'}`);
         await heartbeat(matchId);
         
         if (matchId) {
