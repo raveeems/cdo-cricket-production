@@ -66,6 +66,7 @@ export default function MatchDetailScreen() {
   const [selectedInning, setSelectedInning] = useState(0);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [syncingScorecard, setSyncingScorecard] = useState(false);
   const [verifyResult, setVerifyResult] = useState<any>(null);
 
   const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
@@ -144,14 +145,19 @@ export default function MatchDetailScreen() {
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
-  const handleVerifyCricbuzz = async () => {
-    setVerifying(true);
+  const handleVerifyCricbuzz = async (syncScorecard = false) => {
+    if (syncScorecard) {
+      setSyncingScorecard(true);
+    } else {
+      setVerifying(true);
+    }
     setVerifyResult(null);
     try {
       const res = await fetch(`${getApiUrl()}/api/admin/matches/${match.id}/verify-cricbuzz`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ syncScorecard }),
       });
       const data = await res.json();
       setVerifyResult(data);
@@ -159,6 +165,7 @@ export default function MatchDetailScreen() {
       setVerifyResult({ error: 'Failed to connect to Cricbuzz API' });
     }
     setVerifying(false);
+    setSyncingScorecard(false);
   };
 
   const tabs: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -312,27 +319,47 @@ export default function MatchDetailScreen() {
           <View style={styles.adminHeader}>
             <Ionicons name="shield-checkmark" size={18} color={colors.accent} />
             <Text style={[styles.adminTitle, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
-              Admin Verification
+              Admin - Cricbuzz Verify
             </Text>
           </View>
 
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              handleVerifyCricbuzz();
-            }}
-            disabled={verifying}
-            style={[styles.verifyBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}
-          >
-            {verifying ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Ionicons name="checkmark-circle-outline" size={18} color={colors.primary} />
-            )}
-            <Text style={[styles.verifyBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-              {verifying ? 'Verifying...' : 'Verify via Cricbuzz'}
-            </Text>
-          </Pressable>
+          <View style={styles.adminBtnRow}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                handleVerifyCricbuzz(false);
+              }}
+              disabled={verifying || syncingScorecard}
+              style={[styles.verifyBtn, { flex: 1, backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}
+            >
+              {verifying ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name="people" size={16} color={colors.primary} />
+              )}
+              <Text style={[styles.verifyBtnText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                {verifying ? 'Checking...' : 'Verify XI'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                handleVerifyCricbuzz(true);
+              }}
+              disabled={verifying || syncingScorecard}
+              style={[styles.verifyBtn, { flex: 1, backgroundColor: colors.accent + '15', borderColor: colors.accent + '40' }]}
+            >
+              {syncingScorecard ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <Ionicons name="stats-chart" size={16} color={colors.accent} />
+              )}
+              <Text style={[styles.verifyBtnText, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
+                {syncingScorecard ? 'Syncing...' : 'Sync Scorecard'}
+              </Text>
+            </Pressable>
+          </View>
 
           {verifyResult && (
             <View style={[styles.verifyResultBox, { backgroundColor: isDark ? '#1a1a2e' : '#f0f4ff', borderColor: colors.border }]}>
@@ -366,6 +393,45 @@ export default function MatchDetailScreen() {
                       </Text>
                     )}
                   </View>
+
+                  {verifyResult.verification.playingXI && (
+                    <View style={[styles.verifySubSection, { borderTopColor: colors.border }]}>
+                      <View style={styles.verifyRow}>
+                        <Ionicons
+                          name={verifyResult.verification.playingXI.matched > 0 ? "checkmark-circle" : "information-circle"}
+                          size={16}
+                          color={verifyResult.verification.playingXI.matched > 0 ? "#22c55e" : colors.accent}
+                        />
+                        <Text style={[styles.verifyLabel, {
+                          color: verifyResult.verification.playingXI.matched > 0 ? "#22c55e" : colors.accent,
+                          fontFamily: 'Inter_600SemiBold'
+                        }]}>
+                          Playing XI: {verifyResult.verification.playingXI.matched} players matched
+                        </Text>
+                      </View>
+                      {verifyResult.verification.playingXI.playerNames?.length > 0 && (
+                        <Text style={[styles.verifyDetailText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular', marginTop: 4 }]}>
+                          {verifyResult.verification.playingXI.playerNames.join(', ')}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
+                  {verifyResult.verification.scorecardSynced && (
+                    <View style={[styles.verifySubSection, { borderTopColor: colors.border }]}>
+                      <View style={styles.verifyRow}>
+                        <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+                        <Text style={[styles.verifyLabel, { color: '#22c55e', fontFamily: 'Inter_600SemiBold' }]}>
+                          Scorecard synced from Cricbuzz
+                        </Text>
+                      </View>
+                      {verifyResult.verification.scorecard?.innings?.map((inn: any, i: number) => (
+                        <Text key={i} style={[styles.verifyDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginTop: 2 }]}>
+                          {inn.inning}: {inn.batting?.length || 0} batters, {inn.bowling?.length || 0} bowlers
+                        </Text>
+                      ))}
+                    </View>
+                  )}
                 </>
               ) : (
                 <View style={styles.verifyRow}>
@@ -1472,6 +1538,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
+  },
+  adminBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  verifySubSection: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
   },
   adminTitle: {
     fontSize: 14,
