@@ -823,11 +823,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .json({ message: "Captain and Vice-Captain required" });
         }
 
+        const matchPlayers = await storage.getPlayersByMatch(matchId);
+        const playerMap = new Map(matchPlayers.map(p => [p.id, p]));
+        const roleCounts: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const teamPlayerCounts: Record<string, number> = {};
+        for (const pid of playerIds) {
+          const p = playerMap.get(pid);
+          if (p) {
+            roleCounts[p.role] = (roleCounts[p.role] || 0) + 1;
+            const ts = p.teamShort || '';
+            teamPlayerCounts[ts] = (teamPlayerCounts[ts] || 0) + 1;
+          }
+        }
+        const ROLE_LIMITS: Record<string, { min: number; max: number }> = {
+          WK: { min: 1, max: 4 }, BAT: { min: 1, max: 6 },
+          AR: { min: 1, max: 4 }, BOWL: { min: 1, max: 4 },
+        };
+        for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
+          const count = roleCounts[role] || 0;
+          if (count < limits.min || count > limits.max) {
+            return res.status(400).json({ message: `You must select between ${limits.min}-${limits.max} ${role}s` });
+          }
+        }
+        for (const [team, count] of Object.entries(teamPlayerCounts)) {
+          if (count > 10) {
+            return res.status(400).json({ message: "You can only select a maximum of 10 players from one team." });
+          }
+        }
+
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           const sortedExisting = [...(et.playerIds || [])].sort();
-          if (sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i])) {
-            return res.status(400).json({ message: "You already have a team with the same players" });
+          const samePlayerIds = sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i]);
+          if (samePlayerIds && et.captainId === captainId && et.viceCaptainId === viceCaptainId) {
+            return res.status(400).json({ message: "You have already created this exact team. Please change at least one player or the Captain/VC." });
           }
         }
 
@@ -881,13 +910,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Captain and Vice-Captain required" });
         }
 
+        const matchPlayers = await storage.getPlayersByMatch(team.matchId);
+        const playerMap = new Map(matchPlayers.map(p => [p.id, p]));
+        const roleCounts: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const teamPlayerCounts: Record<string, number> = {};
+        for (const pid of playerIds) {
+          const p = playerMap.get(pid);
+          if (p) {
+            roleCounts[p.role] = (roleCounts[p.role] || 0) + 1;
+            const ts = p.teamShort || '';
+            teamPlayerCounts[ts] = (teamPlayerCounts[ts] || 0) + 1;
+          }
+        }
+        const ROLE_LIMITS: Record<string, { min: number; max: number }> = {
+          WK: { min: 1, max: 4 }, BAT: { min: 1, max: 6 },
+          AR: { min: 1, max: 4 }, BOWL: { min: 1, max: 4 },
+        };
+        for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
+          const count = roleCounts[role] || 0;
+          if (count < limits.min || count > limits.max) {
+            return res.status(400).json({ message: `You must select between ${limits.min}-${limits.max} ${role}s` });
+          }
+        }
+        for (const [t, count] of Object.entries(teamPlayerCounts)) {
+          if (count > 10) {
+            return res.status(400).json({ message: "You can only select a maximum of 10 players from one team." });
+          }
+        }
+
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId!, team.matchId);
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           if (et.id === team.id) continue;
           const sortedExisting = [...(et.playerIds || [])].sort();
-          if (sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id: string, i: number) => id === sortedExisting[i])) {
-            return res.status(400).json({ message: "You already have a team with the same players" });
+          const samePlayerIds = sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id: string, i: number) => id === sortedExisting[i]);
+          if (samePlayerIds && et.captainId === captainId && et.viceCaptainId === viceCaptainId) {
+            return res.status(400).json({ message: "You have already created this exact team. Please change at least one player or the Captain/VC." });
           }
         }
 

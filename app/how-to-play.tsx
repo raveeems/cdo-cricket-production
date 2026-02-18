@@ -70,16 +70,16 @@ const otherPoints: PointRow[] = [
 
 const steps = [
   { icon: 'calendar-outline' as const, title: 'Select a Match', desc: 'Browse upcoming matches and pick the one you want to play.' },
-  { icon: 'people-outline' as const, title: 'Pick 11 Players', desc: 'Build your dream team by selecting 11 players from both squads.' },
+  { icon: 'people-outline' as const, title: 'Pick 11 Players', desc: 'Select 11 players within the credit limit. Max 10 players from a single team.' },
   { icon: 'star-outline' as const, title: 'Choose C & VC', desc: 'Pick a Captain (2x points) and Vice Captain (1.5x points).' },
   { icon: 'checkmark-circle-outline' as const, title: 'Submit Before Deadline', desc: 'Lock in your team before the match starts. You can create up to 3 teams.' },
 ];
 
 const teamRules = [
   { role: 'WK', label: 'Wicket-Keepers', range: '1 - 4' },
-  { role: 'BAT', label: 'Batsmen', range: '3 - 6' },
+  { role: 'BAT', label: 'Batsmen', range: '1 - 6' },
   { role: 'AR', label: 'All-Rounders', range: '1 - 4' },
-  { role: 'BOWL', label: 'Bowlers', range: '3 - 6' },
+  { role: 'BOWL', label: 'Bowlers', range: '1 - 4' },
 ];
 
 export default function HowToPlayScreen() {
@@ -213,13 +213,25 @@ export default function HowToPlayScreen() {
               <View style={styles.ruleFooterItem}>
                 <Ionicons name="people" size={16} color={colors.primary} />
                 <Text style={[styles.ruleFooterText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
-                  Max 11 players per team
+                  Select 11 players per team
+                </Text>
+              </View>
+              <View style={styles.ruleFooterItem}>
+                <Ionicons name="shield" size={16} color={colors.error} />
+                <Text style={[styles.ruleFooterText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+                  Max 10 players from a single team
                 </Text>
               </View>
               <View style={styles.ruleFooterItem}>
                 <MaterialCommunityIcons name="cricket" size={16} color={colors.accent} />
                 <Text style={[styles.ruleFooterText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
                   Max 3 teams per match
+                </Text>
+              </View>
+              <View style={styles.ruleFooterItem}>
+                <Ionicons name="copy" size={16} color={colors.warning} />
+                <Text style={[styles.ruleFooterText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+                  No duplicate teams (same players + same C/VC)
                 </Text>
               </View>
             </View>
