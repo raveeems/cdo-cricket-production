@@ -81,6 +81,8 @@ export default function MatchDetailScreen() {
   const [verifying, setVerifying] = useState(false);
   const [syncingScorecard, setSyncingScorecard] = useState(false);
   const [verifyResult, setVerifyResult] = useState<any>(null);
+  const [repairingTeams, setRepairingTeams] = useState(false);
+  const [repairResult, setRepairResult] = useState<string | null>(null);
 
   const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
@@ -170,9 +172,6 @@ export default function MatchDetailScreen() {
   const canCreateMore = userTeams.length < 3;
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-
-  const [repairingTeams, setRepairingTeams] = useState(false);
-  const [repairResult, setRepairResult] = useState<string | null>(null);
 
   const handleRepairTeams = async () => {
     if (!match) return;

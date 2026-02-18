@@ -250,6 +250,31 @@ var init_storage = __esm({
         if (data.length === 0) return;
         await db.insert(players).values(data);
       }
+      async upsertPlayersForMatch(matchId, data) {
+        if (data.length === 0) return;
+        const existing = await this.getPlayersForMatch(matchId);
+        const existingByExtId = new Map(existing.filter((p) => p.externalId).map((p) => [p.externalId, p]));
+        const existingByName = new Map(existing.map((p) => [`${p.name.toLowerCase()}__${p.teamShort.toLowerCase()}`, p]));
+        const toInsert = [];
+        for (const p of data) {
+          const found = p.externalId && existingByExtId.get(p.externalId) || existingByName.get(`${p.name.toLowerCase()}__${p.teamShort.toLowerCase()}`);
+          if (found) {
+            const updates = {};
+            if (p.externalId && !found.externalId) updates.externalId = p.externalId;
+            if (p.role && p.role !== found.role) updates.role = p.role;
+            if (p.credits !== void 0 && p.credits !== found.credits) updates.credits = p.credits;
+            if (p.team && p.team !== found.team) updates.team = p.team;
+            if (Object.keys(updates).length > 0) {
+              await this.updatePlayer(found.id, updates);
+            }
+          } else {
+            toInsert.push(p);
+          }
+        }
+        if (toInsert.length > 0) {
+          await db.insert(players).values(toInsert);
+        }
+      }
       async deletePlayersForMatch(matchId) {
         await db.delete(players).where(eq(players.matchId, matchId));
       }
@@ -331,6 +356,8 @@ __export(cricket_api_exports, {
   fetchMatchScorecard: () => fetchMatchScorecard,
   fetchMatchSquad: () => fetchMatchSquad,
   fetchPlayingXI: () => fetchPlayingXI,
+  fetchPlayingXIFromMatchInfo: () => fetchPlayingXIFromMatchInfo,
+  fetchPlayingXIFromScorecard: () => fetchPlayingXIFromScorecard,
   fetchSeriesMatches: () => fetchSeriesMatches,
   fetchSeriesSquad: () => fetchSeriesSquad,
   fetchUpcomingMatches: () => fetchUpcomingMatches,
@@ -793,6 +820,34 @@ async function fetchSeriesSquad(seriesId) {
     return [];
   }
 }
+async function fetchPlayingXIFromMatchInfo(externalMatchId) {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return [];
+  try {
+    const url = `${CRICKET_API_BASE}/match_info?apikey=${apiKey}&id=${externalMatchId}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (json.status !== "success" || !json.data) return [];
+    const playerIds = [];
+    if (json.data.teamInfo) {
+      for (const team of json.data.teamInfo) {
+        if (team.playing11 && Array.isArray(team.playing11)) {
+          for (const p of team.playing11) {
+            if (p.id) playerIds.push(p.id);
+          }
+        }
+      }
+    }
+    if (playerIds.length > 0) {
+      console.log(`Playing XI from match_info: ${playerIds.length} players for ${externalMatchId}`);
+    }
+    return playerIds;
+  } catch (err) {
+    console.error("match_info Playing XI error:", err);
+    return [];
+  }
+}
 async function fetchMatchSquad(externalMatchId) {
   const apiKey = process.env.CRICKET_API_KEY;
   if (!apiKey) return [];
@@ -868,6 +923,36 @@ function calculateFantasyPoints(playerId, scorecard) {
     }
   }
   return points;
+}
+async function fetchPlayingXIFromScorecard(externalMatchId) {
+  const apiKey = process.env.CRICKET_API_KEY;
+  if (!apiKey) return [];
+  try {
+    const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (json.status !== "success" || !json.data?.scorecard) return [];
+    const playerIds = /* @__PURE__ */ new Set();
+    for (const inning of json.data.scorecard) {
+      inning.batting?.forEach((b) => {
+        if (b.batsman?.id) playerIds.add(b.batsman.id);
+      });
+      inning.bowling?.forEach((b) => {
+        if (b.bowler?.id) playerIds.add(b.bowler.id);
+      });
+      inning.catching?.forEach((c) => {
+        if (c.catcher?.id) playerIds.add(c.catcher.id);
+      });
+    }
+    if (playerIds.size > 0) {
+      console.log(`Playing XI from scorecard: ${playerIds.size} players for ${externalMatchId}`);
+    }
+    return Array.from(playerIds);
+  } catch (err) {
+    console.error("Scorecard Playing XI error:", err);
+    return [];
+  }
 }
 async function fetchMatchScorecard(externalMatchId) {
   const apiKey = process.env.CRICKET_API_KEY;
@@ -992,6 +1077,316 @@ var init_cricket_api = __esm({
   }
 });
 
+// server/api-cricket.ts
+var api_cricket_exports = {};
+__export(api_cricket_exports, {
+  calculatePointsFromApiCricket: () => calculatePointsFromApiCricket,
+  fetchApiCricketLineups: () => fetchApiCricketLineups,
+  fetchApiCricketScorecard: () => fetchApiCricketScorecard,
+  fetchApiCricketT20WCMatches: () => fetchApiCricketT20WCMatches,
+  markPlayingXIFromApiCricket: () => markPlayingXIFromApiCricket
+});
+async function apiCricketFetch(params) {
+  const apiKey = process.env.API_CRICKET_KEY;
+  if (!apiKey) {
+    console.log("API_CRICKET_KEY not set, skipping api-cricket.com");
+    return null;
+  }
+  const url = new URL(API_CRICKET_BASE);
+  url.searchParams.set("APIkey", apiKey);
+  for (const [k, v] of Object.entries(params)) {
+    url.searchParams.set(k, v);
+  }
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      console.log(`api-cricket.com error: ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    if (data.error === "1" || data.success !== 1) {
+      console.log("api-cricket.com API error:", JSON.stringify(data.result?.[0] || data));
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error("api-cricket.com fetch error:", err);
+    return null;
+  }
+}
+function normalizePlayerName(name) {
+  return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
+function playerNameMatch(apiName, dbName) {
+  const n1 = normalizePlayerName(apiName);
+  const n2 = normalizePlayerName(dbName);
+  if (n1 === n2) return true;
+  const parts1 = n1.split(" ");
+  const parts2 = n2.split(" ");
+  if (parts1.length > 0 && parts2.length > 0) {
+    const lastName1 = parts1[parts1.length - 1];
+    const lastName2 = parts2[parts2.length - 1];
+    if (lastName1 === lastName2 && lastName1.length > 2) {
+      if (parts1[0][0] === parts2[0][0]) return true;
+    }
+  }
+  if (n1.includes(n2) || n2.includes(n1)) return true;
+  return false;
+}
+async function fetchApiCricketT20WCMatches(dateStart, dateStop) {
+  const start = dateStart || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const stop = dateStop || start;
+  const data = await apiCricketFetch({
+    method: "get_events",
+    league_key: T20_WC_LEAGUE_KEY,
+    date_start: start,
+    date_stop: stop
+  });
+  if (!data?.result || !Array.isArray(data.result)) return [];
+  console.log(`api-cricket.com: fetched ${data.result.length} T20 WC events (${start} to ${stop})`);
+  return data.result;
+}
+async function fetchApiCricketLineups(team1Short, team2Short, matchDate) {
+  const dateStart = matchDate || new Date(Date.now() - 2 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
+  const dateStop = matchDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
+  const events = await fetchApiCricketT20WCMatches(dateStart, dateStop);
+  if (events.length === 0) return null;
+  const t1 = team1Short.toUpperCase();
+  const t2 = team2Short.toUpperCase();
+  const match = events.find((e) => {
+    const home = (e.event_home_team || "").toLowerCase();
+    const away = (e.event_away_team || "").toLowerCase();
+    return (home.includes(t1.toLowerCase()) || away.includes(t1.toLowerCase())) && (home.includes(t2.toLowerCase()) || away.includes(t2.toLowerCase()));
+  });
+  if (!match) {
+    const teamNameMap = {
+      IND: ["india"],
+      PAK: ["pakistan"],
+      AUS: ["australia"],
+      ENG: ["england"],
+      SA: ["south africa"],
+      NZ: ["new zealand"],
+      WI: ["west indies"],
+      SL: ["sri lanka"],
+      BAN: ["bangladesh"],
+      AFG: ["afghanistan"],
+      ZIM: ["zimbabwe"],
+      IRE: ["ireland"],
+      SCO: ["scotland"],
+      NED: ["netherlands"],
+      NAM: ["namibia"],
+      UAE: ["united arab emirates", "uae"],
+      USA: ["united states", "u.s.a"],
+      NEP: ["nepal"],
+      CAN: ["canada"],
+      ITA: ["italy"]
+    };
+    const t1Names = teamNameMap[t1] || [t1.toLowerCase()];
+    const t2Names = teamNameMap[t2] || [t2.toLowerCase()];
+    const betterMatch = events.find((e) => {
+      const home = (e.event_home_team || "").toLowerCase();
+      const away = (e.event_away_team || "").toLowerCase();
+      const t1Found = t1Names.some((n) => home.includes(n) || away.includes(n));
+      const t2Found = t2Names.some((n) => home.includes(n) || away.includes(n));
+      return t1Found && t2Found;
+    });
+    if (!betterMatch) {
+      console.log(`api-cricket.com: no match found for ${t1} vs ${t2}`);
+      return null;
+    }
+    return extractLineups(betterMatch);
+  }
+  return extractLineups(match);
+}
+function extractLineups(match) {
+  const homeLineups = match.lineups?.home_team?.starting_lineups || [];
+  const awayLineups = match.lineups?.away_team?.starting_lineups || [];
+  if (homeLineups.length === 0 && awayLineups.length === 0) {
+    console.log(`api-cricket.com: no lineups available for ${match.event_home_team} vs ${match.event_away_team}`);
+    return null;
+  }
+  const homeXI = homeLineups.map((p) => p.player);
+  const awayXI = awayLineups.map((p) => p.player);
+  console.log(`api-cricket.com lineups: ${match.event_home_team} (${homeXI.length}) vs ${match.event_away_team} (${awayXI.length})`);
+  return {
+    homeXI,
+    awayXI,
+    homeTeam: match.event_home_team,
+    awayTeam: match.event_away_team
+  };
+}
+async function markPlayingXIFromApiCricket(dbMatchId, team1Short, team2Short, matchDate) {
+  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const lineups = await fetchApiCricketLineups(team1Short, team2Short, matchDate);
+  if (!lineups) return { matched: 0, playerNames: [] };
+  const allNames = [...lineups.homeXI, ...lineups.awayXI];
+  if (allNames.length === 0) return { matched: 0, playerNames: [] };
+  const filteredNames = allNames.filter((n) => n && n.trim().length > 0);
+  const dbPlayers = await storage2.getPlayersForMatch(dbMatchId);
+  const matchedPlayerIds = [];
+  const matchedNames = [];
+  for (const apiName of filteredNames) {
+    const found = dbPlayers.find((p) => playerNameMatch(apiName, p.name));
+    if (found && found.externalId) {
+      matchedPlayerIds.push(found.externalId);
+      matchedNames.push(found.name);
+    }
+  }
+  if (matchedPlayerIds.length > 0) {
+    await storage2.markPlayingXI(dbMatchId, matchedPlayerIds);
+    console.log(`api-cricket.com Playing XI: matched ${matchedPlayerIds.length}/${filteredNames.length} players for match ${dbMatchId}`);
+  } else {
+    console.log(`api-cricket.com Playing XI: 0 matches from ${filteredNames.length} names for match ${dbMatchId}`);
+  }
+  return { matched: matchedPlayerIds.length, playerNames: matchedNames };
+}
+async function fetchApiCricketScorecard(team1Short, team2Short, matchDate) {
+  const dateStart = matchDate || new Date(Date.now() - 2 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
+  const dateStop = matchDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
+  const events = await fetchApiCricketT20WCMatches(dateStart, dateStop);
+  if (events.length === 0) return null;
+  const t1 = team1Short.toUpperCase();
+  const t2 = team2Short.toUpperCase();
+  const teamNameMap = {
+    IND: ["india"],
+    PAK: ["pakistan"],
+    AUS: ["australia"],
+    ENG: ["england"],
+    SA: ["south africa"],
+    NZ: ["new zealand"],
+    WI: ["west indies"],
+    SL: ["sri lanka"],
+    BAN: ["bangladesh"],
+    AFG: ["afghanistan"],
+    ZIM: ["zimbabwe"],
+    IRE: ["ireland"],
+    SCO: ["scotland"],
+    NED: ["netherlands"],
+    NAM: ["namibia"],
+    UAE: ["united arab emirates", "uae"],
+    USA: ["united states", "u.s.a"],
+    NEP: ["nepal"],
+    CAN: ["canada"],
+    ITA: ["italy"]
+  };
+  const t1Names = teamNameMap[t1] || [t1.toLowerCase()];
+  const t2Names = teamNameMap[t2] || [t2.toLowerCase()];
+  const match = events.find((e) => {
+    const home = (e.event_home_team || "").toLowerCase();
+    const away = (e.event_away_team || "").toLowerCase();
+    const t1Found = t1Names.some((n) => home.includes(n) || away.includes(n));
+    const t2Found = t2Names.some((n) => home.includes(n) || away.includes(n));
+    return t1Found && t2Found;
+  });
+  if (!match || !match.scorecard) return null;
+  const inningsKeys = Object.keys(match.scorecard);
+  if (inningsKeys.length === 0) return null;
+  const score = [];
+  const innings = [];
+  for (const innKey of inningsKeys) {
+    const players2 = match.scorecard[innKey];
+    if (!players2 || !Array.isArray(players2)) continue;
+    const batsmen = players2.filter((p) => p.type === "Batsman");
+    const bowlers = players2.filter((p) => p.type === "Bowler");
+    const totalRuns = batsmen.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
+    const totalWickets = bowlers.reduce((sum, b) => sum + parseInt(b.W || "0"), 0);
+    let totalBalls = 0;
+    for (const b of bowlers) {
+      const ov = parseFloat(b.O || "0");
+      const fullOvers = Math.floor(ov);
+      const partialBalls = Math.round((ov - fullOvers) * 10);
+      totalBalls += fullOvers * 6 + partialBalls;
+    }
+    const totalOvers = Math.floor(totalBalls / 6) + totalBalls % 6 / 10;
+    score.push({ r: totalRuns, w: totalWickets, o: totalOvers, inning: innKey });
+    innings.push({
+      inning: innKey,
+      batting: batsmen.map((b) => ({
+        name: b.player,
+        r: parseInt(b.R || "0"),
+        b: parseInt(b.B || "0"),
+        fours: parseInt(b["4s"] || "0"),
+        sixes: parseInt(b["6s"] || "0"),
+        sr: parseFloat(b.SR || "0"),
+        dismissal: b.status || "not out"
+      })),
+      bowling: bowlers.map((b) => ({
+        name: b.player,
+        o: parseFloat(b.O || "0"),
+        m: parseInt(b.M || "0"),
+        r: parseInt(b.R || "0"),
+        w: parseInt(b.W || "0"),
+        eco: parseFloat(b.ER || "0")
+      }))
+    });
+  }
+  return {
+    score,
+    innings,
+    status: match.event_status || match.event_status_info || ""
+  };
+}
+async function calculatePointsFromApiCricket(dbMatchId, team1Short, team2Short, matchDate) {
+  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const pointsMap = /* @__PURE__ */ new Map();
+  const scorecard = await fetchApiCricketScorecard(team1Short, team2Short, matchDate);
+  if (!scorecard) return pointsMap;
+  const dbPlayers = await storage2.getPlayersForMatch(dbMatchId);
+  for (const inn of scorecard.innings) {
+    for (const bat of inn.batting) {
+      const found = dbPlayers.find((p) => playerNameMatch(bat.name, p.name));
+      if (found && found.externalId) {
+        const existing = pointsMap.get(found.externalId) || 0;
+        let pts = 0;
+        pts += bat.r;
+        pts += bat.fours;
+        pts += bat.sixes * 2;
+        if (bat.r >= 100) pts += 16;
+        else if (bat.r >= 50) pts += 8;
+        else if (bat.r >= 30) pts += 4;
+        if (bat.r === 0 && bat.b > 0) pts -= 2;
+        if (bat.sr > 170) pts += 6;
+        else if (bat.sr > 150) pts += 4;
+        else if (bat.sr > 130) pts += 2;
+        else if (bat.sr < 50 && bat.b >= 10) pts -= 6;
+        else if (bat.sr < 60 && bat.b >= 10) pts -= 4;
+        pointsMap.set(found.externalId, existing + pts);
+      }
+    }
+    for (const bowl of inn.bowling) {
+      const found = dbPlayers.find((p) => playerNameMatch(bowl.name, p.name));
+      if (found && found.externalId) {
+        const existing = pointsMap.get(found.externalId) || 0;
+        let pts = 0;
+        pts += bowl.w * 25;
+        if (bowl.w >= 5) pts += 16;
+        else if (bowl.w >= 4) pts += 8;
+        else if (bowl.w >= 3) pts += 4;
+        if (bowl.m > 0) pts += bowl.m * 12;
+        if (bowl.eco < 5) pts += 6;
+        else if (bowl.eco < 6) pts += 4;
+        else if (bowl.eco < 7) pts += 2;
+        else if (bowl.eco > 12) pts -= 6;
+        else if (bowl.eco > 11) pts -= 4;
+        else if (bowl.eco > 10) pts -= 2;
+        pointsMap.set(found.externalId, existing + pts);
+      }
+    }
+  }
+  if (pointsMap.size > 0) {
+    console.log(`api-cricket.com points: calculated for ${pointsMap.size} players in match ${dbMatchId}`);
+  }
+  return pointsMap;
+}
+var API_CRICKET_BASE, T20_WC_LEAGUE_KEY;
+var init_api_cricket = __esm({
+  "server/api-cricket.ts"() {
+    "use strict";
+    API_CRICKET_BASE = "https://apiv2.api-cricket.com/cricket";
+    T20_WC_LEAGUE_KEY = "7969";
+  }
+});
+
 // server/cricbuzz-api.ts
 var cricbuzz_api_exports = {};
 __export(cricbuzz_api_exports, {
@@ -1103,12 +1498,12 @@ async function verifyMatch(team1Short, team2Short, matchDate) {
     startDate: new Date(parseInt(match.startDate)).toISOString()
   };
 }
-function normalizePlayerName(name) {
+function normalizePlayerName2(name) {
   return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
 }
-function playerNameMatch(cricbuzzName, dbName) {
-  const n1 = normalizePlayerName(cricbuzzName);
-  const n2 = normalizePlayerName(dbName);
+function playerNameMatch2(cricbuzzName, dbName) {
+  const n1 = normalizePlayerName2(cricbuzzName);
+  const n2 = normalizePlayerName2(dbName);
   if (n1 === n2) return true;
   const parts1 = n1.split(" ");
   const parts2 = n2.split(" ");
@@ -1150,7 +1545,7 @@ async function markPlayingXIFromCricbuzz(matchId, cricbuzzMatchId) {
   const matchedPlayerIds = [];
   const matchedNames = [];
   for (const cbName of cricbuzzPlayers) {
-    const found = dbPlayers.find((p) => playerNameMatch(cbName, p.name));
+    const found = dbPlayers.find((p) => playerNameMatch2(cbName, p.name));
     if (found && found.externalId) {
       matchedPlayerIds.push(found.externalId);
       matchedNames.push(found.name);
@@ -1287,8 +1682,11 @@ import express from "express";
 
 // server/routes.ts
 init_storage();
+init_db();
+init_schema();
 init_cricket_api();
 import { createServer } from "node:http";
+import { eq as eq2 } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { createHmac } from "crypto";
@@ -1654,7 +2052,7 @@ async function registerRoutes(app2) {
                 role: p.role,
                 credits: p.credits
               }));
-              await storage.bulkCreatePlayers(playersToCreate);
+              await storage.upsertPlayersForMatch(matchId, playersToCreate);
               matchPlayers = await storage.getPlayersForMatch(matchId);
               console.log(`Auto-fetched ${matchPlayers.length} players for match ${matchId}`);
             }
@@ -1668,12 +2066,27 @@ async function registerRoutes(app2) {
         const xiCount = await storage.getPlayingXICount(matchId);
         if (xiCount < 22) {
           try {
-            const { fetchPlayingXI: fetchPlayingXI2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-            const playingIds = await fetchPlayingXI2(match.externalId);
+            const { fetchPlayingXIFromScorecard: fetchPlayingXIFromScorecard2, fetchPlayingXIFromMatchInfo: fetchPlayingXIFromMatchInfo2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+            let playingIds = await fetchPlayingXIFromScorecard2(match.externalId);
+            if (playingIds.length === 0) {
+              try {
+                const { markPlayingXIFromApiCricket: markPlayingXIFromApiCricket2 } = await Promise.resolve().then(() => (init_api_cricket(), api_cricket_exports));
+                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : void 0;
+                const result = await markPlayingXIFromApiCricket2(matchId, match.team1Short, match.team2Short, matchDateStr);
+                if (result.matched > 0) {
+                  console.log(`api-cricket.com (2nd tier): matched ${result.matched} Playing XI players`);
+                }
+              } catch (e) {
+                console.error("api-cricket.com Playing XI error:", e);
+              }
+            }
+            if (playingIds.length === 0) {
+              playingIds = await fetchPlayingXIFromMatchInfo2(match.externalId);
+            }
             if (playingIds.length >= 2) {
               await storage.markPlayingXI(matchId, playingIds);
-              matchPlayers = await storage.getPlayersForMatch(matchId);
             }
+            matchPlayers = await storage.getPlayersForMatch(matchId);
           } catch (err) {
             console.error("Playing XI auto-refresh error:", err);
           }
@@ -1705,14 +2118,17 @@ async function registerRoutes(app2) {
             updated++;
           }
         }
+        const updatedMatchPlayers = await storage.getPlayersForMatch(matchId);
+        const playerById = new Map(updatedMatchPlayers.map((p) => [p.id, p]));
+        const playerByExtId = new Map(updatedMatchPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
         const allTeams = await storage.getAllTeamsForMatch(matchId);
         for (const team of allTeams) {
           const teamPlayerIds = team.playerIds;
           let totalPoints = 0;
           for (const pid of teamPlayerIds) {
-            const p = matchPlayers.find((mp) => mp.id === pid);
-            if (p && p.externalId) {
-              let pts = pointsMap.get(p.externalId) || 0;
+            const p = playerById.get(pid) || playerByExtId.get(pid);
+            if (p) {
+              let pts = p.points || 0;
               if (pid === team.captainId) pts *= 2;
               else if (pid === team.viceCaptainId) pts *= 1.5;
               totalPoints += pts;
@@ -1811,6 +2227,94 @@ async function registerRoutes(app2) {
           createdAt: t.createdAt
         }));
         return res.json({ teams: hiddenTeams, visibility: "hidden" });
+      }
+    }
+  );
+  app2.get(
+    "/api/matches/:id/standings",
+    isAuthenticated,
+    async (req, res) => {
+      const matchId = req.params.id;
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      const now = /* @__PURE__ */ new Date();
+      const matchStart = new Date(match.startTime);
+      const isLive = now.getTime() >= matchStart.getTime();
+      if (!isLive) {
+        return res.json({ standings: [], isLive: false, message: "Match has not started yet" });
+      }
+      try {
+        if (match.externalId && (match.status === "live" || match.status === "delayed")) {
+          const { fetchMatchScorecard: fetchMatchScorecard3 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+          const pointsMap = await fetchMatchScorecard3(match.externalId);
+          if (pointsMap.size > 0) {
+            const matchPlayers = await storage.getPlayersForMatch(matchId);
+            for (const player of matchPlayers) {
+              if (player.externalId && pointsMap.has(player.externalId)) {
+                const pts = pointsMap.get(player.externalId);
+                if (pts !== player.points) {
+                  await storage.updatePlayer(player.id, { points: pts });
+                }
+              }
+            }
+          }
+        }
+        {
+          const allTeamsForCalc = await storage.getAllTeamsForMatch(matchId);
+          const updatedPlayers = await storage.getPlayersForMatch(matchId);
+          const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
+          const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
+          for (const team of allTeamsForCalc) {
+            const teamPlayerIds = team.playerIds;
+            let totalPoints = 0;
+            for (const pid of teamPlayerIds) {
+              const p = playerById.get(pid) || playerByExtId.get(pid);
+              if (p) {
+                let pts = p.points || 0;
+                if (pid === team.captainId) pts *= 2;
+                else if (pid === team.viceCaptainId) pts *= 1.5;
+                totalPoints += pts;
+              }
+            }
+            if (totalPoints !== (team.totalPoints || 0)) {
+              await storage.updateUserTeamPoints(team.id, totalPoints);
+            }
+          }
+        }
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        const allUsers = {};
+        for (const t of allTeams) {
+          if (!allUsers[t.userId]) {
+            const u = await storage.getUser(t.userId);
+            allUsers[t.userId] = {
+              username: u?.username || "Unknown",
+              teamName: u?.teamName || ""
+            };
+          }
+        }
+        const standings = allTeams.map((t) => ({
+          teamId: t.id,
+          teamName: t.name,
+          userId: t.userId,
+          username: allUsers[t.userId]?.username || "Unknown",
+          userTeamName: allUsers[t.userId]?.teamName || "",
+          totalPoints: t.totalPoints || 0,
+          playerIds: t.playerIds,
+          captainId: t.captainId,
+          viceCaptainId: t.viceCaptainId
+        })).sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+        let rank = 1;
+        const rankedStandings = standings.map((s, i) => {
+          if (i > 0 && s.totalPoints < standings[i - 1].totalPoints) {
+            rank = i + 1;
+          }
+          return { ...s, rank };
+        });
+        const matchPlayersForResponse = await storage.getPlayersForMatch(matchId);
+        return res.json({ standings: rankedStandings, isLive: true, players: matchPlayersForResponse });
+      } catch (err) {
+        console.error("Standings error:", err);
+        return res.status(500).json({ message: "Failed to load standings" });
       }
     }
   );
@@ -2126,13 +2630,31 @@ async function registerRoutes(app2) {
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
         if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
-        const { fetchPlayingXI: fetchPlayingXI2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-        const playingIds = await fetchPlayingXI2(match.externalId);
+        const { fetchPlayingXIFromScorecard: fetchPlayingXIFromScorecard2, fetchPlayingXIFromMatchInfo: fetchPlayingXIFromMatchInfo2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+        let playingIds = await fetchPlayingXIFromScorecard2(match.externalId);
+        let source = "scorecard";
         if (playingIds.length === 0) {
-          return res.json({ message: "No Playing XI data available yet from scorecard", count: 0 });
+          try {
+            const { markPlayingXIFromApiCricket: markPlayingXIFromApiCricket2 } = await Promise.resolve().then(() => (init_api_cricket(), api_cricket_exports));
+            const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : void 0;
+            const result = await markPlayingXIFromApiCricket2(matchId, match.team1Short, match.team2Short, matchDateStr);
+            if (result.matched > 0) {
+              source = "api-cricket.com";
+              return res.json({ message: `Playing XI updated via api-cricket.com: ${result.matched} players matched`, count: result.matched, source });
+            }
+          } catch (e) {
+            console.error("api-cricket.com Playing XI error:", e);
+          }
+        }
+        if (playingIds.length === 0) {
+          playingIds = await fetchPlayingXIFromMatchInfo2(match.externalId);
+          source = "match_info";
+        }
+        if (playingIds.length === 0) {
+          return res.json({ message: "No Playing XI data available yet - match may not have started", count: 0 });
         }
         await storage.markPlayingXI(matchId, playingIds);
-        return res.json({ message: `Playing XI updated: ${playingIds.length} players marked`, count: playingIds.length });
+        return res.json({ message: `Playing XI updated: ${playingIds.length} players marked`, count: playingIds.length, source });
       } catch (err) {
         console.error("Refresh Playing XI error:", err);
         return res.status(500).json({ message: "Failed to refresh Playing XI" });
@@ -2233,6 +2755,71 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Cricbuzz scorecard fallback error:", err);
         return res.status(500).json({ message: "Failed to fetch Cricbuzz scorecard" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/repair-teams",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        if (matchPlayers.length === 0) {
+          return res.json({ message: "No players found for this match", repaired: 0 });
+        }
+        const playerById = new Map(matchPlayers.map((p) => [p.id, p]));
+        const playerByExtId = new Map(matchPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        let repaired = 0;
+        for (const team of allTeams) {
+          const teamPlayerIds = team.playerIds;
+          let hasOrphans = false;
+          for (const pid of teamPlayerIds) {
+            if (!playerById.has(pid)) {
+              hasOrphans = true;
+              break;
+            }
+          }
+          if (!hasOrphans) continue;
+          const newPlayerIds = [];
+          let newCaptainId = team.captainId;
+          let newViceCaptainId = team.viceCaptainId;
+          const usedPlayerIds = /* @__PURE__ */ new Set();
+          for (const pid of teamPlayerIds) {
+            if (playerById.has(pid)) {
+              newPlayerIds.push(pid);
+              usedPlayerIds.add(pid);
+            } else {
+              const byExt = playerByExtId.get(pid);
+              if (byExt && !usedPlayerIds.has(byExt.id)) {
+                newPlayerIds.push(byExt.id);
+                usedPlayerIds.add(byExt.id);
+                if (pid === team.captainId) newCaptainId = byExt.id;
+                if (pid === team.viceCaptainId) newViceCaptainId = byExt.id;
+              }
+            }
+          }
+          if (newPlayerIds.length === teamPlayerIds.length) {
+            await db.update(userTeams).set({
+              playerIds: newPlayerIds,
+              captainId: newCaptainId,
+              viceCaptainId: newViceCaptainId
+            }).where(eq2(userTeams.id, team.id));
+            repaired++;
+          }
+        }
+        return res.json({
+          message: `Repaired ${repaired} teams out of ${allTeams.length}`,
+          repaired,
+          total: allTeams.length
+        });
+      } catch (err) {
+        console.error("Repair teams error:", err);
+        return res.status(500).json({ message: "Failed to repair teams" });
       }
     }
   );
@@ -2520,8 +3107,8 @@ function setupErrorHandler(app2) {
                 });
               }
               if (squad.length > 0) {
-                await storage.deletePlayersForMatch(match.id);
-                await storage.bulkCreatePlayers(
+                await storage.upsertPlayersForMatch(
+                  match.id,
                   squad.map((p) => ({
                     matchId: match.id,
                     externalId: p.externalId,
@@ -2532,7 +3119,21 @@ function setupErrorHandler(app2) {
                     credits: p.credits
                   }))
                 );
-                log(`Playing XI updated: ${squad.length} players for ${match.team1} vs ${match.team2}`);
+                log(`Playing XI upserted: ${squad.length} players for ${match.team1} vs ${match.team2}`);
+              }
+              const playingXICount = await storage.getPlayingXICount(match.id);
+              if (playingXICount === 0 && match.externalId) {
+                let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
+                if (playingXIIds.length > 0) {
+                  await storage.markPlayingXI(match.id, playingXIIds);
+                  log(`Playing XI marked from scorecard: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                } else {
+                  playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
+                  if (playingXIIds.length > 0) {
+                    await storage.markPlayingXI(match.id, playingXIIds);
+                    log(`Playing XI marked from match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                  }
+                }
               }
               recentlyRefreshed.set(match.id, now);
             } catch (err) {
@@ -2577,10 +3178,80 @@ function setupErrorHandler(app2) {
           console.error("Cricbuzz auto-verify scheduler error:", err);
         }
       }
+      const TWO_MINUTES = 2 * 60 * 1e3;
+      const scorecardLastSync = /* @__PURE__ */ new Map();
+      async function autoSyncScorecard() {
+        try {
+          const allMatches = await storage.getAllMatches();
+          const now = Date.now();
+          for (const match of allMatches) {
+            if (!match.externalId) continue;
+            const isLive = match.status === "live" || match.status === "delayed";
+            if (!isLive) continue;
+            const lastSync = scorecardLastSync.get(match.id) || 0;
+            if (now - lastSync < TWO_MINUTES) continue;
+            try {
+              const { fetchMatchScorecard: fetchMatchScorecard3 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+              let pointsMap = await fetchMatchScorecard3(match.externalId);
+              if (pointsMap.size === 0 && match.team1Short && match.team2Short) {
+                const { calculatePointsFromApiCricket: calculatePointsFromApiCricket2 } = await Promise.resolve().then(() => (init_api_cricket(), api_cricket_exports));
+                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : void 0;
+                pointsMap = await calculatePointsFromApiCricket2(match.id, match.team1Short, match.team2Short, matchDateStr);
+                if (pointsMap.size > 0) {
+                  log(`Scorecard fallback: api-cricket.com returned points for ${pointsMap.size} players (${match.team1Short} vs ${match.team2Short})`);
+                }
+              }
+              if (pointsMap.size > 0) {
+                const matchPlayers = await storage.getPlayersForMatch(match.id);
+                let updated = 0;
+                for (const player of matchPlayers) {
+                  if (player.externalId && pointsMap.has(player.externalId)) {
+                    const pts = pointsMap.get(player.externalId);
+                    if (pts !== player.points) {
+                      await storage.updatePlayer(player.id, { points: pts });
+                      updated++;
+                    }
+                  }
+                }
+                if (updated > 0) {
+                  const updatedPlayers = await storage.getPlayersForMatch(match.id);
+                  const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
+                  const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
+                  const allTeams = await storage.getAllTeamsForMatch(match.id);
+                  for (const team of allTeams) {
+                    const teamPlayerIds = team.playerIds;
+                    let totalPoints = 0;
+                    for (const pid of teamPlayerIds) {
+                      const p = playerById.get(pid) || playerByExtId.get(pid);
+                      if (p) {
+                        let pts = p.points || 0;
+                        if (pid === team.captainId) pts *= 2;
+                        else if (pid === team.viceCaptainId) pts *= 1.5;
+                        totalPoints += pts;
+                      }
+                    }
+                    if (totalPoints !== (team.totalPoints || 0)) {
+                      await storage.updateUserTeamPoints(team.id, totalPoints);
+                    }
+                  }
+                  log(`Scorecard auto-sync: updated ${updated} player scores, recalculated team points for ${match.team1Short} vs ${match.team2Short}`);
+                }
+              }
+              scorecardLastSync.set(match.id, now);
+            } catch (err) {
+              console.error(`Scorecard auto-sync failed for ${match.id}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error("Scorecard auto-sync scheduler error:", err);
+        }
+      }
       setInterval(refreshPlayingXI, FIVE_MINUTES);
       setInterval(cricbuzzAutoVerifyPlayingXI, FIVE_MINUTES);
+      setInterval(autoSyncScorecard, TWO_MINUTES);
       log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
       log("Cricbuzz auto-verify scheduler started (every 5min, 10min before match)");
+      log("Scorecard auto-sync scheduler started (every 2min for live matches)");
     }
   );
 })();
