@@ -540,15 +540,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
-      if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
 
       try {
-        const { fetchLiveScorecard } = await import("./cricket-api");
-        const scorecard = await fetchLiveScorecard(match.externalId);
+        let scorecard = null;
+        let source = "none";
+
+        if (match.externalId) {
+          const { fetchLiveScorecard } = await import("./cricket-api");
+          scorecard = await fetchLiveScorecard(match.externalId);
+          if (scorecard) source = "CricAPI";
+        }
+
+        if (!scorecard && match.team1Short && match.team2Short) {
+          const { fetchApiCricketScorecard } = await import("./api-cricket");
+          const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+          scorecard = await fetchApiCricketScorecard(match.team1Short, match.team2Short, matchDateStr);
+          if (scorecard) source = "api-cricket.com";
+        }
+
         if (!scorecard) {
           return res.json({ scorecard: null, message: "No scorecard data available yet" });
         }
-        return res.json({ scorecard });
+        return res.json({ scorecard, source });
       } catch (err: any) {
         console.error("Live scorecard error:", err);
         return res.status(500).json({ message: "Failed to fetch scorecard" });
@@ -563,17 +576,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
-      if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
 
       try {
-        const info = await fetchMatchInfo(match.externalId);
-        if (!info) return res.json({ score: null });
-        return res.json({
-          score: info.score || [],
-          status: info.status,
-          matchStarted: info.matchStarted,
-          matchEnded: info.matchEnded,
-        });
+        let scoreData = null;
+
+        if (match.externalId) {
+          const info = await fetchMatchInfo(match.externalId);
+          if (info) {
+            scoreData = {
+              score: info.score || [],
+              status: info.status,
+              matchStarted: info.matchStarted,
+              matchEnded: info.matchEnded,
+              source: "CricAPI",
+            };
+          }
+        }
+
+        if (!scoreData && match.team1Short && match.team2Short) {
+          const { fetchApiCricketScorecard } = await import("./api-cricket");
+          const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+          const sc = await fetchApiCricketScorecard(match.team1Short, match.team2Short, matchDateStr);
+          if (sc) {
+            scoreData = {
+              score: sc.score || [],
+              status: sc.status,
+              matchStarted: true,
+              matchEnded: sc.status?.toLowerCase().includes("won") || sc.status?.toLowerCase().includes("draw"),
+              source: "api-cricket.com",
+            };
+          }
+        }
+
+        if (!scoreData) return res.json({ score: null });
+        return res.json(scoreData);
       } catch (err: any) {
         console.error("Live score error:", err);
         return res.status(500).json({ message: "Failed to fetch live score" });

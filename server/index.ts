@@ -334,7 +334,6 @@ function setupErrorHandler(app: express.Application) {
           const now = Date.now();
 
           for (const match of allMatches) {
-            if (!match.externalId) continue;
             if (match.status === "completed") continue;
 
             const startMs = new Date(match.startTime).getTime();
@@ -351,32 +350,34 @@ function setupErrorHandler(app: express.Application) {
             log(`Playing XI refresh: ${match.team1} vs ${match.team2} (starts in ${Math.round(timeUntilStart / 60000)}m, status: ${match.status})`);
 
             try {
-              let squad = await fetchMatchSquad(match.externalId);
+              if (match.externalId) {
+                let squad = await fetchMatchSquad(match.externalId);
 
-              if (squad.length === 0 && match.seriesId) {
-                const seriesPlayers = await fetchSeriesSquad(match.seriesId);
-                const t1 = match.team1.toLowerCase();
-                const t2 = match.team2.toLowerCase();
-                squad = seriesPlayers.filter((p) => {
-                  const pt = p.team.toLowerCase();
-                  return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
-                });
-              }
+                if (squad.length === 0 && match.seriesId) {
+                  const seriesPlayers = await fetchSeriesSquad(match.seriesId);
+                  const t1 = match.team1.toLowerCase();
+                  const t2 = match.team2.toLowerCase();
+                  squad = seriesPlayers.filter((p) => {
+                    const pt = p.team.toLowerCase();
+                    return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
+                  });
+                }
 
-              if (squad.length > 0) {
-                await storage.upsertPlayersForMatch(
-                  match.id,
-                  squad.map((p) => ({
-                    matchId: match.id,
-                    externalId: p.externalId,
-                    name: p.name,
-                    team: p.team,
-                    teamShort: p.teamShort,
-                    role: p.role,
-                    credits: p.credits,
-                  }))
-                );
-                log(`Playing XI upserted: ${squad.length} players for ${match.team1} vs ${match.team2}`);
+                if (squad.length > 0) {
+                  await storage.upsertPlayersForMatch(
+                    match.id,
+                    squad.map((p) => ({
+                      matchId: match.id,
+                      externalId: p.externalId,
+                      name: p.name,
+                      team: p.team,
+                      teamShort: p.teamShort,
+                      role: p.role,
+                      credits: p.credits,
+                    }))
+                  );
+                  log(`Tier 1 (CricAPI): upserted ${squad.length} players for ${match.team1} vs ${match.team2}`);
+                }
               }
 
               if ((match as any).playingXIManual) {
@@ -394,23 +395,21 @@ function setupErrorHandler(app: express.Application) {
                   );
 
                   if (apiCricketResult.matched >= 11) {
-                    log(`Playing XI from api-cricket.com: ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}`);
-                  } else {
-                    if (apiCricketResult.matched > 0) {
-                      log(`Playing XI partial from api-cricket.com: ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}, trying CricAPI...`);
-                    }
+                    log(`Tier 2 (api-cricket.com): Playing XI ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}`);
+                  } else if (apiCricketResult.matched > 0) {
+                    log(`Tier 2 (api-cricket.com): partial Playing XI ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}`);
+                  }
 
-                    if (match.externalId) {
-                      let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
+                  if (apiCricketResult.matched < 11 && match.externalId) {
+                    let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
+                    if (playingXIIds.length > 0) {
+                      await storage.markPlayingXI(match.id, playingXIIds);
+                      log(`Tier 1 (CricAPI scorecard): Playing XI ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
+                    } else {
+                      playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
                       if (playingXIIds.length > 0) {
                         await storage.markPlayingXI(match.id, playingXIIds);
-                        log(`Playing XI from CricAPI scorecard: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
-                      } else {
-                        playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
-                        if (playingXIIds.length > 0) {
-                          await storage.markPlayingXI(match.id, playingXIIds);
-                          log(`Playing XI from CricAPI match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
-                        }
+                        log(`Tier 1 (CricAPI match_info): Playing XI ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
                       }
                     }
                   }
@@ -436,8 +435,6 @@ function setupErrorHandler(app: express.Application) {
           const now = Date.now();
 
           for (const match of allMatches) {
-            if (!match.externalId) continue;
-
             const isLive = match.status === "live" || match.status === "delayed";
             const startMs = match.startTime ? new Date(match.startTime).getTime() : 0;
             const isStarted = startMs > 0 && now > startMs && match.status !== "completed";
@@ -453,15 +450,22 @@ function setupErrorHandler(app: express.Application) {
             if (now - lastSync < TWO_MINUTES) continue;
 
             try {
-              const { fetchMatchScorecard } = await import("./cricket-api");
-              let pointsMap = await fetchMatchScorecard(match.externalId);
+              let pointsMap = new Map<string, number>();
+
+              if (match.externalId) {
+                const { fetchMatchScorecard } = await import("./cricket-api");
+                pointsMap = await fetchMatchScorecard(match.externalId);
+                if (pointsMap.size > 0) {
+                  log(`Tier 1 (CricAPI): scorecard for ${pointsMap.size} players (${match.team1Short} vs ${match.team2Short})`);
+                }
+              }
 
               if (pointsMap.size === 0 && match.team1Short && match.team2Short) {
                 const { calculatePointsFromApiCricket } = await import("./api-cricket");
                 const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
                 pointsMap = await calculatePointsFromApiCricket(match.id, match.team1Short, match.team2Short, matchDateStr);
                 if (pointsMap.size > 0) {
-                  log(`Scorecard fallback: api-cricket.com returned points for ${pointsMap.size} players (${match.team1Short} vs ${match.team2Short})`);
+                  log(`Tier 2 (api-cricket.com): scorecard for ${pointsMap.size} players (${match.team1Short} vs ${match.team2Short})`);
                 }
               }
 
