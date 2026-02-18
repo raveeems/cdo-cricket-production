@@ -1,14 +1,29 @@
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
 import { BlurView } from "expo-blur";
-import { SymbolView } from "expo-symbols";
 import { Platform, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 
+let isLiquidGlassAvailable: () => boolean = () => false;
+let NativeTabs: any = null;
+let Icon: any = null;
+let Label: any = null;
+
+try {
+  const glassEffect = require("expo-glass-effect");
+  isLiquidGlassAvailable = glassEffect.isLiquidGlassAvailable;
+} catch {}
+
+try {
+  const nativeTabs = require("expo-router/unstable-native-tabs");
+  NativeTabs = nativeTabs.NativeTabs;
+  Icon = nativeTabs.Icon;
+  Label = nativeTabs.Label;
+} catch {}
+
 function NativeTabLayout() {
+  if (!NativeTabs || !Icon || !Label) return <ClassicTabLayout />;
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -112,8 +127,10 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
+  try {
+    if (isLiquidGlassAvailable()) {
+      return <NativeTabLayout />;
+    }
+  } catch {}
   return <ClassicTabLayout />;
 }
