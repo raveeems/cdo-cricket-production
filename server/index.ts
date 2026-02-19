@@ -1,7 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { syncMatchesFromApi, fetchMatchSquad, fetchSeriesSquad, fetchPlayingXIFromMatchInfo, fetchPlayingXIFromScorecard } from "./cricket-api";
+import { syncMatchesFromApi } from "./cricket-api";
 import { storage } from "./storage";
 import * as fs from "fs";
 import * as path from "path";
@@ -336,122 +336,6 @@ function setupErrorHandler(app: express.Application) {
         });
       }, TWO_HOURS);
 
-      const recentlyRefreshed = new Map<string, number>();
-
-      const FIVE_MINUTES = 5 * 60 * 1000;
-      const TWENTY_MINUTES = 20 * 60 * 1000;
-
-      async function refreshPlayingXI() {
-        try {
-          const allMatches = await storage.getAllMatches();
-          const now = Date.now();
-
-          for (const match of allMatches) {
-            if (match.status === "completed") continue;
-
-            const startMs = new Date(match.startTime).getTime();
-            const timeUntilStart = startMs - now;
-
-            const isInWindow = timeUntilStart <= TWENTY_MINUTES && timeUntilStart > -TWO_HOURS;
-            const isLive = match.status === "live" || match.status === "delayed";
-
-            if (!isInWindow && !isLive) continue;
-
-            const lastRefresh = recentlyRefreshed.get(match.id) || 0;
-            if (now - lastRefresh < FIVE_MINUTES) continue;
-
-            log(`Playing XI refresh: ${match.team1} vs ${match.team2} (starts in ${Math.round(timeUntilStart / 60000)}m, status: ${match.status})`);
-
-            try {
-              if (match.externalId) {
-                let squad = await fetchMatchSquad(match.externalId);
-
-                if (squad.length === 0 && match.seriesId) {
-                  const seriesPlayers = await fetchSeriesSquad(match.seriesId);
-                  const t1 = match.team1.toLowerCase();
-                  const t2 = match.team2.toLowerCase();
-                  squad = seriesPlayers.filter((p) => {
-                    const pt = p.team.toLowerCase();
-                    return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
-                  });
-                }
-
-                if (squad.length === 0) {
-                  try {
-                    const { fetchSquadFromApiCricket } = await import("./api-cricket");
-                    const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-                    squad = await fetchSquadFromApiCricket(match.team1Short, match.team2Short, matchDateStr);
-                    if (squad.length > 0) {
-                      log(`Tier 2 (api-cricket.com): squad ${squad.length} players for ${match.team1} vs ${match.team2}`);
-                    }
-                  } catch (e) {
-                    console.error("Tier 2 squad fetch error:", e);
-                  }
-                }
-
-                if (squad.length > 0) {
-                  await storage.upsertPlayersForMatch(
-                    match.id,
-                    squad.map((p) => ({
-                      matchId: match.id,
-                      externalId: p.externalId,
-                      name: p.name,
-                      team: p.team,
-                      teamShort: p.teamShort,
-                      role: p.role,
-                      credits: p.credits,
-                    }))
-                  );
-                  log(`Tier 1 (CricAPI): upserted ${squad.length} players for ${match.team1} vs ${match.team2}`);
-                }
-              }
-
-              if ((match as any).playingXIManual) {
-                log(`Playing XI skipped (admin manual): ${match.team1} vs ${match.team2}`);
-              } else {
-                const playingXICount = await storage.getPlayingXICount(match.id);
-                if (playingXICount === 0) {
-                  const { markPlayingXIFromApiCricket } = await import("./api-cricket");
-                  const matchDate = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-                  const apiCricketResult = await markPlayingXIFromApiCricket(
-                    match.id,
-                    match.team1Short,
-                    match.team2Short,
-                    matchDate
-                  );
-
-                  if (apiCricketResult.matched >= 11) {
-                    log(`Tier 2 (api-cricket.com): Playing XI ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}`);
-                  } else if (apiCricketResult.matched > 0) {
-                    log(`Tier 2 (api-cricket.com): partial Playing XI ${apiCricketResult.matched} players for ${match.team1} vs ${match.team2}`);
-                  }
-
-                  if (apiCricketResult.matched < 11 && match.externalId) {
-                    let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
-                    if (playingXIIds.length > 0) {
-                      await storage.markPlayingXI(match.id, playingXIIds);
-                      log(`Tier 1 (CricAPI scorecard): Playing XI ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
-                    } else {
-                      playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
-                      if (playingXIIds.length > 0) {
-                        await storage.markPlayingXI(match.id, playingXIIds);
-                        log(`Tier 1 (CricAPI match_info): Playing XI ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
-                      }
-                    }
-                  }
-                }
-              }
-
-              recentlyRefreshed.set(match.id, now);
-            } catch (err) {
-              console.error(`Playing XI refresh failed for ${match.id}:`, err);
-            }
-          }
-        } catch (err) {
-          console.error("Playing XI scheduler error:", err);
-        }
-      }
-
       const HEARTBEAT_INTERVAL = 60 * 1000;
 
       function fuzzyNameMatch(name1: string, name2: string): boolean {
@@ -657,9 +541,7 @@ function setupErrorHandler(app: express.Application) {
 
       (globalThis as any).__matchHeartbeat = matchHeartbeat;
 
-      setInterval(refreshPlayingXI, FIVE_MINUTES);
       setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
-      log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
       log("Match Heartbeat started (every 60s — score sync, points, lockout, delay detection)");
     },
   );

@@ -474,40 +474,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const match = matchPlayers.length > 0
-        ? await storage.getMatch(matchId)
-        : null;
-      if (match && (match.status === "live" || match.status === "delayed") && match.externalId) {
-        const xiCount = await storage.getPlayingXICount(matchId);
-        if (xiCount < 22) {
-          try {
-            const { fetchPlayingXIFromScorecard, fetchPlayingXIFromMatchInfo } = await import("./cricket-api");
-            let playingIds = await fetchPlayingXIFromScorecard(match.externalId);
-            if (playingIds.length === 0) {
-              try {
-                const { markPlayingXIFromApiCricket } = await import("./api-cricket");
-                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-                const result = await markPlayingXIFromApiCricket(matchId, match.team1Short, match.team2Short, matchDateStr);
-                if (result.matched > 0) {
-                  console.log(`api-cricket.com (2nd tier): matched ${result.matched} Playing XI players`);
-                }
-              } catch (e) {
-                console.error("api-cricket.com Playing XI error:", e);
-              }
-            }
-            if (playingIds.length === 0) {
-              playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
-            }
-            if (playingIds.length >= 2) {
-              await storage.markPlayingXI(matchId, playingIds);
-            }
-            matchPlayers = await storage.getPlayersForMatch(matchId);
-          } catch (err) {
-            console.error("Playing XI auto-refresh error:", err);
-          }
-        }
-      }
-
       return res.json({ players: matchPlayers });
     }
   );

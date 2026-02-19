@@ -420,44 +420,38 @@ async function upsertMatches(
   return { created, updated };
 }
 
+const T20_WC_SERIES_ID = "0cdf6736-ad9b-4e95-a647-5ee3a99c5510";
+
 export async function syncMatchesFromApi(retryCount = 0): Promise<void> {
   const { storage } = await import("./storage");
   
-  console.log("Auto-syncing matches from Cricket API...");
+  console.log("Auto-syncing matches (ICC T20 WC only — 1 API call)...");
   try {
-    const apiMatches = await fetchUpcomingMatches();
-    if (apiMatches.length === 0 && retryCount < 3) {
-      const delayMin = retryCount === 0 ? 1 : retryCount === 1 ? 5 : 15;
-      console.log(`No matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/3)`);
-      setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1000);
-      return;
-    }
-
     const existing = await storage.getAllMatches();
-    const { created, updated } = await upsertMatches(apiMatches, existing);
-    console.log(`Cricket API sync: ${created} new, ${updated} updated from general endpoints`);
+    let totalCreated = 0;
+    let totalUpdated = 0;
 
-    const refreshedExisting = created > 0 ? await storage.getAllMatches() : existing;
-    let seriesCreated = 0;
-    let seriesUpdated = 0;
     for (const series of TRACKED_SERIES) {
       try {
         const seriesMatches = await fetchSeriesMatches(series.id, series.name);
         if (seriesMatches.length > 0) {
-          const result = await upsertMatches(seriesMatches, refreshedExisting);
-          seriesCreated += result.created;
-          seriesUpdated += result.updated;
-          if (result.created > 0) {
-            refreshedExisting.push(...await storage.getAllMatches());
-          }
+          const result = await upsertMatches(seriesMatches, existing);
+          totalCreated += result.created;
+          totalUpdated += result.updated;
+          console.log(`${series.name}: ${result.created} new, ${result.updated} updated (${seriesMatches.length} matches total)`);
+        } else if (retryCount < 2) {
+          const delayMin = retryCount === 0 ? 5 : 15;
+          console.log(`No T20 WC matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/2)`);
+          setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1000);
+          return;
         }
       } catch (err) {
         console.error(`Series sync error for ${series.name}:`, err);
       }
     }
 
-    if (seriesCreated > 0 || seriesUpdated > 0) {
-      console.log(`Series sync: ${seriesCreated} new, ${seriesUpdated} updated from tracked series`);
+    if (totalCreated === 0 && totalUpdated === 0) {
+      console.log("T20 WC sync: no changes");
     }
   } catch (err) {
     console.error("Auto-sync failed:", err);
