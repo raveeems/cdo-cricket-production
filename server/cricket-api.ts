@@ -620,6 +620,25 @@ export async function refreshPlayingXIForLiveMatches(): Promise<void> {
       if (playingIds.length >= 2) {
         await storage.markPlayingXI(match.id, playingIds);
         console.log(`Playing XI updated for ${match.team1} vs ${match.team2}: ${playingIds.length} players marked`);
+
+        const updatedPlayers = await storage.getPlayersForMatch(match.id);
+        const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
+        const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
+        const allTeams = await storage.getAllTeamsForMatch(match.id);
+        for (const team of allTeams) {
+          const teamPlayerIds = team.playerIds as string[];
+          let totalPoints = 0;
+          for (const pid of teamPlayerIds) {
+            const p = playerById.get(pid) || playerByExtId.get(pid);
+            if (p) {
+              let pts = p.points || 0;
+              if (pid === team.captainId) pts *= 2;
+              else if (pid === team.viceCaptainId) pts *= 1.5;
+              totalPoints += pts;
+            }
+          }
+          await storage.updateUserTeamPoints(team.id, totalPoints);
+        }
       }
     } catch (err) {
       console.error(`Playing XI refresh failed for match ${match.id}:`, err);
