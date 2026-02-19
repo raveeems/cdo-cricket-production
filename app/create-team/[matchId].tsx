@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -62,7 +62,6 @@ function PlayerItem({
   return (
     <Pressable
       onPress={onToggle}
-      disabled={isDisabled && !isSelected}
       style={[
         styles.playerItem,
         {
@@ -323,13 +322,36 @@ export default function CreateTeamScreen() {
     return true;
   };
 
+  const [selectionWarning, setSelectionWarning] = useState<string | null>(null);
+  const selectionWarningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showSelectionWarning = (msg: string) => {
+    if (selectionWarningTimer.current) clearTimeout(selectionWarningTimer.current);
+    setSelectionWarning(msg);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    selectionWarningTimer.current = setTimeout(() => setSelectionWarning(null), 2500);
+  };
+
   const togglePlayer = (player: Player) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newSet = new Set(selectedIds);
     if (newSet.has(player.id)) {
       newSet.delete(player.id);
     } else {
-      if (!canSelectPlayer(player)) return;
+      if (selectedIds.size >= 11) {
+        showSelectionWarning('You can only select 11 players.');
+        return;
+      }
+      const count = roleCounts[player.role];
+      if (count >= ROLE_LIMITS[player.role].max) {
+        showSelectionWarning(`Max ${ROLE_LIMITS[player.role].max} ${player.role} players allowed.`);
+        return;
+      }
+      const playerTeam = player.teamShort || player.team || '';
+      if (playerTeam && (teamCounts[playerTeam] || 0) >= MAX_FROM_ONE_TEAM) {
+        showSelectionWarning(`Max ${MAX_FROM_ONE_TEAM} players from one team allowed.`);
+        return;
+      }
       newSet.add(player.id);
     }
     setSelectedIds(newSet);
@@ -514,6 +536,13 @@ export default function CreateTeamScreen() {
             showsVerticalScrollIndicator={false}
             scrollEnabled={filteredPlayers.length > 0}
           />
+
+          {selectionWarning && (
+            <View style={{ position: 'absolute', bottom: 120, left: 24, right: 24, backgroundColor: '#F59E0B', borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 }}>
+              <Ionicons name="warning" size={20} color="#000" />
+              <Text style={{ color: '#000', fontSize: 13, fontFamily: 'Inter_600SemiBold' as const, flex: 1 }}>{selectionWarning}</Text>
+            </View>
+          )}
 
           <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
             {!isValidTeam && selectedIds.size > 0 && validationError && (
