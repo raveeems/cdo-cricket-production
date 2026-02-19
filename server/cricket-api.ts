@@ -929,6 +929,7 @@ interface ScorecardInning {
 interface ScorecardData {
   id: string;
   name: string;
+  status?: string;
   score: Array<{ r: number; w: number; o: number; inning: string }>;
   scorecard: ScorecardInning[];
 }
@@ -1041,6 +1042,74 @@ export async function fetchPlayingXIFromScorecard(
   } catch (err) {
     console.error("Scorecard Playing XI error:", err);
     return [];
+  }
+}
+
+export async function fetchMatchScorecardWithScore(
+  externalMatchId: string
+): Promise<{
+  pointsMap: Map<string, number>;
+  namePointsMap: Map<string, number>;
+  scoreString: string;
+  matchEnded: boolean;
+}> {
+  const apiKey = getActiveApiKey();
+  const pointsMap = new Map<string, number>();
+  const namePointsMap = new Map<string, number>();
+  let scoreString = "";
+  let matchEnded = false;
+  if (!apiKey) return { pointsMap, namePointsMap, scoreString, matchEnded };
+
+  try {
+    const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
+    const res = await fetch(url);
+    if (!res.ok) return { pointsMap, namePointsMap, scoreString, matchEnded };
+
+    const json = (await res.json()) as CricApiResponse<ScorecardData>;
+    if (json.status !== "success" || !json.data) return { pointsMap, namePointsMap, scoreString, matchEnded };
+
+    const scoreArr = json.data.score || [];
+    if (scoreArr.length > 0) {
+      scoreString = scoreArr.map(s => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
+    }
+
+    const matchStatus = (json.data.name || json.data.status || "").toLowerCase();
+    matchEnded = matchStatus.includes("won") || matchStatus.includes("draw") ||
+                 matchStatus.includes("tied") || matchStatus.includes("finished") ||
+                 matchStatus.includes("ended") || matchStatus.includes("result") ||
+                 matchStatus.includes("aban") || matchStatus.includes("no result") ||
+                 matchStatus.includes("d/l") || matchStatus.includes("dls");
+    const statusText = json.data.name || json.data.status || "";
+    if (statusText) {
+      scoreString += ` — ${statusText}`;
+    }
+
+    const scorecardInnings = json.data.scorecard || [];
+    if (scorecardInnings.length > 0) {
+      const allPlayers = new Map<string, string>();
+      for (const inning of scorecardInnings) {
+        inning.batting?.forEach((b) => { if (b.batsman?.id) allPlayers.set(b.batsman.id, b.batsman.name || ""); });
+        inning.bowling?.forEach((b) => { if (b.bowler?.id) allPlayers.set(b.bowler.id, b.bowler.name || ""); });
+        inning.catching?.forEach((c) => { if (c.catcher?.id) allPlayers.set(c.catcher.id, c.catcher.name || ""); });
+      }
+
+      console.log(`[ScorecardWithScore] ${scorecardInnings.length} innings, ${allPlayers.size} players found for ${externalMatchId}`);
+
+      for (const [pid, pname] of allPlayers) {
+        const pts = calculateFantasyPoints(pid, scorecardInnings);
+        pointsMap.set(pid, pts);
+        if (pname) {
+          const normalizedName = pname.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+          namePointsMap.set(normalizedName, pts);
+          console.log(`[ScorecardWithScore] ${pname} -> ${pts} fantasy pts`);
+        }
+      }
+    }
+
+    return { pointsMap, namePointsMap, scoreString, matchEnded };
+  } catch (err) {
+    console.error("ScorecardWithScore error:", err);
+    return { pointsMap, namePointsMap, scoreString, matchEnded };
   }
 }
 

@@ -400,31 +400,16 @@ function setupErrorHandler(app: express.Application) {
 
               if (match.externalId) {
                 try {
-                  const { fetchLiveScorecard } = await import("./cricket-api");
-                  const liveData = await fetchLiveScorecard(match.externalId);
-                  if (liveData && liveData.score && liveData.score.length > 0) {
-                    source = "CricAPI";
-                    scoreString = liveData.score.map(s => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
-                    const lcStatus = (liveData.status || "").toLowerCase();
-                    matchEnded = lcStatus.includes("won") || lcStatus.includes("draw") ||
-                                 lcStatus.includes("tied") || lcStatus.includes("finished") ||
-                                 lcStatus.includes("ended") || lcStatus.includes("result") ||
-                                 lcStatus.includes("aban") || lcStatus.includes("no result") ||
-                                 lcStatus.includes("d/l") || lcStatus.includes("dls");
-                    if (liveData.status && !matchEnded) {
-                      scoreString += ` — ${liveData.status}`;
-                    } else if (liveData.status && matchEnded) {
-                      scoreString += ` — ${liveData.status}`;
-                    }
-                  }
-                } catch (e) {}
-
-                if (!source) {
-                  const { fetchMatchScorecard } = await import("./cricket-api");
-                  const result = await fetchMatchScorecard(match.externalId);
+                  const { fetchMatchScorecardWithScore } = await import("./cricket-api");
+                  const result = await fetchMatchScorecardWithScore(match.externalId);
                   pointsMap = result.pointsMap;
                   namePointsMap = result.namePointsMap;
-                  if (pointsMap.size > 0) source = "CricAPI";
+                  scoreString = result.scoreString;
+                  matchEnded = result.matchEnded;
+                  if (pointsMap.size > 0 || scoreString) source = "CricAPI";
+                  log(`[Heartbeat] Scorecard for ${match.team1Short} vs ${match.team2Short}: ${pointsMap.size} player points, score="${scoreString.substring(0, 60)}"`);
+                } catch (e) {
+                  console.error(`[Heartbeat] Scorecard fetch failed for ${match.team1Short} vs ${match.team2Short}:`, e);
                 }
               }
 
