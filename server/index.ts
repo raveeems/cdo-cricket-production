@@ -347,15 +347,12 @@ function setupErrorHandler(app: express.Application) {
           const last1 = p1[p1.length - 1], last2 = p2[p2.length - 1];
           if (last1 === last2 && last1.length > 2 && p1[0][0] === p2[0][0]) return true;
           if (last1.length >= 4 && last2.length >= 4) {
-            let dist = 0;
-            const a = last1, b = last2;
-            const m = a.length, n = b.length;
+            const a = last1, b = last2, m = a.length, n = b.length;
             const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
             for (let i = 0; i <= m; i++) dp[i][0] = i;
             for (let j = 0; j <= n; j++) dp[0][j] = j;
             for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-            dist = dp[m][n];
-            if (dist <= 2 && p1[0][0] === p2[0][0]) return true;
+            if (dp[m][n] <= 2 && p1[0][0] === p2[0][0]) return true;
           }
           if (p1[0].substring(0,3) === p2[0].substring(0,3) && p1[0].length >= 3) {
             if (last1.substring(0,3) === last2.substring(0,3)) return true;
@@ -370,6 +367,153 @@ function setupErrorHandler(app: express.Application) {
           if (dp[m][n] <= 2 && Math.max(m, n) >= 8) return true;
         }
         return false;
+      }
+
+      function resolvePlayerPoints(
+        player: { externalId: string | null; name: string; isPlayingXI: boolean | null },
+        pointsMap: Map<string, number>,
+        namePointsMap: Map<string, number>
+      ): { fantasyPts: number | undefined; matchMethod: string } {
+        if (player.externalId && pointsMap.has(player.externalId)) {
+          return { fantasyPts: pointsMap.get(player.externalId)!, matchMethod: "externalId" };
+        }
+
+        if (namePointsMap.size > 0 && player.name) {
+          const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+
+          if (namePointsMap.has(normName)) {
+            return { fantasyPts: namePointsMap.get(normName)!, matchMethod: "exactName" };
+          }
+
+          for (const [apiName, apiPts] of namePointsMap) {
+            if (fuzzyNameMatch(apiName, normName)) {
+              return { fantasyPts: apiPts, matchMethod: `fuzzy(${apiName})` };
+            }
+          }
+        }
+
+        return { fantasyPts: undefined, matchMethod: "none" };
+      }
+
+      async function updateLiveScore(match: any): Promise<{
+        pointsMap: Map<string, number>;
+        namePointsMap: Map<string, number>;
+        scoreString: string;
+        matchEnded: boolean;
+        source: string;
+      }> {
+        const empty = {
+          pointsMap: new Map<string, number>(),
+          namePointsMap: new Map<string, number>(),
+          scoreString: "",
+          matchEnded: false,
+          source: "",
+        };
+
+        if (!match.externalId) return empty;
+
+        try {
+          const { fetchMatchScorecardWithScore } = await import("./cricket-api");
+          const result = await fetchMatchScorecardWithScore(match.externalId);
+          const source = (result.pointsMap.size > 0 || result.scoreString) ? "CricAPI" : "";
+          log(`[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}`);
+          return { ...result, source };
+        } catch (err) {
+          console.error(`[Heartbeat:Score] FAILED for ${match.team1Short} vs ${match.team2Short}:`, err);
+          return empty;
+        }
+      }
+
+      async function updateFantasyPoints(
+        matchId: string,
+        matchLabel: string,
+        pointsMap: Map<string, number>,
+        namePointsMap: Map<string, number>
+      ): Promise<number> {
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        const playerUpdates: Array<{ id: string; newPoints: number }> = [];
+        let mapped = 0;
+        let unmapped = 0;
+
+        for (const player of matchPlayers) {
+          try {
+            const { fantasyPts, matchMethod } = resolvePlayerPoints(player, pointsMap, namePointsMap);
+
+            let finalPts: number;
+            if (fantasyPts !== undefined) {
+              finalPts = fantasyPts + (player.isPlayingXI ? 4 : 0);
+              mapped++;
+              if (matchMethod.startsWith("fuzzy")) {
+                log(`[Heartbeat:Points] Fuzzy: "${player.name}" -> ${matchMethod} = ${fantasyPts} pts (+${player.isPlayingXI ? 4 : 0} XI)`);
+              }
+            } else if (player.isPlayingXI) {
+              finalPts = 4;
+              unmapped++;
+            } else {
+              finalPts = 0;
+              continue;
+            }
+
+            if (finalPts !== player.points) {
+              playerUpdates.push({ id: player.id, newPoints: finalPts });
+            }
+          } catch (err) {
+            console.error(`[Heartbeat:Points] FAILED for player "${player.name}" (${player.id}):`, err);
+            continue;
+          }
+        }
+
+        if (playerUpdates.length > 0) {
+          for (const upd of playerUpdates) {
+            await storage.updatePlayer(upd.id, { points: upd.newPoints });
+          }
+          log(`[Heartbeat:Points] ${matchLabel}: ${playerUpdates.length} players updated (${mapped} mapped from scorecard, ${unmapped} unmapped/XI-only)`);
+        }
+
+        return playerUpdates.length;
+      }
+
+      async function recalculateTeamTotals(matchId: string, matchLabel: string): Promise<void> {
+        const updatedPlayers = await storage.getPlayersForMatch(matchId);
+        const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
+        const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+
+        const teamUpdates: Array<{ teamId: string; teamName: string; oldTotal: number; newTotal: number }> = [];
+
+        for (const team of allTeams) {
+          try {
+            const teamPlayerIds = team.playerIds as string[];
+            let totalPoints = 0;
+            for (const pid of teamPlayerIds) {
+              const p = playerById.get(pid) || playerByExtId.get(pid);
+              if (p) {
+                let pts = p.points || 0;
+                if (pid === team.captainId) pts *= 2;
+                else if (pid === team.viceCaptainId) pts *= 1.5;
+                totalPoints += pts;
+              }
+            }
+            if (totalPoints !== (team.totalPoints || 0)) {
+              teamUpdates.push({
+                teamId: team.id,
+                teamName: team.name || "unnamed",
+                oldTotal: team.totalPoints || 0,
+                newTotal: totalPoints,
+              });
+            }
+          } catch (err) {
+            console.error(`[Heartbeat:Teams] FAILED for team ${team.id}:`, err);
+            continue;
+          }
+        }
+
+        if (teamUpdates.length > 0) {
+          for (const upd of teamUpdates) {
+            await storage.updateUserTeamPoints(upd.teamId, upd.newTotal);
+          }
+          log(`[Heartbeat:Teams] ${matchLabel}: ${teamUpdates.length} teams recalculated — ${teamUpdates.map(t => `${t.teamName}: ${t.oldTotal}->${t.newTotal}`).join(", ")}`);
+        }
       }
 
       async function matchHeartbeat(forcedMatchId?: string) {
@@ -391,106 +535,43 @@ function setupErrorHandler(app: express.Application) {
 
             if (!isLive && !isStarted && !forcedMatchId) continue;
 
-            try {
-              let pointsMap = new Map<string, number>();
-              let namePointsMap = new Map<string, number>();
-              let scoreString = "";
-              let source = "";
-              let matchEnded = false;
+            const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
 
-              if (match.externalId) {
-                try {
-                  const { fetchMatchScorecardWithScore } = await import("./cricket-api");
-                  const result = await fetchMatchScorecardWithScore(match.externalId);
-                  pointsMap = result.pointsMap;
-                  namePointsMap = result.namePointsMap;
-                  scoreString = result.scoreString;
-                  matchEnded = result.matchEnded;
-                  if (pointsMap.size > 0 || scoreString) source = "CricAPI";
-                  log(`[Heartbeat] Scorecard for ${match.team1Short} vs ${match.team2Short}: ${pointsMap.size} player points, score="${scoreString.substring(0, 60)}"`);
-                } catch (e) {
-                  console.error(`[Heartbeat] Scorecard fetch failed for ${match.team1Short} vs ${match.team2Short}:`, e);
-                }
-              }
+            try {
+              const { pointsMap, namePointsMap, scoreString, matchEnded, source } =
+                await updateLiveScore(match);
 
               if (scoreString && scoreString !== (match as any).scoreString) {
                 await storage.updateMatch(match.id, { scoreString, lastSyncAt: new Date() } as any);
               }
 
               if (matchEnded && match.status !== "completed") {
-                log(`[Heartbeat] COMPLETED: ${match.team1Short} vs ${match.team2Short}`);
+                log(`[Heartbeat] COMPLETED: ${matchLabel}`);
                 await storage.updateMatch(match.id, { status: "completed" });
               }
 
               if (pointsMap.size > 0) {
-                const matchPlayers = await storage.getPlayersForMatch(match.id);
-                let updated = 0;
-                for (const player of matchPlayers) {
-                  let pts: number | undefined = undefined;
-                  if (player.externalId && pointsMap.has(player.externalId)) {
-                    pts = pointsMap.get(player.externalId)!;
-                  }
-                  if (pts === undefined && namePointsMap.size > 0 && player.name) {
-                    const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-                    if (namePointsMap.has(normName)) {
-                      pts = namePointsMap.get(normName)!;
-                    } else {
-                      for (const [apiName, apiPts] of namePointsMap) {
-                        if (fuzzyNameMatch(apiName, normName)) {
-                          pts = apiPts;
-                          log(`[Heartbeat] Fuzzy matched "${player.name}" -> "${apiName}" (${apiPts} pts)`);
-                          break;
-                        }
-                      }
-                    }
-                  }
-                  if (pts !== undefined) {
-                    if (player.isPlayingXI) pts += 4;
-                    if (pts !== player.points) {
-                      await storage.updatePlayer(player.id, { points: pts });
-                      updated++;
-                    }
-                  } else if (player.isPlayingXI) {
-                    if (player.points !== 4) {
-                      await storage.updatePlayer(player.id, { points: 4 });
-                      updated++;
-                    }
-                  } else if (player.points !== 0) {
-                    await storage.updatePlayer(player.id, { points: 0 });
-                    updated++;
-                  }
+                const updatedCount = await updateFantasyPoints(match.id, matchLabel, pointsMap, namePointsMap);
+                if (updatedCount > 0) {
+                  await recalculateTeamTotals(match.id, matchLabel);
                 }
-
-                if (updated > 0) {
-                  const updatedPlayers = await storage.getPlayersForMatch(match.id);
-                  const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
-                  const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
-                  const allTeams = await storage.getAllTeamsForMatch(match.id);
-                  for (const team of allTeams) {
-                    const teamPlayerIds = team.playerIds as string[];
-                    let totalPoints = 0;
-                    for (const pid of teamPlayerIds) {
-                      const p = playerById.get(pid) || playerByExtId.get(pid);
-                      if (p) {
-                        let pts = p.points || 0;
-                        if (pid === team.captainId) pts *= 2;
-                        else if (pid === team.viceCaptainId) pts *= 1.5;
-                        totalPoints += pts;
-                      }
-                    }
-                    if (totalPoints !== (team.totalPoints || 0)) {
-                      await storage.updateUserTeamPoints(team.id, totalPoints);
-                    }
+              } else {
+                const matchPlayers = await storage.getPlayersForMatch(match.id);
+                const xiPlayersWithZero = matchPlayers.filter(p => p.isPlayingXI && (p.points === 0 || p.points === null));
+                if (xiPlayersWithZero.length > 0) {
+                  log(`[Heartbeat:Points] ${matchLabel}: No scorecard data yet, applying +4 XI base to ${xiPlayersWithZero.length} players`);
+                  for (const p of xiPlayersWithZero) {
+                    await storage.updatePlayer(p.id, { points: 4 });
                   }
-                  log(`[Heartbeat] ${source}: updated ${updated} player scores, recalculated teams for ${match.team1Short} vs ${match.team2Short}`);
+                  await recalculateTeamTotals(match.id, matchLabel);
                 }
               }
 
               if (source) {
-                log(`[Heartbeat] ${match.team1Short} vs ${match.team2Short} synced via ${source}${scoreString ? ` — ${scoreString.substring(0, 60)}` : ''}`);
+                log(`[Heartbeat] ${matchLabel} synced via ${source}${scoreString ? ` — ${scoreString.substring(0, 80)}` : ''}`);
               }
             } catch (err) {
-              console.error(`[Heartbeat] sync failed for ${match.team1Short} vs ${match.team2Short}:`, err);
+              console.error(`[Heartbeat] sync FAILED for ${matchLabel}:`, err);
             }
           }
         } catch (err) {
