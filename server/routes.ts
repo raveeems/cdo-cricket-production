@@ -440,6 +440,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
 
+            if (squad.length === 0) {
+              try {
+                console.log(`Tier 1 squad empty, trying Tier 2 (api-cricket.com) for ${match.team1Short} vs ${match.team2Short}...`);
+                const { fetchSquadFromApiCricket } = await import("./api-cricket");
+                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+                squad = await fetchSquadFromApiCricket(match.team1Short, match.team2Short, matchDateStr);
+                if (squad.length > 0) {
+                  console.log(`Tier 2 squad: found ${squad.length} players for ${match.team1} vs ${match.team2}`);
+                }
+              } catch (e) {
+                console.error("Tier 2 squad fetch error:", e);
+              }
+            }
+
             if (squad.length > 0) {
               const playersToCreate = squad.map((p) => ({
                 matchId,

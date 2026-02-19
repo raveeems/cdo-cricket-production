@@ -376,6 +376,19 @@ function setupErrorHandler(app: express.Application) {
                   });
                 }
 
+                if (squad.length === 0) {
+                  try {
+                    const { fetchSquadFromApiCricket } = await import("./api-cricket");
+                    const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+                    squad = await fetchSquadFromApiCricket(match.team1Short, match.team2Short, matchDateStr);
+                    if (squad.length > 0) {
+                      log(`Tier 2 (api-cricket.com): squad ${squad.length} players for ${match.team1} vs ${match.team2}`);
+                    }
+                  } catch (e) {
+                    console.error("Tier 2 squad fetch error:", e);
+                  }
+                }
+
                 if (squad.length > 0) {
                   await storage.upsertPlayersForMatch(
                     match.id,
