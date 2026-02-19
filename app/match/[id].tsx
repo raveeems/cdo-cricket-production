@@ -584,17 +584,6 @@ export default function MatchDetailScreen() {
                   <Text style={[styles.scorecardName, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
                     Extras
                   </Text>
-                  {currentInning.extrasDetail && (
-                    <Text style={[styles.scorecardDismissal, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-                      {[
-                        currentInning.extrasDetail.b ? `b ${currentInning.extrasDetail.b}` : '',
-                        currentInning.extrasDetail.lb ? `lb ${currentInning.extrasDetail.lb}` : '',
-                        currentInning.extrasDetail.w ? `wd ${currentInning.extrasDetail.w}` : '',
-                        currentInning.extrasDetail.nb ? `nb ${currentInning.extrasDetail.nb}` : '',
-                        currentInning.extrasDetail.p ? `p ${currentInning.extrasDetail.p}` : '',
-                      ].filter(Boolean).join(', ')}
-                    </Text>
-                  )}
                 </View>
                 <Text style={[styles.scorecardStat, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
                   {currentInning.extras}

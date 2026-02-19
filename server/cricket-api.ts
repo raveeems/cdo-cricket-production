@@ -1029,25 +1029,12 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
       const extrasTotal = totalFromApi - batterRuns;
 
       const rawExtras = (inn as any).extras;
-      if (rawExtras) {
-        console.log(`[Scorecard] Inning "${inn.inning}" raw extras from API:`, JSON.stringify(rawExtras));
-      } else {
-        console.log(`[Scorecard] Inning "${inn.inning}" no extras field from API. Computed extras: ${extrasTotal > 0 ? extrasTotal : 0} (API total ${totalFromApi} - batter runs ${batterRuns})`);
-      }
-      const extrasDetailParsed = rawExtras ? {
-        b: rawExtras.byes ?? rawExtras.b ?? 0,
-        lb: rawExtras.legbyes ?? rawExtras.lb ?? 0,
-        w: rawExtras.wides ?? rawExtras.w ?? 0,
-        nb: rawExtras.noballs ?? rawExtras.nb ?? 0,
-        p: rawExtras.penalty ?? rawExtras.p ?? 0,
-      } : undefined;
       const apiExtrasTotal = rawExtras?.total ?? rawExtras?.r;
       const finalExtras = apiExtrasTotal != null ? apiExtrasTotal : (extrasTotal > 0 ? extrasTotal : 0);
 
       return {
         inning: inn.inning,
         extras: finalExtras,
-        extrasDetail: extrasDetailParsed,
         totals: matchScore ? { r: matchScore.r, w: matchScore.w, o: matchScore.o } : undefined,
         batting: (inn.batting || []).map((b) => ({
           name: b.batsman?.name || "",

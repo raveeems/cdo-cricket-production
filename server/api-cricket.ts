@@ -10,6 +10,8 @@ interface ApiCricketEvent {
   event_status_info: string;
   league_name: string;
   league_key: string;
+  event_home_final_result?: string;
+  event_away_final_result?: string;
   lineups?: {
     home_team?: {
       starting_lineups?: Array<{ player: string; player_key?: string }>;
@@ -33,6 +35,14 @@ interface ApiCricketEvent {
     W: string | null;
     SR: string;
     ER: string | null;
+  }>>;
+  extra?: Record<string, Array<{
+    innings: string;
+    nr: string;
+    text: string;
+    total_overs: string;
+    total: string;
+    percent_over: string | null;
   }>>;
 }
 
@@ -463,15 +473,7 @@ export async function fetchApiCricketScorecard(
 
     const batsmen = players.filter(p => p.type === "Batsman");
     const bowlers = players.filter(p => p.type === "Bowler");
-    const otherTypes = players.filter(p => p.type !== "Batsman" && p.type !== "Bowler");
-    if (otherTypes.length > 0) {
-      console.log(`[Tier2 Scorecard] ${innKey} has non-bat/bowl entries:`, otherTypes.map(p => ({ type: p.type, player: p.player, R: p.R, status: p.status })));
-    }
-
     const batterRuns = batsmen.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
-    const bowlerRunsConceded = bowlers.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
-    const totalRuns = bowlerRunsConceded > batterRuns ? bowlerRunsConceded : batterRuns;
-    const extrasTotal = totalRuns - batterRuns;
     const totalWickets = bowlers.reduce((sum, b) => sum + parseInt(b.W || "0"), 0);
     let totalBalls = 0;
     for (const b of bowlers) {
@@ -482,7 +484,22 @@ export async function fetchApiCricketScorecard(
     }
     const totalOvers = Math.floor(totalBalls / 6) + (totalBalls % 6) / 10;
 
-    console.log(`[Tier2 Scorecard] ${innKey}: batterRuns=${batterRuns}, bowlerRuns=${bowlerRunsConceded}, total=${totalRuns}, extras=${extrasTotal > 0 ? extrasTotal : 0}`);
+    const extraEntry = match.extra?.[innKey]?.[0];
+    let extrasTotal = 0;
+    let totalRuns = batterRuns;
+    if (extraEntry) {
+      extrasTotal = Math.round(parseFloat(extraEntry.nr || "0"));
+      const totalMatch = (extraEntry.total || "").match(/^(\d+)/);
+      if (totalMatch) {
+        totalRuns = parseInt(totalMatch[1]);
+      } else {
+        totalRuns = batterRuns + extrasTotal;
+      }
+    } else {
+      const bowlerRunsConceded = bowlers.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
+      totalRuns = bowlerRunsConceded > batterRuns ? bowlerRunsConceded : batterRuns;
+      extrasTotal = totalRuns - batterRuns;
+    }
 
     score.push({ r: totalRuns, w: totalWickets, o: totalOvers, inning: innKey });
 
