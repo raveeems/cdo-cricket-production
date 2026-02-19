@@ -59,9 +59,8 @@ Preferred communication style: Simple, everyday language.
 ### Database
 - **PostgreSQL**: Required. Connected via `DATABASE_URL` environment variable. Used through Drizzle ORM with node-postgres driver
 
-### External APIs (2-Tier System)
-- **Tier 1 - CricAPI** (`https://api.cricapi.com/v1`): Primary cricket data API for match sync, player squads, scorecards. Has rate limits (2000 calls/day, 15min block on overuse). Used in `server/cricket-api.ts`
-- **Tier 2 - api-cricket.com** (`https://api.api-cricket.com/v3`): Fallback for Playing XI, scorecards, and live scores when CricAPI is blocked. Used in `server/api-cricket.ts`. All schedulers automatically fall back to this when Tier 1 fails
+### External APIs
+- **CricAPI** (`https://api.cricapi.com/v1`): Cricket data API for match sync, player squads, scorecards, live scores. Has rate limits (2000 calls/day, 15min block on overuse). Used in `server/cricket-api.ts`
 
 ### Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (required)
