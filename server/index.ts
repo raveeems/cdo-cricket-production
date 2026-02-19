@@ -428,32 +428,6 @@ function setupErrorHandler(app: express.Application) {
                 }
               }
 
-              if (!source && match.team1Short && match.team2Short) {
-                const { fetchApiCricketScorecard, calculatePointsFromApiCricket } = await import("./api-cricket");
-                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-
-                const scData = await fetchApiCricketScorecard(match.team1Short, match.team2Short, matchDateStr);
-                if (scData && scData.score && scData.score.length > 0) {
-                  source = "api-cricket.com";
-                  scoreString = scData.score.map((s: any) => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
-                  const lcStatus2 = (scData.status || "").toLowerCase();
-                  matchEnded = lcStatus2.includes("won") || lcStatus2.includes("draw") ||
-                               lcStatus2.includes("tied") || lcStatus2.includes("finished") ||
-                               lcStatus2.includes("ended") || lcStatus2.includes("result") ||
-                               lcStatus2.includes("aban") || lcStatus2.includes("no result") ||
-                               lcStatus2.includes("d/l") || lcStatus2.includes("dls");
-                  if (scData.status && !matchEnded) {
-                    scoreString += ` — ${scData.status}`;
-                  } else if (scData.status && matchEnded) {
-                    scoreString += ` — ${scData.status}`;
-                  }
-                }
-
-                if (pointsMap.size === 0) {
-                  pointsMap = await calculatePointsFromApiCricket(match.id, match.team1Short, match.team2Short, matchDateStr);
-                }
-              }
-
               if (scoreString && scoreString !== (match as any).scoreString) {
                 await storage.updateMatch(match.id, { scoreString, lastSyncAt: new Date() } as any);
               }
