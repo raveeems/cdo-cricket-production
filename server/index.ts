@@ -307,6 +307,19 @@ function setupErrorHandler(app: express.Application) {
     () => {
       log(`express server serving on port ${port}`);
 
+      const ADMIN_PHONES = ["9840872462", "9884334973", "7406020777"];
+      (async () => {
+        for (const phone of ADMIN_PHONES) {
+          try {
+            const u = await storage.getUserByPhone(phone);
+            if (u && !u.isAdmin) {
+              await storage.setUserAdmin(u.id, true);
+              log(`Auto-promoted ${u.username} (${phone}) to admin`);
+            }
+          } catch (e) {}
+        }
+      })();
+
       seedReferenceCodes().catch((err) => {
         console.error("Reference code seeding failed:", err);
       });
