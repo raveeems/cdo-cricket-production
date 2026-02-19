@@ -1,5 +1,80 @@
 const CRICKET_API_BASE = "https://api.cricapi.com/v1";
 
+let tier1Blocked = false;
+let tier1BlockedUntil = 0;
+
+function getApiKeys(): { primary: string | undefined; fallback: string | undefined } {
+  return {
+    primary: process.env.CRICKET_API_KEY,
+    fallback: process.env.CRICAPI_KEY_TIER2,
+  };
+}
+
+function getActiveApiKey(): string | undefined {
+  const keys = getApiKeys();
+  if (keys.primary && (!tier1Blocked || Date.now() > tier1BlockedUntil)) {
+    tier1Blocked = false;
+    return keys.primary;
+  }
+  if (keys.fallback) {
+    console.log("[CricAPI] Using Tier 2 fallback key");
+    return keys.fallback;
+  }
+  return keys.primary;
+}
+
+function markTier1Blocked() {
+  tier1Blocked = true;
+  tier1BlockedUntil = Date.now() + 60 * 60 * 1000;
+  console.log("[CricAPI] Tier 1 key quota hit — switching to Tier 2 for 1 hour");
+}
+
+async function cricApiFetch<T>(path: string, extraParams: string = ""): Promise<{ data: T | null; info?: any; usedTier: number }> {
+  const keys = getApiKeys();
+  const keyOrder: { key: string; tier: number }[] = [];
+
+  if (keys.primary && (!tier1Blocked || Date.now() > tier1BlockedUntil)) {
+    keyOrder.push({ key: keys.primary, tier: 1 });
+  }
+  if (keys.fallback) {
+    keyOrder.push({ key: keys.fallback, tier: 2 });
+  }
+  if (keyOrder.length === 0 && keys.primary) {
+    keyOrder.push({ key: keys.primary, tier: 1 });
+  }
+
+  for (const { key, tier } of keyOrder) {
+    try {
+      const sep = path.includes("?") ? "&" : "?";
+      const url = `${CRICKET_API_BASE}/${path}${sep}apikey=${key}${extraParams ? "&" + extraParams : ""}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error(`[CricAPI T${tier}] HTTP ${res.status} for ${path}`);
+        continue;
+      }
+      const json = await res.json() as any;
+
+      if (json.status === "failure" || json.status === "error") {
+        const msg = (json.reason || json.message || "").toLowerCase();
+        if (msg.includes("limit") || msg.includes("quota") || msg.includes("blocked") || msg.includes("exceed")) {
+          console.log(`[CricAPI T${tier}] Quota exceeded: ${json.reason || json.message}`);
+          if (tier === 1) markTier1Blocked();
+          continue;
+        }
+      }
+
+      if (json.info) {
+        console.log(`[CricAPI T${tier}] ${path.split("?")[0]}: hits ${json.info.hitsUsed || json.info.hitsToday}/${json.info.hitsLimit}`);
+      }
+      return { data: json.data ?? json, info: json.info, usedTier: tier };
+    } catch (e: any) {
+      console.error(`[CricAPI T${tier}] Fetch error for ${path}:`, e.message);
+      continue;
+    }
+  }
+  return { data: null, usedTier: 0 };
+}
+
 interface CricApiMatch {
   id: string;
   name: string;
@@ -157,9 +232,9 @@ export async function fetchUpcomingMatches(): Promise<
     league: string;
   }>
 > {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) {
-    console.log("CRICKET_API_KEY not set, skipping API fetch");
+    console.log("No CricAPI key available, skipping API fetch");
     return [];
   }
 
@@ -193,8 +268,10 @@ export async function fetchUpcomingMatches(): Promise<
             }
           }
         } else if ((json as any).reason) {
-          console.log(`Cricket API blocked: ${(json as any).reason} - will retry later`);
-          if ((json as any).reason?.includes("Blocked")) {
+          const reason = (json as any).reason || "";
+          console.log(`Cricket API blocked: ${reason} - will retry later`);
+          if (reason.includes("Blocked") || reason.toLowerCase().includes("limit")) {
+            markTier1Blocked();
             break;
           }
         }
@@ -282,7 +359,7 @@ export async function fetchSeriesMatches(
     league: string;
   }>
 > {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
 
   try {
@@ -305,7 +382,13 @@ export async function fetchSeriesMatches(
       }>;
     }>;
 
-    if (json.status !== "success" || !json.data?.matchList) return [];
+    if (json.status !== "success" || !json.data?.matchList) {
+      const reason = ((json as any).reason || (json as any).message || "").toLowerCase();
+      if (reason.includes("limit") || reason.includes("quota") || reason.includes("blocked")) {
+        markTier1Blocked();
+      }
+      return [];
+    }
 
     console.log(`Series Info API: fetched ${json.data.matchList.length} matches for ${seriesName}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
 
@@ -461,7 +544,7 @@ export async function syncMatchesFromApi(retryCount = 0): Promise<void> {
 export async function fetchMatchInfo(
   matchId: string
 ): Promise<CricApiMatch | null> {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return null;
 
   try {
@@ -481,7 +564,7 @@ export async function fetchMatchInfo(
 export async function fetchPlayingXI(
   externalMatchId: string
 ): Promise<string[]> {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
 
   try {
@@ -553,7 +636,7 @@ export async function refreshStaleMatchStatuses(): Promise<void> {
   lastStatusRefresh = now;
 
   const { storage } = await import("./storage");
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return;
 
   const allMatches = await storage.getAllMatches();
@@ -650,7 +733,7 @@ export async function fetchSeriesSquad(
   role: string;
   credits: number;
 }>> {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
 
   try {
@@ -703,7 +786,7 @@ export async function fetchSeriesSquad(
 export async function fetchPlayingXIFromMatchInfo(
   externalMatchId: string
 ): Promise<string[]> {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
 
   try {
@@ -745,7 +828,7 @@ export async function fetchMatchSquad(
   role: string;
   credits: number;
 }>> {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
 
   try {
@@ -914,7 +997,7 @@ function calculateFantasyPoints(
 export async function fetchPlayingXIFromScorecard(
   externalMatchId: string
 ): Promise<string[]> {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
 
   try {
@@ -945,7 +1028,7 @@ export async function fetchPlayingXIFromScorecard(
 export async function fetchMatchScorecard(
   externalMatchId: string
 ): Promise<{ pointsMap: Map<string, number>; namePointsMap: Map<string, number> }> {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   const pointsMap = new Map<string, number>();
   const namePointsMap = new Map<string, number>();
   if (!apiKey) return { pointsMap, namePointsMap };
@@ -1009,7 +1092,7 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
   }>;
   status: string;
 } | null> {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return null;
 
   try {
