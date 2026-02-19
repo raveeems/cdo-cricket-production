@@ -139,6 +139,25 @@ export default function MatchDetailScreen() {
     retry: 1,
   });
 
+  interface PredictionData {
+    isRevealed: boolean;
+    myPrediction: { id: string; predictedWinner: string } | null;
+    predictions: Array<{
+      id: string;
+      userId: string;
+      username: string;
+      teamName: string;
+      predictedWinner: string;
+    }>;
+  }
+
+  const { data: predictionsData } = useQuery<PredictionData>({
+    queryKey: ['/api/predictions', id],
+    enabled: !!id,
+    staleTime: 30000,
+    refetchInterval: isEffectivelyLive ? 30000 : false,
+  });
+
   const match = matchData?.match;
 
   const basePlayers = playersData?.players || [];
@@ -370,6 +389,94 @@ export default function MatchDetailScreen() {
           <Text style={[styles.deadlineText, { color: colors.error, fontFamily: 'Inter_500Medium' }]}>
             Entry deadline has passed
           </Text>
+        </View>
+      )}
+
+      {predictionsData && (
+        <View style={[styles.predictionSection, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <View style={styles.predictionHeader}>
+            <MaterialCommunityIcons name="crystal-ball" size={20} color={colors.accent} />
+            <Text style={[styles.predictionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Winner Predictions
+            </Text>
+          </View>
+
+          {predictionsData.myPrediction ? (
+            <View style={[styles.myPredictionBadge, { backgroundColor: colors.accent + '15', borderColor: colors.accent + '40' }]}>
+              <Text style={[styles.myPredictionLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+                Your pick:
+              </Text>
+              <View style={[styles.predictionPill, { backgroundColor: colors.accent + '25' }]}>
+                <Text style={[styles.predictionPillText, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
+                  {predictionsData.myPrediction.predictedWinner}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={[styles.noPredictionText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+              No prediction yet - submit a team to predict
+            </Text>
+          )}
+
+          {predictionsData.isRevealed ? (
+            predictionsData.predictions.length > 0 ? (
+              <View style={styles.predictionsList}>
+                {predictionsData.predictions.map((pred) => {
+                  const displayName = pred.teamName || pred.username;
+                  const isCurrentUser = pred.userId === user?.id;
+                  return (
+                    <View
+                      key={pred.id}
+                      style={[
+                        styles.predictionItem,
+                        { backgroundColor: isCurrentUser ? colors.primary + '10' : colors.surfaceElevated },
+                      ]}
+                    >
+                      <View style={[styles.predictionAvatar, { backgroundColor: colors.primary + '20' }]}>
+                        <Text style={[styles.predictionInitial, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                          {displayName[0]?.toUpperCase() || '?'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.predictionName, { color: colors.text, fontFamily: isCurrentUser ? 'Inter_700Bold' : 'Inter_500Medium' }]} numberOfLines={1}>
+                        {isCurrentUser ? `${displayName} (You)` : displayName}
+                      </Text>
+                      <View style={[
+                        styles.predictionPill,
+                        {
+                          backgroundColor: pred.predictedWinner === match.team1Short
+                            ? (match.team1Color || '#333') + '20'
+                            : (match.team2Color || '#666') + '20',
+                        },
+                      ]}>
+                        <Text style={[
+                          styles.predictionPillText,
+                          {
+                            color: pred.predictedWinner === match.team1Short
+                              ? (match.team1Color || '#333')
+                              : (match.team2Color || '#666'),
+                            fontFamily: 'Inter_700Bold',
+                          },
+                        ]}>
+                          {pred.predictedWinner}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={[styles.noPredictionText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                No predictions for this match yet
+              </Text>
+            )
+          ) : (
+            <View style={[styles.hiddenPredictions, { backgroundColor: colors.surfaceElevated }]}>
+              <Ionicons name="eye-off" size={20} color={colors.textTertiary} />
+              <Text style={[styles.hiddenText, { color: colors.textTertiary, fontFamily: 'Inter_500Medium' }]}>
+                Predictions will be revealed when the match goes live
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -1855,5 +1962,80 @@ const styles = StyleSheet.create({
   },
   verifyError: {
     fontSize: 13,
+  },
+  predictionSection: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginTop: 16,
+    gap: 12,
+  },
+  predictionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  predictionTitle: {
+    fontSize: 16,
+  },
+  myPredictionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  myPredictionLabel: {
+    fontSize: 13,
+  },
+  predictionPill: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  predictionPillText: {
+    fontSize: 13,
+  },
+  noPredictionText: {
+    fontSize: 13,
+  },
+  predictionsList: {
+    gap: 6,
+  },
+  predictionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    gap: 10,
+  },
+  predictionAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  predictionInitial: {
+    fontSize: 14,
+  },
+  predictionName: {
+    flex: 1,
+    fontSize: 13,
+  },
+  hiddenPredictions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+  },
+  hiddenText: {
+    flex: 1,
+    fontSize: 12,
   },
 });
