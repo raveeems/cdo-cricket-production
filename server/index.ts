@@ -370,7 +370,7 @@ function setupErrorHandler(app: express.Application) {
       }
 
       function resolvePlayerPoints(
-        player: { externalId: string | null; name: string; isPlayingXI: boolean | null },
+        player: { externalId: string | null; name: string; isPlayingXI: boolean | null; apiName?: string | null },
         pointsMap: Map<string, number>,
         namePointsMap: Map<string, number>
       ): { fantasyPts: number | undefined; matchMethod: string } {
@@ -378,16 +378,25 @@ function setupErrorHandler(app: express.Application) {
           return { fantasyPts: pointsMap.get(player.externalId)!, matchMethod: "externalId" };
         }
 
-        if (namePointsMap.size > 0 && player.name) {
-          const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-
-          if (namePointsMap.has(normName)) {
-            return { fantasyPts: namePointsMap.get(normName)!, matchMethod: "exactName" };
+        if (namePointsMap.size > 0) {
+          if (player.apiName) {
+            const normApiName = player.apiName.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+            if (namePointsMap.has(normApiName)) {
+              return { fantasyPts: namePointsMap.get(normApiName)!, matchMethod: `apiName(${player.apiName})` };
+            }
           }
 
-          for (const [apiName, apiPts] of namePointsMap) {
-            if (fuzzyNameMatch(apiName, normName)) {
-              return { fantasyPts: apiPts, matchMethod: `fuzzy(${apiName})` };
+          if (player.name) {
+            const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+
+            if (namePointsMap.has(normName)) {
+              return { fantasyPts: namePointsMap.get(normName)!, matchMethod: "exactName" };
+            }
+
+            for (const [apiName, apiPts] of namePointsMap) {
+              if (fuzzyNameMatch(apiName, normName)) {
+                return { fantasyPts: apiPts, matchMethod: `fuzzy(${apiName})` };
+              }
             }
           }
         }

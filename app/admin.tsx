@@ -70,7 +70,19 @@ export default function AdminScreen() {
   const [loadingPlayerMap, setLoadingPlayerMap] = useState(false);
   const [selectedDbPlayer, setSelectedDbPlayer] = useState<string | null>(null);
   const [playerMapNewName, setPlayerMapNewName] = useState('');
+  const [playerMapApiName, setPlayerMapApiName] = useState('');
   const [playerMapMsg, setPlayerMapMsg] = useState('');
+
+  const [apiCallData, setApiCallData] = useState<{ today: number; date: string; dailyLimit: number; tier1Key: boolean; tier2Key: boolean } | null>(null);
+  const [loadingApiCalls, setLoadingApiCalls] = useState(false);
+
+  const [addPlayerName, setAddPlayerName] = useState('');
+  const [addPlayerApiName, setAddPlayerApiName] = useState('');
+  const [addPlayerTeam, setAddPlayerTeam] = useState('');
+  const [addPlayerRole, setAddPlayerRole] = useState('BAT');
+  const [addPlayerCredits, setAddPlayerCredits] = useState('8');
+  const [addPlayerMsg, setAddPlayerMsg] = useState('');
+  const [addingPlayer, setAddingPlayer] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -91,7 +103,52 @@ export default function AdminScreen() {
   useEffect(() => {
     loadCodes();
     loadMatches();
+    loadApiCalls();
   }, []);
+
+  const loadApiCalls = async () => {
+    setLoadingApiCalls(true);
+    try {
+      const res = await apiRequest('GET', '/api/admin/api-calls');
+      const data = await res.json();
+      setApiCallData(data);
+    } catch (e) {
+      console.error('Failed to load API calls:', e);
+    } finally {
+      setLoadingApiCalls(false);
+    }
+  };
+
+  const handleAddPlayer = async () => {
+    if (!selectedMatchId || !addPlayerName.trim() || !addPlayerTeam.trim()) {
+      setAddPlayerMsg('Name and Team are required');
+      return;
+    }
+    setAddingPlayer(true);
+    setAddPlayerMsg('');
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/players`, {
+        players: [{
+          name: addPlayerName.trim(),
+          apiName: addPlayerApiName.trim() || undefined,
+          team: addPlayerTeam.trim(),
+          teamShort: addPlayerTeam.trim().substring(0, 3).toUpperCase(),
+          role: addPlayerRole,
+          credits: parseFloat(addPlayerCredits) || 8,
+        }],
+      });
+      const data = await res.json();
+      setAddPlayerMsg(data.message || 'Player added');
+      setAddPlayerName('');
+      setAddPlayerApiName('');
+      setAddPlayerCredits('8');
+      if (selectedMatchId) selectMatch(selectedMatchId);
+    } catch (e: any) {
+      setAddPlayerMsg('Failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setAddingPlayer(false);
+    }
+  };
 
   const loadMatches = async () => {
     try {
@@ -316,6 +373,55 @@ export default function AdminScreen() {
               Admin access for {user?.username}
             </Text>
           </LinearGradient>
+
+          <View style={styles.section}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0 }]}>
+                API Usage Today
+              </Text>
+              <Pressable onPress={loadApiCalls} style={{ padding: 4 }}>
+                <Ionicons name="refresh" size={18} color={colors.primary} />
+              </Pressable>
+            </View>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              CricAPI calls used vs daily limit (2000/day per key).
+            </Text>
+            <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              {loadingApiCalls ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : apiCallData ? (
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    <Ionicons name="analytics" size={24} color={apiCallData.today > 1500 ? colors.error : apiCallData.today > 1000 ? '#F59E0B' : colors.success} />
+                    <Text style={{ color: colors.text, fontSize: 28, fontFamily: 'Inter_700Bold' }}>
+                      {apiCallData.today}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_400Regular' }}>
+                      / {apiCallData.dailyLimit}
+                    </Text>
+                  </View>
+                  <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden' }}>
+                    <View style={{
+                      height: '100%',
+                      width: `${Math.min((apiCallData.today / apiCallData.dailyLimit) * 100, 100)}%`,
+                      backgroundColor: apiCallData.today > 1500 ? colors.error : apiCallData.today > 1000 ? '#F59E0B' : colors.success,
+                      borderRadius: 3,
+                    }} />
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular' }}>
+                      T1 Key: {apiCallData.tier1Key ? 'Active' : 'Missing'} | T2 Key: {apiCallData.tier2Key ? 'Active' : 'Missing'}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular' }}>
+                      {apiCallData.date}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular' }}>No data</Text>
+              )}
+            </View>
+          </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
@@ -677,6 +783,86 @@ export default function AdminScreen() {
             )}
           </View>
 
+          {selectedMatchId && selectedMatch && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                Add Player to {selectedMatch.team1Short} v {selectedMatch.team2Short}
+              </Text>
+              <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Manually add a player. Use API Name for scorecard matching if names differ.
+              </Text>
+
+              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                <TextInput
+                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
+                  value={addPlayerName}
+                  onChangeText={setAddPlayerName}
+                  placeholder="Player Name (display)"
+                  placeholderTextColor={colors.textTertiary}
+                />
+                <TextInput
+                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
+                  value={addPlayerApiName}
+                  onChangeText={setAddPlayerApiName}
+                  placeholder="API Name (optional, for scorecard match)"
+                  placeholderTextColor={colors.textTertiary}
+                />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={[styles.addPlayerInput, { flex: 1, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
+                    value={addPlayerTeam}
+                    onChangeText={setAddPlayerTeam}
+                    placeholder="Team (e.g. India)"
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                  <TextInput
+                    style={[styles.addPlayerInput, { width: 60, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium', textAlign: 'center' }]}
+                    value={addPlayerCredits}
+                    onChangeText={setAddPlayerCredits}
+                    placeholder="Cr"
+                    placeholderTextColor={colors.textTertiary}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {['WK', 'BAT', 'AR', 'BOWL'].map(r => (
+                    <Pressable
+                      key={r}
+                      onPress={() => setAddPlayerRole(r)}
+                      style={[styles.roleChip, {
+                        backgroundColor: addPlayerRole === r ? colors.primary : colors.surfaceElevated,
+                        borderColor: addPlayerRole === r ? colors.primary : colors.border,
+                      }]}
+                    >
+                      <Text style={{ color: addPlayerRole === r ? '#FFF' : colors.text, fontFamily: 'Inter_700Bold', fontSize: 12 }}>
+                        {r}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable
+                  onPress={handleAddPlayer}
+                  disabled={addingPlayer}
+                  style={{ height: 44, borderRadius: 12, backgroundColor: colors.primary + '20', justifyContent: 'center', alignItems: 'center', flexDirection: 'row' }}
+                >
+                  {addingPlayer ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="person-add" size={18} color={colors.primary} />
+                      <Text style={{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 14, marginLeft: 8 }}>Add Player</Text>
+                    </>
+                  )}
+                </Pressable>
+                {addPlayerMsg !== '' && (
+                  <Text style={{ color: addPlayerMsg.startsWith('Failed') ? colors.error : colors.success, fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 6 }}>
+                    {addPlayerMsg}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
+
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
               Scoring System
@@ -938,6 +1124,7 @@ export default function AdminScreen() {
                     onPress={() => {
                       setSelectedDbPlayer(p.id);
                       setPlayerMapNewName(p.name);
+                      setPlayerMapApiName(p.apiName || '');
                     }}
                     style={[{
                       flexDirection: 'row',
@@ -956,7 +1143,7 @@ export default function AdminScreen() {
                         {p.name}
                       </Text>
                       <Text style={[{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 10 }]}>
-                        {p.role} | pts: {p.points || 0}
+                        {p.role} | {p.teamShort} | pts: {p.points || 0}{p.apiName ? ` | API: ${p.apiName}` : ''}
                       </Text>
                     </View>
                     {selectedDbPlayer === p.id && (
@@ -973,9 +1160,16 @@ export default function AdminScreen() {
                     <TextInput
                       value={playerMapNewName}
                       onChangeText={setPlayerMapNewName}
-                      placeholder="Correct player name"
+                      placeholder="Display name"
                       placeholderTextColor={colors.textTertiary}
-                      style={[styles.codeInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
+                      style={[styles.addPlayerInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
+                    />
+                    <TextInput
+                      value={playerMapApiName}
+                      onChangeText={setPlayerMapApiName}
+                      placeholder="API Name (scorecard match override)"
+                      placeholderTextColor={colors.textTertiary}
+                      style={[styles.addPlayerInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
                     />
 
                     {playerMapData.scorecardNames.length > 0 && (
@@ -1006,6 +1200,7 @@ export default function AdminScreen() {
                           const res = await apiRequest('POST', `/api/admin/matches/${playerMapMatch}/map-player`, {
                             dbPlayerId: selectedDbPlayer,
                             newName: playerMapNewName.trim(),
+                            newApiName: playerMapApiName.trim() || undefined,
                           });
                           const data = await res.json();
                           setPlayerMapMsg(data.message || 'Player mapped successfully');
@@ -1300,5 +1495,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
+  },
+  addPlayerInput: {
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  roleChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
   },
 });

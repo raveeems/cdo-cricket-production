@@ -79,6 +79,7 @@ export const players = pgTable("players", {
   recentForm: jsonb("recent_form").$type<number[]>().notNull().default([]),
   isImpactPlayer: boolean("is_impact_player").notNull().default(false),
   isPlayingXI: boolean("is_playing_xi").notNull().default(false),
+  apiName: text("api_name"),
 });
 
 export const userTeams = pgTable("user_teams", {

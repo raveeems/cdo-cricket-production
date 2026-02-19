@@ -1179,6 +1179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const playersToCreate = playerList.map((p: any) => ({
           matchId,
           name: p.name,
+          apiName: p.apiName || null,
           team: p.team,
           teamShort: p.teamShort || p.team.substring(0, 3).toUpperCase(),
           role: p.role || "BAT",
@@ -1472,7 +1473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const { matchId } = req.params;
-        const { dbPlayerId, newName, newExternalId } = req.body;
+        const { dbPlayerId, newName, newExternalId, newApiName } = req.body;
         if (!dbPlayerId) return res.status(400).json({ message: "dbPlayerId required" });
 
         const match = await storage.getMatch(matchId);
@@ -1485,6 +1486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const updates: any = {};
         if (newName) updates.name = newName;
         if (newExternalId) updates.externalId = newExternalId;
+        if (newApiName !== undefined) updates.apiName = newApiName || null;
 
         if (Object.keys(updates).length > 0) {
           await storage.updatePlayer(dbPlayerId, updates);
@@ -1527,9 +1529,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           dbPlayers: dbPlayers.map(p => ({
             id: p.id,
             name: p.name,
+            apiName: p.apiName,
             externalId: p.externalId,
             points: p.points,
             role: p.role,
+            team: p.team,
+            teamShort: p.teamShort,
             isPlayingXI: p.isPlayingXI,
           })),
           scorecardNames,
@@ -1693,6 +1698,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ matches: matchStatuses, serverTime: new Date().toISOString() });
       } catch (err: any) {
         return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  // ---- ADMIN: API CALL TRACKING ----
+  app.get(
+    "/api/admin/api-calls",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { getInMemoryApiCallCount } = await import("./cricket-api");
+        const dbCount = await storage.getApiCallCount();
+        const inMemory = getInMemoryApiCallCount();
+        return res.json({
+          today: dbCount.count || inMemory,
+          date: dbCount.date,
+          lastCalledAt: dbCount.lastCalledAt,
+          dailyLimit: 2000,
+          tier1Key: !!process.env.CRICKET_API_KEY,
+          tier2Key: !!process.env.CRICAPI_KEY_TIER2,
+        });
+      } catch (err: any) {
+        console.error("API call tracking error:", err);
+        return res.status(500).json({ message: "Failed to get API call data" });
       }
     }
   );
