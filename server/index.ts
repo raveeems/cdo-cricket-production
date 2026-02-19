@@ -576,8 +576,14 @@ function setupErrorHandler(app: express.Application) {
                     }
                   }
                   if (pts !== undefined) {
+                    if (player.isPlayingXI) pts += 4;
                     if (pts !== player.points) {
                       await storage.updatePlayer(player.id, { points: pts });
+                      updated++;
+                    }
+                  } else if (player.isPlayingXI) {
+                    if (player.points !== 4) {
+                      await storage.updatePlayer(player.id, { points: 4 });
                       updated++;
                     }
                   } else if (player.points !== 0) {
