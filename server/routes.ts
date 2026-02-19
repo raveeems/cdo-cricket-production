@@ -440,20 +440,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
 
-            if (squad.length === 0) {
-              try {
-                console.log(`Tier 1 squad empty, trying Tier 2 (api-cricket.com) for ${match.team1Short} vs ${match.team2Short}...`);
-                const { fetchSquadFromApiCricket } = await import("./api-cricket");
-                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-                squad = await fetchSquadFromApiCricket(match.team1Short, match.team2Short, matchDateStr);
-                if (squad.length > 0) {
-                  console.log(`Tier 2 squad: found ${squad.length} players for ${match.team1} vs ${match.team2}`);
-                }
-              } catch (e) {
-                console.error("Tier 2 squad fetch error:", e);
-              }
-            }
-
             if (squad.length > 0) {
               const playersToCreate = squad.map((p) => ({
                 matchId,
@@ -580,13 +566,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (scorecard) source = "CricAPI";
         }
 
-        if (!scorecard && match.team1Short && match.team2Short) {
-          const { fetchApiCricketScorecard } = await import("./api-cricket");
-          const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-          scorecard = await fetchApiCricketScorecard(match.team1Short, match.team2Short, matchDateStr);
-          if (scorecard) source = "api-cricket.com";
-        }
-
         if (!scorecard) {
           return res.json({ scorecard: null, message: "No scorecard data available yet" });
         }
@@ -618,21 +597,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               matchStarted: info.matchStarted,
               matchEnded: info.matchEnded,
               source: "CricAPI",
-            };
-          }
-        }
-
-        if (!scoreData && match.team1Short && match.team2Short) {
-          const { fetchApiCricketScorecard } = await import("./api-cricket");
-          const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-          const sc = await fetchApiCricketScorecard(match.team1Short, match.team2Short, matchDateStr);
-          if (sc) {
-            scoreData = {
-              score: sc.score || [],
-              status: sc.status,
-              matchStarted: true,
-              matchEnded: sc.status?.toLowerCase().includes("won") || sc.status?.toLowerCase().includes("draw"),
-              source: "api-cricket.com",
             };
           }
         }
@@ -1166,18 +1130,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         if (squad.length === 0) {
-          try {
-            const { fetchSquadFromApiCricket } = await import("./api-cricket");
-            const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-            squad = await fetchSquadFromApiCricket(match.team1Short, match.team2Short, matchDateStr);
-            source = "api-cricket.com (Tier 2)";
-            console.log(`[Fetch Squad] Tier 2 returned ${squad.length} players`);
-          } catch (e) {
-            console.error("[Fetch Squad] Tier 2 failed:", e);
-          }
-        }
-
-        if (squad.length === 0) {
           return res.json({
             message: `No squad data found for ${match.team1Short} vs ${match.team2Short}. API may not have squads yet.`,
             totalPlayers: 0,
@@ -1264,19 +1216,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { fetchPlayingXIFromScorecard, fetchPlayingXIFromMatchInfo } = await import("./cricket-api");
         let playingIds = await fetchPlayingXIFromScorecard(match.externalId);
         let source = "scorecard";
-        if (playingIds.length === 0) {
-          try {
-            const { markPlayingXIFromApiCricket } = await import("./api-cricket");
-            const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-            const result = await markPlayingXIFromApiCricket(matchId, match.team1Short, match.team2Short, matchDateStr);
-            if (result.matched > 0) {
-              source = "api-cricket.com";
-              return res.json({ message: `Playing XI updated via api-cricket.com: ${result.matched} players matched`, count: result.matched, source });
-            }
-          } catch (e) {
-            console.error("api-cricket.com Playing XI error:", e);
-          }
-        }
         if (playingIds.length === 0) {
           playingIds = await fetchPlayingXIFromMatchInfo(match.externalId);
           source = "match_info";
@@ -1622,22 +1561,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   pShort === t1Short || pShort === t2Short;
               });
               console.log(`[Force Sync] Tournament squad: filtered ${squad.length} players for ${match.team1} vs ${match.team2} from ${seriesPlayers.length} total`);
-            }
-
-            if (squad.length === 0) {
-              try {
-                const apiCricket = await import("./api-cricket");
-                if (typeof apiCricket.fetchSquadFromApiCricket === 'function') {
-                  const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
-                  const tier2Squad = await apiCricket.fetchSquadFromApiCricket(match.team1Short, match.team2Short, matchDateStr);
-                  if (tier2Squad.length > 0) {
-                    squad = tier2Squad;
-                    console.log(`[Force Sync] Tier 2 (api-cricket.com) returned ${squad.length} players`);
-                  }
-                }
-              } catch (e) {
-                console.log(`[Force Sync] Tier 2 squad fetch not available or failed`);
-              }
             }
 
             if (squad.length > 0) {
