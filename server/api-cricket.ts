@@ -250,6 +250,102 @@ function extractLineups(match: ApiCricketEvent): { homeXI: string[]; awayXI: str
   };
 }
 
+export async function fetchSquadFromApiCricket(
+  team1Short: string,
+  team2Short: string,
+  matchDate?: string
+): Promise<Array<{
+  externalId: string;
+  name: string;
+  team: string;
+  teamShort: string;
+  role: string;
+  credits: number;
+}>> {
+  const dateStart = matchDate || new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const dateStop = matchDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  const events = await fetchApiCricketT20WCMatches(dateStart, dateStop);
+  if (events.length === 0) return [];
+
+  const t1 = team1Short.toUpperCase();
+  const t2 = team2Short.toUpperCase();
+
+  const teamNameMap: Record<string, string[]> = {
+    IND: ["india"], PAK: ["pakistan"], AUS: ["australia"], ENG: ["england"],
+    SA: ["south africa"], NZ: ["new zealand"], WI: ["west indies"],
+    SL: ["sri lanka"], BAN: ["bangladesh"], AFG: ["afghanistan"],
+    ZIM: ["zimbabwe"], IRE: ["ireland"], SCO: ["scotland"],
+    NED: ["netherlands"], NAM: ["namibia"], UAE: ["united arab emirates", "uae"],
+    USA: ["united states", "u.s.a"], NEP: ["nepal"], CAN: ["canada"], ITA: ["italy"],
+  };
+
+  const t1Names = teamNameMap[t1] || [t1.toLowerCase()];
+  const t2Names = teamNameMap[t2] || [t2.toLowerCase()];
+
+  const match = events.find(e => {
+    const home = (e.event_home_team || "").toLowerCase();
+    const away = (e.event_away_team || "").toLowerCase();
+    const t1Found = t1Names.some(n => home.includes(n) || away.includes(n)) || home.includes(t1.toLowerCase()) || away.includes(t1.toLowerCase());
+    const t2Found = t2Names.some(n => home.includes(n) || away.includes(n)) || home.includes(t2.toLowerCase()) || away.includes(t2.toLowerCase());
+    return t1Found && t2Found;
+  });
+
+  if (!match) {
+    console.log(`api-cricket.com squad: no match found for ${t1} vs ${t2}`);
+    return [];
+  }
+
+  const homeLineups = match.lineups?.home_team?.starting_lineups || [];
+  const awayLineups = match.lineups?.away_team?.starting_lineups || [];
+
+  if (homeLineups.length === 0 && awayLineups.length === 0) {
+    console.log(`api-cricket.com squad: no lineups available for ${match.event_home_team} vs ${match.event_away_team}`);
+    return [];
+  }
+
+  const homeTeamName = match.event_home_team;
+  const awayTeamName = match.event_away_team;
+
+  const homeIsT1 = t1Names.some(n => homeTeamName.toLowerCase().includes(n)) || homeTeamName.toLowerCase().includes(t1.toLowerCase());
+  const homeShort = homeIsT1 ? t1 : t2;
+  const awayShort = homeIsT1 ? t2 : t1;
+
+  const players: Array<{
+    externalId: string;
+    name: string;
+    team: string;
+    teamShort: string;
+    role: string;
+    credits: number;
+  }> = [];
+
+  for (const p of homeLineups) {
+    players.push({
+      externalId: p.player_key || `api-cricket-${normalizePlayerName(p.player)}`,
+      name: p.player,
+      team: homeTeamName,
+      teamShort: homeShort,
+      role: "BAT",
+      credits: 9,
+    });
+  }
+
+  for (const p of awayLineups) {
+    players.push({
+      externalId: p.player_key || `api-cricket-${normalizePlayerName(p.player)}`,
+      name: p.player,
+      team: awayTeamName,
+      teamShort: awayShort,
+      role: "BAT",
+      credits: 9,
+    });
+  }
+
+  console.log(`api-cricket.com squad: ${homeTeamName} (${homeLineups.length}) + ${awayTeamName} (${awayLineups.length}) = ${players.length} players`);
+  return players;
+}
+
 export async function markPlayingXIFromApiCricket(
   dbMatchId: string,
   team1Short: string,
