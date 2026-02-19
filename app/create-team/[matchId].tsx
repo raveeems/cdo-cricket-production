@@ -335,6 +335,8 @@ export default function CreateTeamScreen() {
     setSelectedIds(newSet);
   };
 
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const handleSaveTeam = async () => {
     if (!captainId || !vcId || !matchId || isSaving) return;
     if (isDuplicateTeam(captainId, vcId)) {
@@ -344,9 +346,8 @@ export default function CreateTeamScreen() {
     }
     setIsSaving(true);
     setDuplicateError(null);
+    setSaveError(null);
     try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
       if (isEditMode && editTeamId) {
         await updateTeam({
           teamId: editTeamId,
@@ -370,9 +371,23 @@ export default function CreateTeamScreen() {
         });
       }
 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep('success');
-    } catch (e) {
+    } catch (e: any) {
       console.error('Save team error:', e);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      let msg = 'Failed to submit team. Please try again.';
+      try {
+        const errStr = e?.message || '';
+        const jsonStart = errStr.indexOf('{');
+        if (jsonStart >= 0) {
+          const parsed = JSON.parse(errStr.substring(jsonStart));
+          if (parsed.message) msg = parsed.message;
+        } else if (errStr) {
+          msg = errStr;
+        }
+      } catch {}
+      setSaveError(msg);
     } finally {
       setIsSaving(false);
     }
@@ -404,7 +419,7 @@ export default function CreateTeamScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Team Saved!' : 'Team Preview'}
+          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -621,7 +636,15 @@ export default function CreateTeamScreen() {
         </>
       )}
 
-      {step === 'preview' && (
+      {step === 'preview' && (() => {
+        const previewPitchPlayers: PitchPlayer[] = selectedPlayers.map(p => ({
+          id: p.id,
+          name: p.name,
+          role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
+          points: p.points || 0,
+          teamShort: p.teamShort,
+        }));
+        return (
         <>
           <ScrollView
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, paddingTop: 12 }}
@@ -636,68 +659,11 @@ export default function CreateTeamScreen() {
               </Text>
             </View>
 
-            <View style={[styles.previewCaptainRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <View style={styles.previewCaptainItem}>
-                <View style={[styles.previewCaptainBadge, { backgroundColor: colors.accent }]}>
-                  <Text style={[styles.previewCaptainBadgeText, { fontFamily: 'Inter_700Bold' }]}>C</Text>
-                </View>
-                <Text style={[styles.previewCaptainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
-                  {selectedPlayers.find((p) => p.id === captainId)?.name || 'N/A'}
-                </Text>
-                <Text style={[styles.previewCaptainMult, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>2x</Text>
-              </View>
-              <View style={[styles.previewDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.previewCaptainItem}>
-                <View style={[styles.previewCaptainBadge, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.previewCaptainBadgeText, { color: '#FFF', fontFamily: 'Inter_700Bold' }]}>VC</Text>
-                </View>
-                <Text style={[styles.previewCaptainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
-                  {selectedPlayers.find((p) => p.id === vcId)?.name || 'N/A'}
-                </Text>
-                <Text style={[styles.previewCaptainMult, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>1.5x</Text>
-              </View>
-            </View>
-
-            {(['WK', 'BAT', 'AR', 'BOWL'] as const).map((role) => {
-              const rolePlayers = selectedPlayers.filter((p) => p.role === role);
-              if (rolePlayers.length === 0) return null;
-              return (
-                <View key={role} style={styles.previewSection}>
-                  <View style={styles.previewSectionHeader}>
-                    <View style={[styles.previewRolePill, { backgroundColor: getRoleColor(role, isDark) + '20' }]}>
-                      <Text style={[styles.previewRolePillText, { color: getRoleColor(role, isDark), fontFamily: 'Inter_700Bold' }]}>
-                        {role}
-                      </Text>
-                    </View>
-                    <Text style={[styles.previewRoleCount, { color: colors.textTertiary, fontFamily: 'Inter_500Medium' }]}>
-                      {rolePlayers.length} player{rolePlayers.length > 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  {rolePlayers.map((p) => (
-                    <View key={p.id} style={[styles.previewPlayerRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                      <View style={styles.previewPlayerLeft}>
-                        <Text style={[styles.previewPlayerName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
-                          {p.name}
-                        </Text>
-                        <Text style={[styles.previewPlayerTeam, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-                          {p.teamShort} | {p.credits} Cr
-                        </Text>
-                      </View>
-                      {p.id === captainId && (
-                        <View style={[styles.previewBadgePill, { backgroundColor: colors.accent }]}>
-                          <Text style={[styles.previewBadgePillText, { fontFamily: 'Inter_700Bold' }]}>C</Text>
-                        </View>
-                      )}
-                      {p.id === vcId && (
-                        <View style={[styles.previewBadgePill, { backgroundColor: colors.primary }]}>
-                          <Text style={[styles.previewBadgePillText, { color: '#FFF', fontFamily: 'Inter_700Bold' }]}>VC</Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              );
-            })}
+            <TeamPitchView
+              players={previewPitchPlayers}
+              captainId={captainId}
+              viceCaptainId={vcId}
+            />
 
             <View style={[styles.previewSummary, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <View style={styles.previewSummaryRow}>
@@ -711,10 +677,20 @@ export default function CreateTeamScreen() {
             </View>
           </ScrollView>
 
+          {saveError && (
+            <View style={{ position: 'absolute', top: insets.top + webTopInset + 60, left: 16, right: 16, backgroundColor: '#EF4444', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, zIndex: 100 }}>
+              <Ionicons name="alert-circle" size={22} color="#FFF" />
+              <Text style={{ color: '#FFF', fontSize: 13, fontFamily: 'Inter_600SemiBold' as const, flex: 1 }}>{saveError}</Text>
+              <Pressable onPress={() => setSaveError(null)} hitSlop={8}>
+                <Ionicons name="close" size={20} color="#FFF" />
+              </Pressable>
+            </View>
+          )}
+
           <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
             <View style={styles.bottomBarRow}>
               <Pressable
-                onPress={() => setStep('captain')}
+                onPress={() => { setSaveError(null); setStep('captain'); }}
                 style={[styles.backStepBtn, { borderColor: colors.border }]}
               >
                 <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -736,7 +712,7 @@ export default function CreateTeamScreen() {
                     <>
                       <Ionicons name="checkmark" size={22} color="#000" />
                       <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                        {isEditMode ? 'Update Team' : 'Save Team'}
+                        {isEditMode ? 'Update Team' : 'Submit Team'}
                       </Text>
                     </>
                   )}
@@ -745,7 +721,8 @@ export default function CreateTeamScreen() {
             </View>
           </View>
         </>
-      )}
+        );
+      })()}
 
       {step === 'success' && (() => {
         const pitchPlayers: PitchPlayer[] = selectedPlayers.map(p => ({
@@ -762,13 +739,18 @@ export default function CreateTeamScreen() {
               showsVerticalScrollIndicator={false}
             >
               <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#22C55E20', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
-                  <Ionicons name="checkmark-circle" size={40} color="#22C55E" />
+                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#22C55E20', justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                  <Ionicons name="checkmark-circle" size={44} color="#22C55E" />
                 </View>
-                <Text style={{ color: colors.text, fontSize: 18, fontFamily: 'Inter_700Bold' as const }}>
-                  {isEditMode ? 'Team Updated!' : 'Team Created!'}
+                <Text style={{ color: colors.text, fontSize: 22, fontFamily: 'Inter_700Bold' as const }}>
+                  Success!
                 </Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, marginTop: 4 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_500Medium' as const, marginTop: 6, textAlign: 'center', paddingHorizontal: 20 }}>
+                  {isEditMode
+                    ? 'Your team has been updated successfully.'
+                    : 'Your team has been submitted and you have joined the contest.'}
+                </Text>
+                <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, marginTop: 4 }}>
                   {match?.team1Short} vs {match?.team2Short}
                 </Text>
               </View>
@@ -780,7 +762,7 @@ export default function CreateTeamScreen() {
             </ScrollView>
             <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
               <Pressable
-                onPress={() => router.back()}
+                onPress={() => router.replace('/(tabs)/my-matches')}
                 style={[styles.saveBtn, { flex: 1 }]}
               >
                 <LinearGradient
@@ -789,9 +771,9 @@ export default function CreateTeamScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.saveBtnGradient}
                 >
-                  <Ionicons name="home" size={20} color="#000" />
+                  <Ionicons name="trophy" size={20} color="#000" />
                   <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                    Back to Match
+                    Go to My Matches
                   </Text>
                 </LinearGradient>
               </Pressable>
