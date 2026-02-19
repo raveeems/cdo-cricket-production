@@ -397,12 +397,10 @@ export default function CreateTeamScreen() {
       setStep('success');
     } catch (e: any) {
       console.error('Save team error:', e);
-      const rawError = String(e?.message || e || 'Unknown error');
-      alert('RAW ERROR: ' + rawError);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       let msg = 'Failed to submit team. Please try again.';
       try {
-        const errStr = rawError;
+        const errStr = String(e?.message || e || '');
         const jsonMatch = errStr.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
