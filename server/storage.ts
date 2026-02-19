@@ -237,14 +237,14 @@ export class DatabaseStorage {
     
     await db
       .update(players)
-      .set({ isPlayingXI: false })
+      .set({ isPlayingXI: false, points: 0 })
       .where(eq(players.matchId, matchId));
 
     let updated = 0;
     for (const extId of externalPlayerIds) {
       const result = await db
         .update(players)
-        .set({ isPlayingXI: true })
+        .set({ isPlayingXI: true, points: 4 })
         .where(and(eq(players.matchId, matchId), eq(players.externalId, extId)));
       updated++;
     }
@@ -256,14 +256,14 @@ export class DatabaseStorage {
 
     await db
       .update(players)
-      .set({ isPlayingXI: false })
+      .set({ isPlayingXI: false, points: 0 })
       .where(eq(players.matchId, matchId));
 
     let updated = 0;
     for (const pid of playerIds) {
       await db
         .update(players)
-        .set({ isPlayingXI: true })
+        .set({ isPlayingXI: true, points: 4 })
         .where(and(eq(players.matchId, matchId), eq(players.id, pid)));
       updated++;
     }
