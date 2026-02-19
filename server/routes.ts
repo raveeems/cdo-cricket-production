@@ -825,7 +825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .json({ message: "Captain and Vice-Captain required" });
         }
 
-        const matchPlayers = await storage.getPlayersByMatch(matchId);
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
         const playerMap = new Map(matchPlayers.map(p => [p.id, p]));
         const roleCounts: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
         const teamPlayerCounts: Record<string, number> = {};
@@ -916,7 +916,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Captain and Vice-Captain required" });
         }
 
-        const matchPlayers = await storage.getPlayersByMatch(team.matchId);
+        const matchPlayers = await storage.getPlayersForMatch(team.matchId);
         const playerMap = new Map(matchPlayers.map(p => [p.id, p]));
         const roleCounts: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
         const teamPlayerCounts: Record<string, number> = {};
