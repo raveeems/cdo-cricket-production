@@ -60,14 +60,15 @@ Preferred communication style: Simple, everyday language.
 - **PostgreSQL**: Required. Connected via `DATABASE_URL` environment variable. Used through Drizzle ORM with node-postgres driver
 
 ### External APIs
-- **CricAPI** (`https://api.cricapi.com/v1`): Cricket data API for match sync, player squads, scorecards, live scores. Has rate limits (2000 calls/day, 15min block on overuse). Used in `server/cricket-api.ts`
+- **CricAPI** (`https://api.cricapi.com/v1`): Cricket data API for match sync, player squads, scorecards, live scores. Has rate limits (2000 calls/day per key). Uses a 2-key fallback system: when primary key (`CRICKET_API_KEY`) quota is exhausted, automatically switches to Tier 2 key (`CRICAPI_KEY_TIER2`) for 1 hour. Used in `server/cricket-api.ts`
 
 ### Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (required)
 - `SESSION_SECRET` — Express session secret (falls back to dev default)
 - `EXPO_PUBLIC_DOMAIN` — Public domain for API requests from the client
 - `REPLIT_DEV_DOMAIN` / `REPLIT_DOMAINS` — Replit-specific for CORS and dev setup
-- Cricket API key (referenced in `server/cricket-api.ts`)
+- `CRICKET_API_KEY` — Primary CricAPI key (Tier 1)
+- `CRICAPI_KEY_TIER2` — Fallback CricAPI key (Tier 2, auto-used when Tier 1 quota exhausted)
 
 ### Key NPM Packages
 - **Frontend**: expo, expo-router, react-native, @tanstack/react-query, expo-linear-gradient, expo-haptics, expo-image, react-native-reanimated, react-native-gesture-handler, @react-native-async-storage/async-storage
