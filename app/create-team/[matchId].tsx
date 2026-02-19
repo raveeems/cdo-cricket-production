@@ -378,13 +378,19 @@ export default function CreateTeamScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       let msg = 'Failed to submit team. Please try again.';
       try {
-        const errStr = e?.message || '';
-        const jsonStart = errStr.indexOf('{');
-        if (jsonStart >= 0) {
-          const parsed = JSON.parse(errStr.substring(jsonStart));
+        const errStr = String(e?.message || e || '');
+        const jsonMatch = errStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
           if (parsed.message) msg = parsed.message;
-        } else if (errStr) {
-          msg = errStr;
+        } else {
+          const colonIdx = errStr.indexOf(': ');
+          if (colonIdx > 0) {
+            const afterCode = errStr.substring(colonIdx + 2).trim();
+            if (afterCode) msg = afterCode;
+          } else if (errStr && errStr !== '[object Object]') {
+            msg = errStr;
+          }
         }
       } catch {}
       setSaveError(msg);
@@ -678,9 +684,12 @@ export default function CreateTeamScreen() {
           </ScrollView>
 
           {saveError && (
-            <View style={{ position: 'absolute', top: insets.top + webTopInset + 60, left: 16, right: 16, backgroundColor: '#EF4444', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, zIndex: 100 }}>
-              <Ionicons name="alert-circle" size={22} color="#FFF" />
-              <Text style={{ color: '#FFF', fontSize: 13, fontFamily: 'Inter_600SemiBold' as const, flex: 1 }}>{saveError}</Text>
+            <View style={{ position: 'absolute', top: insets.top + webTopInset + 60, left: 16, right: 16, backgroundColor: '#EF4444', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, zIndex: 100 }}>
+              <Ionicons name="alert-circle" size={22} color="#FFF" style={{ marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#FFF', fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>Submission Failed</Text>
+                <Text style={{ color: '#FFFFFFDD', fontSize: 13, fontFamily: 'Inter_500Medium' as const, marginTop: 2 }}>{saveError}</Text>
+              </View>
               <Pressable onPress={() => setSaveError(null)} hitSlop={8}>
                 <Ionicons name="close" size={20} color="#FFF" />
               </Pressable>
