@@ -105,6 +105,16 @@ export const codeVerifications = pgTable("code_verifications", {
   verifiedAt: timestamp("verified_at").notNull().defaultNow(),
 });
 
+export const matchPredictions = pgTable("match_predictions", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  matchId: varchar("match_id").notNull(),
+  predictedWinner: varchar("predicted_winner", { length: 10 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const apiCallLog = pgTable("api_call_log", {
   id: varchar("id")
     .primaryKey()
@@ -148,3 +158,4 @@ export type ReferenceCode = typeof referenceCodes.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type Player = typeof players.$inferSelect;
 export type UserTeam = typeof userTeams.$inferSelect;
+export type MatchPrediction = typeof matchPredictions.$inferSelect;

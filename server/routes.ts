@@ -968,6 +968,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- PREDICTIONS ----
+  app.post(
+    "/api/predictions",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const { matchId, predictedWinner } = req.body;
+        if (!matchId || !predictedWinner) {
+          return res.status(400).json({ message: "matchId and predictedWinner are required" });
+        }
+        const match = await storage.getMatch(matchId);
+        if (!match) {
+          return res.status(404).json({ message: "Match not found" });
+        }
+        const now = new Date();
+        const matchStart = new Date(match.startTime);
+        if (now.getTime() >= matchStart.getTime() - 1000) {
+          return res.status(400).json({ message: "Prediction deadline has passed" });
+        }
+        if (match.status === "live" || match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
+        if (predictedWinner !== match.team1Short && predictedWinner !== match.team2Short) {
+          return res.status(400).json({ message: "Invalid team selection" });
+        }
+        const existing = await storage.getUserPredictionForMatch(req.session.userId!, matchId);
+        let prediction;
+        if (existing) {
+          prediction = await storage.updatePrediction(req.session.userId!, matchId, predictedWinner);
+        } else {
+          prediction = await storage.createPrediction({
+            userId: req.session.userId!,
+            matchId,
+            predictedWinner,
+          });
+        }
+        return res.json({ prediction });
+      } catch (err: any) {
+        console.error("Prediction error:", err);
+        return res.status(500).json({ message: "Failed to save prediction" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/predictions/:matchId",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const match = await storage.getMatch(req.params.matchId);
+        if (!match) {
+          return res.status(404).json({ message: "Match not found" });
+        }
+        const isRevealed = match.status === "live" || match.status === "completed";
+        const myPrediction = await storage.getUserPredictionForMatch(
+          req.session.userId!,
+          req.params.matchId
+        );
+        if (!isRevealed) {
+          return res.json({
+            isRevealed: false,
+            myPrediction: myPrediction
+              ? { id: myPrediction.id, predictedWinner: myPrediction.predictedWinner }
+              : null,
+            predictions: [],
+          });
+        }
+        const allPredictions = await storage.getPredictionsForMatch(req.params.matchId);
+        const userIds = [...new Set(allPredictions.map(p => p.userId))];
+        const usersData: Record<string, { username: string; teamName: string }> = {};
+        for (const uid of userIds) {
+          const u = await storage.getUser(uid);
+          if (u) usersData[uid] = { username: u.username, teamName: u.teamName || "" };
+        }
+        const predictions = allPredictions.map(p => ({
+          id: p.id,
+          userId: p.userId,
+          username: usersData[p.userId]?.username || "Unknown",
+          teamName: usersData[p.userId]?.teamName || "",
+          predictedWinner: p.predictedWinner,
+        }));
+        return res.json({
+          isRevealed: true,
+          myPrediction: myPrediction
+            ? { id: myPrediction.id, predictedWinner: myPrediction.predictedWinner }
+            : null,
+          predictions,
+        });
+      } catch (err: any) {
+        console.error("Get predictions error:", err);
+        return res.status(500).json({ message: "Failed to fetch predictions" });
+      }
+    }
+  );
+
   // ---- LEADERBOARD ----
   app.get("/api/leaderboard", isAuthenticated, async (_req: Request, res: Response) => {
     try {

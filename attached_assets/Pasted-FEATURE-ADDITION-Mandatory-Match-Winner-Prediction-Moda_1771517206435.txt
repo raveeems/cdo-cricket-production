@@ -1,0 +1,37 @@
+FEATURE ADDITION: Mandatory Match Winner Prediction Modal (STRICT ISOLATION)
+
+I need to add a "Match Winner Prediction" feature.
+
+CRITICAL DIRECTIVE - DO NOT TOUCH RECENT FIXES: > You recently stabilized my live sync engine with a double-layered try/catch firewall and apiName mapping. Under no circumstances are you to modify the updateLivePoints, resolvePlayerPoints, the heartbeat loop, or the Admin mapping logic. This new feature is completely isolated to the Team Submission flow and the Leaderboard UI. Do not add any fantasy points for this prediction; it is purely visual.
+
+Please implement the following architecture strictly:
+
+1. Database Schema Update (Teams/UserTeams table)
+
+Add a new string field to the user's team database schema called predicted_winner (storing the selected team's ID, abbreviation, or Name).
+
+2. Frontend UI: The Mandatory Intercept Modal (Pitch View / Team Selection)
+
+Action: On the team selection page, when the user clicks the final "Save/Submit Team" button, do not trigger the API save call yet.
+
+The Modal: Instead, trigger a clean, centered UI Modal asking: "Who will win the match?". Display two large, selectable buttons representing the two competing teams for that specific match.
+
+Validation: The user MUST select one of the teams. Once a team is selected, enable a "Confirm & Save Team" button inside the modal.
+
+Atomic Save: Clicking this final confirm button must send the existing payload (the 11 players, Captain, Vice-Captain) PLUS the new predicted_winner to the backend in one single API request.
+
+3. Backend API: Validation & Lockout (/save-team route)
+
+Update the team saving endpoint to accept the predicted_winner field.
+
+Apply the existing lockout logic: If the match status is 'LIVE' or 'COMPLETED', reject the save. The prediction (and team) can only be submitted while the match is 'UPCOMING'.
+
+4. Frontend UI: Live Standings / Leaderboard Visibility
+
+Update the leaderboard page where user teams are listed.
+
+Pre-Match Privacy: If the match status is 'UPCOMING', hide other users' predictions from the UI. A user should only be able to see their own prediction.
+
+Live Reveal: When the match status transitions to 'LIVE' or 'IN_PROGRESS', reveal everyone's predictions next to their team names (e.g., LeadingEdge 1 [🏏 AFG]).
+
+Output only the specific code blocks needed for the database schema addition, the Modal UI component, the updated frontend save function, the modified backend save route, and the leaderboard UI rendering logic.

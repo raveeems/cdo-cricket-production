@@ -8,12 +8,14 @@ import {
   userTeams,
   codeVerifications,
   apiCallLog,
+  matchPredictions,
   type InsertUser,
   type User,
   type ReferenceCode,
   type Match,
   type Player,
   type UserTeam,
+  type MatchPrediction,
 } from "@shared/schema";
 
 export class DatabaseStorage {
@@ -331,6 +333,29 @@ export class DatabaseStorage {
       matchesPlayed: Number(row.matchesPlayed),
       teamsCreated: Number(row.teamsCreated),
     }));
+  }
+  async getUserPredictionForMatch(userId: string, matchId: string): Promise<MatchPrediction | undefined> {
+    const [pred] = await db.select().from(matchPredictions)
+      .where(and(eq(matchPredictions.userId, userId), eq(matchPredictions.matchId, matchId)));
+    return pred;
+  }
+
+  async getPredictionsForMatch(matchId: string): Promise<MatchPrediction[]> {
+    return db.select().from(matchPredictions)
+      .where(eq(matchPredictions.matchId, matchId));
+  }
+
+  async createPrediction(data: { userId: string; matchId: string; predictedWinner: string }): Promise<MatchPrediction> {
+    const [pred] = await db.insert(matchPredictions).values(data).returning();
+    return pred;
+  }
+
+  async updatePrediction(userId: string, matchId: string, predictedWinner: string): Promise<MatchPrediction> {
+    const [pred] = await db.update(matchPredictions)
+      .set({ predictedWinner })
+      .where(and(eq(matchPredictions.userId, userId), eq(matchPredictions.matchId, matchId)))
+      .returning();
+    return pred;
   }
 }
 
