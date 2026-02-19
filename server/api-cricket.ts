@@ -392,6 +392,7 @@ export async function fetchApiCricketScorecard(
   score: Array<{ r: number; w: number; o: number; inning: string }>;
   innings: Array<{
     inning: string;
+    extras?: number;
     batting: Array<{
       name: string;
       r: number;
@@ -449,6 +450,7 @@ export async function fetchApiCricketScorecard(
   const score: Array<{ r: number; w: number; o: number; inning: string }> = [];
   const innings: Array<{
     inning: string;
+    extras?: number;
     batting: Array<{ name: string; r: number; b: number; fours: number; sixes: number; sr: number; dismissal: string }>;
     bowling: Array<{ name: string; o: number; m: number; r: number; w: number; eco: number }>;
   }> = [];
@@ -460,7 +462,10 @@ export async function fetchApiCricketScorecard(
     const batsmen = players.filter(p => p.type === "Batsman");
     const bowlers = players.filter(p => p.type === "Bowler");
 
-    const totalRuns = batsmen.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
+    const batterRuns = batsmen.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
+    const bowlerRunsConceded = bowlers.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
+    const totalRuns = bowlerRunsConceded > batterRuns ? bowlerRunsConceded : batterRuns;
+    const extrasTotal = totalRuns - batterRuns;
     const totalWickets = bowlers.reduce((sum, b) => sum + parseInt(b.W || "0"), 0);
     let totalBalls = 0;
     for (const b of bowlers) {
@@ -475,6 +480,7 @@ export async function fetchApiCricketScorecard(
 
     innings.push({
       inning: innKey,
+      extras: extrasTotal > 0 ? extrasTotal : 0,
       batting: batsmen.map(b => ({
         name: b.player,
         r: parseInt(b.R || "0"),

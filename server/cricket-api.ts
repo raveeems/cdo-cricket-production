@@ -819,6 +819,9 @@ interface ScorecardInning {
   batting: ScorecardBatting[];
   bowling: ScorecardBowling[];
   catching?: Array<{ catcher: { id: string; name: string }; catches: number }>;
+  extras?: number;
+  extrasDetail?: { b?: number; lb?: number; w?: number; nb?: number; p?: number };
+  totals?: { r: number; w: number; o: number };
 }
 
 interface ScorecardData {
@@ -1018,31 +1021,42 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
     if (json.status !== "success" || !json.data) return null;
 
     const scorecard = json.data.scorecard || [];
-    const innings = scorecard.map((inn) => ({
-      inning: inn.inning,
-      batting: (inn.batting || []).map((b) => ({
-        name: b.batsman?.name || "",
-        r: b.r,
-        b: b.b,
-        fours: b["4s"],
-        sixes: b["6s"],
-        sr: b.sr,
-        dismissal: b.dismissal || "not out",
-        fantasyPoints: b.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0,
-      })),
-      bowling: (inn.bowling || []).map((b) => ({
-        name: b.bowler?.name || "",
-        o: b.o,
-        m: b.m,
-        r: b.r,
-        w: b.w,
-        eco: b.eco,
-        fantasyPoints: b.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0,
-      })),
-    }));
+    const scoreArr = json.data.score || [];
+    const innings = scorecard.map((inn, idx) => {
+      const batterRuns = (inn.batting || []).reduce((sum, b) => sum + (b.r || 0), 0);
+      const matchScore = scoreArr.find(s => s.inning === inn.inning) || scoreArr[idx];
+      const totalFromApi = matchScore ? matchScore.r : batterRuns;
+      const extrasTotal = totalFromApi - batterRuns;
+
+      return {
+        inning: inn.inning,
+        extras: extrasTotal > 0 ? extrasTotal : 0,
+        extrasDetail: (inn as any).extras || undefined,
+        totals: matchScore ? { r: matchScore.r, w: matchScore.w, o: matchScore.o } : undefined,
+        batting: (inn.batting || []).map((b) => ({
+          name: b.batsman?.name || "",
+          r: b.r,
+          b: b.b,
+          fours: b["4s"],
+          sixes: b["6s"],
+          sr: b.sr,
+          dismissal: b.dismissal || "not out",
+          fantasyPoints: b.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0,
+        })),
+        bowling: (inn.bowling || []).map((b) => ({
+          name: b.bowler?.name || "",
+          o: b.o,
+          m: b.m,
+          r: b.r,
+          w: b.w,
+          eco: b.eco,
+          fantasyPoints: b.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0,
+        })),
+      };
+    });
 
     return {
-      score: json.data.score || [],
+      score: scoreArr,
       innings,
       status: json.data.name || "",
     };

@@ -50,6 +50,9 @@ interface ScorecardInning {
   inning: string;
   batting: ScorecardBatter[];
   bowling: ScorecardBowler[];
+  extras?: number;
+  extrasDetail?: { b?: number; lb?: number; w?: number; nb?: number; p?: number };
+  totals?: { r: number; w: number; o: number };
 }
 
 interface LiveScorecard {
@@ -574,6 +577,56 @@ export default function MatchDetailScreen() {
                 </View>
               );
             })}
+
+            {(currentInning.extras !== undefined && currentInning.extras > 0) && (
+              <View style={[styles.scorecardRow, { borderBottomColor: colors.border + '40', backgroundColor: colors.surface }]}>
+                <View style={{ flex: 2 }}>
+                  <Text style={[styles.scorecardName, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
+                    Extras
+                  </Text>
+                  {currentInning.extrasDetail && (
+                    <Text style={[styles.scorecardDismissal, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                      {[
+                        currentInning.extrasDetail.b ? `b ${currentInning.extrasDetail.b}` : '',
+                        currentInning.extrasDetail.lb ? `lb ${currentInning.extrasDetail.lb}` : '',
+                        currentInning.extrasDetail.w ? `wd ${currentInning.extrasDetail.w}` : '',
+                        currentInning.extrasDetail.nb ? `nb ${currentInning.extrasDetail.nb}` : '',
+                        currentInning.extrasDetail.p ? `p ${currentInning.extrasDetail.p}` : '',
+                      ].filter(Boolean).join(', ')}
+                    </Text>
+                  )}
+                </View>
+                <Text style={[styles.scorecardStat, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                  {currentInning.extras}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+              </View>
+            )}
+
+            {currentInning.totals && (
+              <View style={[styles.scorecardRow, { borderBottomColor: colors.border, backgroundColor: colors.primary + '10' }]}>
+                <View style={{ flex: 2 }}>
+                  <Text style={[styles.scorecardName, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
+                    Total
+                  </Text>
+                  <Text style={[styles.scorecardDismissal, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                    ({currentInning.totals.o} ov)
+                  </Text>
+                </View>
+                <Text style={[styles.scorecardStat, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
+                  {currentInning.totals.r}/{currentInning.totals.w}
+                </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+                <Text style={[styles.scorecardStat, { color: 'transparent' }]}> </Text>
+              </View>
+            )}
           </>
         )}
 
