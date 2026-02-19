@@ -16,7 +16,7 @@ declare module "express-session" {
   }
 }
 
-const ADMIN_PHONES = ["9840872462", "9884334973"];
+const ADMIN_PHONES = ["9840872462", "9884334973", "7406020777"];
 const TOKEN_SECRET = process.env.SESSION_SECRET || "cdo-session-secret-dev";
 
 function generateAuthToken(userId: string): string {
@@ -166,6 +166,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserByPhone(phone);
       if (!user || user.password !== password) {
         return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      if (ADMIN_PHONES.includes(phone) && !user.isAdmin) {
+        await storage.setUserAdmin(user.id, true);
+        user.isAdmin = true;
       }
 
       req.session.userId = user.id;
@@ -326,6 +331,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) return res.status(400).json({ message: "userId required" });
       await storage.setUserAdmin(userId, true);
       return res.json({ ok: true });
+    }
+  );
+
+  app.post(
+    "/api/admin/promote-by-phone",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      const { phone } = req.body;
+      if (!phone) return res.status(400).json({ message: "phone required" });
+      const user = await storage.getUserByPhone(phone);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      await storage.setUserAdmin(user.id, true);
+      return res.json({ ok: true, username: user.username });
     }
   );
 
