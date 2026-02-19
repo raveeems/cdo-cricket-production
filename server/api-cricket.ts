@@ -393,6 +393,7 @@ export async function fetchApiCricketScorecard(
   innings: Array<{
     inning: string;
     extras?: number;
+    totals?: { r: number; w: number; o: number };
     batting: Array<{
       name: string;
       r: number;
@@ -451,6 +452,7 @@ export async function fetchApiCricketScorecard(
   const innings: Array<{
     inning: string;
     extras?: number;
+    totals?: { r: number; w: number; o: number };
     batting: Array<{ name: string; r: number; b: number; fours: number; sixes: number; sr: number; dismissal: string }>;
     bowling: Array<{ name: string; o: number; m: number; r: number; w: number; eco: number }>;
   }> = [];
@@ -461,6 +463,10 @@ export async function fetchApiCricketScorecard(
 
     const batsmen = players.filter(p => p.type === "Batsman");
     const bowlers = players.filter(p => p.type === "Bowler");
+    const otherTypes = players.filter(p => p.type !== "Batsman" && p.type !== "Bowler");
+    if (otherTypes.length > 0) {
+      console.log(`[Tier2 Scorecard] ${innKey} has non-bat/bowl entries:`, otherTypes.map(p => ({ type: p.type, player: p.player, R: p.R, status: p.status })));
+    }
 
     const batterRuns = batsmen.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
     const bowlerRunsConceded = bowlers.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
@@ -476,11 +482,14 @@ export async function fetchApiCricketScorecard(
     }
     const totalOvers = Math.floor(totalBalls / 6) + (totalBalls % 6) / 10;
 
+    console.log(`[Tier2 Scorecard] ${innKey}: batterRuns=${batterRuns}, bowlerRuns=${bowlerRunsConceded}, total=${totalRuns}, extras=${extrasTotal > 0 ? extrasTotal : 0}`);
+
     score.push({ r: totalRuns, w: totalWickets, o: totalOvers, inning: innKey });
 
     innings.push({
       inning: innKey,
       extras: extrasTotal > 0 ? extrasTotal : 0,
+      totals: { r: totalRuns, w: totalWickets, o: totalOvers },
       batting: batsmen.map(b => ({
         name: b.player,
         r: parseInt(b.R || "0"),
