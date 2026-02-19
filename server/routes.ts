@@ -1131,6 +1131,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: FETCH SQUAD FROM API ----
+  app.post(
+    "/api/admin/matches/:id/fetch-squad",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      const matchId = req.params.id;
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      try {
+        const { fetchMatchSquad, fetchSeriesSquad } = await import("./cricket-api");
+        let squad = await fetchMatchSquad(match.externalId!);
+        let source = "CricAPI (match_squad)";
+        console.log(`[Fetch Squad] Tier 1 match_squad returned ${squad.length} players for ${match.team1Short} vs ${match.team2Short}`);
+
+        if (squad.length === 0 && match.seriesId) {
+          const seriesPlayers = await fetchSeriesSquad(match.seriesId);
+          const team1 = match.team1.toLowerCase();
+          const team2 = match.team2.toLowerCase();
+          const t1Short = match.team1Short.toLowerCase();
+          const t2Short = match.team2Short.toLowerCase();
+          squad = seriesPlayers.filter((p) => {
+            const pTeam = p.team.toLowerCase();
+            const pShort = p.teamShort.toLowerCase();
+            return pTeam === team1 || pTeam === team2 ||
+              pTeam.includes(team1) || team1.includes(pTeam) ||
+              pTeam.includes(team2) || team2.includes(pTeam) ||
+              pShort === t1Short || pShort === t2Short;
+          });
+          source = "CricAPI (series_squad)";
+          console.log(`[Fetch Squad] Tier 1 series_squad filtered ${squad.length} players`);
+        }
+
+        if (squad.length === 0) {
+          try {
+            const { fetchSquadFromApiCricket } = await import("./api-cricket");
+            const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : undefined;
+            squad = await fetchSquadFromApiCricket(match.team1Short, match.team2Short, matchDateStr);
+            source = "api-cricket.com (Tier 2)";
+            console.log(`[Fetch Squad] Tier 2 returned ${squad.length} players`);
+          } catch (e) {
+            console.error("[Fetch Squad] Tier 2 failed:", e);
+          }
+        }
+
+        if (squad.length === 0) {
+          return res.json({
+            message: `No squad data found for ${match.team1Short} vs ${match.team2Short}. API may not have squads yet.`,
+            totalPlayers: 0,
+            source: "none",
+          });
+        }
+
+        await storage.upsertPlayersForMatch(matchId, squad.map((p) => ({
+          matchId,
+          externalId: p.externalId,
+          name: p.name,
+          team: p.team,
+          teamShort: p.teamShort,
+          role: p.role,
+          credits: p.credits,
+        })));
+
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        return res.json({
+          message: `Squad imported successfully! ${matchPlayers.length} players loaded for ${match.team1Short} vs ${match.team2Short}`,
+          totalPlayers: matchPlayers.length,
+          source,
+        });
+      } catch (err) {
+        console.error("[Fetch Squad] error:", err);
+        return res.status(500).json({ message: "Failed to fetch squad from API" });
+      }
+    }
+  );
+
   // ---- ADMIN: ADD PLAYERS TO MATCH ----
   app.post(
     "/api/admin/matches/:id/players",
