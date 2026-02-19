@@ -440,43 +440,74 @@ function setupErrorHandler(app: express.Application) {
         namePointsMap: Map<string, number>
       ): Promise<number> {
         const matchPlayers = await storage.getPlayersForMatch(matchId);
-        const playerUpdates: Array<{ id: string; newPoints: number }> = [];
+        const playerUpdates: Array<{ id: string; name: string; oldPoints: number; newPoints: number; method: string }> = [];
         let mapped = 0;
         let unmapped = 0;
+        let skippedProtected = 0;
 
         for (const player of matchPlayers) {
           try {
-            const { fantasyPts, matchMethod } = resolvePlayerPoints(player, pointsMap, namePointsMap);
-
-            let finalPts: number;
-            if (fantasyPts !== undefined) {
-              finalPts = fantasyPts + (player.isPlayingXI ? 4 : 0);
-              mapped++;
-              if (matchMethod.startsWith("fuzzy")) {
-                log(`[Heartbeat:Points] Fuzzy: "${player.name}" -> ${matchMethod} = ${fantasyPts} pts (+${player.isPlayingXI ? 4 : 0} XI)`);
-              }
-            } else if (player.isPlayingXI) {
-              finalPts = 4;
-              unmapped++;
-            } else {
-              finalPts = 0;
+            let resolveResult: { fantasyPts: number | undefined; matchMethod: string };
+            try {
+              resolveResult = resolvePlayerPoints(player, pointsMap, namePointsMap);
+            } catch (resolveErr) {
+              console.error(`[Heartbeat:Points] resolvePlayerPoints THREW for "${player.name}" (${player.id}):`, resolveErr);
               continue;
             }
 
-            if (finalPts !== player.points) {
-              playerUpdates.push({ id: player.id, newPoints: finalPts });
+            const { fantasyPts, matchMethod } = resolveResult;
+            const existingPts = player.points || 0;
+            const xiBase = player.isPlayingXI ? 4 : 0;
+
+            let finalPts: number;
+
+            if (fantasyPts !== undefined && fantasyPts !== null) {
+              finalPts = fantasyPts + xiBase;
+              mapped++;
+              if (matchMethod.startsWith("fuzzy") || matchMethod.startsWith("apiName")) {
+                log(`[Heartbeat:Points] Match: "${player.name}" -> ${matchMethod} = ${fantasyPts} scorecard + ${xiBase} XI base = ${finalPts}`);
+              }
+            } else if (player.isPlayingXI) {
+              finalPts = Math.max(xiBase, existingPts);
+              unmapped++;
+              if (finalPts < existingPts) {
+                log(`[Heartbeat:Points] PROTECTED: "${player.name}" unmapped but keeping existing ${existingPts} pts (would have been ${xiBase})`);
+                skippedProtected++;
+                continue;
+              }
+            } else {
+              continue;
+            }
+
+            if (finalPts < existingPts && fantasyPts === undefined) {
+              log(`[Heartbeat:Points] PROTECTED: "${player.name}" score would DROP ${existingPts} -> ${finalPts} with no scorecard match — keeping existing`);
+              skippedProtected++;
+              continue;
+            }
+
+            if (finalPts !== existingPts) {
+              playerUpdates.push({ id: player.id, name: player.name, oldPoints: existingPts, newPoints: finalPts, method: matchMethod });
             }
           } catch (err) {
-            console.error(`[Heartbeat:Points] FAILED for player "${player.name}" (${player.id}):`, err);
+            console.error(`[Heartbeat:Points] OUTER CATCH for player "${player.name}" (${player.id}):`, err);
             continue;
           }
         }
 
         if (playerUpdates.length > 0) {
           for (const upd of playerUpdates) {
-            await storage.updatePlayer(upd.id, { points: upd.newPoints });
+            try {
+              await storage.updatePlayer(upd.id, { points: upd.newPoints });
+            } catch (dbErr) {
+              console.error(`[Heartbeat:Points] DB WRITE FAILED for "${upd.name}" (${upd.id}):`, dbErr);
+            }
           }
-          log(`[Heartbeat:Points] ${matchLabel}: ${playerUpdates.length} players updated (${mapped} mapped from scorecard, ${unmapped} unmapped/XI-only)`);
+          log(`[Heartbeat:Points] ${matchLabel}: ${playerUpdates.length} players updated (${mapped} mapped, ${unmapped} unmapped/XI-only, ${skippedProtected} protected from crash)`);
+          if (playerUpdates.length <= 10) {
+            for (const u of playerUpdates) {
+              log(`  -> ${u.name}: ${u.oldPoints} -> ${u.newPoints} (${u.method})`);
+            }
+          }
         }
 
         return playerUpdates.length;
@@ -494,15 +525,29 @@ function setupErrorHandler(app: express.Application) {
           try {
             const teamPlayerIds = team.playerIds as string[];
             let totalPoints = 0;
+
             for (const pid of teamPlayerIds) {
-              const p = playerById.get(pid) || playerByExtId.get(pid);
-              if (p) {
-                let pts = p.points || 0;
-                if (pid === team.captainId) pts *= 2;
-                else if (pid === team.viceCaptainId) pts *= 1.5;
-                totalPoints += pts;
+              try {
+                const p = playerById.get(pid) || playerByExtId.get(pid);
+                if (!p) continue;
+
+                let basePts = p.points || 0;
+                let multiplier = 1;
+
+                if (pid === team.captainId) {
+                  multiplier = 2;
+                } else if (pid === team.viceCaptainId) {
+                  multiplier = 1.5;
+                }
+
+                const finalPts = Math.round(basePts * multiplier);
+                totalPoints += finalPts;
+              } catch (playerErr) {
+                console.error(`[Heartbeat:Teams] FAILED resolving player ${pid} in team ${team.id}:`, playerErr);
+                continue;
               }
             }
+
             if (totalPoints !== (team.totalPoints || 0)) {
               teamUpdates.push({
                 teamId: team.id,
@@ -512,14 +557,18 @@ function setupErrorHandler(app: express.Application) {
               });
             }
           } catch (err) {
-            console.error(`[Heartbeat:Teams] FAILED for team ${team.id}:`, err);
+            console.error(`[Heartbeat:Teams] OUTER CATCH for team ${team.id}:`, err);
             continue;
           }
         }
 
         if (teamUpdates.length > 0) {
           for (const upd of teamUpdates) {
-            await storage.updateUserTeamPoints(upd.teamId, upd.newTotal);
+            try {
+              await storage.updateUserTeamPoints(upd.teamId, upd.newTotal);
+            } catch (dbErr) {
+              console.error(`[Heartbeat:Teams] DB WRITE FAILED for team ${upd.teamId}:`, dbErr);
+            }
           }
           log(`[Heartbeat:Teams] ${matchLabel}: ${teamUpdates.length} teams recalculated — ${teamUpdates.map(t => `${t.teamName}: ${t.oldTotal}->${t.newTotal}`).join(", ")}`);
         }
@@ -540,6 +589,20 @@ function setupErrorHandler(app: express.Application) {
             if (isStarted && !isLive) {
               log(`[Heartbeat] LOCKOUT: ${match.team1Short} vs ${match.team2Short} -> status=live (was ${match.status}, started ${Math.round((now - startMs) / 60000)}m ago)`);
               await storage.updateMatch(match.id, { status: "live" });
+
+              try {
+                const matchPlayers = await storage.getPlayersForMatch(match.id);
+                const xiPlayers = matchPlayers.filter(p => p.isPlayingXI && (!p.points || p.points < 4));
+                if (xiPlayers.length > 0) {
+                  for (const p of xiPlayers) {
+                    await storage.updatePlayer(p.id, { points: 4 });
+                  }
+                  log(`[Heartbeat] LIVE BASE POINTS: Awarded +4 base to ${xiPlayers.length} Playing XI players for ${match.team1Short} vs ${match.team2Short}`);
+                  await recalculateTeamTotals(match.id, `${match.team1Short} vs ${match.team2Short}`);
+                }
+              } catch (baseErr) {
+                console.error(`[Heartbeat] Failed to award base XI points on live transition:`, baseErr);
+              }
             }
 
             if (!isLive && !isStarted && !forcedMatchId) continue;
