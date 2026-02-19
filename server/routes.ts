@@ -829,6 +829,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        const existingPrediction = await storage.getUserPredictionForMatch(req.session.userId!, matchId);
+        if (!existingPrediction) {
+          return res.status(400).json({ message: "You must predict a match winner before submitting your team." });
+        }
+
         const team = await storage.createUserTeam({
           userId: req.session.userId!,
           matchId,

@@ -8,6 +8,8 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
+  Modal,
+  Animated as RNAnimated,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiRequest } from '@/lib/query-client';
 import {
   Player,
   Match,
@@ -358,6 +361,50 @@ export default function CreateTeamScreen() {
   };
 
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showPredictionModal, setShowPredictionModal] = useState(false);
+  const [selectedWinner, setSelectedWinner] = useState<string | null>(null);
+  const [predictionSaving, setPredictionSaving] = useState(false);
+  const [hasPredicted, setHasPredicted] = useState(false);
+
+  const { data: existingPrediction } = useQuery<{ myPrediction: { predictedWinner: string } | null }>({
+    queryKey: ['/api/predictions', matchId],
+    enabled: !!matchId,
+  });
+
+  const handleSubmitPressed = () => {
+    if (!captainId || !vcId || !matchId || isSaving) return;
+    if (isDuplicateTeam(captainId, vcId)) {
+      setDuplicateError('You have already created this exact team. Please change at least one player or the Captain/VC.');
+      setStep('captain');
+      return;
+    }
+    if (existingPrediction?.myPrediction || hasPredicted) {
+      handleSaveTeam();
+    } else {
+      setShowPredictionModal(true);
+    }
+  };
+
+  const handlePredictionConfirm = async () => {
+    if (!selectedWinner || !matchId) return;
+    setPredictionSaving(true);
+    try {
+      await apiRequest('POST', '/api/predictions', {
+        matchId,
+        predictedWinner: selectedWinner,
+      });
+      setHasPredicted(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setShowPredictionModal(false);
+      handleSaveTeam();
+    } catch (e: any) {
+      console.error('Prediction save error:', e);
+      setSaveError('Failed to save prediction. Please try again.');
+      setShowPredictionModal(false);
+    } finally {
+      setPredictionSaving(false);
+    }
+  };
 
   const handleSaveTeam = async () => {
     if (!captainId || !vcId || !matchId || isSaving) return;
@@ -734,7 +781,7 @@ export default function CreateTeamScreen() {
                 <Ionicons name="arrow-back" size={20} color={colors.text} />
               </Pressable>
               <Pressable
-                onPress={handleSaveTeam}
+                onPress={handleSubmitPressed}
                 disabled={isSaving}
                 style={[styles.saveBtn, { flex: 1, opacity: isSaving ? 0.5 : 1 }]}
               >
@@ -819,9 +866,235 @@ export default function CreateTeamScreen() {
           </>
         );
       })()}
+
+      <Modal
+        visible={showPredictionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPredictionModal(false)}
+      >
+        <View style={predStyles.overlay}>
+          <View style={[predStyles.modal, { backgroundColor: colors.card }]}>
+            <View style={predStyles.modalHeader}>
+              <MaterialCommunityIcons name="trophy" size={32} color={colors.accent} />
+              <Text style={[predStyles.modalTitle, { color: colors.text, fontFamily: 'Inter_700Bold' as const }]}>
+                Who will win?
+              </Text>
+              <Text style={[predStyles.modalSubtitle, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' as const }]}>
+                Pick the match winner before submitting your team
+              </Text>
+            </View>
+
+            <View style={predStyles.teamOptions}>
+              <Pressable
+                onPress={() => { setSelectedWinner(match?.team1Short || ''); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={[
+                  predStyles.teamOption,
+                  {
+                    borderColor: selectedWinner === match?.team1Short ? colors.accent : colors.border,
+                    backgroundColor: selectedWinner === match?.team1Short ? colors.accent + '15' : colors.surfaceElevated,
+                  },
+                ]}
+              >
+                <View style={[predStyles.teamBadge, { backgroundColor: (match?.team1Color || '#333') + '30' }]}>
+                  <Text style={[predStyles.teamBadgeText, { color: match?.team1Color || '#333', fontFamily: 'Inter_700Bold' as const }]}>
+                    {(match?.team1Short || '?')[0]}
+                  </Text>
+                </View>
+                <Text style={[predStyles.teamName, { color: colors.text, fontFamily: 'Inter_600SemiBold' as const }]}>
+                  {match?.team1Short}
+                </Text>
+                <Text style={[predStyles.teamFullName, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' as const }]} numberOfLines={1}>
+                  {match?.team1}
+                </Text>
+                {selectedWinner === match?.team1Short && (
+                  <View style={[predStyles.checkCircle, { backgroundColor: colors.accent }]}>
+                    <Ionicons name="checkmark" size={16} color="#000" />
+                  </View>
+                )}
+              </Pressable>
+
+              <Text style={[predStyles.vsText, { color: colors.textTertiary, fontFamily: 'Inter_700Bold' as const }]}>
+                VS
+              </Text>
+
+              <Pressable
+                onPress={() => { setSelectedWinner(match?.team2Short || ''); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={[
+                  predStyles.teamOption,
+                  {
+                    borderColor: selectedWinner === match?.team2Short ? colors.accent : colors.border,
+                    backgroundColor: selectedWinner === match?.team2Short ? colors.accent + '15' : colors.surfaceElevated,
+                  },
+                ]}
+              >
+                <View style={[predStyles.teamBadge, { backgroundColor: (match?.team2Color || '#666') + '30' }]}>
+                  <Text style={[predStyles.teamBadgeText, { color: match?.team2Color || '#666', fontFamily: 'Inter_700Bold' as const }]}>
+                    {(match?.team2Short || '?')[0]}
+                  </Text>
+                </View>
+                <Text style={[predStyles.teamName, { color: colors.text, fontFamily: 'Inter_600SemiBold' as const }]}>
+                  {match?.team2Short}
+                </Text>
+                <Text style={[predStyles.teamFullName, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' as const }]} numberOfLines={1}>
+                  {match?.team2}
+                </Text>
+                {selectedWinner === match?.team2Short && (
+                  <View style={[predStyles.checkCircle, { backgroundColor: colors.accent }]}>
+                    <Ionicons name="checkmark" size={16} color="#000" />
+                  </View>
+                )}
+              </Pressable>
+            </View>
+
+            <Text style={[predStyles.lockNotice, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' as const }]}>
+              Predictions are hidden until the match goes live
+            </Text>
+
+            <View style={predStyles.modalActions}>
+              <Pressable
+                onPress={() => setShowPredictionModal(false)}
+                style={[predStyles.cancelBtn, { borderColor: colors.border }]}
+              >
+                <Text style={[predStyles.cancelBtnText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' as const }]}>
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handlePredictionConfirm}
+                disabled={!selectedWinner || predictionSaving}
+                style={[predStyles.confirmBtn, { opacity: (!selectedWinner || predictionSaving) ? 0.5 : 1 }]}
+              >
+                <LinearGradient
+                  colors={[colors.accent, colors.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={predStyles.confirmBtnGradient}
+                >
+                  {predictionSaving ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={[predStyles.confirmBtnText, { fontFamily: 'Inter_700Bold' as const }]}>
+                      Confirm & Submit
+                    </Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const predStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modal: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 20,
+    padding: 24,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 6,
+  },
+  modalTitle: {
+    fontSize: 20,
+    marginTop: 8,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  teamOptions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  teamOption: {
+    flex: 1,
+    borderWidth: 2,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    gap: 6,
+    position: 'relative' as const,
+  },
+  teamBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  teamBadgeText: {
+    fontSize: 22,
+  },
+  teamName: {
+    fontSize: 16,
+  },
+  teamFullName: {
+    fontSize: 11,
+    textAlign: 'center' as const,
+  },
+  checkCircle: {
+    position: 'absolute' as const,
+    top: -8,
+    right: -8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vsText: {
+    fontSize: 14,
+  },
+  lockNotice: {
+    fontSize: 11,
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 14,
+  },
+  confirmBtn: {
+    flex: 2,
+    borderRadius: 14,
+    overflow: 'hidden' as const,
+  },
+  confirmBtnGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmBtnText: {
+    fontSize: 14,
+    color: '#000',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
