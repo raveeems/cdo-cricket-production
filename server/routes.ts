@@ -782,6 +782,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const { matchId, name, playerIds, captainId, viceCaptainId } = req.body;
+        console.log("Receiving Team:", JSON.stringify({ matchId, name, playerIds, captainId, viceCaptainId }));
+        console.log("Player IDs count:", playerIds?.length, "IDs:", playerIds);
 
         const match = await storage.getMatch(matchId);
         if (!match) {
@@ -871,8 +873,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return res.json({ team });
       } catch (err: any) {
-        console.error("Create team error:", err);
-        return res.status(500).json({ message: "Failed to create team" });
+        console.error("CRITICAL TEAM SAVE ERROR:", err);
+        console.error("CRITICAL TEAM SAVE STACK:", err?.stack);
+        return res.status(500).json({
+          message: "Server Crash: " + (err?.message || "Unknown Error"),
+          details: String(err?.stack || err),
+        });
       }
     }
   );
