@@ -3,6 +3,36 @@ const CRICKET_API_BASE = "https://api.cricapi.com/v1";
 let tier1Blocked = false;
 let tier1BlockedUntil = 0;
 
+let dailyApiCalls = 0;
+let dailyApiCallDate = "";
+
+async function trackApiCall(): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    if (dailyApiCallDate !== today) {
+      dailyApiCalls = 0;
+      dailyApiCallDate = today;
+    }
+    dailyApiCalls++;
+    const { storage } = await import("./storage");
+    const count = await storage.incrementApiCallCount();
+    dailyApiCalls = count;
+  } catch (e) {
+    console.error("[API Tracker] Failed to track call:", e);
+  }
+}
+
+export function getInMemoryApiCallCount(): number {
+  const today = new Date().toISOString().slice(0, 10);
+  if (dailyApiCallDate !== today) return 0;
+  return dailyApiCalls;
+}
+
+async function trackedFetch(url: string, init?: RequestInit): Promise<Response> {
+  await trackApiCall();
+  return fetch(url, init);
+}
+
 function getApiKeys(): { primary: string | undefined; fallback: string | undefined } {
   return {
     primary: process.env.CRICKET_API_KEY,
@@ -47,7 +77,7 @@ async function cricApiFetch<T>(path: string, extraParams: string = ""): Promise<
     try {
       const sep = path.includes("?") ? "&" : "?";
       const url = `${CRICKET_API_BASE}/${path}${sep}apikey=${key}${extraParams ? "&" + extraParams : ""}`;
-      const res = await fetch(url);
+      const res = await trackedFetch(url);
       if (!res.ok) {
         console.error(`[CricAPI T${tier}] HTTP ${res.status} for ${path}`);
         continue;
@@ -250,7 +280,7 @@ export async function fetchUpcomingMatches(): Promise<
 
     for (const url of endpoints) {
       try {
-        const res = await fetch(url);
+        const res = await trackedFetch(url);
         if (!res.ok) {
           console.error("Cricket API error:", res.status, res.statusText, url);
           continue;
@@ -364,7 +394,7 @@ export async function fetchSeriesMatches(
 
   try {
     const url = `${CRICKET_API_BASE}/series_info?apikey=${apiKey}&id=${seriesId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return [];
 
     const json = (await res.json()) as CricApiResponse<{
@@ -549,7 +579,7 @@ export async function fetchMatchInfo(
 
   try {
     const url = `${CRICKET_API_BASE}/match_info?apikey=${apiKey}&id=${matchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return null;
 
     const json = (await res.json()) as CricApiResponse<CricApiMatch>;
@@ -569,7 +599,7 @@ export async function fetchPlayingXI(
 
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return [];
 
     const json = (await res.json()) as CricApiResponse<ScorecardData>;
@@ -757,7 +787,7 @@ export async function fetchSeriesSquad(
 
   try {
     const url = `${CRICKET_API_BASE}/series_squad?apikey=${apiKey}&id=${seriesId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) {
       console.error("Series Squad API error:", res.status);
       return [];
@@ -810,7 +840,7 @@ export async function fetchPlayingXIFromMatchInfo(
 
   try {
     const url = `${CRICKET_API_BASE}/match_info?apikey=${apiKey}&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return [];
 
     const json = await res.json() as any;
@@ -852,7 +882,7 @@ export async function fetchMatchSquad(
 
   try {
     const url = `${CRICKET_API_BASE}/match_squad?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) {
       console.error("Squad API error:", res.status);
       return [];
@@ -1022,7 +1052,7 @@ export async function fetchPlayingXIFromScorecard(
 
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return [];
 
     const json = (await res.json()) as CricApiResponse<ScorecardData>;
@@ -1062,7 +1092,7 @@ export async function fetchMatchScorecardWithScore(
 
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return { pointsMap, namePointsMap, scoreString, matchEnded };
 
     const json = (await res.json()) as CricApiResponse<ScorecardData>;
@@ -1123,7 +1153,7 @@ export async function fetchMatchScorecard(
 
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return { pointsMap, namePointsMap };
 
     const json = (await res.json()) as CricApiResponse<ScorecardData>;
@@ -1185,7 +1215,7 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
 
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return null;
 
     const json = (await res.json()) as CricApiResponse<ScorecardData>;

@@ -104,6 +104,15 @@ export const codeVerifications = pgTable("code_verifications", {
   verifiedAt: timestamp("verified_at").notNull().defaultNow(),
 });
 
+export const apiCallLog = pgTable("api_call_log", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  dateKey: varchar("date_key", { length: 10 }).notNull(),
+  callCount: integer("call_count").notNull().default(0),
+  lastCalledAt: timestamp("last_called_at").notNull().defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,

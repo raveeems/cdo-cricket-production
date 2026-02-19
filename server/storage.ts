@@ -7,6 +7,7 @@ import {
   players,
   userTeams,
   codeVerifications,
+  apiCallLog,
   type InsertUser,
   type User,
   type ReferenceCode,
@@ -276,6 +277,25 @@ export class DatabaseStorage {
       .from(players)
       .where(and(eq(players.matchId, matchId), eq(players.isPlayingXI, true)));
     return Number(result[0]?.count || 0);
+  }
+
+  async incrementApiCallCount(): Promise<number> {
+    const today = new Date().toISOString().slice(0, 10);
+    const [existing] = await db.select().from(apiCallLog).where(eq(apiCallLog.dateKey, today));
+    if (existing) {
+      const newCount = existing.callCount + 1;
+      await db.update(apiCallLog).set({ callCount: newCount, lastCalledAt: new Date() }).where(eq(apiCallLog.id, existing.id));
+      return newCount;
+    } else {
+      await db.insert(apiCallLog).values({ dateKey: today, callCount: 1 });
+      return 1;
+    }
+  }
+
+  async getApiCallCount(dateKey?: string): Promise<{ count: number; date: string; lastCalledAt: Date | null }> {
+    const key = dateKey || new Date().toISOString().slice(0, 10);
+    const [row] = await db.select().from(apiCallLog).where(eq(apiCallLog.dateKey, key));
+    return { count: row?.callCount || 0, date: key, lastCalledAt: row?.lastCalledAt || null };
   }
 
   async getLeaderboard(): Promise<{

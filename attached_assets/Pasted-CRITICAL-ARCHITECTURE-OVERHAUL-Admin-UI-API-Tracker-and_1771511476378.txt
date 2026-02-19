@@ -1,0 +1,33 @@
+CRITICAL ARCHITECTURE OVERHAUL: Admin UI, API Tracker, and Bulletproof Live Sync
+
+Stop providing localized, line-by-line patches. I am burning compute credits on recurring bugs. I need a robust, permanent architectural overhaul. Read my existing codebase carefully before generating your response. Do not break any existing UI or overwrite my existing database schemas unless explicitly instructed below.
+
+Implement the following three features with strict adherence to these constraints:
+
+1. Feature: Admin UI for Manual Player Addition (Using Existing Mapping)
+
+Context: My backend ALREADY has the logic to map database players to API scorecard names. Do not rewrite the core mapping engine.
+
+Requirement: Build the Admin UI/Route that allows me to manually add a missing player (e.g., "Ziaur Rahman") to a team's squad.
+
+Execution: This Admin form must include an input field that directly hooks into my existing mapping logic, allowing me to manually link this new player to the exact API string so the live sync recognizes them.
+
+2. Feature: API Call/Hit Counter (Quota Management)
+
+Requirement: I need strict visibility into how many times my app hits the external sports API per day.
+
+Execution: Create an API Wrapper or Middleware function. Every single outgoing request to the sports API must pass through this wrapper.
+
+Tracking: The wrapper must increment a daily_api_calls counter in the database (resetting at midnight). Expose this integer on my Admin dashboard so I can see "API Calls Today: X" live.
+
+3. Feature: The "Firewall" Live Sync (Post-Toss / First Ball)
+
+Requirement: The points calculation engine must never silently fail or crash a user's entire team score to 0 due to one broken player mapping.
+
+Execution: Rewrite the live sync engine (updateLivePoints / heartbeat). It must only trigger if the API match status is 'LIVE' or 'IN_PROGRESS'.
+
+The Loop Firewall (CRITICAL): Inside the points calculation loop, you MUST wrap every individual player's calculation in a strict try/catch block. If the API returns a null value, an unmapped name, or throws any error for a specific player, you must catch the error, console.error the specific player's issue, and use continue to move to the next player.
+
+Base Points: The logic must automatically award 4 points to any player marked as being in the official playing XI as soon as the match status allows.
+
+Output the exact, complete code blocks for the new Admin UI component, the API Wrapper middleware, and the refactored, try/catch-protected live sync engin
