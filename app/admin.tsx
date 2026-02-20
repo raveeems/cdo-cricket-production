@@ -202,7 +202,15 @@ export default function AdminScreen() {
       setAddPlayerName('');
       setAddPlayerApiName('');
       setAddPlayerCredits('8');
-      if (selectedMatchId) selectMatch(selectedMatchId);
+      if (selectedMatchId) {
+        const refetchRes = await apiRequest('GET', `/api/matches/${selectedMatchId}/players`);
+        const refetchData = await refetchRes.json();
+        const freshPlayers = (refetchData.players || []) as PlayerInfo[];
+        setMatchPlayers(freshPlayers);
+        const existing = new Set<string>();
+        freshPlayers.forEach(p => { if (p.isPlayingXI) existing.add(p.id); });
+        setXiPlayerIds(existing);
+      }
     } catch (e: any) {
       setAddPlayerMsg('Failed: ' + (e.message || 'Unknown error'));
     } finally {
