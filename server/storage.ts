@@ -9,6 +9,7 @@ import {
   codeVerifications,
   apiCallLog,
   matchPredictions,
+  rewards,
   type InsertUser,
   type User,
   type ReferenceCode,
@@ -16,6 +17,7 @@ import {
   type Player,
   type UserTeam,
   type MatchPrediction,
+  type Reward,
 } from "@shared/schema";
 
 export class DatabaseStorage {
@@ -356,6 +358,52 @@ export class DatabaseStorage {
       .where(and(eq(matchPredictions.userId, userId), eq(matchPredictions.matchId, matchId)))
       .returning();
     return pred;
+  }
+  async createReward(data: { brand: string; title: string; code: string; terms: string }): Promise<Reward> {
+    const [reward] = await db.insert(rewards).values(data).returning();
+    return reward;
+  }
+
+  async getAllRewards(): Promise<Reward[]> {
+    return db.select().from(rewards).orderBy(desc(rewards.createdAt));
+  }
+
+  async getAvailableRewards(): Promise<Reward[]> {
+    return db.select().from(rewards).where(eq(rewards.isClaimed, false));
+  }
+
+  async getClaimedRewards(): Promise<Reward[]> {
+    return db.select().from(rewards).where(eq(rewards.isClaimed, true)).orderBy(desc(rewards.claimedAt));
+  }
+
+  async claimReward(rewardId: string, userId: string, matchId: string): Promise<Reward> {
+    const [reward] = await db.update(rewards)
+      .set({ isClaimed: true, claimedByUserId: userId, claimedMatchId: matchId, claimedAt: new Date() })
+      .where(eq(rewards.id, rewardId))
+      .returning();
+    return reward;
+  }
+
+  async getRandomAvailableReward(): Promise<Reward | undefined> {
+    const available = await this.getAvailableRewards();
+    if (available.length === 0) return undefined;
+    return available[Math.floor(Math.random() * available.length)];
+  }
+
+  async getRewardForUserMatch(userId: string, matchId: string): Promise<Reward | undefined> {
+    const [reward] = await db.select().from(rewards)
+      .where(and(eq(rewards.claimedByUserId, userId), eq(rewards.claimedMatchId, matchId)));
+    return reward;
+  }
+
+  async getUserRewards(userId: string): Promise<Reward[]> {
+    return db.select().from(rewards)
+      .where(eq(rewards.claimedByUserId, userId))
+      .orderBy(desc(rewards.claimedAt));
+  }
+
+  async deleteReward(rewardId: string): Promise<void> {
+    await db.delete(rewards).where(eq(rewards.id, rewardId));
   }
 }
 

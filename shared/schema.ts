@@ -115,6 +115,21 @@ export const matchPredictions = pgTable("match_predictions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const rewards = pgTable("rewards", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  brand: text("brand").notNull(),
+  title: text("title").notNull(),
+  code: text("code").notNull(),
+  terms: text("terms").notNull().default(""),
+  isClaimed: boolean("is_claimed").notNull().default(false),
+  claimedByUserId: varchar("claimed_by_user_id"),
+  claimedMatchId: varchar("claimed_match_id"),
+  claimedAt: timestamp("claimed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const apiCallLog = pgTable("api_call_log", {
   id: varchar("id")
     .primaryKey()
@@ -159,3 +174,4 @@ export type Match = typeof matches.$inferSelect;
 export type Player = typeof players.$inferSelect;
 export type UserTeam = typeof userTeams.$inferSelect;
 export type MatchPrediction = typeof matchPredictions.$inferSelect;
+export type Reward = typeof rewards.$inferSelect;
