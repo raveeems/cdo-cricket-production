@@ -139,6 +139,80 @@ function PlayerItem({
   );
 }
 
+function CompactPlayerItem({
+  player,
+  isSelected,
+  onToggle,
+  colors,
+  isDark,
+  showPlayingXI,
+  isDisabled,
+}: {
+  player: Player;
+  isSelected: boolean;
+  onToggle: () => void;
+  colors: any;
+  isDark: boolean;
+  showPlayingXI: boolean;
+  isDisabled: boolean;
+}) {
+  const isInXI = player.isPlayingXI === true;
+  const xiIndicatorColor = isInXI ? '#22C55E' : '#EF4444';
+  const nameParts = player.name.split(' ');
+  const displayName = nameParts.length > 1
+    ? `${nameParts[0][0]}. ${nameParts.slice(1).join(' ')}`
+    : player.name;
+
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={[
+        styles.compactCard,
+        {
+          backgroundColor: isSelected ? colors.primary + '15' : colors.card,
+          borderColor: isSelected ? colors.primary + '40' : colors.cardBorder,
+          opacity: (isDisabled && !isSelected) ? 0.4 : 1,
+        },
+        showPlayingXI && {
+          borderLeftWidth: 3,
+          borderLeftColor: xiIndicatorColor,
+        },
+      ]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={[styles.compactRolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+          <Text style={{ color: getRoleColor(player.role, isDark), fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>
+            {player.role}
+          </Text>
+        </View>
+        <View style={[styles.compactCheck, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' }]}>
+          {isSelected && <Ionicons name="checkmark" size={10} color="#FFF" />}
+        </View>
+      </View>
+      <View style={{ marginTop: 4, flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+          <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>
+            {displayName}
+          </Text>
+          {showPlayingXI && (
+            <View style={{ backgroundColor: xiIndicatorColor + '20', paddingHorizontal: 3, paddingVertical: 1, borderRadius: 3 }}>
+              <Text style={{ color: xiIndicatorColor, fontSize: 7, fontFamily: 'Inter_700Bold' as const }}>
+                {isInXI ? 'XI' : 'OUT'}
+              </Text>
+            </View>
+          )}
+          {player.isImpactPlayer && (
+            <MaterialCommunityIcons name="lightning-bolt" size={10} color={colors.warning} />
+          )}
+        </View>
+        <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>
+          {player.credits} Cr
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
 function CaptainItem({
   player,
   isCaptain,
@@ -592,24 +666,84 @@ export default function CreateTeamScreen() {
             })}
           </View>
 
-          <FlatList
-            data={filteredPlayers}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <PlayerItem
-                player={item}
-                isSelected={selectedIds.has(item.id)}
-                onToggle={() => togglePlayer(item)}
-                colors={colors}
-                isDark={isDark}
-                showPlayingXI={hasPlayingXIData}
-                isDisabled={!canSelectPlayer(item)}
-              />
-            )}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={filteredPlayers.length > 0}
-          />
+          {filter === 'ALL' ? (
+            <ScrollView
+              contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.splitHeader}>
+                <View style={[styles.splitHeaderCol, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_700Bold' as const }} numberOfLines={1}>
+                    {match.team1Short}
+                  </Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>
+                    {allPlayers.filter(p => (p.teamShort || p.team) === match.team1Short).length} players
+                  </Text>
+                </View>
+                <View style={[styles.splitHeaderCol, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_700Bold' as const }} numberOfLines={1}>
+                    {match.team2Short}
+                  </Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>
+                    {allPlayers.filter(p => (p.teamShort || p.team) === match.team2Short).length} players
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.splitContainer}>
+                <View style={styles.splitColumn}>
+                  {allPlayers
+                    .filter(p => (p.teamShort || p.team) === match.team1Short)
+                    .map(item => (
+                      <CompactPlayerItem
+                        key={item.id}
+                        player={item}
+                        isSelected={selectedIds.has(item.id)}
+                        onToggle={() => togglePlayer(item)}
+                        colors={colors}
+                        isDark={isDark}
+                        showPlayingXI={hasPlayingXIData}
+                        isDisabled={!canSelectPlayer(item)}
+                      />
+                    ))}
+                </View>
+                <View style={styles.splitColumn}>
+                  {allPlayers
+                    .filter(p => (p.teamShort || p.team) === match.team2Short)
+                    .map(item => (
+                      <CompactPlayerItem
+                        key={item.id}
+                        player={item}
+                        isSelected={selectedIds.has(item.id)}
+                        onToggle={() => togglePlayer(item)}
+                        colors={colors}
+                        isDark={isDark}
+                        showPlayingXI={hasPlayingXIData}
+                        isDisabled={!canSelectPlayer(item)}
+                      />
+                    ))}
+                </View>
+              </View>
+            </ScrollView>
+          ) : (
+            <FlatList
+              data={filteredPlayers}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <PlayerItem
+                  player={item}
+                  isSelected={selectedIds.has(item.id)}
+                  onToggle={() => togglePlayer(item)}
+                  colors={colors}
+                  isDark={isDark}
+                  showPlayingXI={hasPlayingXIData}
+                  isDisabled={!canSelectPlayer(item)}
+                />
+              )}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+              showsVerticalScrollIndicator={false}
+              scrollEnabled={!!filteredPlayers.length}
+            />
+          )}
 
           {selectionWarning && (
             <View style={{ position: 'absolute', bottom: 120, left: 24, right: 24, backgroundColor: '#F59E0B', borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 }}>
@@ -1552,5 +1686,48 @@ const styles = StyleSheet.create({
   },
   previewSummaryValue: {
     fontSize: 14,
+  },
+  splitHeader: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+    position: 'sticky' as any,
+    top: 0,
+    zIndex: 10,
+  },
+  splitHeaderCol: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  splitContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  splitColumn: {
+    flex: 1,
+    gap: 6,
+  },
+  compactCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 8,
+    minHeight: 64,
+  },
+  compactRolePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  compactCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
