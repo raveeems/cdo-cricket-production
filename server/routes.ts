@@ -1802,7 +1802,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const allMatches = await storage.getAllMatches();
         const now = Date.now();
-        const matchStatuses = allMatches.map(m => {
+        const THIRTY_SIX_HOURS = 36 * 60 * 60 * 1000;
+        const filteredMatches = allMatches.filter(m => {
+          if (m.status !== 'completed') return true;
+          const startMs = new Date(m.startTime).getTime();
+          return (now - startMs) <= THIRTY_SIX_HOURS;
+        });
+        const matchStatuses = filteredMatches.map(m => {
           const startMs = new Date(m.startTime).getTime();
           return {
             id: m.id,
