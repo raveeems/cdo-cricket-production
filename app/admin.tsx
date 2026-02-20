@@ -233,6 +233,8 @@ export default function AdminScreen() {
   const selectMatch = async (matchId: string) => {
     setSelectedMatchId(matchId);
     setXiMessage('');
+    const m = matches.find(x => x.id === matchId);
+    if (m) setAddPlayerTeam(m.team1);
     setLoadingPlayers(true);
     try {
       const res = await apiRequest('GET', `/api/matches/${matchId}/players`);
@@ -876,13 +878,28 @@ export default function AdminScreen() {
                   placeholderTextColor={colors.textTertiary}
                 />
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    style={[styles.addPlayerInput, { flex: 1, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
-                    value={addPlayerTeam}
-                    onChangeText={setAddPlayerTeam}
-                    placeholder="Team (e.g. India)"
-                    placeholderTextColor={colors.textTertiary}
-                  />
+                  <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
+                    {selectedMatch && [
+                      { label: selectedMatch.team1Short, value: selectedMatch.team1 },
+                      { label: selectedMatch.team2Short, value: selectedMatch.team2 },
+                    ].map(opt => (
+                      <Pressable
+                        key={opt.value}
+                        onPress={() => setAddPlayerTeam(opt.value)}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 10,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          alignItems: 'center',
+                          backgroundColor: addPlayerTeam === opt.value ? colors.primary : colors.surfaceElevated,
+                          borderColor: addPlayerTeam === opt.value ? colors.primary : colors.border,
+                        }}
+                      >
+                        <Text style={{ color: addPlayerTeam === opt.value ? '#FFF' : colors.text, fontFamily: 'Inter_700Bold', fontSize: 13 }}>{opt.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
                   <TextInput
                     style={[styles.addPlayerInput, { width: 60, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium', textAlign: 'center' }]}
                     value={addPlayerCredits}
