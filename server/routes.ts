@@ -1302,6 +1302,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: DELETE INDIVIDUAL PLAYER ----
+  app.delete(
+    "/api/admin/players/:playerId",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        await storage.deletePlayer(req.params.playerId);
+        return res.json({ message: "Player deleted" });
+      } catch (err: any) {
+        console.error("Delete player error:", err);
+        return res.status(500).json({ message: "Failed to delete player" });
+      }
+    }
+  );
+
   // ---- ADMIN: REFRESH PLAYING XI ----
   app.post(
     "/api/admin/matches/:id/refresh-playing-xi",

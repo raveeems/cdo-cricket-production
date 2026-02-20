@@ -1005,6 +1005,18 @@ export default function MatchDetailScreen() {
                         <Text style={{ color: colors.accent, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>YOU</Text>
                       </View>
                     )}
+                    {predictionsData?.isRevealed && (() => {
+                      const userPred = predictionsData.predictions.find(p => p.userId === entry.userId);
+                      if (!userPred) return null;
+                      const isTeam1 = userPred.predictedWinner === match?.team1Short;
+                      return (
+                        <View style={{ backgroundColor: isTeam1 ? '#3B82F620' : '#EF444420', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
+                          <Text style={{ color: isTeam1 ? '#3B82F6' : '#EF4444', fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>
+                            {userPred.predictedWinner}
+                          </Text>
+                        </View>
+                      );
+                    })()}
                   </View>
                   <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
                     {entry.userTeamName || entry.username}

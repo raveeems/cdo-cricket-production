@@ -1,0 +1,35 @@
+CRITICAL MULTI-PART UPDATE: Regression Fix, Admin Cleanup, & API Optimization
+
+CRITICAL DIRECTIVE - STRICT ISOLATION: You are about to implement three distinct updates. Do NOT rewrite the entire files. Do NOT alter the newly implemented "Rewards Vault" database schema, backend distribution logic, or the Rewards UI. Do NOT change live points calculations.
+
+Please implement the following exactly as specified:
+
+PART 1: UI Regression Fix (Restore Standings Prediction)
+
+Context: During a recent UI update to the MatchDetailScreen (Standings Tab), the visual indicator showing a user's predictedWinner (Match Prediction badge/flag next to their team name) was accidentally removed.
+
+Action: Restore the predictedWinner UI element on the leaderboard. Ensure it sits cleanly alongside the new Rewards UI without overlapping.
+
+PART 2: Admin Cleanup (Delete Duplicate Player Button)
+
+Context: The database contains duplicate MatchPlayer records due to a prior bug. The Admin needs a safe way to remove them from the UI.
+
+Action: In the Admin Panel's Match Roster grid (where the Admin selects the Playing XI), inject a small, clearly visible "Delete" (🗑️) button next to each player's name.
+
+Backend: Ensure this button triggers a backend API call that permanently deletes that specific MatchPlayer record from the database based on its unique ID.
+
+State Update: Upon successful deletion, instantly update the local state to remove the player from the UI without requiring a hard page refresh.
+
+PART 3: Backend API Enhancement (Filter Old Matches)
+
+Context: The Admin "Match Debug" list is returning too much payload data by showing every historical match, causing clutter and unnecessary bandwidth usage.
+
+Action: Modify the specific backend GET endpoint that supplies data to the Admin Match Debug list.
+
+Logic: Filter the database query to return ONLY matches that meet EITHER of these two conditions:
+
+The match status is NOT COMPLETED (i.e., it is LIVE or UPCOMING).
+
+OR The match status IS COMPLETED, but its startTime is strictly within the last 36 hours.
+
+Constraint: Do NOT delete these older matches from the database; only filter them out of this specific Admin API response.

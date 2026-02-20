@@ -221,6 +221,28 @@ export default function AdminScreen() {
     }
   };
 
+  const handleDeletePlayer = async (playerId: string, playerName: string) => {
+    if (!selectedMatchId) return;
+    Alert.alert('Delete Player', `Remove "${playerName}" from this match?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await apiRequest('DELETE', `/api/admin/players/${playerId}`);
+            setMatchPlayers(prev => prev.filter(p => p.id !== playerId));
+            setXiPlayerIds(prev => {
+              const next = new Set(prev);
+              next.delete(playerId);
+              return next;
+            });
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to delete player');
+          }
+        }
+      }
+    ]);
+  };
+
   const loadMatches = async () => {
     try {
       const res = await apiRequest('GET', '/api/matches');
@@ -782,39 +804,46 @@ export default function AdminScreen() {
                         {teamPlayers.map(p => {
                           const isIn = xiPlayerIds.has(p.id);
                           return (
-                            <Pressable
-                              key={p.id}
-                              onPress={() => toggleXIPlayer(p.id)}
-                              style={[
-                                styles.xiChip,
-                                {
-                                  backgroundColor: isIn ? '#22C55E' : colors.card,
-                                  borderColor: isIn ? '#22C55E' : colors.cardBorder,
-                                },
-                              ]}
-                            >
-                              <Text style={[{
-                                color: isIn ? '#FFF' : colors.textSecondary,
-                                fontSize: 9,
-                                fontFamily: 'Inter_700Bold' as const,
-                              }]}>
-                                {p.role}
-                              </Text>
-                              <Text style={[{
-                                color: isIn ? '#FFF' : colors.text,
-                                fontSize: 12,
-                                fontFamily: 'Inter_600SemiBold' as const,
-                              }]} numberOfLines={1}>
-                                {p.name.split(' ').pop()}
-                              </Text>
-                              <Text style={[{
-                                color: isIn ? '#FFFFFFAA' : colors.textTertiary,
-                                fontSize: 9,
-                                fontFamily: 'Inter_400Regular' as const,
-                              }]} numberOfLines={1}>
-                                {p.name.split(' ').slice(0, -1).join(' ').substring(0, 12) || p.name}
-                              </Text>
-                            </Pressable>
+                            <View key={p.id} style={{ position: 'relative' }}>
+                              <Pressable
+                                onPress={() => toggleXIPlayer(p.id)}
+                                style={[
+                                  styles.xiChip,
+                                  {
+                                    backgroundColor: isIn ? '#22C55E' : colors.card,
+                                    borderColor: isIn ? '#22C55E' : colors.cardBorder,
+                                  },
+                                ]}
+                              >
+                                <Text style={[{
+                                  color: isIn ? '#FFF' : colors.textSecondary,
+                                  fontSize: 9,
+                                  fontFamily: 'Inter_700Bold' as const,
+                                }]}>
+                                  {p.role}
+                                </Text>
+                                <Text style={[{
+                                  color: isIn ? '#FFF' : colors.text,
+                                  fontSize: 12,
+                                  fontFamily: 'Inter_600SemiBold' as const,
+                                }]} numberOfLines={1}>
+                                  {p.name.split(' ').pop()}
+                                </Text>
+                                <Text style={[{
+                                  color: isIn ? '#FFFFFFAA' : colors.textTertiary,
+                                  fontSize: 9,
+                                  fontFamily: 'Inter_400Regular' as const,
+                                }]} numberOfLines={1}>
+                                  {p.name.split(' ').slice(0, -1).join(' ').substring(0, 12) || p.name}
+                                </Text>
+                              </Pressable>
+                              <Pressable
+                                onPress={() => handleDeletePlayer(p.id, p.name)}
+                                style={{ position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', zIndex: 10 }}
+                              >
+                                <Ionicons name="trash" size={10} color="#FFF" />
+                              </Pressable>
+                            </View>
                           );
                         })}
                       </View>
