@@ -1661,6 +1661,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         await storage.updateMatch(matchId, { status: "completed" });
         console.log(`[Admin] Match ${(match as any).team1Short} vs ${(match as any).team2Short} manually marked as completed`);
+        try {
+          await distributeMatchReward(matchId);
+        } catch (rewardErr) {
+          console.error(`[Admin] Reward distribution failed for match ${matchId}:`, rewardErr);
+        }
         return res.json({ message: `${(match as any).team1Short} vs ${(match as any).team2Short} marked as completed` });
       } catch (err: any) {
         console.error("Mark completed error:", err);
@@ -1823,6 +1828,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("API call tracking error:", err);
         return res.status(500).json({ message: "Failed to get API call data" });
+      }
+    }
+  );
+
+  // ---- REWARDS: AUTO-DISTRIBUTE ON MATCH COMPLETION ----
+  async function distributeMatchReward(matchId: string) {
+    try {
+      const allTeams = await storage.getAllTeamsForMatch(matchId);
+      if (allTeams.length === 0) {
+        console.log(`[Rewards] No teams found for match ${matchId}, skipping reward distribution`);
+        return;
+      }
+
+      const sorted = [...allTeams].sort((a, b) => {
+        if ((b.totalPoints || 0) !== (a.totalPoints || 0)) {
+          return (b.totalPoints || 0) - (a.totalPoints || 0);
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+
+      const winner = sorted[0];
+      if (!winner || (winner.totalPoints || 0) === 0) {
+        console.log(`[Rewards] No valid winner for match ${matchId}`);
+        return;
+      }
+
+      const existingReward = await storage.getRewardForUserMatch(winner.userId, matchId);
+      if (existingReward) {
+        console.log(`[Rewards] Reward already distributed for match ${matchId}`);
+        return;
+      }
+
+      const reward = await storage.getRandomAvailableReward();
+      if (!reward) {
+        console.log(`[Rewards] No available rewards in vault for match ${matchId}, skipping`);
+        return;
+      }
+
+      await storage.claimReward(reward.id, winner.userId, matchId);
+      console.log(`[Rewards] Reward "${reward.title}" (${reward.brand}) assigned to user ${winner.userId} for match ${matchId}`);
+    } catch (err) {
+      console.error(`[Rewards] Distribution error for match ${matchId}:`, err);
+    }
+  }
+
+  (globalThis as any).__distributeMatchReward = distributeMatchReward;
+
+  // ---- ADMIN: REWARDS VAULT ----
+  app.get(
+    "/api/admin/rewards",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const allRewards = await storage.getAllRewards();
+        const available = allRewards.filter(r => !r.isClaimed);
+        const claimed = allRewards.filter(r => r.isClaimed);
+
+        const claimedWithInfo = [];
+        for (const r of claimed) {
+          let username = "Unknown";
+          let matchLabel = "";
+          if (r.claimedByUserId) {
+            const user = await storage.getUser(r.claimedByUserId);
+            if (user) username = user.username;
+          }
+          if (r.claimedMatchId) {
+            const match = await storage.getMatch(r.claimedMatchId);
+            if (match) matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+          }
+          claimedWithInfo.push({ ...r, claimedByUsername: username, matchLabel });
+        }
+
+        return res.json({ available, claimed: claimedWithInfo });
+      } catch (err: any) {
+        console.error("Admin rewards error:", err);
+        return res.status(500).json({ message: "Failed to fetch rewards" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/rewards",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { brand, title, code, terms } = req.body;
+        if (!brand || !title || !code) {
+          return res.status(400).json({ message: "Brand, title, and code are required" });
+        }
+        const reward = await storage.createReward({ brand, title, code, terms: terms || "" });
+        return res.json({ reward });
+      } catch (err: any) {
+        console.error("Create reward error:", err);
+        return res.status(500).json({ message: "Failed to create reward" });
+      }
+    }
+  );
+
+  app.delete(
+    "/api/admin/rewards/:id",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        await storage.deleteReward(req.params.id);
+        return res.json({ message: "Reward deleted" });
+      } catch (err: any) {
+        console.error("Delete reward error:", err);
+        return res.status(500).json({ message: "Failed to delete reward" });
+      }
+    }
+  );
+
+  // ---- USER: GET REWARD FOR A MATCH ----
+  app.get(
+    "/api/rewards/match/:matchId",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = req.session.userId!;
+        const reward = await storage.getRewardForUserMatch(userId, req.params.matchId);
+        return res.json({ reward: reward || null });
+      } catch (err: any) {
+        console.error("Get match reward error:", err);
+        return res.status(500).json({ message: "Failed to fetch reward" });
+      }
+    }
+  );
+
+  // ---- USER: GET ALL MY REWARDS ----
+  app.get(
+    "/api/rewards/my",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = req.session.userId!;
+        const myRewards = await storage.getUserRewards(userId);
+
+        const withMatchInfo = [];
+        for (const r of myRewards) {
+          let matchLabel = "";
+          if (r.claimedMatchId) {
+            const match = await storage.getMatch(r.claimedMatchId);
+            if (match) matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+          }
+          withMatchInfo.push({ ...r, matchLabel });
+        }
+
+        return res.json({ rewards: withMatchInfo });
+      } catch (err: any) {
+        console.error("My rewards error:", err);
+        return res.status(500).json({ message: "Failed to fetch your rewards" });
       }
     }
   );

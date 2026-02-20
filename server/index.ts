@@ -620,6 +620,12 @@ function setupErrorHandler(app: express.Application) {
               if (matchEnded && match.status !== "completed") {
                 log(`[Heartbeat] COMPLETED: ${matchLabel}`);
                 await storage.updateMatch(match.id, { status: "completed" });
+                try {
+                  const distribute = (globalThis as any).__distributeMatchReward;
+                  if (distribute) await distribute(match.id);
+                } catch (rewardErr) {
+                  console.error(`[Heartbeat] Reward distribution failed for ${matchLabel}:`, rewardErr);
+                }
               }
 
               if (pointsMap.size > 0) {
