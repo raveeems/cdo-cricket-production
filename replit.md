@@ -41,6 +41,7 @@ Preferred communication style: Simple, everyday language.
   - `userTeams` — id, userId, matchId, team name, playerIds (JSONB array), captainId, viceCaptainId, totalPoints
   - `matchPredictions` — id, userId, matchId, predictedWinner (team short code), createdAt. One prediction per user per match
   - `codeVerifications` — tracks which users verified with which codes
+  - `rewards` — id, brand, title, code, terms, isClaimed, claimedByUserId, claimedMatchId, claimedAt, createdAt. Reward vault for auto-distribution to match winners
 - **Push command**: `npm run db:push` uses drizzle-kit to push schema to database
 
 ### Key Business Rules
@@ -50,6 +51,7 @@ Preferred communication style: Simple, everyday language.
 - **Entry deadline**: Teams editable up to 1 second before match start; server time used for validation (not device time)
 - **Winner Predictions**: Mandatory prediction modal intercepts first team submission per match; user must pick team1 or team2 as winner. Predictions hidden from others pre-match, revealed when match goes live. One prediction per user per match (can be updated pre-match). Displayed on match detail overview tab
 - **Impact Players**: Super sub system where substituted players earn points normally
+- **Rewards System**: Admin adds reward codes (brand, title, coupon code, terms) to a vault via the Admin Panel. When a match completes (via heartbeat or manual admin action), the Rank 1 player automatically receives an unclaimed reward from the vault. Winners see a gold banner on the match standings page with a modal to reveal and copy their reward code. All rewards are also listed in the Profile → My Rewards section
 
 ### Build & Development
 - **Dev mode**: Two processes — `npm run expo:dev` (Expo dev server) and `npm run server:dev` (Express via tsx)
