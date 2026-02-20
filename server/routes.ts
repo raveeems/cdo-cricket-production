@@ -353,8 +353,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try { await refreshStaleMatchStatuses(); } catch (e) { console.error("Status refresh error:", e); }
     const allMatches = await storage.getAllMatches();
     const now = new Date();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
     const THREE_HOURS = 3 * 60 * 60 * 1000;
+
+    console.log(`[MatchFeed] Server time: ${now.toISOString()}, 48h cutoff: ${new Date(now.getTime() + FORTY_EIGHT_HOURS).toISOString()}`);
 
     const matchesWithParticipants: { match: typeof allMatches[0]; participantCount: number }[] = [];
 
@@ -369,7 +371,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const uniqueUsers = new Set(teams.map(t => t.userId));
       const participantCount = uniqueUsers.size;
 
-      const isUpcoming = (effectiveStatus === "upcoming" || effectiveStatus === "delayed") && diff > -THREE_HOURS && diff <= TWENTY_FOUR_HOURS;
+      if (effectiveStatus === "upcoming" && diff > 0 && diff <= FORTY_EIGHT_HOURS) {
+        console.log(`[MatchFeed] Showing: ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${(diff / 3600000).toFixed(1)}h away`);
+      }
+
+      const isUpcoming = (effectiveStatus === "upcoming" || effectiveStatus === "delayed") && diff > -THREE_HOURS && diff <= FORTY_EIGHT_HOURS;
       const isLive = effectiveStatus === "live";
       const isDelayed = effectiveStatus === "delayed";
       const isRecentlyCompleted = effectiveStatus === "completed" && elapsed <= THREE_HOURS;
