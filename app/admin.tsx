@@ -84,6 +84,15 @@ export default function AdminScreen() {
   const [addPlayerMsg, setAddPlayerMsg] = useState('');
   const [addingPlayer, setAddingPlayer] = useState(false);
 
+  const [rewardsAvailable, setRewardsAvailable] = useState<any[]>([]);
+  const [rewardsClaimed, setRewardsClaimed] = useState<any[]>([]);
+  const [loadingRewards, setLoadingRewards] = useState(false);
+  const [rewardBrand, setRewardBrand] = useState('');
+  const [rewardTitle, setRewardTitle] = useState('');
+  const [rewardCode, setRewardCode] = useState('');
+  const [rewardTerms, setRewardTerms] = useState('');
+  const [addingReward, setAddingReward] = useState(false);
+
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const selectedMatch = useMemo(() => matches.find(m => m.id === selectedMatchId), [matches, selectedMatchId]);
@@ -104,6 +113,7 @@ export default function AdminScreen() {
     loadCodes();
     loadMatches();
     loadApiCalls();
+    loadRewards();
   }, []);
 
   const loadApiCalls = async () => {
@@ -116,6 +126,56 @@ export default function AdminScreen() {
       console.error('Failed to load API calls:', e);
     } finally {
       setLoadingApiCalls(false);
+    }
+  };
+
+  const loadRewards = async () => {
+    setLoadingRewards(true);
+    try {
+      const res = await apiRequest('GET', '/api/admin/rewards');
+      const data = await res.json();
+      setRewardsAvailable(data.available || []);
+      setRewardsClaimed(data.claimed || []);
+    } catch (e) {
+      console.error('Failed to load rewards:', e);
+    } finally {
+      setLoadingRewards(false);
+    }
+  };
+
+  const handleAddReward = async () => {
+    if (!rewardBrand.trim() || !rewardTitle.trim() || !rewardCode.trim()) {
+      Alert.alert('Error', 'Brand, title, and code are required');
+      return;
+    }
+    setAddingReward(true);
+    try {
+      await apiRequest('POST', '/api/admin/rewards', {
+        brand: rewardBrand.trim(),
+        title: rewardTitle.trim(),
+        code: rewardCode.trim(),
+        terms: rewardTerms.trim(),
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setRewardBrand('');
+      setRewardTitle('');
+      setRewardCode('');
+      setRewardTerms('');
+      loadRewards();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to add reward');
+    } finally {
+      setAddingReward(false);
+    }
+  };
+
+  const handleDeleteReward = async (id: string) => {
+    try {
+      await apiRequest('DELETE', `/api/admin/rewards/${id}`);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      loadRewards();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to delete reward');
     }
   };
 
@@ -1226,6 +1286,124 @@ export default function AdminScreen() {
             )}
           </View>
         </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Rewards Vault
+            </Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Add reward codes that auto-distribute to match winners (Rank 1 player per match).
+            </Text>
+
+            <View style={{ gap: 8, marginTop: 12 }}>
+              <TextInput
+                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
+                placeholder="Brand (e.g. Zomato)"
+                placeholderTextColor={colors.textSecondary}
+                value={rewardBrand}
+                onChangeText={setRewardBrand}
+              />
+              <TextInput
+                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
+                placeholder="Reward Title (e.g. ₹100 Off)"
+                placeholderTextColor={colors.textSecondary}
+                value={rewardTitle}
+                onChangeText={setRewardTitle}
+              />
+              <TextInput
+                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
+                placeholder="Coupon Code"
+                placeholderTextColor={colors.textSecondary}
+                value={rewardCode}
+                onChangeText={setRewardCode}
+              />
+              <TextInput
+                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
+                placeholder="Terms (optional)"
+                placeholderTextColor={colors.textSecondary}
+                value={rewardTerms}
+                onChangeText={setRewardTerms}
+              />
+              <Pressable
+                onPress={handleAddReward}
+                disabled={addingReward}
+                style={[styles.syncBtn]}
+              >
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.syncBtnGradient, { height: 46 }]}
+                >
+                  {addingReward ? (
+                    <ActivityIndicator color="#000" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="gift" size={18} color="#000" />
+                      <Text style={[styles.syncBtnText, { color: '#000', fontFamily: 'Inter_700Bold' }]}>Add to Vault</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </View>
+
+            {loadingRewards ? (
+              <ActivityIndicator style={{ marginTop: 16 }} color={colors.primary} />
+            ) : (
+              <View style={{ marginTop: 16, gap: 12 }}>
+                <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
+                  Available ({rewardsAvailable.length})
+                </Text>
+                {rewardsAvailable.length === 0 ? (
+                  <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 13 }}>
+                    No rewards in vault. Add some above.
+                  </Text>
+                ) : (
+                  rewardsAvailable.map((r: any) => (
+                    <View key={r.id} style={[styles.codeItem, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Ionicons name="gift" size={14} color="#FFD700" />
+                          <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>{r.brand}</Text>
+                        </View>
+                        <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 2 }}>{r.title}</Text>
+                        <View style={[styles.codeChip, { backgroundColor: colors.primary + '15', alignSelf: 'flex-start', marginTop: 4 }]}>
+                          <Text style={[styles.codeChipText, { color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 13, letterSpacing: 2 }]}>{r.code}</Text>
+                        </View>
+                      </View>
+                      <Pressable onPress={() => handleDeleteReward(r.id)} hitSlop={10}>
+                        <Ionicons name="trash-outline" size={18} color={colors.error} />
+                      </Pressable>
+                    </View>
+                  ))
+                )}
+
+                {rewardsClaimed.length > 0 && (
+                  <>
+                    <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 14, marginTop: 8 }}>
+                      Claimed ({rewardsClaimed.length})
+                    </Text>
+                    {rewardsClaimed.map((r: any) => (
+                      <View key={r.id} style={[styles.codeItem, { borderColor: colors.success + '30', backgroundColor: colors.success + '08' }]}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                            <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>{r.brand} - {r.title}</Text>
+                          </View>
+                          <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 }}>
+                            Won by: {r.claimedByUsername || 'Unknown'} • {r.matchLabel || 'Unknown match'}
+                          </Text>
+                          <View style={[styles.codeChip, { backgroundColor: colors.success + '15', alignSelf: 'flex-start', marginTop: 4 }]}>
+                            <Text style={[styles.codeChipText, { color: colors.success, fontFamily: 'Inter_700Bold', fontSize: 13, letterSpacing: 2 }]}>{r.code}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                )}
+              </View>
+            )}
+          </View>
       </ScrollView>
     </View>
   );
