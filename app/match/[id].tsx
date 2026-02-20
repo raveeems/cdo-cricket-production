@@ -161,6 +161,8 @@ export default function MatchDetailScreen() {
     refetchInterval: isEffectivelyLive ? 30000 : false,
   });
 
+  const isMatchCompleted = effectiveStatus === 'completed';
+
   const { data: myRewardData } = useQuery<{ reward: any | null }>({
     queryKey: ['/api/rewards/match', id],
     enabled: !!id && isMatchCompleted,
@@ -847,8 +849,6 @@ export default function MatchDetailScreen() {
     }
     return LOSER_BANTER[Math.abs(hash) % LOSER_BANTER.length];
   };
-
-  const isMatchCompleted = effectiveStatus === 'completed';
 
   const renderStandingsTab = () => {
     const standings = standingsData?.standings || [];
