@@ -161,6 +161,13 @@ export default function MatchDetailScreen() {
     refetchInterval: isEffectivelyLive ? 30000 : false,
   });
 
+  const { data: myRewardData } = useQuery<{ reward: any | null }>({
+    queryKey: ['/api/rewards/match', id],
+    enabled: !!id && isMatchCompleted,
+    staleTime: 60000,
+  });
+  const [showRewardModal, setShowRewardModal] = useState(false);
+
   const match = matchData?.match;
 
   const basePlayers = playersData?.players || [];
@@ -904,6 +911,39 @@ export default function MatchDetailScreen() {
           </View>
         )}
 
+        {isMatchCompleted && myRewardData?.reward && (
+          <Pressable
+            onPress={() => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setShowRewardModal(true);
+            }}
+            style={[{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              padding: 14,
+              borderRadius: 14,
+              borderWidth: 1.5,
+              borderColor: '#FFD70060',
+              backgroundColor: '#FFD70010',
+              marginBottom: 12,
+            }]}
+          >
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFD70020', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="gift" size={20} color="#FFD700" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFD700', fontSize: 13, fontFamily: 'Inter_700Bold' as const }}>
+                You won a reward!
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                Tap to reveal your prize
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#FFD700" />
+          </Pressable>
+        )}
+
         <View style={[styles.standingsHeader, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, width: 36, textAlign: 'center' }}>#</Text>
           <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, flex: 1 }}>Team</Text>
@@ -1434,6 +1474,111 @@ export default function MatchDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {showRewardModal && myRewardData?.reward && (
+        <View style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.75)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 999,
+          padding: 24,
+        }}>
+          <View style={{
+            backgroundColor: colors.card,
+            borderRadius: 20,
+            padding: 28,
+            width: '100%',
+            maxWidth: 340,
+            alignItems: 'center',
+            borderWidth: 1.5,
+            borderColor: '#FFD70040',
+          }}>
+            <View style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: '#FFD70015',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 16,
+            }}>
+              <Ionicons name="gift" size={32} color="#FFD700" />
+            </View>
+            <Text style={{ color: '#FFD700', fontSize: 18, fontFamily: 'Inter_700Bold' as const, marginBottom: 4, textAlign: 'center' }}>
+              Congratulations!
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, marginBottom: 16, textAlign: 'center' }}>
+              You won a reward for finishing #1
+            </Text>
+
+            <View style={{
+              backgroundColor: '#FFD70010',
+              borderRadius: 14,
+              padding: 16,
+              width: '100%',
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: '#FFD70020',
+              marginBottom: 12,
+            }}>
+              <Text style={{ color: colors.text, fontSize: 15, fontFamily: 'Inter_700Bold' as const }}>
+                {myRewardData.reward.brand}
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_500Medium' as const, marginTop: 2 }}>
+                {myRewardData.reward.title}
+              </Text>
+              <View style={{
+                backgroundColor: colors.primary + '15',
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                borderRadius: 10,
+                marginTop: 12,
+              }}>
+                <Text style={{ color: colors.primary, fontSize: 18, fontFamily: 'Inter_700Bold' as const, letterSpacing: 3 }}>
+                  {myRewardData.reward.code}
+                </Text>
+              </View>
+              {myRewardData.reward.terms ? (
+                <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const, marginTop: 8, textAlign: 'center' }}>
+                  {myRewardData.reward.terms}
+                </Text>
+              ) : null}
+            </View>
+
+            <Pressable
+              onPress={async () => {
+                await Clipboard.setStringAsync(myRewardData.reward.code);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingVertical: 10,
+                paddingHorizontal: 20,
+                backgroundColor: colors.primary + '15',
+                borderRadius: 10,
+                marginBottom: 12,
+              }}
+            >
+              <Ionicons name="copy-outline" size={16} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }}>Copy Code</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setShowRewardModal(false)}
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 24,
+              }}
+            >
+              <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_500Medium' as const }}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
