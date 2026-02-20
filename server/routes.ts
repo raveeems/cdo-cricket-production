@@ -352,36 +352,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/matches", isAuthenticated, async (_req: Request, res: Response) => {
     try { await refreshStaleMatchStatuses(); } catch (e) { console.error("Status refresh error:", e); }
     const allMatches = await storage.getAllMatches();
-    const now = new Date();
-    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
-    const THREE_HOURS = 3 * 60 * 60 * 1000;
+    const nowMs = Date.now();
+    const MS_48H = 48 * 60 * 60 * 1000;
+    const MS_3H = 3 * 60 * 60 * 1000;
 
-    console.log(`[MatchFeed] Server time: ${now.toISOString()}, 48h cutoff: ${new Date(now.getTime() + FORTY_EIGHT_HOURS).toISOString()}`);
+    console.log(`[MatchFeed] Server time: ${new Date(nowMs).toISOString()} | 48h window: now → ${new Date(nowMs + MS_48H).toISOString()}`);
 
     const matchesWithParticipants: { match: typeof allMatches[0]; participantCount: number }[] = [];
 
     for (const m of allMatches) {
-      const start = new Date(m.startTime).getTime();
-      const diff = start - now.getTime();
-      const elapsed = now.getTime() - start;
-
-      const effectiveStatus = m.status;
+      const startMs = new Date(m.startTime).getTime();
+      const hoursUntilStart = (startMs - nowMs) / 3600000;
 
       const teams = await storage.getAllTeamsForMatch(m.id);
       const uniqueUsers = new Set(teams.map(t => t.userId));
       const participantCount = uniqueUsers.size;
 
-      if (effectiveStatus === "upcoming" && diff > 0 && diff <= FORTY_EIGHT_HOURS) {
-        console.log(`[MatchFeed] Showing: ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${(diff / 3600000).toFixed(1)}h away`);
-      }
+      const isUpcomingOrDelayed = m.status === "upcoming" || m.status === "delayed";
+      const startsWithin48h = startMs <= nowMs + MS_48H;
+      const notTooOld = startMs >= nowMs - MS_3H;
+      const isUpcoming = isUpcomingOrDelayed && startsWithin48h && notTooOld;
 
-      const isUpcoming = (effectiveStatus === "upcoming" || effectiveStatus === "delayed") && diff > -THREE_HOURS && diff <= FORTY_EIGHT_HOURS;
-      const isLive = effectiveStatus === "live";
-      const isDelayed = effectiveStatus === "delayed";
-      const isRecentlyCompleted = effectiveStatus === "completed" && elapsed <= THREE_HOURS;
+      const isLive = m.status === "live";
+      const isDelayed = m.status === "delayed";
+      const isRecentlyCompleted = m.status === "completed" && (nowMs - startMs) <= MS_3H;
       const hasParticipants = participantCount > 0;
 
-      if (hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted) {
+      const included = hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted;
+
+      if (isUpcomingOrDelayed) {
+        console.log(`[MatchFeed] ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${hoursUntilStart.toFixed(1)}h away | within48h=${startsWithin48h} | notTooOld=${notTooOld} | included=${included}`);
+      }
+
+      if (included) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
     }
