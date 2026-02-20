@@ -187,12 +187,15 @@ export default function AdminScreen() {
     setAddingPlayer(true);
     setAddPlayerMsg('');
     try {
+      const matchTeamShort = selectedMatch
+        ? (addPlayerTeam === selectedMatch.team1 ? selectedMatch.team1Short : selectedMatch.team2Short)
+        : addPlayerTeam.trim().substring(0, 3).toUpperCase();
       const res = await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/players`, {
         players: [{
           name: addPlayerName.trim(),
           apiName: addPlayerApiName.trim() || undefined,
           team: addPlayerTeam.trim(),
-          teamShort: addPlayerTeam.trim().substring(0, 3).toUpperCase(),
+          teamShort: matchTeamShort,
           role: addPlayerRole,
           credits: parseFloat(addPlayerCredits) || 8,
         }],
