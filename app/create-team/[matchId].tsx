@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
+  Animated,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +32,15 @@ import type { PitchPlayer } from '@/components/TeamPitchView';
 
 type Step = 'select' | 'captain' | 'preview' | 'success';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
+
+const SPLASH_MESSAGES = [
+  "Today is your day...",
+  "Seri inniku evolo alla pora!",
+  "Vettukilli",
+  "Ivolo sambathichi enna da panna pora",
+  "Edhukaga sollren'na adhukaga thaan sollren",
+  "Idho ungalukaga",
+];
 
 const ROLE_LIMITS = {
   WK: { min: 1, max: 4 },
@@ -364,6 +374,10 @@ export default function CreateTeamScreen() {
   const [selectedWinner, setSelectedWinner] = useState<string | null>(null);
   const [predictionSaving, setPredictionSaving] = useState(false);
   const [hasPredicted, setHasPredicted] = useState(false);
+  const [showSplash, setShowSplash] = useState(false);
+  const [splashMessage, setSplashMessage] = useState('');
+  const splashOpacity = useRef(new Animated.Value(0)).current;
+  const splashScale = useRef(new Animated.Value(0.8)).current;
 
   const { data: existingPrediction } = useQuery<{ myPrediction: { predictedWinner: string } | null }>({
     queryKey: ['/api/predictions', matchId],
@@ -440,7 +454,21 @@ export default function CreateTeamScreen() {
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setStep('success');
+      const randomMsg = SPLASH_MESSAGES[Math.floor(Math.random() * SPLASH_MESSAGES.length)];
+      setSplashMessage(randomMsg);
+      setShowSplash(true);
+      splashOpacity.setValue(0);
+      splashScale.setValue(0.8);
+      Animated.parallel([
+        Animated.timing(splashOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.spring(splashScale, { toValue: 1, friction: 6, useNativeDriver: true }),
+      ]).start();
+      setTimeout(() => {
+        Animated.timing(splashOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+          setShowSplash(false);
+          router.replace({ pathname: '/match/[id]', params: { id: matchId } });
+        });
+      }, 3500);
     } catch (e: any) {
       console.error('Save team error:', e);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -867,6 +895,30 @@ export default function CreateTeamScreen() {
       })()}
 
       <Modal
+        visible={showSplash}
+        transparent
+        animationType="none"
+        onRequestClose={() => {}}
+      >
+        <View style={splashStyles.overlay}>
+          <Animated.View style={[splashStyles.content, { opacity: splashOpacity, transform: [{ scale: splashScale }] }]}>
+            <Text style={splashStyles.emoji}>🏏</Text>
+            <Text style={[splashStyles.message, { color: '#FFF', fontFamily: 'Inter_700Bold' as const }]}>
+              {splashMessage}
+            </Text>
+            <View style={splashStyles.checkRow}>
+              <View style={splashStyles.checkCircle}>
+                <Ionicons name="checkmark" size={32} color="#FFF" />
+              </View>
+            </View>
+            <Text style={[splashStyles.subtext, { fontFamily: 'Inter_500Medium' as const }]}>
+              Team submitted successfully!
+            </Text>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={showPredictionModal}
         transparent
         animationType="fade"
@@ -1092,6 +1144,44 @@ const predStyles = StyleSheet.create({
   confirmBtnText: {
     fontSize: 14,
     color: '#000',
+  },
+});
+
+const splashStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  content: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  emoji: {
+    fontSize: 64,
+  },
+  message: {
+    fontSize: 22,
+    textAlign: 'center',
+    lineHeight: 32,
+  },
+  checkRow: {
+    marginTop: 8,
+  },
+  checkCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#22C55E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  subtext: {
+    fontSize: 14,
+    color: '#FFFFFFAA',
+    textAlign: 'center',
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -87,6 +88,8 @@ export default function MatchDetailScreen() {
   const [repairingTeams, setRepairingTeams] = useState(false);
   const [repairResult, setRepairResult] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [copiedToast, setCopiedToast] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: matchData, isLoading: matchLoading, refetch: refetchMatch } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
@@ -388,6 +391,38 @@ export default function MatchDetailScreen() {
           <Ionicons name="lock-closed" size={18} color={colors.error} />
           <Text style={[styles.deadlineText, { color: colors.error, fontFamily: 'Inter_500Medium' }]}>
             Entry deadline has passed
+          </Text>
+        </View>
+      )}
+
+      <Pressable
+        onPress={async () => {
+          const shareText = `Today's contest is between ${match.team1Short} and ${match.team2Short}. Click here to join: ${Platform.OS === 'web' ? window.location.origin : 'https://asset-manager-raveeems.replit.app'}`;
+          try {
+            await Clipboard.setStringAsync(shareText);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setCopiedToast(true);
+            if (copiedTimer.current) clearTimeout(copiedTimer.current);
+            copiedTimer.current = setTimeout(() => setCopiedToast(false), 2500);
+          } catch {
+            setCopiedToast(true);
+            if (copiedTimer.current) clearTimeout(copiedTimer.current);
+            copiedTimer.current = setTimeout(() => setCopiedToast(false), 2500);
+          }
+        }}
+        style={[styles.shareBtn, { backgroundColor: '#25D36615', borderColor: '#25D36640' }]}
+      >
+        <Ionicons name="share-social" size={18} color="#25D366" />
+        <Text style={{ color: '#25D366', fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>
+          Share Contest
+        </Text>
+      </Pressable>
+
+      {copiedToast && (
+        <View style={[styles.copiedToast, { backgroundColor: '#22C55E' }]}>
+          <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+          <Text style={{ color: '#FFF', fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }}>
+            Copied to clipboard!
           </Text>
         </View>
       )}
@@ -788,6 +823,26 @@ export default function MatchDetailScreen() {
     );
   };
 
+  const LOSER_BANTER = [
+    "Evano Nalla vettirkaan",
+    "Naan'laam eppo thaaan win panna poreno.",
+    "Thothukittae irrukiyae da",
+    "Hard work pannung Friend.",
+    "Ennaku theriyum sir...",
+    "Naan appove sonnen",
+  ];
+
+  const getBanterForEntry = (teamId: string) => {
+    let hash = 0;
+    for (let i = 0; i < teamId.length; i++) {
+      hash = ((hash << 5) - hash) + teamId.charCodeAt(i);
+      hash |= 0;
+    }
+    return LOSER_BANTER[Math.abs(hash) % LOSER_BANTER.length];
+  };
+
+  const isMatchCompleted = effectiveStatus === 'completed';
+
   const renderStandingsTab = () => {
     const standings = standingsData?.standings || [];
 
@@ -875,10 +930,17 @@ export default function MatchDetailScreen() {
               style={[
                 styles.standingRow,
                 {
-                  backgroundColor: isCurrentUser ? colors.accent + '08' : colors.card,
-                  borderColor: isCurrentUser ? colors.accent + '30' : colors.cardBorder,
-                  borderLeftColor: isCurrentUser ? colors.accent : 'transparent',
-                  borderLeftWidth: isCurrentUser ? 3 : 0,
+                  backgroundColor: isCurrentUser ? colors.accent + '08' : (isMatchCompleted && entry.rank === 1 ? '#F59E0B10' : colors.card),
+                  borderColor: isCurrentUser ? colors.accent + '30' : (isMatchCompleted && entry.rank === 1 ? '#F59E0B50' : colors.cardBorder),
+                  borderLeftColor: isCurrentUser ? colors.accent : (isMatchCompleted && entry.rank === 1 ? '#F59E0B' : 'transparent'),
+                  borderLeftWidth: isCurrentUser ? 3 : (isMatchCompleted && entry.rank === 1 ? 3 : 0),
+                },
+                isMatchCompleted && entry.rank === 1 && {
+                  shadowColor: '#F59E0B',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 4,
                 },
               ]}
             >
@@ -895,6 +957,9 @@ export default function MatchDetailScreen() {
                     <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>
                       {entry.teamName}
                     </Text>
+                    {isMatchCompleted && entry.rank === 1 && (
+                      <Text style={{ fontSize: 14 }}>🏆</Text>
+                    )}
                     {isCurrentUser && (
                       <View style={[styles.youBadge, { backgroundColor: colors.accent + '20' }]}>
                         <Text style={{ color: colors.accent, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>YOU</Text>
@@ -904,6 +969,11 @@ export default function MatchDetailScreen() {
                   <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
                     {entry.userTeamName || entry.username}
                   </Text>
+                  {isMatchCompleted && entry.rank >= 2 && (
+                    <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const, fontStyle: 'italic', marginTop: 2 }}>
+                      {getBanterForEntry(entry.teamId)}
+                    </Text>
+                  )}
                 </View>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2037,5 +2107,25 @@ const styles = StyleSheet.create({
   hiddenText: {
     flex: 1,
     fontSize: 12,
+  },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  copiedToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 12,
   },
 });

@@ -1,0 +1,41 @@
+FRONTEND UI TWISTS: Splash Screen, Share Button, and Post-Match Banter (STRICT ISOLATION)
+
+I am adding three new frontend engagement features.
+
+CRITICAL DIRECTIVE - STRICT ISOLATION: You must NOT touch or modify updateLivePoints, resolvePlayerPoints, the backend calculation engine, the database schema, or the recent Match Prediction logic. These new features are 100% cosmetic UI enhancements.
+
+Please implement the following strictly on the frontend components:
+
+1. Feature: Post-Submission Fun Splash Screen (Auto-Close)
+
+
+
+Action: After a user successfully submits their team (and the prediction modal finishes), do not just instantly reload. Show a full-screen overlay/modal.
+
+Content: Display a randomized fun sentence from this array:["Today is your day...", "Seri inniku evolo alla pora!", "Vettukilli", "Ivolo sambathichi enna da panna pora", "Edhukaga sollren'na adhukaga thaan sollren", "Idho ungalukaga"]
+
+Logic: Use a setTimeout. The splash screen must stay visible for exactly 3500ms (3.5 seconds), then automatically close and redirect the user back to the Match overview or My Teams page.
+
+2. Feature: WhatsApp Share Button (Match Details Page)
+
+
+
+Action: On the Match Overview page, add a clean "Share Contest" button (preferably with a share icon).
+
+Logic: When clicked, it must dynamically generate this string: "Today's contest is between ${teamA.shortName} and ${teamB.shortName}. Click here to join: window.location.origin"
+
+Execution: Use navigator.clipboard.writeText() to copy the string to the user's clipboard, and show a temporary "Copied to clipboard!" toast/alert so the admin knows they can go paste it in WhatsApp.
+
+3. Feature: Post-Match Champion Badge & Loser Banter (Leaderboard UI)
+
+
+
+Action: Update the Leaderboard/Standings UI rendering logic.
+
+Condition: These elements MUST ONLY appear if the match.status === 'COMPLETED'. If the match is 'UPCOMING' or 'LIVE', render the leaderboard normally.
+
+Rank 1 (Winner): Add a glowing CSS effect and a 🏆 icon next to their team name.
+
+Rank 2 and below (Losers): Display a small, randomized banter string in muted text next to their points. Use this array:["Evano Nalla vettirkaan", "Naan'laam eppo thaaan win panna poreno.", "Thothukittae irrukiyae da", "Hard work pannung Friend.", "Ennaku theriyum sir..." , "Naan appove sonnen"]
+
+Please provide the exact frontend code blocks required to update the Team Submission flow, the Match Details page, and the Leaderboard component.
