@@ -1,0 +1,32 @@
+CRITICAL DIRECTIVE 1 - STRICT ISOLATION: Do NOT modify any backend logic, database schemas, or points calculation engines. These are strictly frontend UI/UX changes.
+CRITICAL DIRECTIVE 2 - DATA INTEGRITY: Any changes to how player names are displayed (e.g., truncating names) MUST be 100% cosmetic (presentation layer only). You must NOT alter the underlying player object, the playerId, or the full name string stored in the frontend state or sent to the backend. The scorecard matching logic relies on the exact original strings.
+
+Please implement the following:
+
+1. Fix: WhatsApp Share URL
+
+Issue: The Share Contest button currently copies the root domain (window.location.origin).
+
+Fix: Update the clipboard text logic to use window.location.href so it copies the exact URL of the specific match page the user is currently viewing.
+
+2. Feature: Dream11-Style "Split View" for the 'ALL' Tab
+
+Context: On the Team Creation/Player Selection screen, scrolling through 30+ players in the "ALL" tab is fatiguing. I want a 50/50 side-by-side split view, similar to Dream11, ONLY for the "ALL" tab.
+
+Execution: When the "ALL" filter is active, change the layout container to a 2-column CSS Grid (grid-template-columns: 1fr 1fr; gap: 8px;).
+
+Column Headers: Add a sticky header at the top of this grid: The left column header should display Team A's name/flag, and the right column header should display Team B's name/flag. Ensure the players are mapped correctly under their respective teams.
+
+Compact Player Cards (Cosmetic Only): Inside this specific split view, render a "compact" version of the player card to fit the narrow columns:
+
+Hide the player's team name (since it's in the column header).
+
+Visually truncate the player's first name to an initial using a UI helper function (e.g., rendering "G. Maxwell" instead of "Glenn Maxwell"), but pass the full, original player object to the selection onClick handler.
+
+Stack the role, points/credits, and name vertically to save horizontal space.
+
+Ensure the selection button/toggle scales down cleanly so it doesn't break the layout.
+
+Tab Isolation: This 2-column split layout MUST ONLY apply when the "ALL" tab is selected. If the user clicks "WK", "BAT", "AR", or "BOWL", the UI must revert to the standard, full-width single-column player rows displaying their full names.
+
+Please provide the updated frontend code blocks for the Share button logic and the Player Selection/List UI components.

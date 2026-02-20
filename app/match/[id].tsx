@@ -397,7 +397,7 @@ export default function MatchDetailScreen() {
 
       <Pressable
         onPress={async () => {
-          const shareText = `Today's contest is between ${match.team1Short} and ${match.team2Short}. Click here to join: ${Platform.OS === 'web' ? window.location.origin : 'https://asset-manager-raveeems.replit.app'}`;
+          const shareText = `Today's contest is between ${match.team1Short} and ${match.team2Short}. Click here to join: ${Platform.OS === 'web' ? window.location.href : 'https://asset-manager-raveeems.replit.app/match/' + id}`;
           try {
             await Clipboard.setStringAsync(shareText);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
