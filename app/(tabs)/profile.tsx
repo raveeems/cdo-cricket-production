@@ -9,11 +9,14 @@ import {
   Switch,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/contexts/TeamContext';
@@ -30,6 +33,12 @@ export default function ProfileScreen() {
   const [teamNameSaving, setTeamNameSaving] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  const { data: myRewardsData, isLoading: rewardsLoading } = useQuery<{ rewards: any[] }>({
+    queryKey: ['/api/rewards/my'],
+    staleTime: 30000,
+  });
+  const myRewards = myRewardsData?.rewards || [];
 
   const matchesJoined = new Set(teams.map((t) => t.matchId)).size;
   const totalTeams = teams.length;
@@ -168,13 +177,72 @@ export default function ProfileScreen() {
             <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <Ionicons name="trophy" size={24} color={colors.success} />
               <Text style={[styles.statValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-                0
+                {myRewards.length}
               </Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
                 Wins
               </Text>
             </View>
           </View>
+
+          {myRewards.length > 0 && (
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const, marginBottom: 10 }}>
+                My Rewards
+              </Text>
+              {myRewards.map((r: any) => (
+                <View
+                  key={r.id}
+                  style={{
+                    backgroundColor: colors.card,
+                    borderColor: '#FFD70030',
+                    borderWidth: 1,
+                    borderRadius: 14,
+                    padding: 14,
+                    marginBottom: 8,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFD70015', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="gift" size={18} color="#FFD700" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>
+                        {r.brand} - {r.title}
+                      </Text>
+                      {r.matchLabel ? (
+                        <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular' as const, marginTop: 1 }}>
+                          Won in: {r.matchLabel}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                    <View style={{ backgroundColor: colors.primary + '15', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 }}>
+                      <Text style={{ color: colors.primary, fontSize: 15, fontFamily: 'Inter_700Bold' as const, letterSpacing: 2 }}>
+                        {r.code}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={async () => {
+                        await Clipboard.setStringAsync(r.code);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: colors.primary + '10', borderRadius: 8 }}
+                    >
+                      <Ionicons name="copy-outline" size={14} color={colors.primary} />
+                      <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>Copy</Text>
+                    </Pressable>
+                  </View>
+                  {r.terms ? (
+                    <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const, marginTop: 6 }}>
+                      {r.terms}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={[styles.settingsSection, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.settingRow}>
