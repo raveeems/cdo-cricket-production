@@ -804,7 +804,7 @@ export default function AdminScreen() {
                         {teamPlayers.map(p => {
                           const isIn = xiPlayerIds.has(p.id);
                           return (
-                            <View key={p.id} style={{ position: 'relative' }}>
+                            <View key={p.id} style={{ position: 'relative', width: '31%' }}>
                               <Pressable
                                 onPress={() => toggleXIPlayer(p.id)}
                                 style={[
@@ -1690,7 +1690,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   xiChip: {
-    width: '31%' as any,
+    width: '100%' as any,
     paddingVertical: 10,
     paddingHorizontal: 8,
     borderRadius: 10,
