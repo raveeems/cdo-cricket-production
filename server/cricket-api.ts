@@ -1,12 +1,5 @@
 const CRICKET_API_BASE = "https://api.cricapi.com/v1";
 
-let tier1Blocked = false;
-let tier1BlockedUntil = 0;
-
-const BACKUP_API_KEY = "0dd96293-c4f6-4193-b546-290917ad99d1";
-let backupKeyHits = 0;
-const MAX_BACKUP_HITS = 50;
-
 let dailyApiCalls = 0;
 let dailyApiCallDate = "";
 
@@ -44,84 +37,49 @@ async function trackedFetch(url: string, init?: RequestInit): Promise<Response> 
   }
 }
 
-function getApiKeys(): { primary: string | undefined; fallback: string | undefined } {
-  return {
-    primary: process.env.CRICKET_API_KEY,
-    fallback: process.env.CRICAPI_KEY_TIER2,
-  };
-}
-
 function getActiveApiKey(): string | undefined {
-  if (backupKeyHits < MAX_BACKUP_HITS) {
-    backupKeyHits++;
-    console.log(`[API VALVE] Using Backup Key. Hits: ${backupKeyHits}/${MAX_BACKUP_HITS}`);
-    return BACKUP_API_KEY;
-  } else if (backupKeyHits === MAX_BACKUP_HITS) {
-    console.warn("[API VALVE] Backup key limit reached. Switching back to primary key.");
-    backupKeyHits++;
-  }
-  const keys = getApiKeys();
-  if (keys.primary && (!tier1Blocked || Date.now() > tier1BlockedUntil)) {
-    tier1Blocked = false;
-    return keys.primary;
-  }
-  if (keys.fallback) {
+  const primary = process.env.CRICKET_API_KEY;
+  if (primary) return primary;
+  const fallback = process.env.CRICAPI_KEY_TIER2;
+  if (fallback) {
     console.log("[CricAPI] Using Tier 2 fallback key");
-    return keys.fallback;
+    return fallback;
   }
-  return keys.primary;
-}
-
-function markTier1Blocked() {
-  tier1Blocked = true;
-  tier1BlockedUntil = Date.now() + 60 * 60 * 1000;
-  console.log("[CricAPI] Tier 1 key quota hit — switching to Tier 2 for 1 hour");
+  return undefined;
 }
 
 async function cricApiFetch<T>(path: string, extraParams: string = ""): Promise<{ data: T | null; info?: any; usedTier: number }> {
-  const keys = getApiKeys();
-  const keyOrder: { key: string; tier: number }[] = [];
-
-  if (keys.primary && (!tier1Blocked || Date.now() > tier1BlockedUntil)) {
-    keyOrder.push({ key: keys.primary, tier: 1 });
-  }
-  if (keys.fallback) {
-    keyOrder.push({ key: keys.fallback, tier: 2 });
-  }
-  if (keyOrder.length === 0 && keys.primary) {
-    keyOrder.push({ key: keys.primary, tier: 1 });
+  const apiKey = getActiveApiKey();
+  if (!apiKey) {
+    console.log("[CricAPI] No API key available");
+    return { data: null, usedTier: 0 };
   }
 
-  for (const { key, tier } of keyOrder) {
-    try {
-      const sep = path.includes("?") ? "&" : "?";
-      const url = `${CRICKET_API_BASE}/${path}${sep}apikey=${key}${extraParams ? "&" + extraParams : ""}`;
-      const res = await trackedFetch(url);
-      if (!res.ok) {
-        console.error(`[CricAPI T${tier}] HTTP ${res.status} for ${path}`);
-        continue;
-      }
-      const json = await res.json() as any;
-
-      if (json.status === "failure" || json.status === "error") {
-        const msg = (json.reason || json.message || "").toLowerCase();
-        if (msg.includes("limit") || msg.includes("quota") || msg.includes("blocked") || msg.includes("exceed")) {
-          console.log(`[CricAPI T${tier}] Quota exceeded: ${json.reason || json.message}`);
-          if (tier === 1) markTier1Blocked();
-          continue;
-        }
-      }
-
-      if (json.info) {
-        console.log(`[CricAPI T${tier}] ${path.split("?")[0]}: hits ${json.info.hitsUsed || json.info.hitsToday}/${json.info.hitsLimit}`);
-      }
-      return { data: json.data ?? json, info: json.info, usedTier: tier };
-    } catch (e: any) {
-      console.error(`[CricAPI T${tier}] Fetch error for ${path}:`, e.message);
-      continue;
+  try {
+    const sep = path.includes("?") ? "&" : "?";
+    const url = `${CRICKET_API_BASE}/${path}${sep}apikey=${apiKey}${extraParams ? "&" + extraParams : ""}`;
+    const res = await trackedFetch(url);
+    if (!res.ok) {
+      console.error(`[CricAPI] HTTP ${res.status} for ${path}`);
+      return { data: null, usedTier: 1 };
     }
+    const json = await res.json() as any;
+
+    if (json.status === "failure" || json.status === "error") {
+      const msg = (json.reason || json.message || "").toLowerCase();
+      if (msg.includes("limit") || msg.includes("quota") || msg.includes("blocked") || msg.includes("exceed")) {
+        console.log(`[CricAPI] Quota issue: ${json.reason || json.message}`);
+      }
+    }
+
+    if (json.info) {
+      console.log(`[CricAPI] ${path.split("?")[0]}: hits ${json.info.hitsUsed || json.info.hitsToday}/${json.info.hitsLimit}`);
+    }
+    return { data: json.data ?? json, info: json.info, usedTier: 1 };
+  } catch (e: any) {
+    console.error(`[CricAPI] Fetch error for ${path}:`, e.message);
+    return { data: null, usedTier: 0 };
   }
-  return { data: null, usedTier: 0 };
 }
 
 interface CricApiMatch {
@@ -1166,10 +1124,6 @@ export async function fetchMatchScorecardWithScore(
       if (json?.status === "failure" || json?.reason) {
         console.error(`[ScorecardWithScore] API error for ${externalMatchId}: ${errorMsg}`);
       }
-      const errorLower = String(errorMsg).toLowerCase();
-      if (errorLower.includes("blocked") || errorLower.includes("quota") || errorLower.includes("limit")) {
-        (globalThis as any).__apiCooldownTripped = true;
-      }
       return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
     }
 
@@ -1316,10 +1270,6 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
       const errorMsg = json?.reason || json?.status || "";
       if (json?.status === "failure" || json?.reason) {
         console.error(`[LiveScorecard] API error for ${externalMatchId}: ${errorMsg}`);
-      }
-      const errorLower = String(errorMsg).toLowerCase();
-      if (errorLower.includes("blocked") || errorLower.includes("quota") || errorLower.includes("limit")) {
-        (globalThis as any).__apiCooldownTripped = true;
       }
       return null;
     }

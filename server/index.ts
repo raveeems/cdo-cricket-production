@@ -339,7 +339,6 @@ function setupErrorHandler(app: express.Application) {
       const HEARTBEAT_INTERVAL = 60 * 1000;
       let heartbeatSyncing = false;
       let heartbeatLockTime = 0;
-      let apiCooldownUntil = 0;
 
       function fuzzyNameMatch(name1: string, name2: string): boolean {
         if (name1 === name2) return true;
@@ -590,10 +589,6 @@ function setupErrorHandler(app: express.Application) {
       }
 
       async function matchHeartbeat(forcedMatchId?: string) {
-        if (Date.now() < apiCooldownUntil) {
-          log(`[Heartbeat] API in cooldown. Skipping sync until ${new Date(apiCooldownUntil).toLocaleTimeString()}`);
-          return;
-        }
         if (heartbeatSyncing && !forcedMatchId) {
           const lockAge = Date.now() - heartbeatLockTime;
           if (lockAge < 60000) {
@@ -640,15 +635,8 @@ function setupErrorHandler(app: express.Application) {
             const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
 
             try {
-              (globalThis as any).__apiCooldownTripped = false;
               const { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers, source } =
                 await updateLiveScore(match);
-
-              if ((globalThis as any).__apiCooldownTripped) {
-                apiCooldownUntil = Date.now() + (16 * 60 * 1000);
-                console.warn(`[Heartbeat] CIRCUIT BREAKER TRIPPED! API blocked. Sleeping for 16 minutes until ${new Date(apiCooldownUntil).toLocaleTimeString()}`);
-                break;
-              }
 
               const existingScoreStr = (match as any).scoreString || "";
               const existingOvers = extractTotalOversFromScoreString(existingScoreStr);
