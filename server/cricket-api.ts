@@ -3,7 +3,7 @@ const CRICKET_API_BASE = "https://api.cricapi.com/v1";
 let tier1Blocked = false;
 let tier1BlockedUntil = 0;
 
-const BACKUP_API_KEY = "7cbea7a7-1461-4c44-a656-be37a8ee3964";
+const BACKUP_API_KEY = "0dd96293-c4f6-4193-b546-290917ad99d1";
 let backupKeyHits = 0;
 const MAX_BACKUP_HITS = 50;
 
