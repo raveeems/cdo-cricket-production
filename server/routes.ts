@@ -1870,6 +1870,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const matchLabel = match ? `${(match as any).team1Short} vs ${(match as any).team2Short}` : matchId;
       console.log(`[Rewards] Starting distribution for ${matchLabel}...`);
 
+      const existingMatchReward = await storage.getRewardForMatch(matchId);
+      if (existingMatchReward) {
+        console.log(`[Rewards] ${matchLabel}: Reward already distributed for this match (to userId ${existingMatchReward.claimedByUserId}), skipping — idempotent`);
+        return;
+      }
+
       const allTeams = await storage.getAllTeamsForMatch(matchId);
       if (allTeams.length === 0) {
         console.log(`[Rewards] No teams found for ${matchLabel}, skipping`);
@@ -1891,15 +1897,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.log(`[Rewards] ${matchLabel}: Rank 1 = userId ${winner.userId} with ${winner.totalPoints} pts (team: ${winner.teamName})`);
 
-      const existingReward = await storage.getRewardForUserMatch(winner.userId, matchId);
-      if (existingReward) {
-        console.log(`[Rewards] ${matchLabel}: Reward already distributed to this winner, skipping`);
-        return;
-      }
-
       const reward = await storage.getRandomAvailableReward();
       if (!reward) {
-        console.log(`[Rewards] ${matchLabel}: ⚠ NO AVAILABLE REWARDS IN VAULT — add coupons via Admin Panel`);
+        console.log(`[Rewards] ⚠ Vault empty, no reward distributed for match ${matchLabel} — add coupons via Admin Panel`);
         return;
       }
 

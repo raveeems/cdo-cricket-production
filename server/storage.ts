@@ -400,6 +400,12 @@ export class DatabaseStorage {
     return reward;
   }
 
+  async getRewardForMatch(matchId: string): Promise<Reward | undefined> {
+    const [reward] = await db.select().from(rewards)
+      .where(eq(rewards.claimedMatchId, matchId));
+    return reward;
+  }
+
   async getUserRewards(userId: string): Promise<Reward[]> {
     return db.select().from(rewards)
       .where(eq(rewards.claimedByUserId, userId))
