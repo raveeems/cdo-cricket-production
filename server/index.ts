@@ -336,7 +336,8 @@ function setupErrorHandler(app: express.Application) {
         });
       }, TWO_HOURS);
 
-      const HEARTBEAT_INTERVAL = 60 * 1000;
+      const HEARTBEAT_INTERVAL = 15 * 1000;
+      let heartbeatSyncing = false;
 
       function fuzzyNameMatch(name1: string, name2: string): boolean {
         if (name1 === name2) return true;
@@ -409,6 +410,7 @@ function setupErrorHandler(app: express.Application) {
         namePointsMap: Map<string, number>;
         scoreString: string;
         matchEnded: boolean;
+        totalOvers: number;
         source: string;
       }> {
         const empty = {
@@ -416,6 +418,7 @@ function setupErrorHandler(app: express.Application) {
           namePointsMap: new Map<string, number>(),
           scoreString: "",
           matchEnded: false,
+          totalOvers: 0,
           source: "",
         };
 
@@ -425,7 +428,7 @@ function setupErrorHandler(app: express.Application) {
           const { fetchMatchScorecardWithScore } = await import("./cricket-api");
           const result = await fetchMatchScorecardWithScore(match.externalId);
           const source = (result.pointsMap.size > 0 || result.scoreString) ? "CricAPI" : "";
-          log(`[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}`);
+          log(`[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}, overs=${result.totalOvers}`);
           return { ...result, source };
         } catch (err) {
           console.error(`[Heartbeat:Score] FAILED for ${match.team1Short} vs ${match.team2Short}:`, err);
@@ -574,7 +577,22 @@ function setupErrorHandler(app: express.Application) {
         }
       }
 
+      function extractTotalOversFromScoreString(scoreStr: string): number {
+        if (!scoreStr) return 0;
+        const matches = scoreStr.match(/\((\d+(?:\.\d+)?)\s*ov\)/g);
+        if (!matches) return 0;
+        return matches.reduce((sum, m) => {
+          const num = parseFloat(m.replace(/[^0-9.]/g, ""));
+          return sum + (isNaN(num) ? 0 : num);
+        }, 0);
+      }
+
       async function matchHeartbeat(forcedMatchId?: string) {
+        if (heartbeatSyncing && !forcedMatchId) {
+          log("[Heartbeat] SKIPPED: previous sync still in progress");
+          return;
+        }
+        heartbeatSyncing = true;
         try {
           const allMatches = await storage.getAllMatches();
           const now = Date.now();
@@ -610,8 +628,14 @@ function setupErrorHandler(app: express.Application) {
             const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
 
             try {
-              const { pointsMap, namePointsMap, scoreString, matchEnded, source } =
+              const { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers, source } =
                 await updateLiveScore(match);
+
+              const existingOvers = extractTotalOversFromScoreString((match as any).scoreString || "");
+              if (totalOvers > 0 && totalOvers < existingOvers) {
+                log(`[Heartbeat] STALE DATA REJECTED for ${matchLabel}: incoming ${totalOvers} overs < existing ${existingOvers} overs — discarding payload`);
+                continue;
+              }
 
               if (scoreString && scoreString !== (match as any).scoreString) {
                 await storage.updateMatch(match.id, { scoreString, lastSyncAt: new Date() } as any);
@@ -654,13 +678,15 @@ function setupErrorHandler(app: express.Application) {
           }
         } catch (err) {
           console.error("[Heartbeat] scheduler error:", err);
+        } finally {
+          heartbeatSyncing = false;
         }
       }
 
       (globalThis as any).__matchHeartbeat = matchHeartbeat;
 
       setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
-      log("Match Heartbeat started (every 60s — score sync, points, lockout, delay detection)");
+      log("Match Heartbeat started (every 15s — score sync, points, lockout, stale-data rejection)");
     },
   );
 })();

@@ -1116,25 +1116,28 @@ export async function fetchMatchScorecardWithScore(
   namePointsMap: Map<string, number>;
   scoreString: string;
   matchEnded: boolean;
+  totalOvers: number;
 }> {
   const apiKey = getActiveApiKey();
   const pointsMap = new Map<string, number>();
   const namePointsMap = new Map<string, number>();
   let scoreString = "";
   let matchEnded = false;
-  if (!apiKey) return { pointsMap, namePointsMap, scoreString, matchEnded };
+  let totalOvers = 0;
+  if (!apiKey) return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
 
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
     const res = await trackedFetch(url);
-    if (!res.ok) return { pointsMap, namePointsMap, scoreString, matchEnded };
+    if (!res.ok) return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
 
     const json = (await res.json()) as CricApiResponse<ScorecardData>;
-    if (json.status !== "success" || !json.data) return { pointsMap, namePointsMap, scoreString, matchEnded };
+    if (json.status !== "success" || !json.data) return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
 
     const scoreArr = json.data.score || [];
     if (scoreArr.length > 0) {
       scoreString = scoreArr.map(s => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
+      totalOvers = scoreArr.reduce((sum, s) => sum + (s.o || 0), 0);
     }
 
     const matchStatus = (json.data.name || json.data.status || "").toLowerCase();
@@ -1170,10 +1173,10 @@ export async function fetchMatchScorecardWithScore(
       }
     }
 
-    return { pointsMap, namePointsMap, scoreString, matchEnded };
+    return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
   } catch (err) {
     console.error("ScorecardWithScore error:", err);
-    return { pointsMap, namePointsMap, scoreString, matchEnded };
+    return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
   }
 }
 

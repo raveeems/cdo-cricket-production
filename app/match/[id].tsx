@@ -122,23 +122,23 @@ export default function MatchDetailScreen() {
     queryKey: ['/api/matches', id, 'live-scorecard'],
     enabled: !!id && isLiveOrCompleted,
     staleTime: 10000,
-    refetchInterval: isEffectivelyLive ? 30000 : false,
+    refetchInterval: isEffectivelyLive ? 15000 : false,
     retry: 1,
   });
 
   const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string; players?: Player[] }>({
     queryKey: ['/api/matches', id, 'teams'],
     enabled: !!id,
-    staleTime: 15000,
-    refetchInterval: isEffectivelyLive ? 45000 : false,
+    staleTime: 10000,
+    refetchInterval: isEffectivelyLive ? 15000 : false,
     retry: 1,
   });
 
   const { data: standingsData } = useQuery<{ standings: StandingEntry[]; isLive: boolean; players?: Player[] }>({
     queryKey: ['/api/matches', id, 'standings'],
     enabled: !!id && isLiveOrCompleted,
-    staleTime: 15000,
-    refetchInterval: isEffectivelyLive ? 45000 : false,
+    staleTime: 10000,
+    refetchInterval: isEffectivelyLive ? 15000 : false,
     retry: 1,
   });
 
@@ -157,8 +157,8 @@ export default function MatchDetailScreen() {
   const { data: predictionsData } = useQuery<PredictionData>({
     queryKey: ['/api/predictions', id],
     enabled: !!id,
-    staleTime: 30000,
-    refetchInterval: isEffectivelyLive ? 30000 : false,
+    staleTime: 10000,
+    refetchInterval: isEffectivelyLive ? 15000 : false,
   });
 
   const isMatchCompleted = effectiveStatus === 'completed';
