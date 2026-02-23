@@ -83,7 +83,7 @@ export default function MatchDetailScreen() {
   const insets = useSafeAreaInsets();
   const [timeLeft, setTimeLeft] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
-  const [selectedInning, setSelectedInning] = useState(0);
+  const [selectedInning, setSelectedInning] = useState(-1);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [repairingTeams, setRepairingTeams] = useState(false);
   const [repairResult, setRepairResult] = useState<string | null>(null);
@@ -121,9 +121,9 @@ export default function MatchDetailScreen() {
   const { data: scorecardData, isLoading: scorecardLoading } = useQuery<{ scorecard: LiveScorecard | null }>({
     queryKey: ['/api/matches', id, 'live-scorecard'],
     enabled: !!id && isLiveOrCompleted,
-    staleTime: 30000,
+    staleTime: isEffectivelyLive ? 30000 : 120000,
     refetchInterval: isEffectivelyLive ? 45000 : false,
-    retry: 1,
+    retry: 2,
   });
 
   const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string; players?: Player[] }>({
@@ -599,7 +599,10 @@ export default function MatchDetailScreen() {
       );
     }
 
-    const currentInning = scorecard.innings[selectedInning] || scorecard.innings[0];
+    const effectiveInning = selectedInning >= 0 && selectedInning < scorecard.innings.length
+      ? selectedInning
+      : scorecard.innings.length - 1;
+    const currentInning = scorecard?.innings?.[effectiveInning] || scorecard?.innings?.[0];
 
     return (
       <View style={styles.contentSection}>
@@ -645,8 +648,8 @@ export default function MatchDetailScreen() {
                 style={[
                   styles.inningsTab,
                   {
-                    backgroundColor: selectedInning === i ? colors.primary : colors.surface,
-                    borderColor: selectedInning === i ? colors.primary : colors.border,
+                    backgroundColor: effectiveInning === i ? colors.primary : colors.surface,
+                    borderColor: effectiveInning === i ? colors.primary : colors.border,
                   },
                 ]}
               >
@@ -654,20 +657,20 @@ export default function MatchDetailScreen() {
                   style={[
                     styles.inningsTabText,
                     {
-                      color: selectedInning === i ? '#FFF' : colors.textSecondary,
+                      color: effectiveInning === i ? '#FFF' : colors.textSecondary,
                       fontFamily: 'Inter_600SemiBold',
                     },
                   ]}
                   numberOfLines={1}
                 >
-                  {inn.inning.length > 20 ? inn.inning.substring(0, 18) + '...' : inn.inning}
+                  {inn?.inning?.length > 20 ? inn.inning.substring(0, 18) + '...' : inn?.inning}
                 </Text>
               </Pressable>
             ))}
           </View>
         )}
 
-        {currentInning.batting && currentInning.batting.length > 0 && (
+        {currentInning?.batting && currentInning.batting.length > 0 && (
           <>
             <View style={[styles.scorecardHeader, { borderBottomColor: colors.border }]}>
               <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', flex: 2 }]}>
@@ -729,7 +732,7 @@ export default function MatchDetailScreen() {
               );
             })}
 
-            {(currentInning.extras !== undefined && currentInning.extras > 0) && (
+            {(currentInning?.extras !== undefined && currentInning?.extras > 0) && (
               <View style={[styles.scorecardRow, { borderBottomColor: colors.border + '40', backgroundColor: colors.surface }]}>
                 <View style={{ flex: 2 }}>
                   <Text style={[styles.scorecardName, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
@@ -747,7 +750,7 @@ export default function MatchDetailScreen() {
               </View>
             )}
 
-            {currentInning.totals && (
+            {currentInning?.totals && (
               <View style={[styles.scorecardRow, { borderBottomColor: colors.border, backgroundColor: colors.primary + '10' }]}>
                 <View style={{ flex: 2 }}>
                   <Text style={[styles.scorecardName, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
@@ -770,7 +773,7 @@ export default function MatchDetailScreen() {
           </>
         )}
 
-        {currentInning.bowling && currentInning.bowling.length > 0 && (
+        {currentInning?.bowling && currentInning.bowling.length > 0 && (
           <>
             <View style={[styles.scorecardHeader, { borderBottomColor: colors.border, marginTop: 20 }]}>
               <Text style={[styles.scorecardHeaderText, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', flex: 2 }]}>

@@ -570,9 +570,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let source = "none";
 
         if (match.externalId) {
-          const { fetchLiveScorecard } = await import("./cricket-api");
-          scorecard = await fetchLiveScorecard(match.externalId);
-          if (scorecard) source = "CricAPI";
+          try {
+            const { fetchLiveScorecard } = await import("./cricket-api");
+            scorecard = await fetchLiveScorecard(match.externalId);
+            if (scorecard) source = "CricAPI";
+          } catch (apiErr: any) {
+            console.error(`[LiveScorecard] Failed to fetch for ${match.externalId}:`, apiErr?.message || apiErr);
+          }
         }
 
         if (!scorecard) {
@@ -580,8 +584,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         return res.json({ scorecard, source });
       } catch (err: any) {
-        console.error("Live scorecard error:", err);
-        return res.status(500).json({ message: "Failed to fetch scorecard" });
+        console.error("Live scorecard route error:", err?.message || err);
+        return res.json({ scorecard: null, error: err?.message || "Failed to fetch scorecard" });
       }
     }
   );
