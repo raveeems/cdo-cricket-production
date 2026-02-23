@@ -30,7 +30,14 @@ export function getInMemoryApiCallCount(): number {
 
 async function trackedFetch(url: string, init?: RequestInit): Promise<Response> {
   await trackApiCall();
-  return fetch(url, init);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function getApiKeys(): { primary: string | undefined; fallback: string | undefined } {

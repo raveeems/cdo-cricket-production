@@ -338,6 +338,7 @@ function setupErrorHandler(app: express.Application) {
 
       const HEARTBEAT_INTERVAL = 15 * 1000;
       let heartbeatSyncing = false;
+      let heartbeatLockTime = 0;
 
       function fuzzyNameMatch(name1: string, name2: string): boolean {
         if (name1 === name2) return true;
@@ -589,10 +590,16 @@ function setupErrorHandler(app: express.Application) {
 
       async function matchHeartbeat(forcedMatchId?: string) {
         if (heartbeatSyncing && !forcedMatchId) {
-          log("[Heartbeat] SKIPPED: previous sync still in progress");
-          return;
+          const lockAge = Date.now() - heartbeatLockTime;
+          if (lockAge < 60000) {
+            log("[Heartbeat] SKIPPED: previous sync still in progress");
+            return;
+          }
+          log(`[Heartbeat] FORCE UNLOCK: lock held for ${Math.round(lockAge / 1000)}s — resetting stale lock`);
+          heartbeatSyncing = false;
         }
         heartbeatSyncing = true;
+        heartbeatLockTime = Date.now();
         try {
           const allMatches = await storage.getAllMatches();
           const now = Date.now();
