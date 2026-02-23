@@ -1138,7 +1138,28 @@ export async function fetchMatchScorecardWithScore(
                  matchStatus.includes("tied") || matchStatus.includes("finished") ||
                  matchStatus.includes("ended") || matchStatus.includes("result") ||
                  matchStatus.includes("aban") || matchStatus.includes("no result") ||
-                 matchStatus.includes("d/l") || matchStatus.includes("dls");
+                 matchStatus.includes("d/l") || matchStatus.includes("dls") ||
+                 matchStatus.includes("beat") || matchStatus.includes("defeat");
+
+    if (!matchEnded && json.data.matchEnded === true) {
+      matchEnded = true;
+    }
+
+    if (!matchEnded && scoreArr.length >= 2) {
+      const inn2 = scoreArr[scoreArr.length - 1];
+      const inn1 = scoreArr[0];
+      const inn2Wickets = inn2?.w ?? 0;
+      const inn2Overs = inn2?.o ?? 0;
+      const inn2Runs = inn2?.r ?? 0;
+      const inn1Runs = inn1?.r ?? 0;
+      const allOut = inn2Wickets >= 10;
+      const oversComplete = inn2Overs >= 20;
+      const targetChased = inn2Runs > inn1Runs;
+      if (allOut || oversComplete || targetChased) {
+        matchEnded = true;
+        console.log(`[ScorecardWithScore] matchEnded inferred from innings data: allOut=${allOut}, oversComplete=${oversComplete}, targetChased=${targetChased}`);
+      }
+    }
     const statusText = json.data.name || json.data.status || "";
     if (statusText) {
       scoreString += ` — ${statusText}`;
