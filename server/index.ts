@@ -336,7 +336,7 @@ function setupErrorHandler(app: express.Application) {
         });
       }, TWO_HOURS);
 
-      const HEARTBEAT_INTERVAL = 15 * 1000;
+      const HEARTBEAT_INTERVAL = 60 * 1000;
       let heartbeatSyncing = false;
       let heartbeatLockTime = 0;
 
@@ -696,7 +696,7 @@ function setupErrorHandler(app: express.Application) {
       (globalThis as any).__matchHeartbeat = matchHeartbeat;
 
       setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
-      log("Match Heartbeat started (every 15s — score sync, points, lockout, stale-data rejection)");
+      log("Match Heartbeat started (every 60s — score sync, points, lockout, stale-data rejection)");
     },
   );
 })();
