@@ -36,7 +36,7 @@ function NativeTabLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="leaderboard">
         <Icon sf={{ default: "trophy", selected: "trophy.fill" }} />
-        <Label>Leaderboard</Label>
+        <Label>Standings</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
@@ -107,7 +107,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: "Leaderboard",
+          title: "Standings",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="trophy" size={size} color={color} />
           ),

@@ -36,7 +36,8 @@ Preferred communication style: Simple, everyday language.
 - **Schema** (`shared/schema.ts`):
   - `users` — id (UUID), username, email, phone, password (plain text currently), isVerified, isAdmin, joinedAt
   - `referenceCodes` — id, code (4-char), isActive, createdBy, createdAt. Used for invite-only gating
-  - `matches` — id, externalId, team1/team2 info (names, short codes, colors), venue, startTime, status, league info
+  - `matches` — id, externalId, team1/team2 info (names, short codes, colors), venue, startTime, status, league info, tournamentName, entryStake (default 30), potProcessed
+  - `tournamentLedger` — id, userId, userName, matchId, tournamentName, pointsChange, createdAt. Transactional history for zero-sum tournament points
   - `players` — id, match-linked player data with roles (WK/BAT/AR/BOWL), credits, points, impact player flag
   - `userTeams` — id, userId, matchId, team name, playerIds (JSONB array), captainId, viceCaptainId, totalPoints
   - `matchPredictions` — id, userId, matchId, predictedWinner (team short code), createdAt. One prediction per user per match
@@ -52,6 +53,7 @@ Preferred communication style: Simple, everyday language.
 - **Winner Predictions**: Mandatory prediction modal intercepts first team submission per match; user must pick team1 or team2 as winner. Predictions hidden from others pre-match, revealed when match goes live. One prediction per user per match (can be updated pre-match). Displayed on match detail overview tab
 - **Impact Players**: Super sub system where substituted players earn points normally
 - **Rewards System**: Admin adds reward codes (brand, title, coupon code, terms) to a vault via the Admin Panel. When a match completes (via heartbeat or manual admin action), the Rank 1 player automatically receives an unclaimed reward from the vault. Winners see a gold banner on the match standings page with a modal to reveal and copy their reward code. All rewards are also listed in the Profile → My Rewards section
+- **Tournament Standings (Zero-Sum)**: Matches can be assigned a tournamentName and entryStake (default 30). Admin processes pot after match completion. Winners get (losers × stake / winners), losers get -stake. Each team entry counts separately (user with 2 losing teams gets 2× -stake). Standings tab shows aggregated points per user across tournament. potProcessed flag prevents double-counting
 - **Fantasy Points Engine** (`calculateFantasyPoints` in `server/cricket-api.ts`):
   - Batting: +1/run, +4/four, +6/six, -2 duck. Milestones MUTUALLY EXCLUSIVE: 100+=+16, 75+=+12, 50+=+8, 25+=+4. SR bonus/penalty (≥10 balls): >170=+6, >150=+4, ≥130=+2, ≤70=-2, <60=-4, <50=-6
   - Bowling: +30/wicket, wicket milestones (5w=+16, 4w=+8, 3w=+4 mutually exclusive), +12/maiden, +1/dot ball, economy bonus/penalty (≥2 overs), +8 per bowled/LBW dismissal
