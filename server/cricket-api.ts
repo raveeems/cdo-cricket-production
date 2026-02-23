@@ -1150,8 +1150,13 @@ export async function fetchMatchScorecardWithScore(
     }
 
     if (json?.status !== "success" || !json?.data) {
+      const errorMsg = json?.reason || json?.status || "";
       if (json?.status === "failure" || json?.reason) {
-        console.error(`[ScorecardWithScore] API error for ${externalMatchId}: ${json?.reason || json?.status}`);
+        console.error(`[ScorecardWithScore] API error for ${externalMatchId}: ${errorMsg}`);
+      }
+      const errorLower = String(errorMsg).toLowerCase();
+      if (errorLower.includes("blocked") || errorLower.includes("quota") || errorLower.includes("limit")) {
+        (globalThis as any).__apiCooldownTripped = true;
       }
       return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
     }
@@ -1296,8 +1301,13 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
     }
 
     if (json?.status !== "success" || !json?.data) {
+      const errorMsg = json?.reason || json?.status || "";
       if (json?.status === "failure" || json?.reason) {
-        console.error(`[LiveScorecard] API error for ${externalMatchId}: ${json?.reason || json?.status}`);
+        console.error(`[LiveScorecard] API error for ${externalMatchId}: ${errorMsg}`);
+      }
+      const errorLower = String(errorMsg).toLowerCase();
+      if (errorLower.includes("blocked") || errorLower.includes("quota") || errorLower.includes("limit")) {
+        (globalThis as any).__apiCooldownTripped = true;
       }
       return null;
     }
