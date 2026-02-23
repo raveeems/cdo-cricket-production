@@ -1912,6 +1912,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   (globalThis as any).__distributeMatchReward = distributeMatchReward;
 
+  // ---- ONE-TIME: Retroactive coupon distribution (runs on startup, idempotent) ----
+  (async () => {
+    try {
+      const assignments = [
+        {
+          matchId: "3cc4d1b3-2959-43c5-9d7c-09f2ed4d0997",
+          label: "ENG vs SL",
+          rewardId: "5bb13e61-6a04-4229-8ed5-5425f6b8e451",
+          rewardBrand: "Zomato",
+        },
+        {
+          matchId: "56467706-bbab-44ff-a4e9-6b369b2470c9",
+          label: "IND vs RSA",
+          rewardId: "1e89dd29-3c92-48dd-82a6-0df4167ef083",
+          rewardBrand: "Domino's",
+        },
+      ];
+
+      for (const a of assignments) {
+        const existing = await storage.getRewardForMatch(a.matchId);
+        if (existing) {
+          console.log(`[Retroactive] ${a.label}: Already distributed, skipping`);
+          continue;
+        }
+
+        const allTeams = await storage.getAllTeamsForMatch(a.matchId);
+        if (allTeams.length === 0) {
+          console.log(`[Retroactive] ${a.label}: No teams found, skipping`);
+          continue;
+        }
+
+        const sorted = [...allTeams].sort((x, y) => {
+          if ((y.totalPoints || 0) !== (x.totalPoints || 0))
+            return (y.totalPoints || 0) - (x.totalPoints || 0);
+          return new Date(x.createdAt).getTime() - new Date(y.createdAt).getTime();
+        });
+
+        const winner = sorted[0];
+        await storage.claimReward(a.rewardId, winner.userId, a.matchId);
+        console.log(`[Retroactive] ✓ ${a.label}: ${a.rewardBrand} → userId ${winner.userId} (${winner.totalPoints} pts)`);
+      }
+    } catch (err) {
+      console.error("[Retroactive] One-time distribution failed:", err);
+    }
+  })();
+
   // ---- ADMIN: REWARDS VAULT ----
   app.get(
     "/api/admin/rewards",

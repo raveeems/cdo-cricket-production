@@ -20,10 +20,11 @@ interface PointRow {
 
 const battingPoints: PointRow[] = [
   { action: 'Run', points: '+1' },
-  { action: 'Boundary Bonus (4s)', points: '+1' },
-  { action: 'Six Bonus (6s)', points: '+2' },
-  { action: '30 Run Bonus', points: '+4' },
+  { action: 'Boundary (4s)', points: '+4' },
+  { action: 'Six (6s)', points: '+6' },
+  { action: '25 Run Bonus', points: '+4' },
   { action: 'Half Century (50)', points: '+8' },
+  { action: '75 Run Bonus', points: '+12' },
   { action: 'Century (100)', points: '+16' },
   { action: 'Duck (0 runs, dismissed)', points: '-2' },
 ];
@@ -31,6 +32,7 @@ const battingPoints: PointRow[] = [
 const bowlingPoints: PointRow[] = [
   { action: 'Wicket (excl. Run Out)', points: '+30' },
   { action: 'LBW / Bowled Bonus', points: '+8' },
+  { action: 'Dot Ball', points: '+1' },
   { action: '3 Wicket Bonus', points: '+4' },
   { action: '4 Wicket Bonus', points: '+8' },
   { action: '5 Wicket Bonus', points: '+16' },
@@ -64,6 +66,7 @@ const strikeRatePoints: PointRow[] = [
 ];
 
 const otherPoints: PointRow[] = [
+  { action: 'Playing XI', points: '+4' },
   { action: 'Captain', points: '2x' },
   { action: 'Vice Captain', points: '1.5x' },
 ];
@@ -242,7 +245,7 @@ export default function HowToPlayScreen() {
           </Text>
           <View style={[{ backgroundColor: colors.primary + '10', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: colors.primary + '20' }]}>
             <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 18 }]}>
-              Bonuses are cumulative. e.g. 50 runs = +4 (30 bonus) + +8 (50 bonus) = +12 total bonus on top of run points.
+              Milestone bonuses are mutually exclusive — only the highest achieved milestone counts. e.g. 50 runs = +8 (half century bonus only), not +4 + +8. Wicket bonuses also follow this rule.
             </Text>
           </View>
           {renderPointsTable('Batting', battingPoints, 'cricket', colors.accent)}
