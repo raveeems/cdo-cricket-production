@@ -3,6 +3,10 @@ const CRICKET_API_BASE = "https://api.cricapi.com/v1";
 let tier1Blocked = false;
 let tier1BlockedUntil = 0;
 
+const BACKUP_API_KEY = "7cbea7a7-1461-4c44-a656-be37a8ee3964";
+let backupKeyHits = 0;
+const MAX_BACKUP_HITS = 50;
+
 let dailyApiCalls = 0;
 let dailyApiCallDate = "";
 
@@ -48,6 +52,14 @@ function getApiKeys(): { primary: string | undefined; fallback: string | undefin
 }
 
 function getActiveApiKey(): string | undefined {
+  if (backupKeyHits < MAX_BACKUP_HITS) {
+    backupKeyHits++;
+    console.log(`[API VALVE] Using Backup Key. Hits: ${backupKeyHits}/${MAX_BACKUP_HITS}`);
+    return BACKUP_API_KEY;
+  } else if (backupKeyHits === MAX_BACKUP_HITS) {
+    console.warn("[API VALVE] Backup key limit reached. Switching back to primary key.");
+    backupKeyHits++;
+  }
   const keys = getApiKeys();
   if (keys.primary && (!tier1Blocked || Date.now() > tier1BlockedUntil)) {
     tier1Blocked = false;
