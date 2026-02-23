@@ -52,6 +52,11 @@ Preferred communication style: Simple, everyday language.
 - **Winner Predictions**: Mandatory prediction modal intercepts first team submission per match; user must pick team1 or team2 as winner. Predictions hidden from others pre-match, revealed when match goes live. One prediction per user per match (can be updated pre-match). Displayed on match detail overview tab
 - **Impact Players**: Super sub system where substituted players earn points normally
 - **Rewards System**: Admin adds reward codes (brand, title, coupon code, terms) to a vault via the Admin Panel. When a match completes (via heartbeat or manual admin action), the Rank 1 player automatically receives an unclaimed reward from the vault. Winners see a gold banner on the match standings page with a modal to reveal and copy their reward code. All rewards are also listed in the Profile → My Rewards section
+- **Fantasy Points Engine** (`calculateFantasyPoints` in `server/cricket-api.ts`):
+  - Batting: +1/run, +4/four, +6/six, -2 duck. Milestones MUTUALLY EXCLUSIVE: 100+=+16, 75+=+12, 50+=+8, 25+=+4. SR bonus/penalty (≥10 balls): >170=+6, >150=+4, ≥130=+2, ≤70=-2, <60=-4, <50=-6
+  - Bowling: +30/wicket, wicket milestones (5w=+16, 4w=+8, 3w=+4 mutually exclusive), +12/maiden, +1/dot ball, economy bonus/penalty (≥2 overs), +8 per bowled/LBW dismissal
+  - Fielding: +8/catch, +4 one-time bonus for 3+ catches, +12 stumping, run out: direct hit (1 fielder)=+12, multi-fielder=+6 to involved players
+  - Playing XI base: +4 pts for being in the Playing XI
 
 ### Build & Development
 - **Dev mode**: Two processes — `npm run expo:dev` (Expo dev server) and `npm run server:dev` (Express via tsx)
