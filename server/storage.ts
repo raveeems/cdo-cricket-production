@@ -10,6 +10,7 @@ import {
   apiCallLog,
   matchPredictions,
   rewards,
+  tournamentLedger,
   type InsertUser,
   type User,
   type ReferenceCode,
@@ -18,6 +19,7 @@ import {
   type UserTeam,
   type MatchPrediction,
   type Reward,
+  type TournamentLedger,
 } from "@shared/schema";
 
 export class DatabaseStorage {
@@ -414,6 +416,40 @@ export class DatabaseStorage {
 
   async deleteReward(rewardId: string): Promise<void> {
     await db.delete(rewards).where(eq(rewards.id, rewardId));
+  }
+
+  async getLedgerForMatch(matchId: string): Promise<TournamentLedger[]> {
+    return db.select().from(tournamentLedger).where(eq(tournamentLedger.matchId, matchId));
+  }
+
+  async createLedgerEntry(data: { userId: string; userName: string; matchId: string; tournamentName: string; pointsChange: number }): Promise<TournamentLedger> {
+    const [entry] = await db.insert(tournamentLedger).values(data).returning();
+    return entry;
+  }
+
+  async getDistinctTournamentNames(): Promise<string[]> {
+    const result = await db.selectDistinct({ name: tournamentLedger.tournamentName }).from(tournamentLedger);
+    return result.map(r => r.name);
+  }
+
+  async getTournamentStandings(tName: string): Promise<{ userId: string; userName: string; totalPoints: number; matchCount: number }[]> {
+    const result = await db
+      .select({
+        userId: tournamentLedger.userId,
+        userName: tournamentLedger.userName,
+        totalPoints: sql<number>`SUM(${tournamentLedger.pointsChange})`.as('total_points'),
+        matchCount: sql<number>`COUNT(DISTINCT ${tournamentLedger.matchId})`.as('match_count'),
+      })
+      .from(tournamentLedger)
+      .where(eq(tournamentLedger.tournamentName, tName))
+      .groupBy(tournamentLedger.userId, tournamentLedger.userName)
+      .orderBy(desc(sql`total_points`));
+    return result.map(r => ({
+      userId: r.userId,
+      userName: r.userName,
+      totalPoints: Number(r.totalPoints),
+      matchCount: Number(r.matchCount),
+    }));
   }
 }
 
