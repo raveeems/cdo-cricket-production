@@ -1866,11 +1866,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ---- REWARDS: AUTO-DISTRIBUTE ON MATCH COMPLETION ----
   async function distributeMatchReward(matchId: string) {
     try {
+      const match = await storage.getMatch(matchId);
+      const matchLabel = match ? `${(match as any).team1Short} vs ${(match as any).team2Short}` : matchId;
+      console.log(`[Rewards] Starting distribution for ${matchLabel}...`);
+
       const allTeams = await storage.getAllTeamsForMatch(matchId);
       if (allTeams.length === 0) {
-        console.log(`[Rewards] No teams found for match ${matchId}, skipping reward distribution`);
+        console.log(`[Rewards] No teams found for ${matchLabel}, skipping`);
         return;
       }
+      console.log(`[Rewards] ${matchLabel}: ${allTeams.length} teams submitted`);
 
       const sorted = [...allTeams].sort((a, b) => {
         if ((b.totalPoints || 0) !== (a.totalPoints || 0)) {
@@ -1881,26 +1886,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const winner = sorted[0];
       if (!winner || (winner.totalPoints || 0) === 0) {
-        console.log(`[Rewards] No valid winner for match ${matchId}`);
+        console.log(`[Rewards] No valid winner for ${matchLabel} (top team points: ${winner?.totalPoints || 0})`);
         return;
       }
+      console.log(`[Rewards] ${matchLabel}: Rank 1 = userId ${winner.userId} with ${winner.totalPoints} pts (team: ${winner.teamName})`);
 
       const existingReward = await storage.getRewardForUserMatch(winner.userId, matchId);
       if (existingReward) {
-        console.log(`[Rewards] Reward already distributed for match ${matchId}`);
+        console.log(`[Rewards] ${matchLabel}: Reward already distributed to this winner, skipping`);
         return;
       }
 
       const reward = await storage.getRandomAvailableReward();
       if (!reward) {
-        console.log(`[Rewards] No available rewards in vault for match ${matchId}, skipping`);
+        console.log(`[Rewards] ${matchLabel}: ⚠ NO AVAILABLE REWARDS IN VAULT — add coupons via Admin Panel`);
         return;
       }
 
       await storage.claimReward(reward.id, winner.userId, matchId);
-      console.log(`[Rewards] Reward "${reward.title}" (${reward.brand}) assigned to user ${winner.userId} for match ${matchId}`);
+      console.log(`[Rewards] ✓ ${matchLabel}: "${reward.title}" (${reward.brand}) → userId ${winner.userId}`);
     } catch (err) {
-      console.error(`[Rewards] Distribution error for match ${matchId}:`, err);
+      console.error(`[Rewards] ✗ Distribution FAILED for match ${matchId}:`, err);
     }
   }
 
