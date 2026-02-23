@@ -565,6 +565,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
 
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.set('Pragma', 'no-cache');
+
       try {
         let scorecard = null;
         let source = "none";
