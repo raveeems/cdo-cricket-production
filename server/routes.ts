@@ -2155,15 +2155,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (_req: Request, res: Response) => {
       try {
         const allMatches = await storage.getAllMatches();
-        const unprocessed = allMatches
-          .filter(m => m.status === "completed" && !m.potProcessed)
-          .map(m => ({
-            id: m.id,
-            team1Short: m.team1Short,
-            team2Short: m.team2Short,
-            startTime: m.startTime,
-          }));
-        return res.json({ matches: unprocessed });
+        const completed = allMatches.filter(m => m.status === "completed" && !m.potProcessed);
+        const withParticipation = [];
+        for (const m of completed) {
+          const teams = await storage.getAllTeamsForMatch(m.id);
+          if (teams.length > 0) {
+            withParticipation.push({
+              id: m.id,
+              team1Short: m.team1Short,
+              team2Short: m.team2Short,
+              startTime: m.startTime,
+              teamCount: teams.length,
+            });
+          }
+        }
+        return res.json({ matches: withParticipation });
       } catch (err: any) {
         console.error("Unprocessed matches error:", err);
         return res.status(500).json({ message: "Failed to fetch unprocessed matches" });
