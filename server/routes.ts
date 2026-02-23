@@ -2069,6 +2069,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: UPDATE TOURNAMENT INFO ON MATCH ----
+  app.post(
+    "/api/admin/matches/:id/update-tournament",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const { tournamentName, entryStake } = req.body;
+        const updates: any = {};
+        if (tournamentName !== undefined) updates.tournamentName = tournamentName || null;
+        if (entryStake !== undefined) {
+          if (match.status === "live" || match.status === "completed") {
+            return res.status(400).json({ message: "Cannot change entry stake for live or completed matches" });
+          }
+          updates.entryStake = Number(entryStake) || 30;
+        }
+        await storage.updateMatch(matchId, updates);
+        return res.json({ message: "Tournament info updated" });
+      } catch (err: any) {
+        console.error("Update tournament info error:", err);
+        return res.status(500).json({ message: "Failed to update tournament info" });
+      }
+    }
+  );
+
+  // ---- ADMIN: PROCESS TOURNAMENT POT ----
+  app.post(
+    "/api/admin/matches/:id/process-pot",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (match.status !== "completed") {
+          return res.status(400).json({ message: "Match must be completed before processing pot" });
+        }
+        if (!match.tournamentName) {
+          return res.status(400).json({ message: "No tournament name set for this match" });
+        }
+        if (match.potProcessed) {
+          return res.status(400).json({ message: "Pot already processed for this match" });
+        }
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        if (allTeams.length < 2) {
+          return res.status(400).json({ message: `Not enough teams (${allTeams.length}). Need at least 2.` });
+        }
+        const entryStake = match.entryStake || 30;
+        const maxPoints = Math.max(...allTeams.map(t => t.totalPoints));
+        const winningTeams = allTeams.filter(t => t.totalPoints === maxPoints);
+        const losingTeams = allTeams.filter(t => t.totalPoints < maxPoints);
+        const winnerPointsEach = losingTeams.length > 0
+          ? Math.round((losingTeams.length * entryStake) / winningTeams.length)
+          : 0;
+        const userMap = new Map<string, string>();
+        for (const t of allTeams) {
+          if (!userMap.has(t.userId)) {
+            const u = await storage.getUser(t.userId);
+            userMap.set(t.userId, u?.teamName || u?.username || "Unknown");
+          }
+        }
+        for (const t of losingTeams) {
+          await storage.createLedgerEntry({
+            userId: t.userId,
+            userName: userMap.get(t.userId) || "Unknown",
+            matchId,
+            tournamentName: match.tournamentName,
+            pointsChange: -entryStake,
+          });
+        }
+        for (const t of winningTeams) {
+          await storage.createLedgerEntry({
+            userId: t.userId,
+            userName: userMap.get(t.userId) || "Unknown",
+            matchId,
+            tournamentName: match.tournamentName,
+            pointsChange: winnerPointsEach,
+          });
+        }
+        await storage.updateMatch(matchId, { potProcessed: true });
+        console.log(`[Tournament Pot] Processed for ${match.team1Short} vs ${match.team2Short}: ${winningTeams.length} winners (+${winnerPointsEach}), ${losingTeams.length} losers (-${entryStake})`);
+        return res.json({
+          message: "Pot processed successfully",
+          winners: winningTeams.length,
+          losers: losingTeams.length,
+          winnerPoints: winnerPointsEach,
+          loserPoints: -entryStake,
+          totalTeams: allTeams.length,
+        });
+      } catch (err: any) {
+        console.error("Process pot error:", err);
+        return res.status(500).json({ message: "Failed to process tournament pot" });
+      }
+    }
+  );
+
+  // ---- PUBLIC: TOURNAMENT NAMES ----
+  app.get(
+    "/api/tournament/names",
+    isAuthenticated,
+    async (_req: Request, res: Response) => {
+      try {
+        const names = await storage.getDistinctTournamentNames();
+        return res.json({ names });
+      } catch (err: any) {
+        console.error("Tournament names error:", err);
+        return res.status(500).json({ message: "Failed to fetch tournament names" });
+      }
+    }
+  );
+
+  // ---- PUBLIC: TOURNAMENT STANDINGS ----
+  app.get(
+    "/api/tournament/standings",
+    isAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const name = req.query.name as string;
+        if (!name) return res.status(400).json({ message: "Tournament name required" });
+        const standings = await storage.getTournamentStandings(name);
+        return res.json({ standings });
+      } catch (err: any) {
+        console.error("Tournament standings error:", err);
+        return res.status(500).json({ message: "Failed to fetch tournament standings" });
+      }
+    }
+  );
+
   const httpServer = createServer(app);
   return httpServer;
 }

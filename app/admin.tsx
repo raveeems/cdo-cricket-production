@@ -34,6 +34,9 @@ interface MatchInfo {
   team2Short: string;
   status: string;
   startTime: string;
+  tournamentName?: string | null;
+  entryStake?: number;
+  potProcessed?: boolean;
 }
 
 interface PlayerInfo {
@@ -92,6 +95,11 @@ export default function AdminScreen() {
   const [rewardCode, setRewardCode] = useState('');
   const [rewardTerms, setRewardTerms] = useState('');
   const [addingReward, setAddingReward] = useState(false);
+
+  const [tournamentNameInput, setTournamentNameInput] = useState('');
+  const [entryStakeInput, setEntryStakeInput] = useState('30');
+  const [updatingTournament, setUpdatingTournament] = useState(false);
+  const [processingPot, setProcessingPot] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -248,7 +256,7 @@ export default function AdminScreen() {
       const res = await apiRequest('GET', '/api/matches');
       const data = await res.json();
       const allMatches = (data.matches || []) as MatchInfo[];
-      const relevant = allMatches.filter((m: MatchInfo) => m.status === 'upcoming' || m.status === 'live' || m.status === 'delayed');
+      const relevant = allMatches.filter((m: MatchInfo) => m.status === 'upcoming' || m.status === 'live' || m.status === 'delayed' || m.status === 'completed');
       setMatches(relevant);
     } catch (e) {
       console.error('Failed to load matches:', e);
@@ -259,7 +267,11 @@ export default function AdminScreen() {
     setSelectedMatchId(matchId);
     setXiMessage('');
     const m = matches.find(x => x.id === matchId);
-    if (m) setAddPlayerTeam(m.team1);
+    if (m) {
+      setAddPlayerTeam(m.team1);
+      setTournamentNameInput(m.tournamentName || '');
+      setEntryStakeInput(String(m.entryStake ?? 30));
+    }
     setLoadingPlayers(true);
     try {
       const res = await apiRequest('GET', `/api/matches/${matchId}/players`);
@@ -433,6 +445,45 @@ export default function AdminScreen() {
       setForceSyncResult('Force sync failed: ' + (e.message || 'Unknown error'));
     } finally {
       setForceSyncing(false);
+    }
+  };
+
+  const handleSaveTournamentInfo = async () => {
+    if (!selectedMatchId) return;
+    setUpdatingTournament(true);
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/update-tournament`, {
+        tournamentName: tournamentNameInput.trim() || null,
+        entryStake: parseInt(entryStakeInput) || 30,
+      });
+      const data = await res.json();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Success', data.message || 'Tournament info updated');
+      setMatches(prev => prev.map(m => m.id === selectedMatchId ? {
+        ...m,
+        tournamentName: tournamentNameInput.trim() || null,
+        entryStake: parseInt(entryStakeInput) || 30,
+      } : m));
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update tournament info');
+    } finally {
+      setUpdatingTournament(false);
+    }
+  };
+
+  const handleProcessPot = async () => {
+    if (!selectedMatchId) return;
+    setProcessingPot(true);
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/process-pot`);
+      const data = await res.json();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Success', data.message || 'Tournament pot processed');
+      setMatches(prev => prev.map(m => m.id === selectedMatchId ? { ...m, potProcessed: true } : m));
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to process tournament pot');
+    } finally {
+      setProcessingPot(false);
     }
   };
 
@@ -630,6 +681,80 @@ export default function AdminScreen() {
               </View>
             )}
           </View>
+
+          {selectedMatchId && selectedMatch && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                Tournament Settings
+              </Text>
+              <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Configure tournament name and entry stake for {selectedMatch.team1Short} v {selectedMatch.team2Short}.
+              </Text>
+
+              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 4 }}>
+                  Tournament Name
+                </Text>
+                <TextInput
+                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
+                  value={tournamentNameInput}
+                  onChangeText={setTournamentNameInput}
+                  placeholder="e.g. IPL Season 2026"
+                  placeholderTextColor={colors.textTertiary}
+                />
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 4, marginTop: 8 }}>
+                  Entry Stake
+                </Text>
+                <TextInput
+                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium', opacity: (selectedMatch.status === 'live' || selectedMatch.status === 'completed') ? 0.5 : 1 }]}
+                  value={entryStakeInput}
+                  onChangeText={setEntryStakeInput}
+                  placeholder="30"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="numeric"
+                  editable={selectedMatch.status !== 'live' && selectedMatch.status !== 'completed'}
+                />
+                <Pressable
+                  onPress={handleSaveTournamentInfo}
+                  disabled={updatingTournament}
+                  style={{ height: 44, borderRadius: 12, backgroundColor: colors.primary + '20', justifyContent: 'center', alignItems: 'center', flexDirection: 'row', marginTop: 12 }}
+                >
+                  {updatingTournament ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="save" size={18} color={colors.primary} />
+                      <Text style={{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 14, marginLeft: 8 }}>Save Tournament Info</Text>
+                    </>
+                  )}
+                </Pressable>
+
+                {selectedMatch.status === 'completed' && selectedMatch.tournamentName && selectedMatch.potProcessed === false && (
+                  <Pressable
+                    onPress={handleProcessPot}
+                    disabled={processingPot}
+                    style={{ height: 44, borderRadius: 12, backgroundColor: '#F59E0B20', justifyContent: 'center', alignItems: 'center', flexDirection: 'row', marginTop: 8 }}
+                  >
+                    {processingPot ? (
+                      <ActivityIndicator size="small" color="#F59E0B" />
+                    ) : (
+                      <>
+                        <Ionicons name="trophy" size={18} color="#F59E0B" />
+                        <Text style={{ color: '#F59E0B', fontFamily: 'Inter_700Bold', fontSize: 14, marginLeft: 8 }}>Process Tournament Pot</Text>
+                      </>
+                    )}
+                  </Pressable>
+                )}
+
+                {selectedMatch.potProcessed === true && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#22C55E20', borderRadius: 8, alignSelf: 'flex-start' }}>
+                    <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+                    <Text style={{ color: '#22C55E', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Pot Processed</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
