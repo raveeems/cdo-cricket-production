@@ -47,7 +47,7 @@ Preferred communication style: Simple, everyday language.
 ### Key Business Rules
 - **Invite-only access**: After signup, users must enter a valid 4-digit reference code (checked against `referenceCodes` table where `isActive = true`) before accessing the app
 - **Match visibility**: Matches should only appear on the dashboard 48 hours before start time
-- **Team constraints**: Max 3 teams per user per match; 11 players per team with role limits (WK: 1-4, BAT: 1-6, AR: 1-4, BOWL: 1-4); max 10 players from single real team; Captain (2x points) and Vice-Captain (1.5x points); duplicate teams (same players + same C/VC) are blocked
+- **Team constraints**: Max 3 teams per user per match; 11 players per team with role limits (WK: 1-4, BAT: 1-6, AR: 1-6, BOWL: 1-6); max 10 players from single real team; Captain (2x points) and Vice-Captain (1.5x points); duplicate teams (same players + same C/VC) are blocked
 - **Entry deadline**: Teams editable up to 1 second before match start; server time used for validation (not device time)
 - **Winner Predictions**: Mandatory prediction modal intercepts first team submission per match; user must pick team1 or team2 as winner. Predictions hidden from others pre-match, revealed when match goes live. One prediction per user per match (can be updated pre-match). Displayed on match detail overview tab
 - **Impact Players**: Super sub system where substituted players earn points normally

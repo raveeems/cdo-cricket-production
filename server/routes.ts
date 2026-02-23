@@ -815,7 +815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const ROLE_LIMITS: Record<string, { min: number; max: number }> = {
           WK: { min: 1, max: 4 }, BAT: { min: 1, max: 6 },
-          AR: { min: 1, max: 4 }, BOWL: { min: 1, max: 4 },
+          AR: { min: 1, max: 6 }, BOWL: { min: 1, max: 6 },
         };
         for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
           const count = roleCounts[role] || 0;
@@ -911,7 +911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const ROLE_LIMITS: Record<string, { min: number; max: number }> = {
           WK: { min: 1, max: 4 }, BAT: { min: 1, max: 6 },
-          AR: { min: 1, max: 4 }, BOWL: { min: 1, max: 4 },
+          AR: { min: 1, max: 6 }, BOWL: { min: 1, max: 6 },
         };
         for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
           const count = roleCounts[role] || 0;

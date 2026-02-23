@@ -45,8 +45,8 @@ const SPLASH_MESSAGES = [
 const ROLE_LIMITS = {
   WK: { min: 1, max: 4 },
   BAT: { min: 1, max: 6 },
-  AR: { min: 1, max: 4 },
-  BOWL: { min: 1, max: 4 },
+  AR: { min: 1, max: 6 },
+  BOWL: { min: 1, max: 6 },
 };
 
 const MAX_FROM_ONE_TEAM = 10;

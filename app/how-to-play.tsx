@@ -81,8 +81,8 @@ const steps = [
 const teamRules = [
   { role: 'WK', label: 'Wicket-Keepers', range: '1 - 4' },
   { role: 'BAT', label: 'Batsmen', range: '1 - 6' },
-  { role: 'AR', label: 'All-Rounders', range: '1 - 4' },
-  { role: 'BOWL', label: 'Bowlers', range: '1 - 4' },
+  { role: 'AR', label: 'All-Rounders', range: '1 - 6' },
+  { role: 'BOWL', label: 'Bowlers', range: '1 - 6' },
 ];
 
 export default function HowToPlayScreen() {
