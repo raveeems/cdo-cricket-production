@@ -60,6 +60,9 @@ export const matches = pgTable("matches", {
   playingXIManual: boolean("playing_xi_manual").notNull().default(false),
   scoreString: text("score_string").notNull().default(""),
   lastSyncAt: timestamp("last_sync_at"),
+  tournamentName: text("tournament_name"),
+  entryStake: integer("entry_stake").notNull().default(30),
+  potProcessed: boolean("pot_processed").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -130,6 +133,18 @@ export const rewards = pgTable("rewards", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const tournamentLedger = pgTable("tournament_ledger", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  userName: text("user_name").notNull().default(""),
+  matchId: varchar("match_id").notNull(),
+  tournamentName: text("tournament_name").notNull(),
+  pointsChange: integer("points_change").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const apiCallLog = pgTable("api_call_log", {
   id: varchar("id")
     .primaryKey()
@@ -175,3 +190,4 @@ export type Player = typeof players.$inferSelect;
 export type UserTeam = typeof userTeams.$inferSelect;
 export type MatchPrediction = typeof matchPredictions.$inferSelect;
 export type Reward = typeof rewards.$inferSelect;
+export type TournamentLedger = typeof tournamentLedger.$inferSelect;
