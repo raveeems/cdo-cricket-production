@@ -96,10 +96,15 @@ export default function AdminScreen() {
   const [rewardTerms, setRewardTerms] = useState('');
   const [addingReward, setAddingReward] = useState(false);
 
-  const [tournamentNameInput, setTournamentNameInput] = useState('');
-  const [entryStakeInput, setEntryStakeInput] = useState('30');
-  const [updatingTournament, setUpdatingTournament] = useState(false);
-  const [processingPot, setProcessingPot] = useState(false);
+  const [potTournamentNames, setPotTournamentNames] = useState<string[]>([]);
+  const [potSelectedTournament, setPotSelectedTournament] = useState<string>('');
+  const [potNewTournament, setPotNewTournament] = useState('');
+  const [potShowNewInput, setPotShowNewInput] = useState(false);
+  const [potUnprocessedMatches, setPotUnprocessedMatches] = useState<{id:string;team1Short:string;team2Short:string;startTime:string}[]>([]);
+  const [potSelectedMatchId, setPotSelectedMatchId] = useState<string>('');
+  const [potStake, setPotStake] = useState('30');
+  const [potProcessing, setPotProcessing] = useState(false);
+  const [potLoadingMatches, setPotLoadingMatches] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -122,6 +127,8 @@ export default function AdminScreen() {
     loadMatches();
     loadApiCalls();
     loadRewards();
+    loadPotTournamentNames();
+    loadPotUnprocessedMatches();
   }, []);
 
   const loadApiCalls = async () => {
@@ -269,8 +276,6 @@ export default function AdminScreen() {
     const m = matches.find(x => x.id === matchId);
     if (m) {
       setAddPlayerTeam(m.team1);
-      setTournamentNameInput(m.tournamentName || '');
-      setEntryStakeInput(String(m.entryStake ?? 30));
     }
     setLoadingPlayers(true);
     try {
@@ -448,42 +453,66 @@ export default function AdminScreen() {
     }
   };
 
-  const handleSaveTournamentInfo = async () => {
-    if (!selectedMatchId) return;
-    setUpdatingTournament(true);
+  const loadPotTournamentNames = async () => {
     try {
-      const res = await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/update-tournament`, {
-        tournamentName: tournamentNameInput.trim() || null,
-        entryStake: parseInt(entryStakeInput) || 30,
-      });
+      const res = await apiRequest('GET', '/api/tournament/names');
       const data = await res.json();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Success', data.message || 'Tournament info updated');
-      setMatches(prev => prev.map(m => m.id === selectedMatchId ? {
-        ...m,
-        tournamentName: tournamentNameInput.trim() || null,
-        entryStake: parseInt(entryStakeInput) || 30,
-      } : m));
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update tournament info');
-    } finally {
-      setUpdatingTournament(false);
+      const apiNames: string[] = data.names || [];
+      const matchNames = matches
+        .filter(m => m.tournamentName)
+        .map(m => m.tournamentName as string);
+      const combined = Array.from(new Set([...apiNames, ...matchNames]));
+      setPotTournamentNames(combined);
+    } catch (e) {
+      console.error('Failed to load tournament names:', e);
     }
   };
 
-  const handleProcessPot = async () => {
-    if (!selectedMatchId) return;
-    setProcessingPot(true);
+  const loadPotUnprocessedMatches = async () => {
+    setPotLoadingMatches(true);
     try {
-      const res = await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/process-pot`);
+      const res = await apiRequest('GET', '/api/admin/matches/unprocessed');
+      const data = await res.json();
+      setPotUnprocessedMatches(data.matches || []);
+    } catch (e) {
+      console.error('Failed to load unprocessed matches:', e);
+    } finally {
+      setPotLoadingMatches(false);
+    }
+  };
+
+  const handleProcessAndDistribute = async () => {
+    const effectiveTournament = potSelectedTournament || potNewTournament.trim();
+    if (!effectiveTournament) {
+      Alert.alert('Error', 'Please select or enter a tournament name');
+      return;
+    }
+    if (!potSelectedMatchId) {
+      Alert.alert('Error', 'Please select a match to process');
+      return;
+    }
+    if (!potStake || parseInt(potStake) <= 0) {
+      Alert.alert('Error', 'Entry stake must be greater than 0');
+      return;
+    }
+    setPotProcessing(true);
+    try {
+      const res = await apiRequest('POST', '/api/tournament/process', {
+        matchId: potSelectedMatchId,
+        tournamentName: effectiveTournament,
+        stake: parseInt(potStake),
+      });
       const data = await res.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Success', data.message || 'Tournament pot processed');
-      setMatches(prev => prev.map(m => m.id === selectedMatchId ? { ...m, potProcessed: true } : m));
+      Alert.alert('Pot Distributed!', data.message || 'Tournament pot processed successfully');
+      setPotSelectedMatchId('');
+      setPotStake('30');
+      loadPotUnprocessedMatches();
+      loadPotTournamentNames();
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to process tournament pot');
     } finally {
-      setProcessingPot(false);
+      setPotProcessing(false);
     }
   };
 
@@ -682,79 +711,174 @@ export default function AdminScreen() {
             )}
           </View>
 
-          {selectedMatchId && selectedMatch && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-                Tournament Settings
-              </Text>
-              <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                Configure tournament name and entry stake for {selectedMatch.team1Short} v {selectedMatch.team2Short}.
-              </Text>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Tournament Pot Management
+            </Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Process zero-sum pot distribution for completed matches.
+            </Text>
 
-              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 4 }}>
-                  Tournament Name
-                </Text>
+            <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6 }}>
+                Tournament / Series
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {potTournamentNames.map(name => (
+                    <Pressable
+                      key={name}
+                      onPress={() => {
+                        setPotSelectedTournament(name);
+                        setPotShowNewInput(false);
+                        setPotNewTournament('');
+                      }}
+                      style={{
+                        borderRadius: 20,
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderWidth: 1,
+                        backgroundColor: name === potSelectedTournament ? colors.primary : colors.surfaceElevated,
+                        borderColor: name === potSelectedTournament ? colors.primary : colors.border,
+                      }}
+                    >
+                      <Text style={{
+                        color: name === potSelectedTournament ? '#FFF' : colors.text,
+                        fontFamily: 'Inter_600SemiBold',
+                        fontSize: 13,
+                      }}>
+                        {name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                  <Pressable
+                    onPress={() => {
+                      setPotShowNewInput(true);
+                      setPotSelectedTournament('');
+                    }}
+                    style={{
+                      borderRadius: 20,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderWidth: 1,
+                      borderStyle: 'dashed' as any,
+                      backgroundColor: potShowNewInput ? colors.primary + '15' : colors.surfaceElevated,
+                      borderColor: potShowNewInput ? colors.primary : colors.border,
+                    }}
+                  >
+                    <Text style={{
+                      color: potShowNewInput ? colors.primary : colors.textSecondary,
+                      fontFamily: 'Inter_600SemiBold',
+                      fontSize: 13,
+                    }}>
+                      + Add New
+                    </Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+
+              {potShowNewInput && (
                 <TextInput
                   style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
-                  value={tournamentNameInput}
-                  onChangeText={setTournamentNameInput}
-                  placeholder="e.g. IPL Season 2026"
+                  value={potNewTournament}
+                  onChangeText={setPotNewTournament}
+                  placeholder="e.g. T20 World Cup"
                   placeholderTextColor={colors.textTertiary}
                 />
-                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 4, marginTop: 8 }}>
-                  Entry Stake
-                </Text>
-                <TextInput
-                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium', opacity: (selectedMatch.status === 'live' || selectedMatch.status === 'completed') ? 0.5 : 1 }]}
-                  value={entryStakeInput}
-                  onChangeText={setEntryStakeInput}
-                  placeholder="30"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="numeric"
-                  editable={selectedMatch.status !== 'live' && selectedMatch.status !== 'completed'}
-                />
-                <Pressable
-                  onPress={handleSaveTournamentInfo}
-                  disabled={updatingTournament}
-                  style={{ height: 44, borderRadius: 12, backgroundColor: colors.primary + '20', justifyContent: 'center', alignItems: 'center', flexDirection: 'row', marginTop: 12 }}
-                >
-                  {updatingTournament ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <>
-                      <Ionicons name="save" size={18} color={colors.primary} />
-                      <Text style={{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 14, marginLeft: 8 }}>Save Tournament Info</Text>
-                    </>
-                  )}
-                </Pressable>
+              )}
 
-                {selectedMatch.status === 'completed' && selectedMatch.tournamentName && selectedMatch.potProcessed === false && (
-                  <Pressable
-                    onPress={handleProcessPot}
-                    disabled={processingPot}
-                    style={{ height: 44, borderRadius: 12, backgroundColor: '#F59E0B20', justifyContent: 'center', alignItems: 'center', flexDirection: 'row', marginTop: 8 }}
-                  >
-                    {processingPot ? (
-                      <ActivityIndicator size="small" color="#F59E0B" />
-                    ) : (
-                      <>
-                        <Ionicons name="trophy" size={18} color="#F59E0B" />
-                        <Text style={{ color: '#F59E0B', fontFamily: 'Inter_700Bold', fontSize: 14, marginLeft: 8 }}>Process Tournament Pot</Text>
-                      </>
-                    )}
-                  </Pressable>
-                )}
-
-                {selectedMatch.potProcessed === true && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#22C55E20', borderRadius: 8, alignSelf: 'flex-start' }}>
-                    <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
-                    <Text style={{ color: '#22C55E', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Pot Processed</Text>
+              <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6, marginTop: 8 }}>
+                Select Match
+              </Text>
+              {potLoadingMatches ? (
+                <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
+              ) : potUnprocessedMatches.length === 0 ? (
+                <View style={{ paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.surfaceElevated, borderRadius: 10, marginBottom: 8 }}>
+                  <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 13, textAlign: 'center' }}>
+                    All completed matches have been processed
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {potUnprocessedMatches.map(m => {
+                      const isSelected = m.id === potSelectedMatchId;
+                      const matchDate = new Date(m.startTime);
+                      const formatted = matchDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                      return (
+                        <Pressable
+                          key={m.id}
+                          onPress={() => setPotSelectedMatchId(m.id)}
+                          style={{
+                            borderRadius: 12,
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                            borderWidth: 1.5,
+                            backgroundColor: isSelected ? colors.primary : colors.surfaceElevated,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{
+                            color: isSelected ? '#FFF' : colors.text,
+                            fontFamily: 'Inter_700Bold',
+                            fontSize: 14,
+                          }}>
+                            {m.team1Short} vs {m.team2Short}
+                          </Text>
+                          <Text style={{
+                            color: isSelected ? '#FFFFFF90' : colors.textTertiary,
+                            fontFamily: 'Inter_400Regular',
+                            fontSize: 11,
+                            marginTop: 2,
+                          }}>
+                            {formatted}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
+                </ScrollView>
+              )}
+
+              <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6, marginTop: 8 }}>
+                Entry Stake
+              </Text>
+              <TextInput
+                style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
+                value={potStake}
+                onChangeText={setPotStake}
+                placeholder="30"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+              />
+
+              <Pressable
+                onPress={handleProcessAndDistribute}
+                disabled={potProcessing || (!potSelectedTournament && !potNewTournament.trim()) || !potSelectedMatchId}
+                style={{
+                  height: 48,
+                  borderRadius: 12,
+                  backgroundColor: '#F59E0B',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  gap: 8,
+                  marginTop: 4,
+                  opacity: (potProcessing || (!potSelectedTournament && !potNewTournament.trim()) || !potSelectedMatchId) ? 0.5 : 1,
+                }}
+              >
+                {potProcessing ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="trophy" size={18} color="#FFF" />
+                    <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 15 }}>Process & Distribute Pot</Text>
+                  </>
                 )}
-              </View>
+              </Pressable>
             </View>
-          )}
+          </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>

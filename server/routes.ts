@@ -2069,63 +2069,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // ---- ADMIN: UPDATE TOURNAMENT INFO ON MATCH ----
+  // ---- ADMIN: CENTRALIZED TOURNAMENT POT PROCESSING ----
   app.post(
-    "/api/admin/matches/:id/update-tournament",
+    "/api/tournament/process",
     isAuthenticated,
     isAdmin,
     async (req: Request, res: Response) => {
       try {
-        const matchId = req.params.id;
-        const match = await storage.getMatch(matchId);
-        if (!match) return res.status(404).json({ message: "Match not found" });
-        const { tournamentName, entryStake } = req.body;
-        const updates: any = {};
-        if (tournamentName !== undefined) updates.tournamentName = tournamentName || null;
-        if (entryStake !== undefined) {
-          if (match.status === "live" || match.status === "completed") {
-            return res.status(400).json({ message: "Cannot change entry stake for live or completed matches" });
-          }
-          updates.entryStake = Number(entryStake) || 30;
+        const { matchId, tournamentName, stake } = req.body;
+        if (!matchId || !tournamentName || !stake) {
+          return res.status(400).json({ message: "matchId, tournamentName, and stake are required" });
         }
-        await storage.updateMatch(matchId, updates);
-        return res.json({ message: "Tournament info updated" });
-      } catch (err: any) {
-        console.error("Update tournament info error:", err);
-        return res.status(500).json({ message: "Failed to update tournament info" });
-      }
-    }
-  );
-
-  // ---- ADMIN: PROCESS TOURNAMENT POT ----
-  app.post(
-    "/api/admin/matches/:id/process-pot",
-    isAuthenticated,
-    isAdmin,
-    async (req: Request, res: Response) => {
-      try {
-        const matchId = req.params.id;
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
         if (match.status !== "completed") {
-          return res.status(400).json({ message: "Match must be completed before processing pot" });
-        }
-        if (!match.tournamentName) {
-          return res.status(400).json({ message: "No tournament name set for this match" });
+          return res.status(400).json({ message: "Match must be COMPLETED before processing pot" });
         }
         if (match.potProcessed) {
-          return res.status(400).json({ message: "Pot already processed for this match" });
+          return res.status(400).json({ message: "Pot already processed for this match (idempotency lock)" });
         }
         const allTeams = await storage.getAllTeamsForMatch(matchId);
         if (allTeams.length < 2) {
-          return res.status(400).json({ message: `Not enough teams (${allTeams.length}). Need at least 2.` });
+          return res.status(400).json({ message: `Not enough players. Found ${allTeams.length} team(s), need at least 2.` });
         }
-        const entryStake = match.entryStake || 30;
+        const entryStake = Number(stake) || 30;
         const maxPoints = Math.max(...allTeams.map(t => t.totalPoints));
         const winningTeams = allTeams.filter(t => t.totalPoints === maxPoints);
         const losingTeams = allTeams.filter(t => t.totalPoints < maxPoints);
+        const totalPot = losingTeams.length * entryStake;
         const winnerPointsEach = losingTeams.length > 0
-          ? Math.round((losingTeams.length * entryStake) / winningTeams.length)
+          ? Math.round(totalPot / winningTeams.length)
           : 0;
         const userMap = new Map<string, string>();
         for (const t of allTeams) {
@@ -2139,7 +2112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: t.userId,
             userName: userMap.get(t.userId) || "Unknown",
             matchId,
-            tournamentName: match.tournamentName,
+            tournamentName,
             pointsChange: -entryStake,
           });
         }
@@ -2148,23 +2121,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: t.userId,
             userName: userMap.get(t.userId) || "Unknown",
             matchId,
-            tournamentName: match.tournamentName,
+            tournamentName,
             pointsChange: winnerPointsEach,
           });
         }
-        await storage.updateMatch(matchId, { potProcessed: true });
-        console.log(`[Tournament Pot] Processed for ${match.team1Short} vs ${match.team2Short}: ${winningTeams.length} winners (+${winnerPointsEach}), ${losingTeams.length} losers (-${entryStake})`);
+        await storage.updateMatch(matchId, {
+          tournamentName,
+          entryStake,
+          potProcessed: true,
+        });
+        console.log(`[Tournament Pot] Processed for ${match.team1Short} vs ${match.team2Short}: ${winningTeams.length} winner(s) (+${winnerPointsEach}), ${losingTeams.length} loser(s) (-${entryStake}), totalPot=${totalPot}`);
         return res.json({
           message: "Pot processed successfully",
           winners: winningTeams.length,
           losers: losingTeams.length,
           winnerPoints: winnerPointsEach,
           loserPoints: -entryStake,
+          totalPot,
           totalTeams: allTeams.length,
         });
       } catch (err: any) {
         console.error("Process pot error:", err);
         return res.status(500).json({ message: "Failed to process tournament pot" });
+      }
+    }
+  );
+
+  // ---- ADMIN: GET COMPLETED UNPROCESSED MATCHES ----
+  app.get(
+    "/api/admin/matches/unprocessed",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const allMatches = await storage.getAllMatches();
+        const unprocessed = allMatches
+          .filter(m => m.status === "completed" && !m.potProcessed)
+          .map(m => ({
+            id: m.id,
+            team1Short: m.team1Short,
+            team2Short: m.team2Short,
+            startTime: m.startTime,
+          }));
+        return res.json({ matches: unprocessed });
+      } catch (err: any) {
+        console.error("Unprocessed matches error:", err);
+        return res.status(500).json({ message: "Failed to fetch unprocessed matches" });
       }
     }
   );

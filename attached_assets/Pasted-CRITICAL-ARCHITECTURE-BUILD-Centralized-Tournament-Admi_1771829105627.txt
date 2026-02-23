@@ -1,0 +1,40 @@
+CRITICAL ARCHITECTURE BUILD: Centralized Tournament Admin Dashboard & Zero-Sum Engine
+
+STRICT DIRECTIVE: Stop hallucinating files. Execute this end-to-end (Database, API, Admin UI) in one pass. I am tracking credit usage. Do NOT break existing match sync or user authentication.
+
+1. Backend & Database Schema Verification:
+
+Ensure Match model has: tournamentName (String), entryStake (Number), and potProcessed (Boolean, default: false).
+
+Ensure TournamentLedger model exists: userId, userName, matchId, tournamentName, pointsChange (Number).
+
+2. The Processing API Route (POST /api/tournament/process):
+
+Payload: matchId, tournamentName, stake (Number).
+
+Validation: Reject if match.status !== 'COMPLETED'. Reject if match.potProcessed === true (Strict idempotency lock to prevent double-billing).
+
+The Math (Zero-Sum): >   * Fetch all participating teams for matchId. If < 2, abort.
+
+Identify Rank #1 team(s) (Winners). All others are Losers.
+
+Losers get -stake per team entered. Calculate totalPot = (Number of Losing Teams) * stake.
+
+Winners get +(totalPot / Number of Winning Teams) per winning team.
+
+Execution: Write all rows to TournamentLedger simultaneously. Update Match document to set tournamentName = payload.tournamentName, entryStake = payload.stake, and potProcessed = true. Return success.
+
+3. Admin Panel UI: "Tournament Pot Management" Component:
+Build a dedicated control panel in the Admin UI with the following flow:
+
+Tournament Dropdown: Populate with distinct tournamentNames from the database. Add an "Add New Series" option that reveals a text input to define a new tournament (e.g., "T20 World Cup").
+
+Match Dropdown: CRITICAL FILTER. Only show matches where status === 'COMPLETED' AND potProcessed !== true. Format: "ENG vs SL - Feb 21".
+
+Stake Input: Number input, default 30. Fully editable.
+
+Action Button: "Process & Distribute Pot".
+
+Frontend Safety: Disable the button and show a loading spinner while the API is calling to prevent accidental double-clicks.
+
+Post-Action: On success, show a green toast notification, clear the form, and instantly refresh the Match Dropdown so the processed match vanishes from the list.
