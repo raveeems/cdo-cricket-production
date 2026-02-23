@@ -1136,15 +1136,30 @@ export async function fetchMatchScorecardWithScore(
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
     const res = await trackedFetch(url);
-    if (!res.ok) return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+    if (!res.ok) {
+      console.error(`[ScorecardWithScore] HTTP ${res.status} for ${externalMatchId}`);
+      return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+    }
 
-    const json = (await res.json()) as CricApiResponse<ScorecardData>;
-    if (json.status !== "success" || !json.data) return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+    let json: any;
+    try {
+      json = await res.json();
+    } catch (parseErr) {
+      console.error(`[ScorecardWithScore] JSON parse failed for ${externalMatchId}:`, parseErr);
+      return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+    }
 
-    const scoreArr = json.data.score || [];
+    if (json?.status !== "success" || !json?.data) {
+      if (json?.status === "failure" || json?.reason) {
+        console.error(`[ScorecardWithScore] API error for ${externalMatchId}: ${json?.reason || json?.status}`);
+      }
+      return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+    }
+
+    const scoreArr = Array.isArray(json.data.score) ? json.data.score : [];
     if (scoreArr.length > 0) {
-      scoreString = scoreArr.map(s => `${s.inning}: ${s.r}/${s.w} (${s.o} ov)`).join(" | ");
-      totalOvers = scoreArr.reduce((sum, s) => sum + (s.o || 0), 0);
+      scoreString = scoreArr.map((s: any) => `${s?.inning ?? "?"}: ${s?.r ?? 0}/${s?.w ?? 0} (${s?.o ?? 0} ov)`).join(" | ");
+      totalOvers = scoreArr.reduce((sum: number, s: any) => sum + (s?.o || 0), 0);
     }
 
     const matchStatus = (json.data.name || json.data.status || "").toLowerCase();
@@ -1158,24 +1173,31 @@ export async function fetchMatchScorecardWithScore(
       scoreString += ` — ${statusText}`;
     }
 
-    const scorecardInnings = json.data.scorecard || [];
+    const scorecardInnings = Array.isArray(json.data.scorecard) ? json.data.scorecard : [];
     if (scorecardInnings.length > 0) {
       const allPlayers = new Map<string, string>();
       for (const inning of scorecardInnings) {
-        inning.batting?.forEach((b) => { if (b.batsman?.id) allPlayers.set(b.batsman.id, b.batsman.name || ""); });
-        inning.bowling?.forEach((b) => { if (b.bowler?.id) allPlayers.set(b.bowler.id, b.bowler.name || ""); });
-        inning.catching?.forEach((c) => { if (c.catcher?.id) allPlayers.set(c.catcher.id, c.catcher.name || ""); });
+        const batting = Array.isArray(inning?.batting) ? inning.batting : [];
+        const bowling = Array.isArray(inning?.bowling) ? inning.bowling : [];
+        const catching = Array.isArray(inning?.catching) ? inning.catching : [];
+        batting.forEach((b: any) => { if (b?.batsman?.id) allPlayers.set(b.batsman.id, b.batsman.name || ""); });
+        bowling.forEach((b: any) => { if (b?.bowler?.id) allPlayers.set(b.bowler.id, b.bowler.name || ""); });
+        catching.forEach((c: any) => { if (c?.catcher?.id) allPlayers.set(c.catcher.id, c.catcher.name || ""); });
       }
 
       console.log(`[ScorecardWithScore] ${scorecardInnings.length} innings, ${allPlayers.size} players found for ${externalMatchId}`);
 
       for (const [pid, pname] of allPlayers) {
-        const pts = calculateFantasyPoints(pid, scorecardInnings);
-        pointsMap.set(pid, pts);
-        if (pname) {
-          const normalizedName = pname.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-          namePointsMap.set(normalizedName, pts);
-          console.log(`[ScorecardWithScore] ${pname} -> ${pts} fantasy pts`);
+        try {
+          const pts = calculateFantasyPoints(pid, scorecardInnings);
+          pointsMap.set(pid, pts);
+          if (pname) {
+            const normalizedName = pname.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+            namePointsMap.set(normalizedName, pts);
+            console.log(`[ScorecardWithScore] ${pname} -> ${pts} fantasy pts`);
+          }
+        } catch (ptErr) {
+          console.error(`[ScorecardWithScore] calculateFantasyPoints crashed for ${pname} (${pid}):`, ptErr);
         }
       }
     }
@@ -1260,53 +1282,70 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
     const res = await trackedFetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[LiveScorecard] HTTP ${res.status} for ${externalMatchId}`);
+      return null;
+    }
 
-    const json = (await res.json()) as CricApiResponse<ScorecardData>;
-    if (json.status !== "success" || !json.data) return null;
+    let json: any;
+    try {
+      json = await res.json();
+    } catch (parseErr) {
+      console.error(`[LiveScorecard] JSON parse failed for ${externalMatchId}:`, parseErr);
+      return null;
+    }
+
+    if (json?.status !== "success" || !json?.data) {
+      if (json?.status === "failure" || json?.reason) {
+        console.error(`[LiveScorecard] API error for ${externalMatchId}: ${json?.reason || json?.status}`);
+      }
+      return null;
+    }
 
     const scorecard = json.data.scorecard || [];
     const scoreArr = json.data.score || [];
-    const innings = scorecard.map((inn, idx) => {
-      const batterRuns = (inn.batting || []).reduce((sum, b) => sum + (b.r || 0), 0);
-      const matchScore = scoreArr.find(s => s.inning === inn.inning) || scoreArr[idx];
-      const totalFromApi = matchScore ? matchScore.r : batterRuns;
+    const innings = scorecard.map((inn: any, idx: number) => {
+      const battingArr = Array.isArray(inn?.batting) ? inn.batting : [];
+      const bowlingArr = Array.isArray(inn?.bowling) ? inn.bowling : [];
+      const batterRuns = battingArr.reduce((sum: number, b: any) => sum + (b?.r || 0), 0);
+      const matchScore = scoreArr.find((s: any) => s?.inning === inn?.inning) || scoreArr[idx];
+      const totalFromApi = matchScore ? (matchScore.r ?? 0) : batterRuns;
       const extrasTotal = totalFromApi - batterRuns;
 
-      const rawExtras = (inn as any).extras;
+      const rawExtras = inn?.extras;
       const apiExtrasTotal = rawExtras?.total ?? rawExtras?.r;
       const finalExtras = apiExtrasTotal != null ? apiExtrasTotal : (extrasTotal > 0 ? extrasTotal : 0);
 
       return {
-        inning: inn.inning,
+        inning: inn?.inning ?? `Inning ${idx + 1}`,
         extras: finalExtras,
-        totals: matchScore ? { r: matchScore.r, w: matchScore.w, o: matchScore.o } : undefined,
-        batting: (inn.batting || []).map((b) => ({
-          name: b.batsman?.name || "",
-          r: b.r,
-          b: b.b,
-          fours: b["4s"],
-          sixes: b["6s"],
-          sr: b.sr,
-          dismissal: b.dismissal || "not out",
-          fantasyPoints: b.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0,
+        totals: matchScore ? { r: matchScore.r ?? 0, w: matchScore.w ?? 0, o: matchScore.o ?? 0 } : undefined,
+        batting: battingArr.map((b: any) => ({
+          name: b?.batsman?.name || b?.name || "",
+          r: b?.r ?? 0,
+          b: b?.b ?? 0,
+          fours: b?.["4s"] ?? 0,
+          sixes: b?.["6s"] ?? 0,
+          sr: b?.sr ?? 0,
+          dismissal: b?.dismissal || "not out",
+          fantasyPoints: b?.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0,
         })),
-        bowling: (inn.bowling || []).map((b) => ({
-          name: b.bowler?.name || "",
-          o: b.o,
-          m: b.m,
-          r: b.r,
-          w: b.w,
-          eco: b.eco,
-          fantasyPoints: b.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0,
+        bowling: bowlingArr.map((b: any) => ({
+          name: b?.bowler?.name || b?.name || "",
+          o: b?.o ?? 0,
+          m: b?.m ?? 0,
+          r: b?.r ?? 0,
+          w: b?.w ?? 0,
+          eco: b?.eco ?? 0,
+          fantasyPoints: b?.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0,
         })),
       };
     });
 
     return {
-      score: scoreArr,
+      score: scoreArr.map((s: any) => ({ r: s?.r ?? 0, w: s?.w ?? 0, o: s?.o ?? 0, inning: s?.inning ?? "" })),
       innings,
-      status: json.data.name || "",
+      status: json.data.name || json.data.status || "",
     };
   } catch (err) {
     console.error("Live scorecard error:", err);

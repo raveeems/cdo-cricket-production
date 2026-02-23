@@ -638,9 +638,12 @@ function setupErrorHandler(app: express.Application) {
               const { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers, source } =
                 await updateLiveScore(match);
 
-              const existingOvers = extractTotalOversFromScoreString((match as any).scoreString || "");
-              if (totalOvers > 0 && totalOvers < existingOvers) {
-                log(`[Heartbeat] STALE DATA REJECTED for ${matchLabel}: incoming ${totalOvers} overs < existing ${existingOvers} overs — discarding payload`);
+              const existingScoreStr = (match as any).scoreString || "";
+              const existingOvers = extractTotalOversFromScoreString(existingScoreStr);
+              const existingInningsCount = (existingScoreStr.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length;
+              const incomingInningsCount = scoreString ? (scoreString.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length : 0;
+              if (totalOvers > 0 && totalOvers < existingOvers && incomingInningsCount <= existingInningsCount) {
+                log(`[Heartbeat] STALE DATA REJECTED for ${matchLabel}: incoming ${totalOvers} ov (${incomingInningsCount} inn) < existing ${existingOvers} ov (${existingInningsCount} inn) — discarding`);
                 continue;
               }
 
