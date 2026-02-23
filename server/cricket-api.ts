@@ -1302,6 +1302,8 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
       return null;
     }
 
+    console.log("RAW API INNINGS DATA:", JSON.stringify(json.data?.scorecard || json.data, null, 2));
+
     const scorecard = json.data.scorecard || [];
     const scoreArr = json.data.score || [];
     const innings = scorecard.map((inn: any, idx: number) => {
