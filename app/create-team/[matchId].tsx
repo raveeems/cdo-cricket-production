@@ -459,10 +459,18 @@ export default function CreateTeamScreen() {
       return a;
     };
 
+    const xiAnnounced = allPlayers.some(p => p.isPlayingXI === true);
+    const eligiblePlayers = xiAnnounced ? allPlayers.filter(p => p.isPlayingXI === true) : allPlayers;
+
+    if (eligiblePlayers.length < 11) {
+      showSelectionWarning('Not enough eligible players to auto-select.');
+      return;
+    }
+
     for (let attempt = 0; attempt < 500; attempt++) {
       const [teamA, teamB] = Math.random() < 0.5 ? [teamKeys[0], teamKeys[1]] : [teamKeys[1], teamKeys[0]];
-      const poolA = shuffle(allPlayers.filter(p => (p.teamShort || p.team || '') === teamA));
-      const poolB = shuffle(allPlayers.filter(p => (p.teamShort || p.team || '') === teamB));
+      const poolA = shuffle(eligiblePlayers.filter(p => (p.teamShort || p.team || '') === teamA));
+      const poolB = shuffle(eligiblePlayers.filter(p => (p.teamShort || p.team || '') === teamB));
 
       const picked: Player[] = [];
       const roles = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
