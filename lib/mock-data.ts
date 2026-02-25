@@ -241,10 +241,10 @@ export function canEditTeam(startTime: string, status?: string): boolean {
 
 export function getRoleColor(role: string, isDark: boolean): string {
   const colors: Record<string, string> = {
-    WK: '#E74C3C',
-    BAT: '#3498DB',
-    AR: '#F1C40F',
-    BOWL: '#9B59B6',
+    WK: isDark ? '#1E3A5F' : '#2C5282',
+    BAT: isDark ? '#1E3A5F' : '#2C5282',
+    AR: isDark ? '#1E3A5F' : '#2C5282',
+    BOWL: isDark ? '#1E3A5F' : '#2C5282',
   };
   return colors[role] || '#888';
 }
