@@ -468,24 +468,21 @@ function setupErrorHandler(app: express.Application) {
             if (fantasyPts !== undefined && fantasyPts !== null) {
               finalPts = fantasyPts + xiBase;
               mapped++;
+              if (finalPts < existingPts) {
+                log(`[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} — keeping existing`);
+                skippedProtected++;
+                continue;
+              }
               if (matchMethod.startsWith("fuzzy") || matchMethod.startsWith("apiName")) {
                 log(`[Heartbeat:Points] Match: "${player.name}" -> ${matchMethod} = ${fantasyPts} scorecard + ${xiBase} XI base = ${finalPts}`);
               }
             } else if (player.isPlayingXI) {
               finalPts = Math.max(xiBase, existingPts);
               unmapped++;
-              if (finalPts < existingPts) {
-                log(`[Heartbeat:Points] PROTECTED: "${player.name}" unmapped but keeping existing ${existingPts} pts (would have been ${xiBase})`);
-                skippedProtected++;
+              if (finalPts <= existingPts) {
                 continue;
               }
             } else {
-              continue;
-            }
-
-            if (finalPts < existingPts && fantasyPts === undefined) {
-              log(`[Heartbeat:Points] PROTECTED: "${player.name}" score would DROP ${existingPts} -> ${finalPts} with no scorecard match — keeping existing`);
-              skippedProtected++;
               continue;
             }
 
@@ -642,12 +639,12 @@ function setupErrorHandler(app: express.Application) {
               const existingOvers = extractTotalOversFromScoreString(existingScoreStr);
               const existingInningsCount = (existingScoreStr.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length;
               const incomingInningsCount = scoreString ? (scoreString.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length : 0;
-              if (totalOvers > 0 && totalOvers < existingOvers && incomingInningsCount <= existingInningsCount) {
-                log(`[Heartbeat] STALE DATA REJECTED for ${matchLabel}: incoming ${totalOvers} ov (${incomingInningsCount} inn) < existing ${existingOvers} ov (${existingInningsCount} inn) — discarding`);
-                continue;
+              const isStaleScore = totalOvers > 0 && totalOvers < existingOvers && incomingInningsCount <= existingInningsCount;
+              if (isStaleScore) {
+                log(`[Heartbeat] STALE SCORE skipped for ${matchLabel}: incoming ${totalOvers} ov < existing ${existingOvers} ov — points still processed`);
               }
 
-              if (scoreString && scoreString !== (match as any).scoreString) {
+              if (!isStaleScore && scoreString && scoreString !== (match as any).scoreString) {
                 await storage.updateMatch(match.id, { scoreString, lastSyncAt: new Date() } as any);
               }
 
