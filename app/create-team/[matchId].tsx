@@ -114,7 +114,7 @@ function PlayerItem({
       </View>
       <View style={styles.playerItemRight}>
         <Text style={[styles.playerCredits, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
-          {player.credits}
+          {player.credits} Cr  |  {player.points != null ? player.points : 0} pts
         </Text>
         <View style={styles.formRow}>
           {player.recentForm.slice(0, 3).map((v, i) => (
@@ -206,7 +206,7 @@ function CompactPlayerItem({
           )}
         </View>
         <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>
-          {player.credits} Cr
+          {player.credits} Cr  |  {player.points != null ? player.points : 0} pts
         </Text>
       </View>
     </Pressable>
@@ -443,6 +443,74 @@ export default function CreateTeamScreen() {
     setSelectedIds(newSet);
   };
 
+  const handleAutoSelect = () => {
+    if (allPlayers.length < 11 || !match) return;
+    const teams = new Set<string>();
+    allPlayers.forEach(p => teams.add(p.teamShort || p.team || ''));
+    const teamKeys = Array.from(teams);
+    if (teamKeys.length < 2) return;
+
+    const shuffle = <T,>(arr: T[]): T[] => {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    };
+
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const [teamA, teamB] = Math.random() < 0.5 ? [teamKeys[0], teamKeys[1]] : [teamKeys[1], teamKeys[0]];
+      const poolA = shuffle(allPlayers.filter(p => (p.teamShort || p.team || '') === teamA));
+      const poolB = shuffle(allPlayers.filter(p => (p.teamShort || p.team || '') === teamB));
+
+      const picked: Player[] = [];
+      const roles = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+      let credits = 0;
+      let fromA = 0;
+      let fromB = 0;
+
+      const tryAdd = (p: Player, isA: boolean) => {
+        if (picked.length >= 11) return false;
+        if (roles[p.role] >= ROLE_LIMITS[p.role].max) return false;
+        if (isA && fromA >= 6) return false;
+        if (!isA && fromB >= 5) return false;
+        if (credits + p.credits > 100) return false;
+        picked.push(p);
+        roles[p.role]++;
+        credits += p.credits;
+        if (isA) fromA++; else fromB++;
+        return true;
+      };
+
+      const merged = shuffle([
+        ...poolA.map(p => ({ p, isA: true })),
+        ...poolB.map(p => ({ p, isA: false })),
+      ]);
+
+      for (const { p, isA } of merged) {
+        tryAdd(p, isA);
+        if (picked.length >= 11) break;
+      }
+
+      if (picked.length !== 11) continue;
+      if (fromA !== 6 || fromB !== 5) continue;
+      if (roles.WK < 1 || roles.BAT < 1 || roles.AR < 1 || roles.BOWL < 1) continue;
+      if (credits > 100) continue;
+
+      const newIds = new Set(picked.map(p => p.id));
+      setSelectedIds(newIds);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => {
+        setDuplicateError(null);
+        setStep('captain');
+      }, 150);
+      return;
+    }
+
+    showSelectionWarning('Could not generate a valid team. Try again!');
+  };
+
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showPredictionModal, setShowPredictionModal] = useState(false);
   const [selectedWinner, setSelectedWinner] = useState<string | null>(null);
@@ -634,36 +702,53 @@ export default function CreateTeamScreen() {
             ))}
           </View>
 
-          <View style={styles.filterRow}>
-            {filters.map((f) => {
-              const isMaxed = f !== 'ALL' && roleCounts[f] >= ROLE_LIMITS[f].max;
-              return (
-                <Pressable
-                  key={f}
-                  onPress={() => setFilter(f)}
-                  style={[
-                    styles.filterBtn,
-                    {
-                      backgroundColor: filter === f ? colors.primary : colors.surfaceElevated,
-                      borderColor: filter === f ? colors.primary : isMaxed ? colors.error + '40' : colors.border,
-                    },
-                  ]}
-                >
-                  <Text
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 }}>
+            <View style={[styles.filterRow, { flex: 1, marginHorizontal: 0, paddingHorizontal: 0 }]}>
+              {filters.map((f) => {
+                const isMaxed = f !== 'ALL' && roleCounts[f] >= ROLE_LIMITS[f].max;
+                return (
+                  <Pressable
+                    key={f}
+                    onPress={() => setFilter(f)}
                     style={[
-                      styles.filterText,
+                      styles.filterBtn,
                       {
-                        color: filter === f ? '#FFF' : isMaxed ? colors.error : colors.textSecondary,
-                        fontFamily: 'Inter_600SemiBold',
+                        backgroundColor: filter === f ? colors.primary : colors.surfaceElevated,
+                        borderColor: filter === f ? colors.primary : isMaxed ? colors.error + '40' : colors.border,
                       },
                     ]}
                   >
-                    {f}
-                    {isMaxed ? ' MAX' : ''}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.filterText,
+                        {
+                          color: filter === f ? '#FFF' : isMaxed ? colors.error : colors.textSecondary,
+                          fontFamily: 'Inter_600SemiBold',
+                        },
+                      ]}
+                    >
+                      {f}
+                      {isMaxed ? ' MAX' : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              onPress={handleAutoSelect}
+              style={({ pressed }) => ({
+                backgroundColor: pressed ? '#E6C200' : '#FFD700',
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+              })}
+            >
+              <Ionicons name="flash" size={14} color="#000" />
+              <Text style={{ color: '#000', fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>Auto</Text>
+            </Pressable>
           </View>
 
           {filter === 'ALL' ? (
