@@ -91,7 +91,7 @@ export default function MyMatchesScreen() {
                 key={match.id}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push({ pathname: '/match/[id]', params: { id: match.id } });
+                  router.push({ pathname: '/(tabs)/match/[id]', params: { id: match.id } });
                 }}
                 style={[styles.matchItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
               >

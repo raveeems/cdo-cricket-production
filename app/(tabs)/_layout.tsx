@@ -122,6 +122,12 @@ function ClassicTabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="match"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

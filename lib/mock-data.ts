@@ -243,7 +243,7 @@ export function getRoleColor(role: string, isDark: boolean): string {
   const colors: Record<string, string> = {
     WK: '#E74C3C',
     BAT: '#3498DB',
-    AR: '#2ECC71',
+    AR: '#F1C40F',
     BOWL: '#9B59B6',
   };
   return colors[role] || '#888';

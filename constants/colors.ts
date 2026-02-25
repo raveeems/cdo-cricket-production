@@ -24,7 +24,7 @@ const Colors = {
     gradient: ['#0A0E1A', '#131829'] as string[],
     playerWK: '#E74C3C',
     playerBAT: '#3498DB',
-    playerAR: '#2ECC71',
+    playerAR: '#F1C40F',
     playerBOWL: '#9B59B6',
   },
   light: {
@@ -52,7 +52,7 @@ const Colors = {
     gradient: ['#F0F2F7', '#FFFFFF'] as string[],
     playerWK: '#E74C3C',
     playerBAT: '#3498DB',
-    playerAR: '#2ECC71',
+    playerAR: '#F1C40F',
     playerBOWL: '#9B59B6',
   },
 };

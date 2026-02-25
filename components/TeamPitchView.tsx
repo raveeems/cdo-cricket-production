@@ -282,13 +282,13 @@ const pitchStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
     flexWrap: 'wrap',
-    gap: 2,
+    gap: 4,
+    paddingHorizontal: 4,
   },
   playerNode: {
     alignItems: 'center',
-    width: 72,
-    marginHorizontal: 2,
-    marginBottom: 2,
+    width: 68,
+    marginBottom: 4,
   },
   jerseyContainer: {
     position: 'relative',

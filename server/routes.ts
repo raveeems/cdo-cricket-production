@@ -396,7 +396,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const oa = order[a.match.status] ?? 1;
       const ob = order[b.match.status] ?? 1;
       if (oa !== ob) return oa - ob;
-      return new Date(a.match.startTime).getTime() - new Date(b.match.startTime).getTime();
+      return new Date(b.match.startTime).getTime() - new Date(a.match.startTime).getTime();
     });
 
     const result = matchesWithParticipants.map((mp) => ({

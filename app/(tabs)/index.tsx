@@ -44,7 +44,7 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
     <Pressable
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        router.push({ pathname: '/match/[id]', params: { id: match.id } });
+        router.push({ pathname: '/(tabs)/match/[id]', params: { id: match.id } });
       }}
       style={({ pressed }) => [
         styles.compactCard,

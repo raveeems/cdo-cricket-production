@@ -99,7 +99,7 @@ function PlayerItem({
             {showPlayingXI && (
               <View style={{ backgroundColor: xiIndicatorColor + '20', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, marginLeft: 4 }}>
                 <Text style={{ color: xiIndicatorColor, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>
-                  {isInXI ? 'XI' : 'OUT'}
+                  {isInXI ? 'IN' : 'OUT'}
                 </Text>
               </View>
             )}
@@ -197,7 +197,7 @@ function CompactPlayerItem({
           {showPlayingXI && (
             <View style={{ backgroundColor: xiIndicatorColor + '20', paddingHorizontal: 3, paddingVertical: 1, borderRadius: 3 }}>
               <Text style={{ color: xiIndicatorColor, fontSize: 7, fontFamily: 'Inter_700Bold' as const }}>
-                {isInXI ? 'XI' : 'OUT'}
+                {isInXI ? 'IN' : 'OUT'}
               </Text>
             </View>
           )}
@@ -540,7 +540,7 @@ export default function CreateTeamScreen() {
       setTimeout(() => {
         Animated.timing(splashOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
           setShowSplash(false);
-          router.replace({ pathname: '/match/[id]', params: { id: matchId } });
+          router.replace({ pathname: '/(tabs)/match/[id]', params: { id: matchId } });
         });
       }, 3500);
     } catch (e: any) {
