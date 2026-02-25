@@ -509,10 +509,6 @@ export default function CreateTeamScreen() {
       const newIds = new Set(picked.map(p => p.id));
       setSelectedIds(newIds);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => {
-        setDuplicateError(null);
-        setStep('captain');
-      }, 150);
       return;
     }
 
