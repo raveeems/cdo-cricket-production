@@ -426,10 +426,39 @@ function setupErrorHandler(app: express.Application) {
         if (!match.externalId) return empty;
 
         try {
-          const { fetchMatchScorecardWithScore } = await import("./cricket-api");
+          const { fetchMatchScorecardWithScore, fetchMatchInfo } = await import("./cricket-api");
           const result = await fetchMatchScorecardWithScore(match.externalId);
           const source = (result.pointsMap.size > 0 || result.scoreString) ? "CricAPI" : "";
           log(`[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}, overs=${result.totalOvers}`);
+
+          try {
+            const matchInfo = await fetchMatchInfo(match.externalId);
+            if (matchInfo && matchInfo.score && Array.isArray(matchInfo.score) && matchInfo.score.length > 0) {
+              const infoScoreArr = matchInfo.score;
+              const infoScoreString = infoScoreArr.map((s: any) => `${s?.inning ?? "?"}: ${s?.r ?? 0}/${s?.w ?? 0} (${s?.o ?? 0} ov)`).join(" | ");
+              const infoTotalOvers = infoScoreArr.reduce((sum: number, s: any) => sum + (s?.o || 0), 0);
+              const infoStatus = (matchInfo.name || matchInfo.status || "").toLowerCase();
+              const infoEnded = infoStatus.includes("won") || infoStatus.includes("draw") ||
+                infoStatus.includes("tied") || infoStatus.includes("finished") ||
+                infoStatus.includes("beat") || infoStatus.includes("defeat") ||
+                infoStatus.includes("result") || infoStatus.includes("aban") ||
+                (matchInfo as any).matchEnded === true;
+
+              if (infoTotalOvers > result.totalOvers) {
+                log(`[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info has fresher score ${infoTotalOvers} ov vs scorecard ${result.totalOvers} ov`);
+                const statusText = matchInfo.name || matchInfo.status || "";
+                result.scoreString = statusText ? `${infoScoreString} — ${statusText}` : infoScoreString;
+                result.totalOvers = infoTotalOvers;
+              }
+              if (infoEnded && !result.matchEnded) {
+                log(`[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info says ended`);
+                result.matchEnded = true;
+              }
+            }
+          } catch (infoErr) {
+            log(`[Heartbeat:LiveScore] match_info fallback failed for ${match.team1Short} vs ${match.team2Short}: ${infoErr}`);
+          }
+
           return { ...result, source };
         } catch (err) {
           console.error(`[Heartbeat:Score] FAILED for ${match.team1Short} vs ${match.team2Short}:`, err);
