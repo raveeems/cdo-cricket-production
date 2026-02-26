@@ -1368,13 +1368,8 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
 
     let finalScore = scoreArr.map((s: any) => ({ r: s?.r ?? 0, w: s?.w ?? 0, o: s?.o ?? 0, inning: s?.inning ?? "" }));
 
-    if (scorecard.length > scoreArr.length) {
-      console.log(`[LiveScorecard] scorecard has ${scorecard.length} innings but score array has ${scoreArr.length} — building missing scores from scorecard`);
-      finalScore = scorecard.map((inn: any, idx: number) => {
-        const existingScore = scoreArr.find((s: any) => s?.inning === inn?.inning) || scoreArr[idx];
-        if (existingScore) {
-          return { r: existingScore.r ?? 0, w: existingScore.w ?? 0, o: existingScore.o ?? 0, inning: existingScore.inning ?? "" };
-        }
+    if (scorecard.length > 0) {
+      const builtScore = scorecard.map((inn: any, idx: number) => {
         const battingArr = Array.isArray(inn?.batting) ? inn.batting : [];
         const bowlingArr = Array.isArray(inn?.bowling) ? inn.bowling : [];
         const extras = inn?.extras?.total || 0;
@@ -1386,8 +1381,26 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
         runs += extras;
         let overs = 0;
         for (const bw of bowlingArr) { overs += bw?.o || 0; }
-        return { r: runs, w: wickets, o: overs, inning: inn?.inning ?? `Inning ${idx + 1}` };
+        const existingScore = scoreArr.find((s: any) => s?.inning === inn?.inning) || scoreArr[idx];
+        const builtR = runs;
+        const builtW = wickets;
+        const builtO = overs;
+        const apiR = existingScore?.r ?? 0;
+        const apiO = existingScore?.o ?? 0;
+        const useBuilt = builtO > apiO || builtR > apiR || !existingScore;
+        return {
+          r: useBuilt ? builtR : apiR,
+          w: useBuilt ? builtW : (existingScore?.w ?? 0),
+          o: useBuilt ? builtO : apiO,
+          inning: inn?.inning ?? existingScore?.inning ?? `Inning ${idx + 1}`,
+        };
       });
+      const builtTotalOvers = builtScore.reduce((sum: number, s: any) => sum + s.o, 0);
+      const apiTotalOvers = finalScore.reduce((sum: number, s: any) => sum + s.o, 0);
+      if (builtTotalOvers > apiTotalOvers || builtScore.length > finalScore.length) {
+        console.log(`[LiveScorecard] Using scorecard-derived scores (${builtScore.length} innings, ${builtTotalOvers} ov) over API score (${finalScore.length} innings, ${apiTotalOvers} ov)`);
+        finalScore = builtScore;
+      }
     }
 
     return {
