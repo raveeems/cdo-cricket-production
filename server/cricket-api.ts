@@ -1326,8 +1326,6 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
       return null;
     }
 
-    console.log("RAW API INNINGS DATA:", JSON.stringify(json.data?.scorecard || json.data, null, 2));
-
     const scorecard = json.data.scorecard || [];
     const scoreArr = json.data.score || [];
     const innings = scorecard.map((inn: any, idx: number) => {
@@ -1368,8 +1366,32 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
       };
     });
 
+    let finalScore = scoreArr.map((s: any) => ({ r: s?.r ?? 0, w: s?.w ?? 0, o: s?.o ?? 0, inning: s?.inning ?? "" }));
+
+    if (scorecard.length > scoreArr.length) {
+      console.log(`[LiveScorecard] scorecard has ${scorecard.length} innings but score array has ${scoreArr.length} — building missing scores from scorecard`);
+      finalScore = scorecard.map((inn: any, idx: number) => {
+        const existingScore = scoreArr.find((s: any) => s?.inning === inn?.inning) || scoreArr[idx];
+        if (existingScore) {
+          return { r: existingScore.r ?? 0, w: existingScore.w ?? 0, o: existingScore.o ?? 0, inning: existingScore.inning ?? "" };
+        }
+        const battingArr = Array.isArray(inn?.batting) ? inn.batting : [];
+        const bowlingArr = Array.isArray(inn?.bowling) ? inn.bowling : [];
+        const extras = inn?.extras?.total || 0;
+        let runs = 0, wickets = 0;
+        for (const b of battingArr) {
+          runs += b?.r || 0;
+          if (b?.dismissal && b.dismissal !== "not out" && b.dismissal !== "batting") wickets++;
+        }
+        runs += extras;
+        let overs = 0;
+        for (const bw of bowlingArr) { overs += bw?.o || 0; }
+        return { r: runs, w: wickets, o: overs, inning: inn?.inning ?? `Inning ${idx + 1}` };
+      });
+    }
+
     return {
-      score: scoreArr.map((s: any) => ({ r: s?.r ?? 0, w: s?.w ?? 0, o: s?.o ?? 0, inning: s?.inning ?? "" })),
+      score: finalScore,
       innings,
       status: json.data.name || json.data.status || "",
     };
