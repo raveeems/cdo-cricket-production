@@ -1133,6 +1133,37 @@ export async function fetchMatchScorecardWithScore(
       totalOvers = scoreArr.reduce((sum: number, s: any) => sum + (s?.o || 0), 0);
     }
 
+    const scorecardInningsRaw = Array.isArray(json.data.scorecard) ? json.data.scorecard : [];
+    if (scorecardInningsRaw.length > scoreArr.length) {
+      console.log(`[ScorecardWithScore] scorecard has ${scorecardInningsRaw.length} innings but score array has ${scoreArr.length} — building score from scorecard`);
+      const builtScoreParts: string[] = [];
+      let builtTotalOvers = 0;
+      for (const inn of scorecardInningsRaw) {
+        const batting = Array.isArray(inn?.batting) ? inn.batting : [];
+        if (batting.length === 0) continue;
+        let runs = 0, wickets = 0, maxOvers = 0;
+        const extras = inn?.extras?.total || 0;
+        for (const b of batting) {
+          runs += b?.r || 0;
+          if (b?.dismissal && b.dismissal !== "not out" && b.dismissal !== "batting") wickets++;
+        }
+        runs += extras;
+        const bowling = Array.isArray(inn?.bowling) ? inn.bowling : [];
+        for (const bw of bowling) {
+          const bowlOvers = bw?.o || 0;
+          maxOvers += bowlOvers;
+        }
+        const inningName = inn?.inning || "?";
+        builtScoreParts.push(`${inningName}: ${runs}/${wickets} (${maxOvers} ov)`);
+        builtTotalOvers += maxOvers;
+      }
+      if (builtTotalOvers > totalOvers && builtScoreParts.length > 0) {
+        scoreString = builtScoreParts.join(" | ");
+        totalOvers = builtTotalOvers;
+        console.log(`[ScorecardWithScore] Using scorecard-derived score: ${scoreString}, totalOvers=${totalOvers}`);
+      }
+    }
+
     const matchStatus = (json.data.name || json.data.status || "").toLowerCase();
     matchEnded = matchStatus.includes("won") || matchStatus.includes("draw") ||
                  matchStatus.includes("tied") || matchStatus.includes("finished") ||
