@@ -317,10 +317,19 @@ export default function CreateTeamScreen() {
   const allPlayers = playersData?.players || [];
   const existingTeams = matchId ? getTeamsForMatch(matchId) : [];
 
+  const sortedPlayers = useMemo(() => {
+    return [...allPlayers].sort((a, b) => {
+      const aIn = a.isPlayingXI === true ? 0 : 1;
+      const bIn = b.isPlayingXI === true ? 0 : 1;
+      if (aIn !== bIn) return aIn - bIn;
+      return b.credits - a.credits;
+    });
+  }, [allPlayers]);
+
   const filteredPlayers = useMemo(() => {
-    if (filter === 'ALL') return allPlayers;
-    return allPlayers.filter((p) => p.role === filter);
-  }, [allPlayers, filter]);
+    if (filter === 'ALL') return sortedPlayers;
+    return sortedPlayers.filter((p) => p.role === filter);
+  }, [sortedPlayers, filter]);
 
   const hasPlayingXIData = useMemo(() => {
     return allPlayers.some((p) => p.isPlayingXI !== undefined && p.isPlayingXI !== null);
@@ -780,7 +789,7 @@ export default function CreateTeamScreen() {
               </View>
               <View style={styles.splitContainer}>
                 <View style={styles.splitColumn}>
-                  {allPlayers
+                  {sortedPlayers
                     .filter(p => (p.teamShort || p.team) === match.team1Short)
                     .map(item => (
                       <CompactPlayerItem
@@ -796,7 +805,7 @@ export default function CreateTeamScreen() {
                     ))}
                 </View>
                 <View style={styles.splitColumn}>
-                  {allPlayers
+                  {sortedPlayers
                     .filter(p => (p.teamShort || p.team) === match.team2Short)
                     .map(item => (
                       <CompactPlayerItem
