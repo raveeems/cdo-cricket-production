@@ -297,15 +297,10 @@ function setupErrorHandler(app: express.Application) {
     }
   }
 
-  const port = parseInt(process.env.PORT || "5000", 10);
-  server.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`express server serving on port ${port}`);
+ const port = Number(process.env.PORT) || 3000;
+
+server.listen(port, "0.0.0.0", () => {
+  log(`express server serving on port ${port}`);
 
       const ADMIN_PHONES = ["9840872462", "9884334973", "7406020777"];
       (async () => {
