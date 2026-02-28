@@ -31,13 +31,15 @@ function setupCors(app: express.Application) {
     }
 
     const origin = req.header("origin");
+    const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+const isRailway = !!railwayDomain && origin === `https://${railwayDomain}`;
 
     // Allow localhost origins for Expo web development (any port)
     const isLocalhost =
       origin?.startsWith("http://localhost:") ||
       origin?.startsWith("http://127.0.0.1:");
 
-    if (origin && (origins.has(origin) || isLocalhost)) {
+    if (origin && (origins.has(origin) || isLocalhost || isRailway)) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
