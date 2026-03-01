@@ -376,9 +376,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isLive = m.status === "live";
       const isDelayed = m.status === "delayed";
       const isRecentlyCompleted = m.status === "completed" && (nowMs - startMs) <= MS_3H;
+      const isCompleted = m.status === "completed";
       const hasParticipants = participantCount > 0;
 
-      const included = hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted;
+      const included = hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted || isCompleted;
 
       if (isUpcomingOrDelayed) {
         console.log(`[MatchFeed] ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${hoursUntilStart.toFixed(1)}h away | within48h=${startsWithin48h} | notTooOld=${notTooOld} | included=${included}`);
