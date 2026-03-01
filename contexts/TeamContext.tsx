@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { apiRequest, getApiUrl } from '@/lib/query-client';
 import { getAuthToken } from '@/lib/auth-token';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface Team {
   id: string;
@@ -45,14 +44,15 @@ const TeamContext = createContext<TeamContextValue | null>(null);
 export function TeamProvider({ children }: { children: ReactNode }) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, isLoading: authLoading } = useAuth();
 
-  const loadTeams = useCallback(async () => {
-    if (!user) {
-      setTeams([]);
-      setIsLoading(false);
-      return;
-    }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadTeams();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const loadTeams = async () => {
     try {
       const baseUrl = getApiUrl();
       const url = new URL('/api/my-teams', baseUrl);
@@ -74,13 +74,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
-
-  useEffect(() => {
-    if (!authLoading) {
-      loadTeams();
-    }
-  }, [authLoading, user, loadTeams]);
+  };
 
   const saveTeam = async (input: SaveTeamInput) => {
     try {
