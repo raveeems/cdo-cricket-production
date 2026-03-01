@@ -208,7 +208,16 @@ function configureExpoAndLanding(app: express.Application) {
         return serveExpoManifest(platform, res);
       }
     }
+  if (path.extname(req.path)) {
+    return next();
+  }
 
+  if (req.method === "GET" && req.accepts("html")) {
+    ...
+  }
+
+  next();
+});
     next();
   });
 
@@ -259,7 +268,23 @@ function configureExpoAndLanding(app: express.Application) {
 
   // 2) Serve your project-level assets (only if you actually use /assets for custom images)
   // Put this AFTER web build assets so it doesn't hide Expo build assets.
-  app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
+  // IMPORTANT:
+  // Expo web build may request fonts like:
+  // /assets/node_modules/@expo-google-fonts/.../*.ttf
+  // Those files live in the project root (node_modules), not in ./assets.
+  // So we serve /assets from the project root.
+  app.use(
+    "/assets",
+    express.static(process.cwd(), {
+      fallthrough: true,
+      setHeaders: (res, filePath) => {
+        // Cache static assets aggressively
+        if (!filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    }),
+  );
   app.use(
   "/assets/node_modules",
   express.static(path.resolve(process.cwd(), "node_modules")),
