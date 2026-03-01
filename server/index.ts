@@ -213,9 +213,9 @@ function configureExpoAndLanding(app: express.Application) {
   }
 
   if (req.method === "GET" && req.accepts("html")) {
-    ...
+  
   }
-
+    // (SPA fallback handled below)
   next();
 });
     next();
