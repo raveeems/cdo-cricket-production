@@ -275,22 +275,6 @@ function configureExpoAndLanding(app: express.Application) {
   // /assets/node_modules/@expo-google-fonts/.../*.ttf
   // Those files live in the project root (node_modules), not in ./assets.
   // So we serve /assets from the project root.
-  app.use(
-    "/assets",
-    express.static(process.cwd(), {
-      fallthrough: true,
-      setHeaders: (res, filePath) => {
-        // Cache static assets aggressively
-        if (!filePath.endsWith(".html")) {
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        }
-      },
-    }),
-  );
-  app.use(
-    "/assets/node_modules",
-    express.static(path.resolve(process.cwd(), "node_modules")),
-  );
   // 3) Serve static-build (if used)
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
