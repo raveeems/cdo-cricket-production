@@ -71,8 +71,11 @@ async function isAdmin(req: Request, res: Response, next: Function) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const PgStore = connectPgSimple(session);
+  const dbUrl = process.env.DATABASE_URL || '';
+  const needsSsl = dbUrl.includes('railway') || dbUrl.includes('rlwy');
   const sessionPool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
+    ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
   });
 
   app.use(
