@@ -45,14 +45,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadTeams();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const loadTeams = async () => {
+  const doLoadTeams = async (setter: (t: Team[]) => void, setDone: (v: boolean) => void) => {
     try {
       const baseUrl = getApiUrl();
       const url = new URL('/api/my-teams', baseUrl);
@@ -67,14 +60,21 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       });
       if (res.ok) {
         const data = await res.json();
-        setTeams(data.teams || []);
+        setter(data.teams || []);
       }
     } catch (e) {
-      console.error('Failed to load teams:', e);
+      // silently fail
     } finally {
-      setIsLoading(false);
+      setDone(false);
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      doLoadTeams(setTeams, setIsLoading);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const saveTeam = async (input: SaveTeamInput) => {
     try {
@@ -121,7 +121,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshTeams = async () => {
-    await loadTeams();
+    await doLoadTeams(setTeams, setIsLoading);
   };
 
   const value = useMemo(() => ({
