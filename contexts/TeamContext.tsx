@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import { fetch } from 'expo/fetch';
 import { apiRequest, getApiUrl } from '@/lib/query-client';
+import { getAuthToken } from '@/lib/auth-token';
 
 interface Team {
   id: string;
@@ -53,7 +53,15 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     try {
       const baseUrl = getApiUrl();
       const url = new URL('/api/my-teams', baseUrl);
-      const res = await fetch(url.toString(), { credentials: 'include' });
+      const headers: Record<string, string> = {};
+      const token = await getAuthToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await globalThis.fetch(url.toString(), { 
+        credentials: 'include',
+        headers,
+      });
       if (res.ok) {
         const data = await res.json();
         setTeams(data.teams || []);
