@@ -184,6 +184,7 @@ function configureExpoAndLanding(app: express.Application) {
     path.resolve(process.cwd(), "dist", "web"),
     path.resolve(process.cwd(), "static-build", "web"),
   ];
+
   let webDistPath = "";
   for (const candidate of webDistCandidates) {
     if (fs.existsSync(path.join(candidate, "index.html"))) {
@@ -191,6 +192,7 @@ function configureExpoAndLanding(app: express.Application) {
       break;
     }
   }
+
   const hasWebBuild = !!webDistPath;
 
   log("Serving static Expo files with dynamic manifest routing");
@@ -200,12 +202,10 @@ function configureExpoAndLanding(app: express.Application) {
     log("No web build found, will serve landing page to browsers");
   }
 
-  // ✅ Expo manifest routing + IMPORTANT: never let SPA fallback hijack file requests
+  // 0) Expo manifest routing for native apps (ios/android)
   app.use((req: Request, res: Response, next: NextFunction) => {
-    // API should behave normally
     if (req.path.startsWith("/api")) return next();
 
-    // Expo native clients (ios/android) hit "/" or "/manifest" with expo-platform header
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
@@ -213,31 +213,20 @@ function configureExpoAndLanding(app: express.Application) {
       }
     }
 
-    // If the request looks like a file (has an extension), DO NOT serve index.html.
-    // Let express.static try first; if nothing matches, return a real 404 (not HTML).
-    if (path.extname(req.path)) {
-      res.status(404).type("text/plain").send("Not Found");
-      return;
-    }
-
     return next();
   });
 
-  // 1) Serve the web build folder (index.html, bundles, etc.)
+  // 1) Static web build routes
   if (hasWebBuild) {
-    // Serve /assets from the web build FIRST (this is where Expo puts fonts/bundles)
-    const webAssetsPath = path.join(webDistPath, "assets");
-    if (fs.existsSync(webAssetsPath)) {
+    // Serve Expo web runtime files
+    const expoPath = path.join(webDistPath, "_expo");
+    if (fs.existsSync(expoPath)) {
       app.use(
-        "/assets",
-        express.static(webAssetsPath, {
+        "/_expo",
+        express.static(expoPath, {
           setHeaders: (res, filePath) => {
-            // Long cache for hashed assets (fonts/js/images)
-            res.setHeader(
-              "Cache-Control",
-              "public, max-age=31536000, immutable",
-            );
-            // Help fonts load cross-origin if needed
+            // hashed bundles — cache forever
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
             if (/\.(ttf|otf|woff|woff2)$/i.test(filePath)) {
               res.setHeader("Access-Control-Allow-Origin", "*");
             }
@@ -246,52 +235,66 @@ function configureExpoAndLanding(app: express.Application) {
       );
     }
 
-    // Serve the rest of the web build (but DO NOT remap /assets here again)
+    // Serve Expo web assets (fonts/images/etc)
+    const assetsPath = path.join(webDistPath, "assets");
+    if (fs.existsSync(assetsPath)) {
+      app.use(
+        "/assets",
+        express.static(assetsPath, {
+          setHeaders: (res, filePath) => {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+            if (/\.(ttf|otf|woff|woff2)$/i.test(filePath)) {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+            }
+          },
+        }),
+      );
+    }
+
+    // favicon for the web build
+    const faviconPath = path.join(webDistPath, "favicon.ico");
+    if (fs.existsSync(faviconPath)) {
+      app.get("/favicon.ico", (_req, res) => res.sendFile(faviconPath));
+    }
+
+    // Serve the rest of the web build (JS chunks, etc)
     app.use(
       express.static(webDistPath, {
         setHeaders: (res, filePath) => {
           if (filePath.endsWith(".html")) {
-            res.setHeader(
-              "Cache-Control",
-              "no-cache, no-store, must-revalidate",
-            );
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
             res.setHeader("Pragma", "no-cache");
             res.setHeader("Expires", "0");
           } else {
-            res.setHeader(
-              "Cache-Control",
-              "public, max-age=31536000, immutable",
-            );
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
           }
         },
       }),
     );
   }
 
-  // 2) Serve your project-level assets (only if you actually use /assets for custom images)
-  // Put this AFTER web build assets so it doesn't hide Expo build assets.
-  // IMPORTANT:
-  // Expo web build may request fonts like:
-  // /assets/node_modules/@expo-google-fonts/.../*.ttf
-  // Those files live in the project root (node_modules), not in ./assets.
-  // So we serve /assets from the project root.
-  // 3) Serve static-build (if used)
+  // 2) Other static folders (keep if you use them)
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
+  // 3) IMPORTANT: Real 404 for missing files (so SPA doesn’t hijack fonts)
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api")) {
-      return next();
+    if (req.path.startsWith("/api")) return next();
+
+    // If it looks like a file request and it wasn’t served above, return real 404
+    if (path.extname(req.path)) {
+      return res.status(404).type("text/plain").send("Not Found");
     }
+
+    // SPA / landing fallback only for real browser navigation
     if (req.method === "GET" && req.accepts("html")) {
       if (hasWebBuild) {
-        const indexHtml = fs.readFileSync(
-          path.join(webDistPath, "index.html"),
-          "utf-8",
-        );
+        const indexHtmlPath = path.join(webDistPath, "index.html");
+        const indexHtml = fs.readFileSync(indexHtmlPath, "utf-8");
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         return res.status(200).send(indexHtml);
       }
+
       return serveLandingPage({
         req,
         res,
@@ -299,7 +302,8 @@ function configureExpoAndLanding(app: express.Application) {
         appName,
       });
     }
-    next();
+
+    return next();
   });
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
