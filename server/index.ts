@@ -260,7 +260,10 @@ function configureExpoAndLanding(app: express.Application) {
   // 2) Serve your project-level assets (only if you actually use /assets for custom images)
   // Put this AFTER web build assets so it doesn't hide Expo build assets.
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
-
+  app.use(
+  "/assets/node_modules",
+  express.static(path.resolve(process.cwd(), "node_modules")),
+);
   // 3) Serve static-build (if used)
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
