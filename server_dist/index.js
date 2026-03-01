@@ -11,15 +11,19 @@ var __export = (target, all) => {
 // shared/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
+  apiCallLog: () => apiCallLog,
   codeVerifications: () => codeVerifications,
   insertMatchSchema: () => insertMatchSchema,
   insertPlayerSchema: () => insertPlayerSchema,
   insertReferenceCodeSchema: () => insertReferenceCodeSchema,
   insertUserSchema: () => insertUserSchema,
   insertUserTeamSchema: () => insertUserTeamSchema,
+  matchPredictions: () => matchPredictions,
   matches: () => matches,
   players: () => players,
   referenceCodes: () => referenceCodes,
+  rewards: () => rewards,
+  tournamentLedger: () => tournamentLedger,
   userTeams: () => userTeams,
   users: () => users
 });
@@ -36,7 +40,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var users, referenceCodes, matches, players, userTeams, codeVerifications, insertUserSchema, insertReferenceCodeSchema, insertMatchSchema, insertPlayerSchema, insertUserTeamSchema;
+var users, referenceCodes, matches, players, userTeams, codeVerifications, matchPredictions, rewards, tournamentLedger, apiCallLog, insertUserSchema, insertReferenceCodeSchema, insertMatchSchema, insertPlayerSchema, insertUserTeamSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -77,6 +81,12 @@ var init_schema = __esm({
       entryFee: integer("entry_fee").notNull().default(0),
       spotsTotal: integer("spots_total").notNull().default(100),
       spotsFilled: integer("spots_filled").notNull().default(0),
+      playingXIManual: boolean("playing_xi_manual").notNull().default(false),
+      scoreString: text("score_string").notNull().default(""),
+      lastSyncAt: timestamp("last_sync_at"),
+      tournamentName: text("tournament_name"),
+      entryStake: integer("entry_stake").notNull().default(30),
+      potProcessed: boolean("pot_processed").notNull().default(false),
       createdAt: timestamp("created_at").notNull().defaultNow()
     });
     players = pgTable("players", {
@@ -92,7 +102,8 @@ var init_schema = __esm({
       selectedBy: integer("selected_by").notNull().default(0),
       recentForm: jsonb("recent_form").$type().notNull().default([]),
       isImpactPlayer: boolean("is_impact_player").notNull().default(false),
-      isPlayingXI: boolean("is_playing_xi").notNull().default(false)
+      isPlayingXI: boolean("is_playing_xi").notNull().default(false),
+      apiName: text("api_name")
     });
     userTeams = pgTable("user_teams", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -110,6 +121,40 @@ var init_schema = __esm({
       userId: varchar("user_id").notNull(),
       codeId: varchar("code_id").notNull(),
       verifiedAt: timestamp("verified_at").notNull().defaultNow()
+    });
+    matchPredictions = pgTable("match_predictions", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").notNull(),
+      matchId: varchar("match_id").notNull(),
+      predictedWinner: varchar("predicted_winner", { length: 10 }).notNull(),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    rewards = pgTable("rewards", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      brand: text("brand").notNull(),
+      title: text("title").notNull(),
+      code: text("code").notNull(),
+      terms: text("terms").notNull().default(""),
+      isClaimed: boolean("is_claimed").notNull().default(false),
+      claimedByUserId: varchar("claimed_by_user_id"),
+      claimedMatchId: varchar("claimed_match_id"),
+      claimedAt: timestamp("claimed_at"),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    tournamentLedger = pgTable("tournament_ledger", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").notNull(),
+      userName: text("user_name").notNull().default(""),
+      matchId: varchar("match_id").notNull(),
+      tournamentName: text("tournament_name").notNull(),
+      pointsChange: integer("points_change").notNull().default(0),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    apiCallLog = pgTable("api_call_log", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      dateKey: varchar("date_key", { length: 10 }).notNull(),
+      callCount: integer("call_count").notNull().default(0),
+      lastCalledAt: timestamp("last_called_at").notNull().defaultNow()
     });
     insertUserSchema = createInsertSchema(users).pick({
       username: true,
@@ -278,6 +323,9 @@ var init_storage = __esm({
       async deletePlayersForMatch(matchId) {
         await db.delete(players).where(eq(players.matchId, matchId));
       }
+      async deletePlayer(playerId) {
+        await db.delete(players).where(eq(players.id, playerId));
+      }
       async updatePlayer(id, data) {
         await db.update(players).set(data).where(eq(players.id, id));
       }
@@ -312,10 +360,20 @@ var init_storage = __esm({
       }
       async markPlayingXI(matchId, externalPlayerIds) {
         if (externalPlayerIds.length === 0) return 0;
-        await db.update(players).set({ isPlayingXI: false }).where(eq(players.matchId, matchId));
+        await db.update(players).set({ isPlayingXI: false, points: 0 }).where(eq(players.matchId, matchId));
         let updated = 0;
         for (const extId of externalPlayerIds) {
-          const result = await db.update(players).set({ isPlayingXI: true }).where(and(eq(players.matchId, matchId), eq(players.externalId, extId)));
+          const result = await db.update(players).set({ isPlayingXI: true, points: 4 }).where(and(eq(players.matchId, matchId), eq(players.externalId, extId)));
+          updated++;
+        }
+        return updated;
+      }
+      async markPlayingXIByIds(matchId, playerIds) {
+        if (playerIds.length === 0) return 0;
+        await db.update(players).set({ isPlayingXI: false, points: 0 }).where(eq(players.matchId, matchId));
+        let updated = 0;
+        for (const pid of playerIds) {
+          await db.update(players).set({ isPlayingXI: true, points: 4 }).where(and(eq(players.matchId, matchId), eq(players.id, pid)));
           updated++;
         }
         return updated;
@@ -323,6 +381,23 @@ var init_storage = __esm({
       async getPlayingXICount(matchId) {
         const result = await db.select({ count: sql2`count(*)` }).from(players).where(and(eq(players.matchId, matchId), eq(players.isPlayingXI, true)));
         return Number(result[0]?.count || 0);
+      }
+      async incrementApiCallCount() {
+        const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+        const [existing] = await db.select().from(apiCallLog).where(eq(apiCallLog.dateKey, today));
+        if (existing) {
+          const newCount = existing.callCount + 1;
+          await db.update(apiCallLog).set({ callCount: newCount, lastCalledAt: /* @__PURE__ */ new Date() }).where(eq(apiCallLog.id, existing.id));
+          return newCount;
+        } else {
+          await db.insert(apiCallLog).values({ dateKey: today, callCount: 1 });
+          return 1;
+        }
+      }
+      async getApiCallCount(dateKey) {
+        const key = dateKey || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+        const [row] = await db.select().from(apiCallLog).where(eq(apiCallLog.dateKey, key));
+        return { count: row?.callCount || 0, date: key, lastCalledAt: row?.lastCalledAt || null };
       }
       async getLeaderboard() {
         const result = await db.select({
@@ -343,6 +418,82 @@ var init_storage = __esm({
           teamsCreated: Number(row.teamsCreated)
         }));
       }
+      async getUserPredictionForMatch(userId, matchId) {
+        const [pred] = await db.select().from(matchPredictions).where(and(eq(matchPredictions.userId, userId), eq(matchPredictions.matchId, matchId)));
+        return pred;
+      }
+      async getPredictionsForMatch(matchId) {
+        return db.select().from(matchPredictions).where(eq(matchPredictions.matchId, matchId));
+      }
+      async createPrediction(data) {
+        const [pred] = await db.insert(matchPredictions).values(data).returning();
+        return pred;
+      }
+      async updatePrediction(userId, matchId, predictedWinner) {
+        const [pred] = await db.update(matchPredictions).set({ predictedWinner }).where(and(eq(matchPredictions.userId, userId), eq(matchPredictions.matchId, matchId))).returning();
+        return pred;
+      }
+      async createReward(data) {
+        const [reward] = await db.insert(rewards).values(data).returning();
+        return reward;
+      }
+      async getAllRewards() {
+        return db.select().from(rewards).orderBy(desc(rewards.createdAt));
+      }
+      async getAvailableRewards() {
+        return db.select().from(rewards).where(eq(rewards.isClaimed, false));
+      }
+      async getClaimedRewards() {
+        return db.select().from(rewards).where(eq(rewards.isClaimed, true)).orderBy(desc(rewards.claimedAt));
+      }
+      async claimReward(rewardId, userId, matchId) {
+        const [reward] = await db.update(rewards).set({ isClaimed: true, claimedByUserId: userId, claimedMatchId: matchId, claimedAt: /* @__PURE__ */ new Date() }).where(eq(rewards.id, rewardId)).returning();
+        return reward;
+      }
+      async getRandomAvailableReward() {
+        const available = await this.getAvailableRewards();
+        if (available.length === 0) return void 0;
+        return available[Math.floor(Math.random() * available.length)];
+      }
+      async getRewardForUserMatch(userId, matchId) {
+        const [reward] = await db.select().from(rewards).where(and(eq(rewards.claimedByUserId, userId), eq(rewards.claimedMatchId, matchId)));
+        return reward;
+      }
+      async getRewardForMatch(matchId) {
+        const [reward] = await db.select().from(rewards).where(eq(rewards.claimedMatchId, matchId));
+        return reward;
+      }
+      async getUserRewards(userId) {
+        return db.select().from(rewards).where(eq(rewards.claimedByUserId, userId)).orderBy(desc(rewards.claimedAt));
+      }
+      async deleteReward(rewardId) {
+        await db.delete(rewards).where(eq(rewards.id, rewardId));
+      }
+      async getLedgerForMatch(matchId) {
+        return db.select().from(tournamentLedger).where(eq(tournamentLedger.matchId, matchId));
+      }
+      async createLedgerEntry(data) {
+        const [entry] = await db.insert(tournamentLedger).values(data).returning();
+        return entry;
+      }
+      async getDistinctTournamentNames() {
+        const result = await db.selectDistinct({ name: tournamentLedger.tournamentName }).from(tournamentLedger);
+        return result.map((r) => r.name);
+      }
+      async getTournamentStandings(tName) {
+        const result = await db.select({
+          userId: tournamentLedger.userId,
+          userName: tournamentLedger.userName,
+          totalPoints: sql2`SUM(${tournamentLedger.pointsChange})`.as("total_points"),
+          matchCount: sql2`COUNT(DISTINCT ${tournamentLedger.matchId})`.as("match_count")
+        }).from(tournamentLedger).where(eq(tournamentLedger.tournamentName, tName)).groupBy(tournamentLedger.userId, tournamentLedger.userName).orderBy(desc(sql2`total_points`));
+        return result.map((r) => ({
+          userId: r.userId,
+          userName: r.userName,
+          totalPoints: Number(r.totalPoints),
+          matchCount: Number(r.matchCount)
+        }));
+      }
     };
     storage = new DatabaseStorage();
   }
@@ -354,6 +505,7 @@ __export(cricket_api_exports, {
   fetchLiveScorecard: () => fetchLiveScorecard,
   fetchMatchInfo: () => fetchMatchInfo,
   fetchMatchScorecard: () => fetchMatchScorecard,
+  fetchMatchScorecardWithScore: () => fetchMatchScorecardWithScore,
   fetchMatchSquad: () => fetchMatchSquad,
   fetchPlayingXI: () => fetchPlayingXI,
   fetchPlayingXIFromMatchInfo: () => fetchPlayingXIFromMatchInfo,
@@ -361,10 +513,52 @@ __export(cricket_api_exports, {
   fetchSeriesMatches: () => fetchSeriesMatches,
   fetchSeriesSquad: () => fetchSeriesSquad,
   fetchUpcomingMatches: () => fetchUpcomingMatches,
+  getInMemoryApiCallCount: () => getInMemoryApiCallCount,
   refreshPlayingXIForLiveMatches: () => refreshPlayingXIForLiveMatches,
   refreshStaleMatchStatuses: () => refreshStaleMatchStatuses,
   syncMatchesFromApi: () => syncMatchesFromApi
 });
+async function trackApiCall() {
+  try {
+    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    if (dailyApiCallDate !== today) {
+      dailyApiCalls = 0;
+      dailyApiCallDate = today;
+    }
+    dailyApiCalls++;
+    const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+    const count = await storage2.incrementApiCallCount();
+    dailyApiCalls = count;
+  } catch (e) {
+    console.error("[API Tracker] Failed to track call:", e);
+  }
+}
+function getInMemoryApiCallCount() {
+  const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  if (dailyApiCallDate !== today) return 0;
+  return dailyApiCalls;
+}
+async function trackedFetch(url, init) {
+  await trackApiCall();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 1e4);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+function getActiveApiKey() {
+  const primary = process.env.CRICKET_API_KEY;
+  if (primary) return primary;
+  const fallback = process.env.CRICAPI_KEY_TIER2;
+  if (fallback) {
+    console.log("[CricAPI] Using Tier 2 fallback key");
+    return fallback;
+  }
+  return void 0;
+}
 function isMatchDelayed(apiStatusText) {
   const lower = (apiStatusText || "").toLowerCase();
   return DELAY_KEYWORDS.some((kw) => lower.includes(kw));
@@ -421,9 +615,9 @@ function getTeamShort(fullName) {
   return words.map((w) => w[0]).join("").toUpperCase().substring(0, 4);
 }
 async function fetchUpcomingMatches() {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) {
-    console.log("CRICKET_API_KEY not set, skipping API fetch");
+    console.log("No CricAPI key available, skipping API fetch");
     return [];
   }
   try {
@@ -436,7 +630,7 @@ async function fetchUpcomingMatches() {
     ];
     for (const url of endpoints) {
       try {
-        const res = await fetch(url);
+        const res = await trackedFetch(url);
         if (!res.ok) {
           console.error("Cricket API error:", res.status, res.statusText, url);
           continue;
@@ -454,8 +648,10 @@ async function fetchUpcomingMatches() {
             }
           }
         } else if (json.reason) {
-          console.log(`Cricket API blocked: ${json.reason} - will retry later`);
-          if (json.reason?.includes("Blocked")) {
+          const reason = json.reason || "";
+          console.log(`Cricket API blocked: ${reason} - will retry later`);
+          if (reason.includes("Blocked") || reason.toLowerCase().includes("limit")) {
+            markTier1Blocked();
             break;
           }
         }
@@ -511,14 +707,20 @@ async function fetchUpcomingMatches() {
   }
 }
 async function fetchSeriesMatches(seriesId, seriesName) {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
   try {
     const url = `${CRICKET_API_BASE}/series_info?apikey=${apiKey}&id=${seriesId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return [];
     const json = await res.json();
-    if (json.status !== "success" || !json.data?.matchList) return [];
+    if (json.status !== "success" || !json.data?.matchList) {
+      const reason = (json.reason || json.message || "").toLowerCase();
+      if (reason.includes("limit") || reason.includes("quota") || reason.includes("blocked")) {
+        markTier1Blocked();
+      }
+      return [];
+    }
     console.log(`Series Info API: fetched ${json.data.matchList.length} matches for ${seriesName}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
     return json.data.matchList.filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && !m.teams.includes("Tbc")).map((m) => {
       const team1 = m.teams[0];
@@ -607,49 +809,42 @@ async function upsertMatches(apiMatches, existingMatches) {
 }
 async function syncMatchesFromApi(retryCount = 0) {
   const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
-  console.log("Auto-syncing matches from Cricket API...");
+  console.log("Auto-syncing matches (ICC T20 WC only \u2014 1 API call)...");
   try {
-    const apiMatches = await fetchUpcomingMatches();
-    if (apiMatches.length === 0 && retryCount < 3) {
-      const delayMin = retryCount === 0 ? 1 : retryCount === 1 ? 5 : 15;
-      console.log(`No matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/3)`);
-      setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1e3);
-      return;
-    }
     const existing = await storage2.getAllMatches();
-    const { created, updated } = await upsertMatches(apiMatches, existing);
-    console.log(`Cricket API sync: ${created} new, ${updated} updated from general endpoints`);
-    const refreshedExisting = created > 0 ? await storage2.getAllMatches() : existing;
-    let seriesCreated = 0;
-    let seriesUpdated = 0;
+    let totalCreated = 0;
+    let totalUpdated = 0;
     for (const series of TRACKED_SERIES) {
       try {
         const seriesMatches = await fetchSeriesMatches(series.id, series.name);
         if (seriesMatches.length > 0) {
-          const result = await upsertMatches(seriesMatches, refreshedExisting);
-          seriesCreated += result.created;
-          seriesUpdated += result.updated;
-          if (result.created > 0) {
-            refreshedExisting.push(...await storage2.getAllMatches());
-          }
+          const result = await upsertMatches(seriesMatches, existing);
+          totalCreated += result.created;
+          totalUpdated += result.updated;
+          console.log(`${series.name}: ${result.created} new, ${result.updated} updated (${seriesMatches.length} matches total)`);
+        } else if (retryCount < 2) {
+          const delayMin = retryCount === 0 ? 5 : 15;
+          console.log(`No T20 WC matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/2)`);
+          setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1e3);
+          return;
         }
       } catch (err) {
         console.error(`Series sync error for ${series.name}:`, err);
       }
     }
-    if (seriesCreated > 0 || seriesUpdated > 0) {
-      console.log(`Series sync: ${seriesCreated} new, ${seriesUpdated} updated from tracked series`);
+    if (totalCreated === 0 && totalUpdated === 0) {
+      console.log("T20 WC sync: no changes");
     }
   } catch (err) {
     console.error("Auto-sync failed:", err);
   }
 }
 async function fetchMatchInfo(matchId) {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return null;
   try {
     const url = `${CRICKET_API_BASE}/match_info?apikey=${apiKey}&id=${matchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return null;
     const json = await res.json();
     if (json.status !== "success") return null;
@@ -660,11 +855,11 @@ async function fetchMatchInfo(matchId) {
   }
 }
 async function fetchPlayingXI(externalMatchId) {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return [];
     const json = await res.json();
     if (json.status !== "success" || !json.data?.scorecard) return [];
@@ -696,12 +891,34 @@ async function refreshPlayingXIForLiveMatches() {
   if (liveMatches.length === 0) return;
   for (const match of liveMatches) {
     try {
+      if (match.playingXIManual) {
+        console.log(`Playing XI skipped (admin manual): ${match.team1} vs ${match.team2}`);
+        continue;
+      }
       const existingCount = await storage2.getPlayingXICount(match.id);
       if (existingCount >= 22) continue;
       const playingIds = await fetchPlayingXI(match.externalId);
       if (playingIds.length >= 2) {
         await storage2.markPlayingXI(match.id, playingIds);
         console.log(`Playing XI updated for ${match.team1} vs ${match.team2}: ${playingIds.length} players marked`);
+        const updatedPlayers = await storage2.getPlayersForMatch(match.id);
+        const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
+        const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
+        const allTeams = await storage2.getAllTeamsForMatch(match.id);
+        for (const team of allTeams) {
+          const teamPlayerIds = team.playerIds;
+          let totalPoints = 0;
+          for (const pid of teamPlayerIds) {
+            const p = playerById.get(pid) || playerByExtId.get(pid);
+            if (p) {
+              let pts = p.points || 0;
+              if (pid === team.captainId) pts *= 2;
+              else if (pid === team.viceCaptainId) pts *= 1.5;
+              totalPoints += pts;
+            }
+          }
+          await storage2.updateUserTeamPoints(team.id, totalPoints);
+        }
       }
     } catch (err) {
       console.error(`Playing XI refresh failed for match ${match.id}:`, err);
@@ -713,7 +930,7 @@ async function refreshStaleMatchStatuses() {
   if (now - lastStatusRefresh < STATUS_REFRESH_INTERVAL) return;
   lastStatusRefresh = now;
   const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return;
   const allMatches = await storage2.getAllMatches();
   const staleMatches = allMatches.filter((m) => {
@@ -784,11 +1001,11 @@ function assignCredits(role) {
   }
 }
 async function fetchSeriesSquad(seriesId) {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
   try {
     const url = `${CRICKET_API_BASE}/series_squad?apikey=${apiKey}&id=${seriesId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) {
       console.error("Series Squad API error:", res.status);
       return [];
@@ -821,11 +1038,11 @@ async function fetchSeriesSquad(seriesId) {
   }
 }
 async function fetchPlayingXIFromMatchInfo(externalMatchId) {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
   try {
     const url = `${CRICKET_API_BASE}/match_info?apikey=${apiKey}&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return [];
     const json = await res.json();
     if (json.status !== "success" || !json.data) return [];
@@ -849,11 +1066,11 @@ async function fetchPlayingXIFromMatchInfo(externalMatchId) {
   }
 }
 async function fetchMatchSquad(externalMatchId) {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
   try {
     const url = `${CRICKET_API_BASE}/match_squad?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) {
       console.error("Squad API error:", res.status);
       return [];
@@ -887,49 +1104,100 @@ async function fetchMatchSquad(externalMatchId) {
 }
 function calculateFantasyPoints(playerId, scorecard) {
   let points = 0;
+  let totalCatches = 0;
   for (const inning of scorecard) {
     const bat = inning.batting?.find((b) => b.batsman?.id === playerId);
     if (bat) {
       points += bat.r;
-      points += bat["4s"];
-      points += bat["6s"] * 2;
+      points += bat["4s"] * 4;
+      points += bat["6s"] * 6;
       if (bat.r >= 100) points += 16;
+      else if (bat.r >= 75) points += 12;
       else if (bat.r >= 50) points += 8;
-      else if (bat.r >= 30) points += 4;
+      else if (bat.r >= 25) points += 4;
       if (bat.r === 0 && bat.b > 0) points -= 2;
-      if (bat.sr > 170) points += 6;
-      else if (bat.sr > 150) points += 4;
-      else if (bat.sr > 130) points += 2;
-      else if (bat.sr < 50 && bat.b >= 10) points -= 6;
-      else if (bat.sr < 60 && bat.b >= 10) points -= 4;
+      if (bat.b >= 10) {
+        if (bat.sr > 170) points += 6;
+        else if (bat.sr > 150) points += 4;
+        else if (bat.sr >= 130) points += 2;
+        else if (bat.sr <= 70 && bat.sr >= 60) points -= 2;
+        else if (bat.sr < 60 && bat.sr >= 50) points -= 4;
+        else if (bat.sr < 50) points -= 6;
+      }
     }
     const bowl = inning.bowling?.find((b) => b.bowler?.id === playerId);
     if (bowl) {
-      points += bowl.w * 25;
+      points += bowl.w * 30;
       if (bowl.w >= 5) points += 16;
       else if (bowl.w >= 4) points += 8;
       else if (bowl.w >= 3) points += 4;
       if (bowl.m > 0) points += bowl.m * 12;
-      if (bowl.eco < 5) points += 6;
-      else if (bowl.eco < 6) points += 4;
-      else if (bowl.eco < 7) points += 2;
-      else if (bowl.eco > 12) points -= 6;
-      else if (bowl.eco > 11) points -= 4;
-      else if (bowl.eco > 10) points -= 2;
+      const dotBalls = typeof bowl.dots === "number" ? bowl.dots : 0;
+      points += dotBalls * 1;
+      const totalOvers = bowl.o;
+      if (totalOvers >= 2) {
+        if (bowl.eco < 5) points += 6;
+        else if (bowl.eco >= 5 && bowl.eco < 6) points += 4;
+        else if (bowl.eco >= 6 && bowl.eco <= 7) points += 2;
+        else if (bowl.eco >= 10 && bowl.eco <= 11) points -= 2;
+        else if (bowl.eco > 11 && bowl.eco <= 12) points -= 4;
+        else if (bowl.eco > 12) points -= 6;
+      }
+      const battingEntries2 = inning.batting || [];
+      for (const b of battingEntries2) {
+        const d = (b.dismissal || "").toLowerCase();
+        if (d.startsWith("lbw") || d.startsWith("b ")) {
+          if (bowl.bowler?.name && d.includes(bowl.bowler.name.toLowerCase())) {
+            points += 8;
+          }
+        }
+      }
     }
     const catcher = inning.catching?.find((c) => c.catcher?.id === playerId);
     if (catcher) {
-      points += (catcher.catches || 0) * 8;
+      const catches = catcher.catches || 0;
+      points += catches * 8;
+      totalCatches += catches;
+    }
+    const battingEntries = inning.batting || [];
+    for (const b of battingEntries) {
+      const d = (b.dismissal || "").toLowerCase();
+      if (d.includes("st ") && d.includes(playerId)) {
+        points += 12;
+      }
+      if (d.includes("run out")) {
+        const parenMatch = d.match(/run out\s*\(([^)]+)\)/i);
+        if (parenMatch) {
+          const fieldersStr = parenMatch[1];
+          const fielderNames = fieldersStr.split("/").map((f) => f.trim().toLowerCase());
+          if (fielderNames.length === 1) {
+            if (d.includes(playerId) || fielderNames[0].includes(playerId)) {
+              points += 12;
+            }
+          } else {
+            const last2 = fielderNames.slice(-2);
+            const playerInvolved = d.includes(playerId);
+            if (playerInvolved) {
+              points += 6;
+            }
+          }
+        } else {
+          if (d.includes(playerId)) {
+            points += 12;
+          }
+        }
+      }
     }
   }
+  if (totalCatches >= 3) points += 4;
   return points;
 }
 async function fetchPlayingXIFromScorecard(externalMatchId) {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return [];
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
+    const res = await trackedFetch(url);
     if (!res.ok) return [];
     const json = await res.json();
     if (json.status !== "success" || !json.data?.scorecard) return [];
@@ -954,82 +1222,285 @@ async function fetchPlayingXIFromScorecard(externalMatchId) {
     return [];
   }
 }
-async function fetchMatchScorecard(externalMatchId) {
-  const apiKey = process.env.CRICKET_API_KEY;
+async function fetchMatchScorecardWithScore(externalMatchId) {
+  const apiKey = getActiveApiKey();
   const pointsMap = /* @__PURE__ */ new Map();
-  if (!apiKey) return pointsMap;
+  const namePointsMap = /* @__PURE__ */ new Map();
+  let scoreString = "";
+  let matchEnded = false;
+  let totalOvers = 0;
+  if (!apiKey) return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
-    if (!res.ok) return pointsMap;
-    const json = await res.json();
-    if (json.status !== "success" || !json.data?.scorecard) return pointsMap;
-    console.log(`Scorecard API: fetched ${json.data.scorecard.length} innings for match ${externalMatchId}`);
-    const allPlayerIds = /* @__PURE__ */ new Set();
-    for (const inning of json.data.scorecard) {
-      inning.batting?.forEach((b) => allPlayerIds.add(b.batsman?.id));
-      inning.bowling?.forEach((b) => allPlayerIds.add(b.bowler?.id));
-      inning.catching?.forEach((c) => allPlayerIds.add(c.catcher?.id));
+    const res = await trackedFetch(url);
+    if (!res.ok) {
+      console.error(`[ScorecardWithScore] HTTP ${res.status} for ${externalMatchId}`);
+      return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
     }
-    for (const pid of allPlayerIds) {
-      if (pid) {
-        const pts = calculateFantasyPoints(pid, json.data.scorecard);
-        pointsMap.set(pid, pts);
+    let json;
+    try {
+      json = await res.json();
+    } catch (parseErr) {
+      console.error(`[ScorecardWithScore] JSON parse failed for ${externalMatchId}:`, parseErr);
+      return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+    }
+    if (json?.status !== "success" || !json?.data) {
+      const errorMsg = json?.reason || json?.status || "";
+      if (json?.status === "failure" || json?.reason) {
+        console.error(`[ScorecardWithScore] API error for ${externalMatchId}: ${errorMsg}`);
+      }
+      return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+    }
+    const scoreArr = Array.isArray(json.data.score) ? json.data.score : [];
+    if (scoreArr.length > 0) {
+      scoreString = scoreArr.map((s) => `${s?.inning ?? "?"}: ${s?.r ?? 0}/${s?.w ?? 0} (${s?.o ?? 0} ov)`).join(" | ");
+      totalOvers = scoreArr.reduce((sum, s) => sum + (s?.o || 0), 0);
+    }
+    const scorecardInningsRaw = Array.isArray(json.data.scorecard) ? json.data.scorecard : [];
+    if (scorecardInningsRaw.length > scoreArr.length) {
+      console.log(`[ScorecardWithScore] scorecard has ${scorecardInningsRaw.length} innings but score array has ${scoreArr.length} \u2014 building score from scorecard`);
+      const builtScoreParts = [];
+      let builtTotalOvers = 0;
+      for (const inn of scorecardInningsRaw) {
+        const batting = Array.isArray(inn?.batting) ? inn.batting : [];
+        if (batting.length === 0) continue;
+        let runs = 0, wickets = 0, maxOvers = 0;
+        const extras = inn?.extras?.total || 0;
+        for (const b of batting) {
+          runs += b?.r || 0;
+          if (b?.dismissal && b.dismissal !== "not out" && b.dismissal !== "batting") wickets++;
+        }
+        runs += extras;
+        const bowling = Array.isArray(inn?.bowling) ? inn.bowling : [];
+        for (const bw of bowling) {
+          const bowlOvers = bw?.o || 0;
+          maxOvers += bowlOvers;
+        }
+        const inningName = inn?.inning || "?";
+        builtScoreParts.push(`${inningName}: ${runs}/${wickets} (${maxOvers} ov)`);
+        builtTotalOvers += maxOvers;
+      }
+      if (builtTotalOvers > totalOvers && builtScoreParts.length > 0) {
+        scoreString = builtScoreParts.join(" | ");
+        totalOvers = builtTotalOvers;
+        console.log(`[ScorecardWithScore] Using scorecard-derived score: ${scoreString}, totalOvers=${totalOvers}`);
       }
     }
-    return pointsMap;
+    const matchStatus = (json.data.name || json.data.status || "").toLowerCase();
+    matchEnded = matchStatus.includes("won") || matchStatus.includes("draw") || matchStatus.includes("tied") || matchStatus.includes("finished") || matchStatus.includes("ended") || matchStatus.includes("result") || matchStatus.includes("aban") || matchStatus.includes("no result") || matchStatus.includes("d/l") || matchStatus.includes("dls") || matchStatus.includes("beat") || matchStatus.includes("defeat");
+    if (!matchEnded && json.data.matchEnded === true) {
+      matchEnded = true;
+    }
+    if (!matchEnded && scoreArr.length >= 2) {
+      const inn2 = scoreArr[scoreArr.length - 1];
+      const inn1 = scoreArr[0];
+      const inn2Wickets = inn2?.w ?? 0;
+      const inn2Overs = inn2?.o ?? 0;
+      const inn2Runs = inn2?.r ?? 0;
+      const inn1Runs = inn1?.r ?? 0;
+      const allOut = inn2Wickets >= 10;
+      const oversComplete = inn2Overs >= 20;
+      const targetChased = inn2Runs > inn1Runs;
+      if (allOut || oversComplete || targetChased) {
+        matchEnded = true;
+        console.log(`[ScorecardWithScore] matchEnded inferred from innings data: allOut=${allOut}, oversComplete=${oversComplete}, targetChased=${targetChased}`);
+      }
+    }
+    const statusText = json.data.name || json.data.status || "";
+    if (statusText) {
+      scoreString += ` \u2014 ${statusText}`;
+    }
+    const scorecardInnings = Array.isArray(json.data.scorecard) ? json.data.scorecard : [];
+    if (scorecardInnings.length > 0) {
+      const allPlayers = /* @__PURE__ */ new Map();
+      for (const inning of scorecardInnings) {
+        const batting = Array.isArray(inning?.batting) ? inning.batting : [];
+        const bowling = Array.isArray(inning?.bowling) ? inning.bowling : [];
+        const catching = Array.isArray(inning?.catching) ? inning.catching : [];
+        batting.forEach((b) => {
+          if (b?.batsman?.id) allPlayers.set(b.batsman.id, b.batsman.name || "");
+        });
+        bowling.forEach((b) => {
+          if (b?.bowler?.id) allPlayers.set(b.bowler.id, b.bowler.name || "");
+        });
+        catching.forEach((c) => {
+          if (c?.catcher?.id) allPlayers.set(c.catcher.id, c.catcher.name || "");
+        });
+      }
+      console.log(`[ScorecardWithScore] ${scorecardInnings.length} innings, ${allPlayers.size} players found for ${externalMatchId}`);
+      for (const [pid, pname] of allPlayers) {
+        try {
+          const pts = calculateFantasyPoints(pid, scorecardInnings);
+          pointsMap.set(pid, pts);
+          if (pname) {
+            const normalizedName = pname.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+            namePointsMap.set(normalizedName, pts);
+            console.log(`[ScorecardWithScore] ${pname} -> ${pts} fantasy pts`);
+          }
+        } catch (ptErr) {
+          console.error(`[ScorecardWithScore] calculateFantasyPoints crashed for ${pname} (${pid}):`, ptErr);
+        }
+      }
+    }
+    return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+  } catch (err) {
+    console.error("ScorecardWithScore error:", err);
+    return { pointsMap, namePointsMap, scoreString, matchEnded, totalOvers };
+  }
+}
+async function fetchMatchScorecard(externalMatchId) {
+  const apiKey = getActiveApiKey();
+  const pointsMap = /* @__PURE__ */ new Map();
+  const namePointsMap = /* @__PURE__ */ new Map();
+  if (!apiKey) return { pointsMap, namePointsMap };
+  try {
+    const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
+    const res = await trackedFetch(url);
+    if (!res.ok) return { pointsMap, namePointsMap };
+    const json = await res.json();
+    if (json.status !== "success" || !json.data?.scorecard) return { pointsMap, namePointsMap };
+    console.log(`Scorecard API: fetched ${json.data.scorecard.length} innings for match ${externalMatchId}`);
+    const allPlayers = /* @__PURE__ */ new Map();
+    for (const inning of json.data.scorecard) {
+      inning.batting?.forEach((b) => {
+        if (b.batsman?.id) allPlayers.set(b.batsman.id, b.batsman.name || "");
+      });
+      inning.bowling?.forEach((b) => {
+        if (b.bowler?.id) allPlayers.set(b.bowler.id, b.bowler.name || "");
+      });
+      inning.catching?.forEach((c) => {
+        if (c.catcher?.id) allPlayers.set(c.catcher.id, c.catcher.name || "");
+      });
+    }
+    for (const [pid, pname] of allPlayers) {
+      const pts = calculateFantasyPoints(pid, json.data.scorecard);
+      pointsMap.set(pid, pts);
+      if (pname) {
+        const normalizedName = pname.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+        namePointsMap.set(normalizedName, pts);
+      }
+    }
+    return { pointsMap, namePointsMap };
   } catch (err) {
     console.error("Scorecard API error:", err);
-    return pointsMap;
+    return { pointsMap, namePointsMap };
   }
 }
 async function fetchLiveScorecard(externalMatchId) {
-  const apiKey = process.env.CRICKET_API_KEY;
+  const apiKey = getActiveApiKey();
   if (!apiKey) return null;
   try {
     const url = `${CRICKET_API_BASE}/match_scorecard?apikey=${apiKey}&offset=0&id=${externalMatchId}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (json.status !== "success" || !json.data) return null;
+    const res = await trackedFetch(url);
+    if (!res.ok) {
+      console.error(`[LiveScorecard] HTTP ${res.status} for ${externalMatchId}`);
+      return null;
+    }
+    let json;
+    try {
+      json = await res.json();
+    } catch (parseErr) {
+      console.error(`[LiveScorecard] JSON parse failed for ${externalMatchId}:`, parseErr);
+      return null;
+    }
+    if (json?.status !== "success" || !json?.data) {
+      const errorMsg = json?.reason || json?.status || "";
+      if (json?.status === "failure" || json?.reason) {
+        console.error(`[LiveScorecard] API error for ${externalMatchId}: ${errorMsg}`);
+      }
+      return null;
+    }
     const scorecard = json.data.scorecard || [];
-    const innings = scorecard.map((inn) => ({
-      inning: inn.inning,
-      batting: (inn.batting || []).map((b) => ({
-        name: b.batsman?.name || "",
-        r: b.r,
-        b: b.b,
-        fours: b["4s"],
-        sixes: b["6s"],
-        sr: b.sr,
-        dismissal: b.dismissal || "not out",
-        fantasyPoints: b.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0
-      })),
-      bowling: (inn.bowling || []).map((b) => ({
-        name: b.bowler?.name || "",
-        o: b.o,
-        m: b.m,
-        r: b.r,
-        w: b.w,
-        eco: b.eco,
-        fantasyPoints: b.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0
-      }))
-    }));
+    const scoreArr = json.data.score || [];
+    const innings = scorecard.map((inn, idx) => {
+      const battingArr = Array.isArray(inn?.batting) ? inn.batting : [];
+      const bowlingArr = Array.isArray(inn?.bowling) ? inn.bowling : [];
+      const batterRuns = battingArr.reduce((sum, b) => sum + (b?.r || 0), 0);
+      const matchScore = scoreArr.find((s) => s?.inning === inn?.inning) || scoreArr[idx];
+      const totalFromApi = matchScore ? matchScore.r ?? 0 : batterRuns;
+      const extrasTotal = totalFromApi - batterRuns;
+      const rawExtras = inn?.extras;
+      const apiExtrasTotal = rawExtras?.total ?? rawExtras?.r;
+      const finalExtras = apiExtrasTotal != null ? apiExtrasTotal : extrasTotal > 0 ? extrasTotal : 0;
+      return {
+        inning: inn?.inning ?? `Inning ${idx + 1}`,
+        extras: finalExtras,
+        totals: matchScore ? { r: matchScore.r ?? 0, w: matchScore.w ?? 0, o: matchScore.o ?? 0 } : void 0,
+        batting: battingArr.map((b) => ({
+          name: b?.batsman?.name || b?.name || "",
+          r: b?.r ?? 0,
+          b: b?.b ?? 0,
+          fours: b?.["4s"] ?? 0,
+          sixes: b?.["6s"] ?? 0,
+          sr: b?.sr ?? 0,
+          dismissal: b?.dismissal || "not out",
+          fantasyPoints: b?.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0
+        })),
+        bowling: bowlingArr.map((b) => ({
+          name: b?.bowler?.name || b?.name || "",
+          o: b?.o ?? 0,
+          m: b?.m ?? 0,
+          r: b?.r ?? 0,
+          w: b?.w ?? 0,
+          eco: b?.eco ?? 0,
+          fantasyPoints: b?.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0
+        }))
+      };
+    });
+    let finalScore = scoreArr.map((s) => ({ r: s?.r ?? 0, w: s?.w ?? 0, o: s?.o ?? 0, inning: s?.inning ?? "" }));
+    if (scorecard.length > 0) {
+      const builtScore = scorecard.map((inn, idx) => {
+        const battingArr = Array.isArray(inn?.batting) ? inn.batting : [];
+        const bowlingArr = Array.isArray(inn?.bowling) ? inn.bowling : [];
+        const extras = inn?.extras?.total || 0;
+        let runs = 0, wickets = 0;
+        for (const b of battingArr) {
+          runs += b?.r || 0;
+          if (b?.dismissal && b.dismissal !== "not out" && b.dismissal !== "batting") wickets++;
+        }
+        runs += extras;
+        let overs = 0;
+        for (const bw of bowlingArr) {
+          overs += bw?.o || 0;
+        }
+        const existingScore = scoreArr.find((s) => s?.inning === inn?.inning) || scoreArr[idx];
+        const builtR = runs;
+        const builtW = wickets;
+        const builtO = overs;
+        const apiR = existingScore?.r ?? 0;
+        const apiO = existingScore?.o ?? 0;
+        const useBuilt = builtO > apiO || builtR > apiR || !existingScore;
+        return {
+          r: useBuilt ? builtR : apiR,
+          w: useBuilt ? builtW : existingScore?.w ?? 0,
+          o: useBuilt ? builtO : apiO,
+          inning: inn?.inning ?? existingScore?.inning ?? `Inning ${idx + 1}`
+        };
+      });
+      const builtTotalOvers = builtScore.reduce((sum, s) => sum + s.o, 0);
+      const apiTotalOvers = finalScore.reduce((sum, s) => sum + s.o, 0);
+      if (builtTotalOvers > apiTotalOvers || builtScore.length > finalScore.length) {
+        console.log(`[LiveScorecard] Using scorecard-derived scores (${builtScore.length} innings, ${builtTotalOvers} ov) over API score (${finalScore.length} innings, ${apiTotalOvers} ov)`);
+        finalScore = builtScore;
+      }
+    }
     return {
-      score: json.data.score || [],
+      score: finalScore,
       innings,
-      status: json.data.name || ""
+      status: json.data.name || json.data.status || ""
     };
   } catch (err) {
     console.error("Live scorecard error:", err);
     return null;
   }
 }
-var CRICKET_API_BASE, DELAY_KEYWORDS, TEAM_COLORS, TRACKED_SERIES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
+var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, DELAY_KEYWORDS, TEAM_COLORS, TRACKED_SERIES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
     "use strict";
     CRICKET_API_BASE = "https://api.cricapi.com/v1";
+    dailyApiCalls = 0;
+    dailyApiCallDate = "";
     DELAY_KEYWORDS = [
       "rain",
       "delay",
@@ -1048,632 +1519,33 @@ var init_cricket_api = __esm({
       "yet to begin"
     ];
     TEAM_COLORS = {
-      MI: "#004BA0",
-      CSK: "#FFCB05",
-      RCB: "#EC1C24",
-      KKR: "#3A225D",
-      DC: "#17449B",
-      RR: "#EA1A85",
-      SRH: "#FF822A",
-      PBKS: "#ED1B24",
-      GT: "#1B2133",
-      LSG: "#A72056",
-      IND: "#0066B3",
-      AUS: "#FFCC00",
-      ENG: "#003366",
-      PAK: "#006633",
-      SA: "#006A4E",
+      IND: "#0077FF",
+      PAK: "#009900",
+      AUS: "#FFD700",
+      ENG: "#CC0000",
+      SA: "#006400",
       NZ: "#000000",
-      WI: "#7B0041",
-      SL: "#003DA5",
-      BAN: "#006A4E",
-      AFG: "#0066FF"
+      WI: "#800000",
+      SL: "#000080",
+      BAN: "#006400",
+      AFG: "#0066CC",
+      NED: "#FF8000",
+      CSK: "#FFFF3C",
+      RCB: "#EC1C24",
+      MI: "#004B8D",
+      KKR: "#3A225D",
+      SRH: "#F7A721",
+      RR: "#EA1A85",
+      DC: "#00008B",
+      PBKS: "#DD1F2D",
+      LSG: "#3FD5F3",
+      GT: "#1B2133"
     };
     TRACKED_SERIES = [
       { id: "0cdf6736-ad9b-4e95-a647-5ee3a99c5510", name: "ICC Men's T20 World Cup 2026" }
     ];
     lastStatusRefresh = 0;
     STATUS_REFRESH_INTERVAL = 5 * 60 * 1e3;
-  }
-});
-
-// server/api-cricket.ts
-var api_cricket_exports = {};
-__export(api_cricket_exports, {
-  calculatePointsFromApiCricket: () => calculatePointsFromApiCricket,
-  fetchApiCricketLineups: () => fetchApiCricketLineups,
-  fetchApiCricketScorecard: () => fetchApiCricketScorecard,
-  fetchApiCricketT20WCMatches: () => fetchApiCricketT20WCMatches,
-  markPlayingXIFromApiCricket: () => markPlayingXIFromApiCricket
-});
-async function apiCricketFetch(params) {
-  const apiKey = process.env.API_CRICKET_KEY;
-  if (!apiKey) {
-    console.log("API_CRICKET_KEY not set, skipping api-cricket.com");
-    return null;
-  }
-  const url = new URL(API_CRICKET_BASE);
-  url.searchParams.set("APIkey", apiKey);
-  for (const [k, v] of Object.entries(params)) {
-    url.searchParams.set(k, v);
-  }
-  try {
-    const res = await fetch(url.toString());
-    if (!res.ok) {
-      console.log(`api-cricket.com error: ${res.status}`);
-      return null;
-    }
-    const data = await res.json();
-    if (data.error === "1" || data.success !== 1) {
-      console.log("api-cricket.com API error:", JSON.stringify(data.result?.[0] || data));
-      return null;
-    }
-    return data;
-  } catch (err) {
-    console.error("api-cricket.com fetch error:", err);
-    return null;
-  }
-}
-function normalizePlayerName(name) {
-  return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-}
-function playerNameMatch(apiName, dbName) {
-  const n1 = normalizePlayerName(apiName);
-  const n2 = normalizePlayerName(dbName);
-  if (n1 === n2) return true;
-  const parts1 = n1.split(" ");
-  const parts2 = n2.split(" ");
-  if (parts1.length > 0 && parts2.length > 0) {
-    const lastName1 = parts1[parts1.length - 1];
-    const lastName2 = parts2[parts2.length - 1];
-    if (lastName1 === lastName2 && lastName1.length > 2) {
-      if (parts1[0][0] === parts2[0][0]) return true;
-    }
-  }
-  if (n1.includes(n2) || n2.includes(n1)) return true;
-  return false;
-}
-async function fetchApiCricketT20WCMatches(dateStart, dateStop) {
-  const start = dateStart || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const stop = dateStop || start;
-  const data = await apiCricketFetch({
-    method: "get_events",
-    league_key: T20_WC_LEAGUE_KEY,
-    date_start: start,
-    date_stop: stop
-  });
-  if (!data?.result || !Array.isArray(data.result)) return [];
-  console.log(`api-cricket.com: fetched ${data.result.length} T20 WC events (${start} to ${stop})`);
-  return data.result;
-}
-async function fetchApiCricketLineups(team1Short, team2Short, matchDate) {
-  const dateStart = matchDate || new Date(Date.now() - 2 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
-  const dateStop = matchDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
-  const events = await fetchApiCricketT20WCMatches(dateStart, dateStop);
-  if (events.length === 0) return null;
-  const t1 = team1Short.toUpperCase();
-  const t2 = team2Short.toUpperCase();
-  const match = events.find((e) => {
-    const home = (e.event_home_team || "").toLowerCase();
-    const away = (e.event_away_team || "").toLowerCase();
-    return (home.includes(t1.toLowerCase()) || away.includes(t1.toLowerCase())) && (home.includes(t2.toLowerCase()) || away.includes(t2.toLowerCase()));
-  });
-  if (!match) {
-    const teamNameMap = {
-      IND: ["india"],
-      PAK: ["pakistan"],
-      AUS: ["australia"],
-      ENG: ["england"],
-      SA: ["south africa"],
-      NZ: ["new zealand"],
-      WI: ["west indies"],
-      SL: ["sri lanka"],
-      BAN: ["bangladesh"],
-      AFG: ["afghanistan"],
-      ZIM: ["zimbabwe"],
-      IRE: ["ireland"],
-      SCO: ["scotland"],
-      NED: ["netherlands"],
-      NAM: ["namibia"],
-      UAE: ["united arab emirates", "uae"],
-      USA: ["united states", "u.s.a"],
-      NEP: ["nepal"],
-      CAN: ["canada"],
-      ITA: ["italy"]
-    };
-    const t1Names = teamNameMap[t1] || [t1.toLowerCase()];
-    const t2Names = teamNameMap[t2] || [t2.toLowerCase()];
-    const betterMatch = events.find((e) => {
-      const home = (e.event_home_team || "").toLowerCase();
-      const away = (e.event_away_team || "").toLowerCase();
-      const t1Found = t1Names.some((n) => home.includes(n) || away.includes(n));
-      const t2Found = t2Names.some((n) => home.includes(n) || away.includes(n));
-      return t1Found && t2Found;
-    });
-    if (!betterMatch) {
-      console.log(`api-cricket.com: no match found for ${t1} vs ${t2}`);
-      return null;
-    }
-    return extractLineups(betterMatch);
-  }
-  return extractLineups(match);
-}
-function extractLineups(match) {
-  const homeLineups = match.lineups?.home_team?.starting_lineups || [];
-  const awayLineups = match.lineups?.away_team?.starting_lineups || [];
-  if (homeLineups.length === 0 && awayLineups.length === 0) {
-    console.log(`api-cricket.com: no lineups available for ${match.event_home_team} vs ${match.event_away_team}`);
-    return null;
-  }
-  const homeXI = homeLineups.map((p) => p.player);
-  const awayXI = awayLineups.map((p) => p.player);
-  console.log(`api-cricket.com lineups: ${match.event_home_team} (${homeXI.length}) vs ${match.event_away_team} (${awayXI.length})`);
-  return {
-    homeXI,
-    awayXI,
-    homeTeam: match.event_home_team,
-    awayTeam: match.event_away_team
-  };
-}
-async function markPlayingXIFromApiCricket(dbMatchId, team1Short, team2Short, matchDate) {
-  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
-  const lineups = await fetchApiCricketLineups(team1Short, team2Short, matchDate);
-  if (!lineups) return { matched: 0, playerNames: [] };
-  const allNames = [...lineups.homeXI, ...lineups.awayXI];
-  if (allNames.length === 0) return { matched: 0, playerNames: [] };
-  const filteredNames = allNames.filter((n) => n && n.trim().length > 0);
-  const dbPlayers = await storage2.getPlayersForMatch(dbMatchId);
-  const matchedPlayerIds = [];
-  const matchedNames = [];
-  for (const apiName of filteredNames) {
-    const found = dbPlayers.find((p) => playerNameMatch(apiName, p.name));
-    if (found && found.externalId) {
-      matchedPlayerIds.push(found.externalId);
-      matchedNames.push(found.name);
-    }
-  }
-  if (matchedPlayerIds.length > 0) {
-    await storage2.markPlayingXI(dbMatchId, matchedPlayerIds);
-    console.log(`api-cricket.com Playing XI: matched ${matchedPlayerIds.length}/${filteredNames.length} players for match ${dbMatchId}`);
-  } else {
-    console.log(`api-cricket.com Playing XI: 0 matches from ${filteredNames.length} names for match ${dbMatchId}`);
-  }
-  return { matched: matchedPlayerIds.length, playerNames: matchedNames };
-}
-async function fetchApiCricketScorecard(team1Short, team2Short, matchDate) {
-  const dateStart = matchDate || new Date(Date.now() - 2 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
-  const dateStop = matchDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
-  const events = await fetchApiCricketT20WCMatches(dateStart, dateStop);
-  if (events.length === 0) return null;
-  const t1 = team1Short.toUpperCase();
-  const t2 = team2Short.toUpperCase();
-  const teamNameMap = {
-    IND: ["india"],
-    PAK: ["pakistan"],
-    AUS: ["australia"],
-    ENG: ["england"],
-    SA: ["south africa"],
-    NZ: ["new zealand"],
-    WI: ["west indies"],
-    SL: ["sri lanka"],
-    BAN: ["bangladesh"],
-    AFG: ["afghanistan"],
-    ZIM: ["zimbabwe"],
-    IRE: ["ireland"],
-    SCO: ["scotland"],
-    NED: ["netherlands"],
-    NAM: ["namibia"],
-    UAE: ["united arab emirates", "uae"],
-    USA: ["united states", "u.s.a"],
-    NEP: ["nepal"],
-    CAN: ["canada"],
-    ITA: ["italy"]
-  };
-  const t1Names = teamNameMap[t1] || [t1.toLowerCase()];
-  const t2Names = teamNameMap[t2] || [t2.toLowerCase()];
-  const match = events.find((e) => {
-    const home = (e.event_home_team || "").toLowerCase();
-    const away = (e.event_away_team || "").toLowerCase();
-    const t1Found = t1Names.some((n) => home.includes(n) || away.includes(n));
-    const t2Found = t2Names.some((n) => home.includes(n) || away.includes(n));
-    return t1Found && t2Found;
-  });
-  if (!match || !match.scorecard) return null;
-  const inningsKeys = Object.keys(match.scorecard);
-  if (inningsKeys.length === 0) return null;
-  const score = [];
-  const innings = [];
-  for (const innKey of inningsKeys) {
-    const players2 = match.scorecard[innKey];
-    if (!players2 || !Array.isArray(players2)) continue;
-    const batsmen = players2.filter((p) => p.type === "Batsman");
-    const bowlers = players2.filter((p) => p.type === "Bowler");
-    const totalRuns = batsmen.reduce((sum, b) => sum + parseInt(b.R || "0"), 0);
-    const totalWickets = bowlers.reduce((sum, b) => sum + parseInt(b.W || "0"), 0);
-    let totalBalls = 0;
-    for (const b of bowlers) {
-      const ov = parseFloat(b.O || "0");
-      const fullOvers = Math.floor(ov);
-      const partialBalls = Math.round((ov - fullOvers) * 10);
-      totalBalls += fullOvers * 6 + partialBalls;
-    }
-    const totalOvers = Math.floor(totalBalls / 6) + totalBalls % 6 / 10;
-    score.push({ r: totalRuns, w: totalWickets, o: totalOvers, inning: innKey });
-    innings.push({
-      inning: innKey,
-      batting: batsmen.map((b) => ({
-        name: b.player,
-        r: parseInt(b.R || "0"),
-        b: parseInt(b.B || "0"),
-        fours: parseInt(b["4s"] || "0"),
-        sixes: parseInt(b["6s"] || "0"),
-        sr: parseFloat(b.SR || "0"),
-        dismissal: b.status || "not out"
-      })),
-      bowling: bowlers.map((b) => ({
-        name: b.player,
-        o: parseFloat(b.O || "0"),
-        m: parseInt(b.M || "0"),
-        r: parseInt(b.R || "0"),
-        w: parseInt(b.W || "0"),
-        eco: parseFloat(b.ER || "0")
-      }))
-    });
-  }
-  return {
-    score,
-    innings,
-    status: match.event_status || match.event_status_info || ""
-  };
-}
-async function calculatePointsFromApiCricket(dbMatchId, team1Short, team2Short, matchDate) {
-  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
-  const pointsMap = /* @__PURE__ */ new Map();
-  const scorecard = await fetchApiCricketScorecard(team1Short, team2Short, matchDate);
-  if (!scorecard) return pointsMap;
-  const dbPlayers = await storage2.getPlayersForMatch(dbMatchId);
-  for (const inn of scorecard.innings) {
-    for (const bat of inn.batting) {
-      const found = dbPlayers.find((p) => playerNameMatch(bat.name, p.name));
-      if (found && found.externalId) {
-        const existing = pointsMap.get(found.externalId) || 0;
-        let pts = 0;
-        pts += bat.r;
-        pts += bat.fours;
-        pts += bat.sixes * 2;
-        if (bat.r >= 100) pts += 16;
-        else if (bat.r >= 50) pts += 8;
-        else if (bat.r >= 30) pts += 4;
-        if (bat.r === 0 && bat.b > 0) pts -= 2;
-        if (bat.sr > 170) pts += 6;
-        else if (bat.sr > 150) pts += 4;
-        else if (bat.sr > 130) pts += 2;
-        else if (bat.sr < 50 && bat.b >= 10) pts -= 6;
-        else if (bat.sr < 60 && bat.b >= 10) pts -= 4;
-        pointsMap.set(found.externalId, existing + pts);
-      }
-    }
-    for (const bowl of inn.bowling) {
-      const found = dbPlayers.find((p) => playerNameMatch(bowl.name, p.name));
-      if (found && found.externalId) {
-        const existing = pointsMap.get(found.externalId) || 0;
-        let pts = 0;
-        pts += bowl.w * 25;
-        if (bowl.w >= 5) pts += 16;
-        else if (bowl.w >= 4) pts += 8;
-        else if (bowl.w >= 3) pts += 4;
-        if (bowl.m > 0) pts += bowl.m * 12;
-        if (bowl.eco < 5) pts += 6;
-        else if (bowl.eco < 6) pts += 4;
-        else if (bowl.eco < 7) pts += 2;
-        else if (bowl.eco > 12) pts -= 6;
-        else if (bowl.eco > 11) pts -= 4;
-        else if (bowl.eco > 10) pts -= 2;
-        pointsMap.set(found.externalId, existing + pts);
-      }
-    }
-  }
-  if (pointsMap.size > 0) {
-    console.log(`api-cricket.com points: calculated for ${pointsMap.size} players in match ${dbMatchId}`);
-  }
-  return pointsMap;
-}
-var API_CRICKET_BASE, T20_WC_LEAGUE_KEY;
-var init_api_cricket = __esm({
-  "server/api-cricket.ts"() {
-    "use strict";
-    API_CRICKET_BASE = "https://apiv2.api-cricket.com/cricket";
-    T20_WC_LEAGUE_KEY = "7969";
-  }
-});
-
-// server/cricbuzz-api.ts
-var cricbuzz_api_exports = {};
-__export(cricbuzz_api_exports, {
-  autoVerifyPlayingXI: () => autoVerifyPlayingXI,
-  cricbuzzGetLiveMatches: () => cricbuzzGetLiveMatches,
-  cricbuzzGetMatchInfo: () => cricbuzzGetMatchInfo,
-  cricbuzzGetRecentMatches: () => cricbuzzGetRecentMatches,
-  cricbuzzGetScorecard: () => cricbuzzGetScorecard,
-  cricbuzzGetUpcomingMatches: () => cricbuzzGetUpcomingMatches,
-  extractPlayingXIFromCricbuzz: () => extractPlayingXIFromCricbuzz,
-  fetchCricbuzzLiveScorecard: () => fetchCricbuzzLiveScorecard,
-  findCricbuzzMatch: () => findCricbuzzMatch,
-  markPlayingXIFromCricbuzz: () => markPlayingXIFromCricbuzz,
-  verifyAndSyncMatch: () => verifyAndSyncMatch,
-  verifyMatch: () => verifyMatch
-});
-async function cricbuzzFetch(path2) {
-  try {
-    if (!CRICBUZZ_HEADERS["x-rapidapi-key"]) {
-      console.log("Cricbuzz API: No API key configured");
-      return null;
-    }
-    const url = `${CRICBUZZ_BASE}${path2}`;
-    const res = await fetch(url, { headers: CRICBUZZ_HEADERS });
-    if (!res.ok) {
-      console.log(`Cricbuzz API error: ${res.status} for ${path2}`);
-      return null;
-    }
-    return await res.json();
-  } catch (err) {
-    console.error("Cricbuzz API fetch error:", err);
-    return null;
-  }
-}
-async function cricbuzzGetRecentMatches() {
-  return cricbuzzFetch("/matches/v1/recent");
-}
-async function cricbuzzGetUpcomingMatches() {
-  return cricbuzzFetch("/matches/v1/upcoming");
-}
-async function cricbuzzGetLiveMatches() {
-  return cricbuzzFetch("/matches/v1/live");
-}
-async function cricbuzzGetScorecard(matchId) {
-  return cricbuzzFetch(`/mcenter/v1/${matchId}/scard`);
-}
-async function cricbuzzGetMatchInfo(matchId) {
-  return cricbuzzFetch(`/mcenter/v1/${matchId}`);
-}
-function extractMatches(data) {
-  const matches2 = [];
-  if (!data?.typeMatches) return matches2;
-  for (const typeMatch of data.typeMatches) {
-    if (!typeMatch.seriesMatches) continue;
-    for (const series of typeMatch.seriesMatches) {
-      const wrapper = series.seriesAdWrapper;
-      if (!wrapper?.matches) continue;
-      for (const m of wrapper.matches) {
-        if (m.matchInfo) {
-          matches2.push(m.matchInfo);
-        }
-      }
-    }
-  }
-  return matches2;
-}
-async function findCricbuzzMatch(team1Short, team2Short, matchDate) {
-  const t1 = team1Short.toUpperCase();
-  const t2 = team2Short.toUpperCase();
-  const [recentData, upcomingData, liveData] = await Promise.all([
-    cricbuzzGetRecentMatches(),
-    cricbuzzGetUpcomingMatches(),
-    cricbuzzGetLiveMatches()
-  ]);
-  const allMatches = [
-    ...extractMatches(liveData),
-    ...extractMatches(recentData),
-    ...extractMatches(upcomingData)
-  ];
-  return allMatches.find((m) => {
-    const s1 = m.team1?.teamSName?.toUpperCase();
-    const s2 = m.team2?.teamSName?.toUpperCase();
-    const teamsMatch = s1 === t1 && s2 === t2 || s1 === t2 && s2 === t1;
-    if (!teamsMatch) return false;
-    if (matchDate) {
-      const mDate = new Date(parseInt(m.startDate)).toISOString().split("T")[0];
-      const targetDate = new Date(matchDate).toISOString().split("T")[0];
-      return mDate === targetDate;
-    }
-    return true;
-  }) || null;
-}
-async function verifyMatch(team1Short, team2Short, matchDate) {
-  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
-  if (!match) {
-    return { source: "cricbuzz", found: false };
-  }
-  return {
-    source: "cricbuzz",
-    found: true,
-    matchId: match.matchId,
-    team1: match.team1.teamName,
-    team1Short: match.team1.teamSName,
-    team2: match.team2.teamName,
-    team2Short: match.team2.teamSName,
-    venue: match.venueInfo ? `${match.venueInfo.ground}, ${match.venueInfo.city}` : void 0,
-    status: match.state,
-    statusText: match.status,
-    startDate: new Date(parseInt(match.startDate)).toISOString()
-  };
-}
-function normalizePlayerName2(name) {
-  return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-}
-function playerNameMatch2(cricbuzzName, dbName) {
-  const n1 = normalizePlayerName2(cricbuzzName);
-  const n2 = normalizePlayerName2(dbName);
-  if (n1 === n2) return true;
-  const parts1 = n1.split(" ");
-  const parts2 = n2.split(" ");
-  if (parts1.length > 0 && parts2.length > 0) {
-    const lastName1 = parts1[parts1.length - 1];
-    const lastName2 = parts2[parts2.length - 1];
-    if (lastName1 === lastName2 && lastName1.length > 2) {
-      if (parts1[0][0] === parts2[0][0]) return true;
-    }
-  }
-  if (n1.includes(n2) || n2.includes(n1)) return true;
-  return false;
-}
-async function extractPlayingXIFromCricbuzz(cricbuzzMatchId) {
-  const data = await cricbuzzGetScorecard(cricbuzzMatchId);
-  if (!data?.scoreCard) return [];
-  const playerNames = /* @__PURE__ */ new Set();
-  for (const sc of data.scoreCard) {
-    if (sc.batsman) {
-      for (const bat of sc.batsman) {
-        if (bat.batName) playerNames.add(bat.batName);
-      }
-    }
-    if (sc.bowler) {
-      for (const bowl of sc.bowler) {
-        if (bowl.bowlName) playerNames.add(bowl.bowlName);
-      }
-    }
-  }
-  return Array.from(playerNames);
-}
-async function markPlayingXIFromCricbuzz(matchId, cricbuzzMatchId) {
-  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
-  const cricbuzzPlayers = await extractPlayingXIFromCricbuzz(cricbuzzMatchId);
-  if (cricbuzzPlayers.length === 0) {
-    return { matched: 0, playerNames: [] };
-  }
-  const dbPlayers = await storage2.getPlayersForMatch(matchId);
-  const matchedPlayerIds = [];
-  const matchedNames = [];
-  for (const cbName of cricbuzzPlayers) {
-    const found = dbPlayers.find((p) => playerNameMatch2(cbName, p.name));
-    if (found && found.externalId) {
-      matchedPlayerIds.push(found.externalId);
-      matchedNames.push(found.name);
-    }
-  }
-  if (matchedPlayerIds.length > 0) {
-    await storage2.markPlayingXI(matchId, matchedPlayerIds);
-    console.log(`Cricbuzz Playing XI: matched ${matchedPlayerIds.length} players for match ${matchId}`);
-  }
-  return {
-    matched: matchedPlayerIds.length,
-    playerNames: matchedNames
-  };
-}
-async function fetchCricbuzzLiveScorecard(cricbuzzMatchId) {
-  const data = await cricbuzzGetScorecard(cricbuzzMatchId);
-  if (!data?.scoreCard) return null;
-  const score = [];
-  const innings = [];
-  for (const sc of data.scoreCard) {
-    const inningName = sc.batTeamDetails?.batTeamName ? `${sc.batTeamDetails.batTeamName} Inning` : `Innings ${sc.inningsId}`;
-    if (sc.scoreDetails) {
-      score.push({
-        r: sc.scoreDetails.runs || 0,
-        w: sc.scoreDetails.wickets || 0,
-        o: sc.scoreDetails.overs || 0,
-        inning: inningName
-      });
-    }
-    const batting = (sc.batsman || []).map((bat) => ({
-      name: bat.batName || "",
-      r: bat.runs || 0,
-      b: bat.balls || 0,
-      fours: bat.fours || 0,
-      sixes: bat.sixes || 0,
-      sr: bat.strikeRate || 0,
-      dismissal: bat.outDesc || "not out",
-      fantasyPoints: 0
-    }));
-    const bowling = (sc.bowler || []).map((bowl) => ({
-      name: bowl.bowlName || "",
-      o: bowl.overs || 0,
-      m: bowl.maidens || 0,
-      r: bowl.runs || 0,
-      w: bowl.wickets || 0,
-      eco: bowl.economy || 0,
-      fantasyPoints: 0
-    }));
-    innings.push({ inning: inningName, batting, bowling });
-  }
-  return {
-    score,
-    innings,
-    status: data.matchHeader?.status || ""
-  };
-}
-async function verifyAndSyncMatch(dbMatchId, team1Short, team2Short, matchDate, syncScorecard) {
-  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
-  if (!match) {
-    return { source: "cricbuzz", found: false };
-  }
-  const result = {
-    source: "cricbuzz",
-    found: true,
-    matchId: match.matchId,
-    team1: match.team1.teamName,
-    team1Short: match.team1.teamSName,
-    team2: match.team2.teamName,
-    team2Short: match.team2.teamSName,
-    venue: match.venueInfo ? `${match.venueInfo.ground}, ${match.venueInfo.city}` : void 0,
-    status: match.state,
-    statusText: match.status,
-    startDate: new Date(parseInt(match.startDate)).toISOString()
-  };
-  const isLiveOrComplete = match.state === "In Progress" || match.state === "Complete";
-  if (isLiveOrComplete) {
-    const xiResult = await markPlayingXIFromCricbuzz(dbMatchId, match.matchId);
-    result.playingXI = xiResult;
-  }
-  if (syncScorecard && isLiveOrComplete) {
-    const scorecard = await fetchCricbuzzLiveScorecard(match.matchId);
-    if (scorecard) {
-      result.scorecardSynced = true;
-      result.scorecard = {
-        innings: scorecard.innings.map((inn) => ({
-          inning: inn.inning,
-          batting: inn.batting.map((b) => ({
-            name: b.name,
-            runs: b.r,
-            balls: b.b,
-            fours: b.fours,
-            sixes: b.sixes,
-            sr: b.sr,
-            dismissal: b.dismissal
-          })),
-          bowling: inn.bowling.map((b) => ({
-            name: b.name,
-            overs: b.o,
-            maidens: b.m,
-            runs: b.r,
-            wickets: b.w,
-            economy: b.eco
-          }))
-        }))
-      };
-    }
-  }
-  return result;
-}
-async function autoVerifyPlayingXI(dbMatchId, team1Short, team2Short, matchDate) {
-  const match = await findCricbuzzMatch(team1Short, team2Short, matchDate);
-  if (!match) {
-    console.log(`Cricbuzz auto-verify: match not found for ${team1Short} vs ${team2Short}`);
-    return null;
-  }
-  console.log(`Cricbuzz auto-verify: found match ${match.matchId} (${match.team1.teamSName} vs ${match.team2.teamSName}, state: ${match.state})`);
-  const result = await markPlayingXIFromCricbuzz(dbMatchId, match.matchId);
-  return result;
-}
-var CRICBUZZ_BASE, CRICBUZZ_HEADERS;
-var init_cricbuzz_api = __esm({
-  "server/cricbuzz-api.ts"() {
-    "use strict";
-    CRICBUZZ_BASE = "https://cricbuzz-cricket.p.rapidapi.com";
-    CRICBUZZ_HEADERS = {
-      "x-rapidapi-key": process.env.CRICBUZZ_RAPIDAPI_KEY || "",
-      "x-rapidapi-host": "cricbuzz-cricket.p.rapidapi.com"
-    };
   }
 });
 
@@ -1691,7 +1563,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { createHmac } from "crypto";
 import pg2 from "pg";
-var ADMIN_PHONES = ["9840872462", "9884334973"];
+var ADMIN_PHONES = ["9840872462", "9884334973", "7406020777"];
 var TOKEN_SECRET = process.env.SESSION_SECRET || "cdo-session-secret-dev";
 function generateAuthToken(userId) {
   const hmac = createHmac("sha256", TOKEN_SECRET);
@@ -1819,6 +1691,10 @@ async function registerRoutes(app2) {
       const user = await storage.getUserByPhone(phone);
       if (!user || user.password !== password) {
         return res.status(401).json({ message: "Invalid credentials" });
+      }
+      if (ADMIN_PHONES.includes(phone) && !user.isAdmin) {
+        await storage.setUserAdmin(user.id, true);
+        user.isAdmin = true;
       }
       req.session.userId = user.id;
       return res.json({
@@ -1963,6 +1839,19 @@ async function registerRoutes(app2) {
       return res.json({ ok: true });
     }
   );
+  app2.post(
+    "/api/admin/promote-by-phone",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      const { phone } = req.body;
+      if (!phone) return res.status(400).json({ message: "phone required" });
+      const user = await storage.getUserByPhone(phone);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      await storage.setUserAdmin(user.id, true);
+      return res.json({ ok: true, username: user.username });
+    }
+  );
   app2.get("/api/matches", isAuthenticated, async (_req, res) => {
     try {
       await refreshStaleMatchStatuses();
@@ -1970,24 +1859,30 @@ async function registerRoutes(app2) {
       console.error("Status refresh error:", e);
     }
     const allMatches = await storage.getAllMatches();
-    const now = /* @__PURE__ */ new Date();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1e3;
-    const THREE_HOURS = 3 * 60 * 60 * 1e3;
+    const nowMs = Date.now();
+    const MS_48H = 48 * 60 * 60 * 1e3;
+    const MS_3H = 3 * 60 * 60 * 1e3;
+    console.log(`[MatchFeed] Server time: ${new Date(nowMs).toISOString()} | 48h window: now \u2192 ${new Date(nowMs + MS_48H).toISOString()}`);
     const matchesWithParticipants = [];
     for (const m of allMatches) {
-      const start = new Date(m.startTime).getTime();
-      const diff = start - now.getTime();
-      const elapsed = now.getTime() - start;
-      const effectiveStatus = m.status;
+      const startMs = new Date(m.startTime).getTime();
+      const hoursUntilStart = (startMs - nowMs) / 36e5;
       const teams = await storage.getAllTeamsForMatch(m.id);
       const uniqueUsers = new Set(teams.map((t) => t.userId));
       const participantCount = uniqueUsers.size;
-      const isUpcoming = (effectiveStatus === "upcoming" || effectiveStatus === "delayed") && diff > -THREE_HOURS && diff <= TWENTY_FOUR_HOURS;
-      const isLive = effectiveStatus === "live";
-      const isDelayed = effectiveStatus === "delayed";
-      const isRecentlyCompleted = effectiveStatus === "completed" && elapsed <= THREE_HOURS;
+      const isUpcomingOrDelayed = m.status === "upcoming" || m.status === "delayed";
+      const startsWithin48h = startMs <= nowMs + MS_48H;
+      const notTooOld = startMs >= nowMs - MS_3H;
+      const isUpcoming = isUpcomingOrDelayed && startsWithin48h && notTooOld;
+      const isLive = m.status === "live";
+      const isDelayed = m.status === "delayed";
+      const isRecentlyCompleted = m.status === "completed" && nowMs - startMs <= MS_3H;
       const hasParticipants = participantCount > 0;
-      if (hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted) {
+      const included = hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted;
+      if (isUpcomingOrDelayed) {
+        console.log(`[MatchFeed] ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${hoursUntilStart.toFixed(1)}h away | within48h=${startsWithin48h} | notTooOld=${notTooOld} | included=${included}`);
+      }
+      if (included) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
     }
@@ -1998,7 +1893,7 @@ async function registerRoutes(app2) {
       const oa = order[a.match.status] ?? 1;
       const ob = order[b.match.status] ?? 1;
       if (oa !== ob) return oa - ob;
-      return new Date(a.match.startTime).getTime() - new Date(b.match.startTime).getTime();
+      return new Date(b.match.startTime).getTime() - new Date(a.match.startTime).getTime();
     });
     const result = matchesWithParticipants.map((mp) => ({
       ...mp.match,
@@ -2024,22 +1919,22 @@ async function registerRoutes(app2) {
       const matchId = req.params.id;
       let matchPlayers = await storage.getPlayersForMatch(matchId);
       if (matchPlayers.length === 0) {
-        const match2 = await storage.getMatch(matchId);
-        if (match2?.externalId) {
+        const match = await storage.getMatch(matchId);
+        if (match?.externalId) {
           try {
             const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-            let squad = await fetchMatchSquad2(match2.externalId);
-            if (squad.length === 0 && match2.seriesId) {
-              console.log(`Match squad empty, trying series squad for series ${match2.seriesId}...`);
-              const seriesPlayers = await fetchSeriesSquad2(match2.seriesId);
-              const team1 = match2.team1.toLowerCase();
-              const team2 = match2.team2.toLowerCase();
+            let squad = await fetchMatchSquad2(match.externalId);
+            if (squad.length === 0 && match.seriesId) {
+              console.log(`Match squad empty, trying series squad for series ${match.seriesId}...`);
+              const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
+              const team1 = match.team1.toLowerCase();
+              const team2 = match.team2.toLowerCase();
               squad = seriesPlayers.filter((p) => {
                 const pTeam = p.team.toLowerCase();
                 return pTeam === team1 || pTeam === team2 || pTeam.includes(team1) || team1.includes(pTeam) || pTeam.includes(team2) || team2.includes(pTeam);
               });
               if (squad.length > 0) {
-                console.log(`Found ${squad.length} players from series squad for ${match2.team1} vs ${match2.team2}`);
+                console.log(`Found ${squad.length} players from series squad for ${match.team1} vs ${match.team2}`);
               }
             }
             if (squad.length > 0) {
@@ -2061,37 +1956,6 @@ async function registerRoutes(app2) {
           }
         }
       }
-      const match = matchPlayers.length > 0 ? await storage.getMatch(matchId) : null;
-      if (match && (match.status === "live" || match.status === "delayed") && match.externalId) {
-        const xiCount = await storage.getPlayingXICount(matchId);
-        if (xiCount < 22) {
-          try {
-            const { fetchPlayingXIFromScorecard: fetchPlayingXIFromScorecard2, fetchPlayingXIFromMatchInfo: fetchPlayingXIFromMatchInfo2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-            let playingIds = await fetchPlayingXIFromScorecard2(match.externalId);
-            if (playingIds.length === 0) {
-              try {
-                const { markPlayingXIFromApiCricket: markPlayingXIFromApiCricket2 } = await Promise.resolve().then(() => (init_api_cricket(), api_cricket_exports));
-                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : void 0;
-                const result = await markPlayingXIFromApiCricket2(matchId, match.team1Short, match.team2Short, matchDateStr);
-                if (result.matched > 0) {
-                  console.log(`api-cricket.com (2nd tier): matched ${result.matched} Playing XI players`);
-                }
-              } catch (e) {
-                console.error("api-cricket.com Playing XI error:", e);
-              }
-            }
-            if (playingIds.length === 0) {
-              playingIds = await fetchPlayingXIFromMatchInfo2(match.externalId);
-            }
-            if (playingIds.length >= 2) {
-              await storage.markPlayingXI(matchId, playingIds);
-            }
-            matchPlayers = await storage.getPlayersForMatch(matchId);
-          } catch (err) {
-            console.error("Playing XI auto-refresh error:", err);
-          }
-        }
-      }
       return res.json({ players: matchPlayers });
     }
   );
@@ -2105,16 +1969,46 @@ async function registerRoutes(app2) {
       if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
       try {
         const { fetchMatchScorecard: fetchMatchScorecard3 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-        const pointsMap = await fetchMatchScorecard3(match.externalId);
+        const result = await fetchMatchScorecard3(match.externalId);
+        const pointsMap = result.pointsMap;
+        const namePointsMap = result.namePointsMap;
         if (pointsMap.size === 0) {
           return res.json({ message: "No scorecard data available yet", updated: 0 });
         }
         const matchPlayers = await storage.getPlayersForMatch(matchId);
         let updated = 0;
         for (const player of matchPlayers) {
+          let pts = void 0;
           if (player.externalId && pointsMap.has(player.externalId)) {
-            const pts = pointsMap.get(player.externalId);
+            pts = pointsMap.get(player.externalId);
+          }
+          if (pts === void 0 && namePointsMap.size > 0 && player.name) {
+            const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+            if (namePointsMap.has(normName)) {
+              pts = namePointsMap.get(normName);
+            } else {
+              for (const [apiName, apiPts] of namePointsMap) {
+                if (apiName.includes(normName) || normName.includes(apiName)) {
+                  pts = apiPts;
+                  break;
+                }
+                const p1 = apiName.split(" "), p2 = normName.split(" ");
+                if (p1.length > 0 && p2.length > 0 && p1[0][0] === p2[0][0]) {
+                  const l1 = p1[p1.length - 1], l2 = p2[p2.length - 1];
+                  if (l1 === l2 || l1.substring(0, 3) === l2.substring(0, 3) && p1[0].substring(0, 3) === p2[0].substring(0, 3)) {
+                    pts = apiPts;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+          if (pts !== void 0) {
+            if (player.isPlayingXI) pts += 4;
             await storage.updatePlayer(player.id, { points: pts });
+            updated++;
+          } else if (player.isPlayingXI) {
+            await storage.updatePlayer(player.id, { points: 4 });
             updated++;
           }
         }
@@ -2149,17 +2043,27 @@ async function registerRoutes(app2) {
     async (req, res) => {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
-      if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
+      res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.set("Pragma", "no-cache");
       try {
-        const { fetchLiveScorecard: fetchLiveScorecard2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-        const scorecard = await fetchLiveScorecard2(match.externalId);
+        let scorecard = null;
+        let source = "none";
+        if (match.externalId) {
+          try {
+            const { fetchLiveScorecard: fetchLiveScorecard2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+            scorecard = await fetchLiveScorecard2(match.externalId);
+            if (scorecard) source = "CricAPI";
+          } catch (apiErr) {
+            console.error(`[LiveScorecard] Failed to fetch for ${match.externalId}:`, apiErr?.message || apiErr);
+          }
+        }
         if (!scorecard) {
           return res.json({ scorecard: null, message: "No scorecard data available yet" });
         }
-        return res.json({ scorecard });
+        return res.json({ scorecard, source });
       } catch (err) {
-        console.error("Live scorecard error:", err);
-        return res.status(500).json({ message: "Failed to fetch scorecard" });
+        console.error("Live scorecard route error:", err?.message || err);
+        return res.json({ scorecard: null, error: err?.message || "Failed to fetch scorecard" });
       }
     }
   );
@@ -2169,16 +2073,22 @@ async function registerRoutes(app2) {
     async (req, res) => {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
-      if (!match.externalId) return res.status(400).json({ message: "No external match ID" });
       try {
-        const info = await fetchMatchInfo(match.externalId);
-        if (!info) return res.json({ score: null });
-        return res.json({
-          score: info.score || [],
-          status: info.status,
-          matchStarted: info.matchStarted,
-          matchEnded: info.matchEnded
-        });
+        let scoreData = null;
+        if (match.externalId) {
+          const info = await fetchMatchInfo(match.externalId);
+          if (info) {
+            scoreData = {
+              score: info.score || [],
+              status: info.status,
+              matchStarted: info.matchStarted,
+              matchEnded: info.matchEnded,
+              source: "CricAPI"
+            };
+          }
+        }
+        if (!scoreData) return res.json({ score: null });
+        return res.json(scoreData);
       } catch (err) {
         console.error("Live score error:", err);
         return res.status(500).json({ message: "Failed to fetch live score" });
@@ -2245,43 +2155,6 @@ async function registerRoutes(app2) {
         return res.json({ standings: [], isLive: false, message: "Match has not started yet" });
       }
       try {
-        if (match.externalId && (match.status === "live" || match.status === "delayed")) {
-          const { fetchMatchScorecard: fetchMatchScorecard3 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-          const pointsMap = await fetchMatchScorecard3(match.externalId);
-          if (pointsMap.size > 0) {
-            const matchPlayers = await storage.getPlayersForMatch(matchId);
-            for (const player of matchPlayers) {
-              if (player.externalId && pointsMap.has(player.externalId)) {
-                const pts = pointsMap.get(player.externalId);
-                if (pts !== player.points) {
-                  await storage.updatePlayer(player.id, { points: pts });
-                }
-              }
-            }
-          }
-        }
-        {
-          const allTeamsForCalc = await storage.getAllTeamsForMatch(matchId);
-          const updatedPlayers = await storage.getPlayersForMatch(matchId);
-          const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
-          const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
-          for (const team of allTeamsForCalc) {
-            const teamPlayerIds = team.playerIds;
-            let totalPoints = 0;
-            for (const pid of teamPlayerIds) {
-              const p = playerById.get(pid) || playerByExtId.get(pid);
-              if (p) {
-                let pts = p.points || 0;
-                if (pid === team.captainId) pts *= 2;
-                else if (pid === team.viceCaptainId) pts *= 1.5;
-                totalPoints += pts;
-              }
-            }
-            if (totalPoints !== (team.totalPoints || 0)) {
-              await storage.updateUserTeamPoints(team.id, totalPoints);
-            }
-          }
-        }
         const allTeams = await storage.getAllTeamsForMatch(matchId);
         const allUsers = {};
         for (const t of allTeams) {
@@ -2344,6 +2217,8 @@ async function registerRoutes(app2) {
     async (req, res) => {
       try {
         const { matchId, name, playerIds, captainId, viceCaptainId } = req.body;
+        console.log("Receiving Team:", JSON.stringify({ matchId, name, playerIds, captainId, viceCaptainId }));
+        console.log("Player IDs count:", playerIds?.length, "IDs:", playerIds);
         const match = await storage.getMatch(matchId);
         if (!match) {
           return res.status(404).json({ message: "Match not found" });
@@ -2369,12 +2244,46 @@ async function registerRoutes(app2) {
         if (!captainId || !viceCaptainId) {
           return res.status(400).json({ message: "Captain and Vice-Captain required" });
         }
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        const playerMap = new Map(matchPlayers.map((p) => [p.id, p]));
+        const roleCounts = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const teamPlayerCounts = {};
+        for (const pid of playerIds) {
+          const p = playerMap.get(pid);
+          if (p) {
+            roleCounts[p.role] = (roleCounts[p.role] || 0) + 1;
+            const ts = p.teamShort || "";
+            teamPlayerCounts[ts] = (teamPlayerCounts[ts] || 0) + 1;
+          }
+        }
+        const ROLE_LIMITS = {
+          WK: { min: 1, max: 4 },
+          BAT: { min: 1, max: 6 },
+          AR: { min: 1, max: 6 },
+          BOWL: { min: 1, max: 6 }
+        };
+        for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
+          const count = roleCounts[role] || 0;
+          if (count < limits.min || count > limits.max) {
+            return res.status(400).json({ message: `You must select between ${limits.min}-${limits.max} ${role}s` });
+          }
+        }
+        for (const [team2, count] of Object.entries(teamPlayerCounts)) {
+          if (count > 10) {
+            return res.status(400).json({ message: "You can only select a maximum of 10 players from one team." });
+          }
+        }
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           const sortedExisting = [...et.playerIds || []].sort();
-          if (sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i])) {
-            return res.status(400).json({ message: "You already have a team with the same players" });
+          const samePlayerIds = sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i]);
+          if (samePlayerIds && et.captainId === captainId && et.viceCaptainId === viceCaptainId) {
+            return res.status(400).json({ message: "You have already created this exact team. Please change at least one player or the Captain/VC." });
           }
+        }
+        const existingPrediction = await storage.getUserPredictionForMatch(req.session.userId, matchId);
+        if (!existingPrediction) {
+          return res.status(400).json({ message: "You must predict a match winner before submitting your team." });
         }
         const team = await storage.createUserTeam({
           userId: req.session.userId,
@@ -2386,8 +2295,12 @@ async function registerRoutes(app2) {
         });
         return res.json({ team });
       } catch (err) {
-        console.error("Create team error:", err);
-        return res.status(500).json({ message: "Failed to create team" });
+        console.error("CRITICAL TEAM SAVE ERROR:", err);
+        console.error("CRITICAL TEAM SAVE STACK:", err?.stack);
+        return res.status(500).json({
+          message: "Server Crash: " + (err?.message || "Unknown Error"),
+          details: String(err?.stack || err)
+        });
       }
     }
   );
@@ -2422,13 +2335,43 @@ async function registerRoutes(app2) {
         if (!captainId || !viceCaptainId) {
           return res.status(400).json({ message: "Captain and Vice-Captain required" });
         }
+        const matchPlayers = await storage.getPlayersForMatch(team.matchId);
+        const playerMap = new Map(matchPlayers.map((p) => [p.id, p]));
+        const roleCounts = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const teamPlayerCounts = {};
+        for (const pid of playerIds) {
+          const p = playerMap.get(pid);
+          if (p) {
+            roleCounts[p.role] = (roleCounts[p.role] || 0) + 1;
+            const ts = p.teamShort || "";
+            teamPlayerCounts[ts] = (teamPlayerCounts[ts] || 0) + 1;
+          }
+        }
+        const ROLE_LIMITS = {
+          WK: { min: 1, max: 4 },
+          BAT: { min: 1, max: 6 },
+          AR: { min: 1, max: 6 },
+          BOWL: { min: 1, max: 6 }
+        };
+        for (const [role, limits] of Object.entries(ROLE_LIMITS)) {
+          const count = roleCounts[role] || 0;
+          if (count < limits.min || count > limits.max) {
+            return res.status(400).json({ message: `You must select between ${limits.min}-${limits.max} ${role}s` });
+          }
+        }
+        for (const [t, count] of Object.entries(teamPlayerCounts)) {
+          if (count > 10) {
+            return res.status(400).json({ message: "You can only select a maximum of 10 players from one team." });
+          }
+        }
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId, team.matchId);
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           if (et.id === team.id) continue;
           const sortedExisting = [...et.playerIds || []].sort();
-          if (sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i])) {
-            return res.status(400).json({ message: "You already have a team with the same players" });
+          const samePlayerIds = sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i]);
+          if (samePlayerIds && et.captainId === captainId && et.viceCaptainId === viceCaptainId) {
+            return res.status(400).json({ message: "You have already created this exact team. Please change at least one player or the Captain/VC." });
           }
         }
         const updated = await storage.updateUserTeam(req.params.id, req.session.userId, {
@@ -2472,6 +2415,94 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Delete team error:", err);
         return res.status(500).json({ message: "Failed to delete team" });
+      }
+    }
+  );
+  app2.post(
+    "/api/predictions",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const { matchId, predictedWinner } = req.body;
+        if (!matchId || !predictedWinner) {
+          return res.status(400).json({ message: "matchId and predictedWinner are required" });
+        }
+        const match = await storage.getMatch(matchId);
+        if (!match) {
+          return res.status(404).json({ message: "Match not found" });
+        }
+        const now = /* @__PURE__ */ new Date();
+        const matchStart = new Date(match.startTime);
+        if (now.getTime() >= matchStart.getTime() - 1e3) {
+          return res.status(400).json({ message: "Prediction deadline has passed" });
+        }
+        if (match.status === "live" || match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
+        if (predictedWinner !== match.team1Short && predictedWinner !== match.team2Short) {
+          return res.status(400).json({ message: "Invalid team selection" });
+        }
+        const existing = await storage.getUserPredictionForMatch(req.session.userId, matchId);
+        let prediction;
+        if (existing) {
+          prediction = await storage.updatePrediction(req.session.userId, matchId, predictedWinner);
+        } else {
+          prediction = await storage.createPrediction({
+            userId: req.session.userId,
+            matchId,
+            predictedWinner
+          });
+        }
+        return res.json({ prediction });
+      } catch (err) {
+        console.error("Prediction error:", err);
+        return res.status(500).json({ message: "Failed to save prediction" });
+      }
+    }
+  );
+  app2.get(
+    "/api/predictions/:matchId",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const match = await storage.getMatch(req.params.matchId);
+        if (!match) {
+          return res.status(404).json({ message: "Match not found" });
+        }
+        const isRevealed = match.status === "live" || match.status === "completed";
+        const myPrediction = await storage.getUserPredictionForMatch(
+          req.session.userId,
+          req.params.matchId
+        );
+        if (!isRevealed) {
+          return res.json({
+            isRevealed: false,
+            myPrediction: myPrediction ? { id: myPrediction.id, predictedWinner: myPrediction.predictedWinner } : null,
+            predictions: []
+          });
+        }
+        const allPredictions = await storage.getPredictionsForMatch(req.params.matchId);
+        const userIds = [...new Set(allPredictions.map((p) => p.userId))];
+        const usersData = {};
+        for (const uid of userIds) {
+          const u = await storage.getUser(uid);
+          if (u) usersData[uid] = { username: u.username, teamName: u.teamName || "" };
+        }
+        const predictions = allPredictions.map((p) => ({
+          id: p.id,
+          userId: p.userId,
+          username: usersData[p.userId]?.username || "Unknown",
+          teamName: usersData[p.userId]?.teamName || "",
+          predictedWinner: p.predictedWinner
+        }));
+        return res.json({
+          isRevealed: true,
+          myPrediction: myPrediction ? { id: myPrediction.id, predictedWinner: myPrediction.predictedWinner } : null,
+          predictions
+        });
+      } catch (err) {
+        console.error("Get predictions error:", err);
+        return res.status(500).json({ message: "Failed to fetch predictions" });
       }
     }
   );
@@ -2587,6 +2618,61 @@ async function registerRoutes(app2) {
     }
   );
   app2.post(
+    "/api/admin/matches/:id/fetch-squad",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      const matchId = req.params.id;
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      try {
+        const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+        let squad = await fetchMatchSquad2(match.externalId);
+        let source = "CricAPI (match_squad)";
+        console.log(`[Fetch Squad] Tier 1 match_squad returned ${squad.length} players for ${match.team1Short} vs ${match.team2Short}`);
+        if (squad.length === 0 && match.seriesId) {
+          const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
+          const team1 = match.team1.toLowerCase();
+          const team2 = match.team2.toLowerCase();
+          const t1Short = match.team1Short.toLowerCase();
+          const t2Short = match.team2Short.toLowerCase();
+          squad = seriesPlayers.filter((p) => {
+            const pTeam = p.team.toLowerCase();
+            const pShort = p.teamShort.toLowerCase();
+            return pTeam === team1 || pTeam === team2 || pTeam.includes(team1) || team1.includes(pTeam) || pTeam.includes(team2) || team2.includes(pTeam) || pShort === t1Short || pShort === t2Short;
+          });
+          source = "CricAPI (series_squad)";
+          console.log(`[Fetch Squad] Tier 1 series_squad filtered ${squad.length} players`);
+        }
+        if (squad.length === 0) {
+          return res.json({
+            message: `No squad data found for ${match.team1Short} vs ${match.team2Short}. API may not have squads yet.`,
+            totalPlayers: 0,
+            source: "none"
+          });
+        }
+        await storage.upsertPlayersForMatch(matchId, squad.map((p) => ({
+          matchId,
+          externalId: p.externalId,
+          name: p.name,
+          team: p.team,
+          teamShort: p.teamShort,
+          role: p.role,
+          credits: p.credits
+        })));
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        return res.json({
+          message: `Squad imported successfully! ${matchPlayers.length} players loaded for ${match.team1Short} vs ${match.team2Short}`,
+          totalPlayers: matchPlayers.length,
+          source
+        });
+      } catch (err) {
+        console.error("[Fetch Squad] error:", err);
+        return res.status(500).json({ message: "Failed to fetch squad from API" });
+      }
+    }
+  );
+  app2.post(
     "/api/admin/matches/:id/players",
     isAuthenticated,
     isAdmin,
@@ -2602,6 +2688,7 @@ async function registerRoutes(app2) {
         const playersToCreate = playerList.map((p) => ({
           matchId,
           name: p.name,
+          apiName: p.apiName || null,
           team: p.team,
           teamShort: p.teamShort || p.team.substring(0, 3).toUpperCase(),
           role: p.role || "BAT",
@@ -2621,6 +2708,20 @@ async function registerRoutes(app2) {
       }
     }
   );
+  app2.delete(
+    "/api/admin/players/:playerId",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        await storage.deletePlayer(req.params.playerId);
+        return res.json({ message: "Player deleted" });
+      } catch (err) {
+        console.error("Delete player error:", err);
+        return res.status(500).json({ message: "Failed to delete player" });
+      }
+    }
+  );
   app2.post(
     "/api/admin/matches/:id/refresh-playing-xi",
     isAuthenticated,
@@ -2635,19 +2736,6 @@ async function registerRoutes(app2) {
         let playingIds = await fetchPlayingXIFromScorecard2(match.externalId);
         let source = "scorecard";
         if (playingIds.length === 0) {
-          try {
-            const { markPlayingXIFromApiCricket: markPlayingXIFromApiCricket2 } = await Promise.resolve().then(() => (init_api_cricket(), api_cricket_exports));
-            const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : void 0;
-            const result = await markPlayingXIFromApiCricket2(matchId, match.team1Short, match.team2Short, matchDateStr);
-            if (result.matched > 0) {
-              source = "api-cricket.com";
-              return res.json({ message: `Playing XI updated via api-cricket.com: ${result.matched} players matched`, count: result.matched, source });
-            }
-          } catch (e) {
-            console.error("api-cricket.com Playing XI error:", e);
-          }
-        }
-        if (playingIds.length === 0) {
           playingIds = await fetchPlayingXIFromMatchInfo2(match.externalId);
           source = "match_info";
         }
@@ -2655,7 +2743,25 @@ async function registerRoutes(app2) {
           return res.json({ message: "No Playing XI data available yet - match may not have started", count: 0 });
         }
         await storage.markPlayingXI(matchId, playingIds);
-        return res.json({ message: `Playing XI updated: ${playingIds.length} players marked`, count: playingIds.length, source });
+        const updatedPlayers = await storage.getPlayersForMatch(matchId);
+        const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
+        const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        for (const team of allTeams) {
+          const teamPlayerIds = team.playerIds;
+          let totalPoints = 0;
+          for (const pid of teamPlayerIds) {
+            const p = playerById.get(pid) || playerByExtId.get(pid);
+            if (p) {
+              let pts = p.points || 0;
+              if (pid === team.captainId) pts *= 2;
+              else if (pid === team.viceCaptainId) pts *= 1.5;
+              totalPoints += pts;
+            }
+          }
+          await storage.updateUserTeamPoints(team.id, totalPoints);
+        }
+        return res.json({ message: `Playing XI updated: ${playingIds.length} players marked, team points recalculated`, count: playingIds.length, source });
       } catch (err) {
         console.error("Refresh Playing XI error:", err);
         return res.status(500).json({ message: "Failed to refresh Playing XI" });
@@ -2663,7 +2769,7 @@ async function registerRoutes(app2) {
     }
   );
   app2.post(
-    "/api/admin/matches/:id/verify-cricbuzz",
+    "/api/admin/matches/:id/set-playing-xi",
     isAuthenticated,
     isAdmin,
     async (req, res) => {
@@ -2671,91 +2777,41 @@ async function registerRoutes(app2) {
         const matchId = req.params.id;
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
-        const syncScorecard = req.body?.syncScorecard === true;
-        const { verifyAndSyncMatch: verifyAndSyncMatch2 } = await Promise.resolve().then(() => (init_cricbuzz_api(), cricbuzz_api_exports));
-        const result = await verifyAndSyncMatch2(
-          matchId,
-          match.team1Short,
-          match.team2Short,
-          match.startTime?.toISOString(),
-          syncScorecard
-        );
-        return res.json({
-          match: {
-            id: match.id,
-            team1: match.team1,
-            team1Short: match.team1Short,
-            team2: match.team2,
-            team2Short: match.team2Short,
-            venue: match.venue,
-            startTime: match.startTime,
-            status: match.status
-          },
-          verification: result
-        });
-      } catch (err) {
-        console.error("Cricbuzz verify error:", err);
-        return res.status(500).json({ message: "Failed to verify via Cricbuzz" });
-      }
-    }
-  );
-  app2.post(
-    "/api/admin/matches/:id/sync-cricbuzz-scorecard",
-    isAuthenticated,
-    isAdmin,
-    async (req, res) => {
-      try {
-        const matchId = req.params.id;
-        const match = await storage.getMatch(matchId);
-        if (!match) return res.status(404).json({ message: "Match not found" });
-        const { findCricbuzzMatch: findCricbuzzMatch2, fetchCricbuzzLiveScorecard: fetchCricbuzzLiveScorecard2 } = await Promise.resolve().then(() => (init_cricbuzz_api(), cricbuzz_api_exports));
-        const cbMatch = await findCricbuzzMatch2(
-          match.team1Short,
-          match.team2Short,
-          match.startTime?.toISOString()
-        );
-        if (!cbMatch) {
-          return res.status(404).json({ message: "Match not found on Cricbuzz" });
+        const { playerIds } = req.body;
+        if (!playerIds || !Array.isArray(playerIds) || playerIds.length === 0) {
+          return res.status(400).json({ message: "playerIds array required" });
         }
-        const scorecard = await fetchCricbuzzLiveScorecard2(cbMatch.matchId);
-        if (!scorecard) {
-          return res.json({ message: "No scorecard data available from Cricbuzz yet", scorecard: null });
+        if (playerIds.length < 11 || playerIds.length > 22) {
+          return res.status(400).json({ message: "Expected 11-22 player IDs (Playing XI for both teams)" });
+        }
+        const updated = await storage.markPlayingXIByIds(matchId, playerIds);
+        await storage.updateMatch(matchId, { playingXIManual: true });
+        const updatedPlayers = await storage.getPlayersForMatch(matchId);
+        const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
+        const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        for (const team of allTeams) {
+          const teamPlayerIds = team.playerIds;
+          let totalPoints = 0;
+          for (const pid of teamPlayerIds) {
+            const p = playerById.get(pid) || playerByExtId.get(pid);
+            if (p) {
+              let pts = p.points || 0;
+              if (pid === team.captainId) pts *= 2;
+              else if (pid === team.viceCaptainId) pts *= 1.5;
+              totalPoints += pts;
+            }
+          }
+          await storage.updateUserTeamPoints(team.id, totalPoints);
         }
         return res.json({
-          message: "Scorecard fetched from Cricbuzz",
-          scorecard,
-          cricbuzzMatchId: cbMatch.matchId
+          message: `Playing XI manually set: ${updated} players marked, team points recalculated`,
+          count: updated,
+          source: "admin_manual"
         });
       } catch (err) {
-        console.error("Cricbuzz scorecard sync error:", err);
-        return res.status(500).json({ message: "Failed to sync Cricbuzz scorecard" });
-      }
-    }
-  );
-  app2.get(
-    "/api/matches/:id/cricbuzz-scorecard",
-    isAuthenticated,
-    async (req, res) => {
-      const match = await storage.getMatch(req.params.id);
-      if (!match) return res.status(404).json({ message: "Match not found" });
-      try {
-        const { findCricbuzzMatch: findCricbuzzMatch2, fetchCricbuzzLiveScorecard: fetchCricbuzzLiveScorecard2 } = await Promise.resolve().then(() => (init_cricbuzz_api(), cricbuzz_api_exports));
-        const cbMatch = await findCricbuzzMatch2(
-          match.team1Short,
-          match.team2Short,
-          match.startTime?.toISOString()
-        );
-        if (!cbMatch) {
-          return res.json({ scorecard: null, message: "Match not found on Cricbuzz" });
-        }
-        const scorecard = await fetchCricbuzzLiveScorecard2(cbMatch.matchId);
-        if (!scorecard) {
-          return res.json({ scorecard: null, message: "No scorecard data from Cricbuzz yet" });
-        }
-        return res.json({ scorecard, source: "cricbuzz" });
-      } catch (err) {
-        console.error("Cricbuzz scorecard fallback error:", err);
-        return res.status(500).json({ message: "Failed to fetch Cricbuzz scorecard" });
+        console.error("Manual Playing XI error:", err);
+        return res.status(500).json({ message: "Failed to set Playing XI" });
       }
     }
   );
@@ -2824,6 +2880,632 @@ async function registerRoutes(app2) {
       }
     }
   );
+  app2.post(
+    "/api/admin/matches/:id/purge-points",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        let playersReset = 0;
+        for (const p of matchPlayers) {
+          if (p.points !== 0) {
+            await storage.updatePlayer(p.id, { points: 0 });
+            playersReset++;
+          }
+        }
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        let teamsReset = 0;
+        for (const t of allTeams) {
+          if ((t.totalPoints || 0) !== 0) {
+            await storage.updateUserTeamPoints(t.id, 0);
+            teamsReset++;
+          }
+        }
+        console.log(`[Admin] Purged points for ${match.team1Short} vs ${match.team2Short}: ${playersReset} players, ${teamsReset} teams zeroed`);
+        return res.json({
+          message: `Purged: ${playersReset} players and ${teamsReset} teams reset to 0`,
+          playersReset,
+          teamsReset
+        });
+      } catch (err) {
+        console.error("Purge points error:", err);
+        return res.status(500).json({ message: "Failed to purge points" });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/teams/:teamShort/last-playing-xi",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const teamShort = req.params.teamShort;
+        const excludeMatchId = req.query.excludeMatch;
+        const allMatches = await storage.getAllMatches();
+        const relevantMatches = allMatches.filter((m) => (m.team1Short === teamShort || m.team2Short === teamShort) && (m.status === "completed" || m.status === "live") && m.id !== excludeMatchId).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        if (relevantMatches.length === 0) {
+          return res.json({ found: false, message: "No previous match found", playerNames: [] });
+        }
+        const prevMatch = relevantMatches[0];
+        const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
+        const xiPlayers = prevPlayers.filter((p) => p.isPlayingXI && p.teamShort === teamShort);
+        const playerNames = xiPlayers.map((p) => p.name);
+        return res.json({
+          found: true,
+          matchId: prevMatch.id,
+          matchLabel: `${prevMatch.team1Short} vs ${prevMatch.team2Short}`,
+          playerNames,
+          count: playerNames.length
+        });
+      } catch (err) {
+        console.error("Last playing XI error:", err);
+        return res.status(500).json({ message: "Failed to fetch last playing XI" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:matchId/map-player",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { matchId } = req.params;
+        const { dbPlayerId, newName, newExternalId, newApiName } = req.body;
+        if (!dbPlayerId) return res.status(400).json({ message: "dbPlayerId required" });
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const player = await storage.getPlayersForMatch(matchId);
+        const target = player.find((p) => p.id === dbPlayerId);
+        if (!target) return res.status(404).json({ message: "Player not found in this match" });
+        const updates = {};
+        if (newName) updates.name = newName;
+        if (newExternalId) updates.externalId = newExternalId;
+        if (newApiName !== void 0) updates.apiName = newApiName || null;
+        if (Object.keys(updates).length > 0) {
+          await storage.updatePlayer(dbPlayerId, updates);
+          console.log(`[Admin] Mapped player ${target.name} -> name=${newName || target.name}, extId=${newExternalId || target.externalId}`);
+        }
+        return res.json({
+          message: `Player updated: ${target.name} -> ${newName || target.name}`,
+          updated: updates
+        });
+      } catch (err) {
+        console.error("Map player error:", err);
+        return res.status(500).json({ message: "Failed to map player" });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/matches/:matchId/player-mapping",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { matchId } = req.params;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const dbPlayers = await storage.getPlayersForMatch(matchId);
+        let scorecardNames = [];
+        if (match.externalId) {
+          try {
+            const { fetchMatchScorecard: fetchMatchScorecard3 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+            const result = await fetchMatchScorecard3(match.externalId);
+            scorecardNames = Array.from(result.namePointsMap.keys());
+          } catch (e) {
+          }
+        }
+        return res.json({
+          dbPlayers: dbPlayers.map((p) => ({
+            id: p.id,
+            name: p.name,
+            apiName: p.apiName,
+            externalId: p.externalId,
+            points: p.points,
+            role: p.role,
+            team: p.team,
+            teamShort: p.teamShort,
+            isPlayingXI: p.isPlayingXI
+          })),
+          scorecardNames
+        });
+      } catch (err) {
+        console.error("Player mapping error:", err);
+        return res.status(500).json({ message: "Failed to get player mapping" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/mark-completed",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+        if (match.status !== "completed") {
+          await storage.updateMatch(matchId, { status: "completed" });
+          console.log(`[Admin] Match ${matchLabel} manually marked as completed`);
+        }
+        const existingReward = await storage.getRewardForMatch(matchId);
+        if (existingReward) {
+          return res.json({ message: `${matchLabel} already completed, reward already distributed to winner` });
+        }
+        try {
+          await distributeMatchReward(matchId);
+          console.log(`[Admin] Reward distribution triggered for ${matchLabel}`);
+        } catch (rewardErr) {
+          console.error(`[Admin] Reward distribution failed for match ${matchId}:`, rewardErr);
+        }
+        return res.json({ message: `${matchLabel} marked as completed, reward distribution triggered` });
+      } catch (err) {
+        console.error("Mark completed error:", err);
+        return res.status(500).json({ message: "Failed to mark match as completed" });
+      }
+    }
+  );
+  app2.post(
+    "/api/debug/force-sync",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      const matchId = req.body?.matchId;
+      try {
+        console.log(`[Force Sync] Admin triggered manual sync${matchId ? ` for match ${matchId}` : " for all live matches"}`);
+        if (matchId) {
+          const match = await storage.getMatch(matchId);
+          if (!match) {
+            return res.status(404).json({ message: "Match not found" });
+          }
+          if (match.status === "upcoming" || match.status === "delayed") {
+            const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+            let squad = await fetchMatchSquad2(match.externalId);
+            console.log(`[Force Sync] Match squad API returned ${squad.length} players for ${match.team1Short} vs ${match.team2Short}`);
+            if (squad.length === 0 && match.seriesId) {
+              console.log(`[Force Sync] Match squad empty, trying tournament/series squad for series ${match.seriesId}...`);
+              const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
+              const team1 = match.team1.toLowerCase();
+              const team2 = match.team2.toLowerCase();
+              const t1Short = match.team1Short.toLowerCase();
+              const t2Short = match.team2Short.toLowerCase();
+              squad = seriesPlayers.filter((p) => {
+                const pTeam = p.team.toLowerCase();
+                const pShort = p.teamShort.toLowerCase();
+                return pTeam === team1 || pTeam === team2 || pTeam.includes(team1) || team1.includes(pTeam) || pTeam.includes(team2) || team2.includes(pTeam) || pShort === t1Short || pShort === t2Short;
+              });
+              console.log(`[Force Sync] Tournament squad: filtered ${squad.length} players for ${match.team1} vs ${match.team2} from ${seriesPlayers.length} total`);
+            }
+            if (squad.length > 0) {
+              const playersToCreate = squad.map((p) => ({
+                matchId,
+                externalId: p.externalId,
+                name: p.name,
+                team: p.team,
+                teamShort: p.teamShort,
+                role: p.role,
+                credits: p.credits
+              }));
+              await storage.upsertPlayersForMatch(matchId, playersToCreate);
+              const matchPlayers = await storage.getPlayersForMatch(matchId);
+              return res.json({
+                message: `Squad synced: ${matchPlayers.length} players loaded for ${match.team1Short} vs ${match.team2Short}`,
+                match: {
+                  id: match.id,
+                  teams: `${match.team1Short} vs ${match.team2Short}`,
+                  status: match.status
+                },
+                totalPlayers: matchPlayers.length,
+                teamsCount: 0
+              });
+            } else {
+              return res.json({
+                message: `No squad data found for ${match.team1Short} vs ${match.team2Short}. The API may not have squads for this match yet.`,
+                totalPlayers: 0
+              });
+            }
+          }
+        }
+        const heartbeat = globalThis.__matchHeartbeat;
+        if (!heartbeat) {
+          return res.status(500).json({ message: "Heartbeat not initialized" });
+        }
+        await heartbeat(matchId);
+        if (matchId) {
+          const match = await storage.getMatch(matchId);
+          const matchPlayers = await storage.getPlayersForMatch(matchId);
+          const teams = await storage.getAllTeamsForMatch(matchId);
+          return res.json({
+            message: "Force sync completed",
+            match: match ? {
+              id: match.id,
+              teams: `${match.team1Short} vs ${match.team2Short}`,
+              status: match.status,
+              scoreString: match.scoreString || "",
+              lastSyncAt: match.lastSyncAt
+            } : null,
+            playersWithPoints: matchPlayers.filter((p) => p.points > 0).length,
+            totalPlayers: matchPlayers.length,
+            teamsCount: teams.length
+          });
+        }
+        return res.json({ message: "Force sync completed for all live matches" });
+      } catch (err) {
+        console.error("Force sync error:", err);
+        return res.status(500).json({ message: "Force sync failed: " + err.message });
+      }
+    }
+  );
+  app2.get(
+    "/api/debug/match-status",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const allMatches = await storage.getAllMatches();
+        const now = Date.now();
+        const THIRTY_SIX_HOURS = 36 * 60 * 60 * 1e3;
+        const filteredMatches = allMatches.filter((m) => {
+          if (m.status !== "completed") return true;
+          const startMs = new Date(m.startTime).getTime();
+          return now - startMs <= THIRTY_SIX_HOURS;
+        });
+        const matchStatuses = filteredMatches.map((m) => {
+          const startMs = new Date(m.startTime).getTime();
+          return {
+            id: m.id,
+            teams: `${m.team1Short} vs ${m.team2Short}`,
+            status: m.status,
+            scoreString: m.scoreString || "",
+            lastSyncAt: m.lastSyncAt,
+            startTime: m.startTime,
+            hasExternalId: !!m.externalId,
+            isLocked: now >= startMs,
+            minutesUntilStart: Math.round((startMs - now) / 6e4)
+          };
+        });
+        return res.json({ matches: matchStatuses, serverTime: (/* @__PURE__ */ new Date()).toISOString() });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/api-calls",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { getInMemoryApiCallCount: getInMemoryApiCallCount2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+        const dbCount = await storage.getApiCallCount();
+        const inMemory = getInMemoryApiCallCount2();
+        return res.json({
+          today: dbCount.count || inMemory,
+          date: dbCount.date,
+          lastCalledAt: dbCount.lastCalledAt,
+          dailyLimit: 2e3,
+          tier1Key: !!process.env.CRICKET_API_KEY,
+          tier2Key: !!process.env.CRICAPI_KEY_TIER2
+        });
+      } catch (err) {
+        console.error("API call tracking error:", err);
+        return res.status(500).json({ message: "Failed to get API call data" });
+      }
+    }
+  );
+  async function distributeMatchReward(matchId) {
+    try {
+      const match = await storage.getMatch(matchId);
+      const matchLabel = match ? `${match.team1Short} vs ${match.team2Short}` : matchId;
+      console.log(`[Rewards] Starting distribution for ${matchLabel}...`);
+      const existingMatchReward = await storage.getRewardForMatch(matchId);
+      if (existingMatchReward) {
+        console.log(`[Rewards] ${matchLabel}: Reward already distributed for this match (to userId ${existingMatchReward.claimedByUserId}), skipping \u2014 idempotent`);
+        return;
+      }
+      const allTeams = await storage.getAllTeamsForMatch(matchId);
+      if (allTeams.length === 0) {
+        console.log(`[Rewards] No teams found for ${matchLabel}, skipping`);
+        return;
+      }
+      console.log(`[Rewards] ${matchLabel}: ${allTeams.length} teams submitted`);
+      const sorted = [...allTeams].sort((a, b) => {
+        if ((b.totalPoints || 0) !== (a.totalPoints || 0)) {
+          return (b.totalPoints || 0) - (a.totalPoints || 0);
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+      const winner = sorted[0];
+      if (!winner || (winner.totalPoints || 0) === 0) {
+        console.log(`[Rewards] No valid winner for ${matchLabel} (top team points: ${winner?.totalPoints || 0})`);
+        return;
+      }
+      console.log(`[Rewards] ${matchLabel}: Rank 1 = userId ${winner.userId} with ${winner.totalPoints} pts (team: ${winner.teamName})`);
+      const reward = await storage.getRandomAvailableReward();
+      if (!reward) {
+        console.log(`[Rewards] \u26A0 Vault empty, no reward distributed for match ${matchLabel} \u2014 add coupons via Admin Panel`);
+        return;
+      }
+      await storage.claimReward(reward.id, winner.userId, matchId);
+      console.log(`[Rewards] \u2713 ${matchLabel}: "${reward.title}" (${reward.brand}) \u2192 userId ${winner.userId}`);
+    } catch (err) {
+      console.error(`[Rewards] \u2717 Distribution FAILED for match ${matchId}:`, err);
+    }
+  }
+  globalThis.__distributeMatchReward = distributeMatchReward;
+  (async () => {
+    try {
+      const assignments = [
+        {
+          matchId: "3cc4d1b3-2959-43c5-9d7c-09f2ed4d0997",
+          label: "ENG vs SL",
+          rewardId: "5bb13e61-6a04-4229-8ed5-5425f6b8e451",
+          rewardBrand: "Zomato"
+        },
+        {
+          matchId: "56467706-bbab-44ff-a4e9-6b369b2470c9",
+          label: "IND vs RSA",
+          rewardId: "1e89dd29-3c92-48dd-82a6-0df4167ef083",
+          rewardBrand: "Domino's"
+        }
+      ];
+      for (const a of assignments) {
+        const existing = await storage.getRewardForMatch(a.matchId);
+        if (existing) {
+          console.log(`[Retroactive] ${a.label}: Already distributed, skipping`);
+          continue;
+        }
+        const allTeams = await storage.getAllTeamsForMatch(a.matchId);
+        if (allTeams.length === 0) {
+          console.log(`[Retroactive] ${a.label}: No teams found, skipping`);
+          continue;
+        }
+        const sorted = [...allTeams].sort((x, y) => {
+          if ((y.totalPoints || 0) !== (x.totalPoints || 0))
+            return (y.totalPoints || 0) - (x.totalPoints || 0);
+          return new Date(x.createdAt).getTime() - new Date(y.createdAt).getTime();
+        });
+        const winner = sorted[0];
+        await storage.claimReward(a.rewardId, winner.userId, a.matchId);
+        console.log(`[Retroactive] \u2713 ${a.label}: ${a.rewardBrand} \u2192 userId ${winner.userId} (${winner.totalPoints} pts)`);
+      }
+    } catch (err) {
+      console.error("[Retroactive] One-time distribution failed:", err);
+    }
+  })();
+  app2.get(
+    "/api/admin/rewards",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const allRewards = await storage.getAllRewards();
+        const available = allRewards.filter((r) => !r.isClaimed);
+        const claimed = allRewards.filter((r) => r.isClaimed);
+        const claimedWithInfo = [];
+        for (const r of claimed) {
+          let username = "Unknown";
+          let matchLabel = "";
+          if (r.claimedByUserId) {
+            const user = await storage.getUser(r.claimedByUserId);
+            if (user) username = user.username;
+          }
+          if (r.claimedMatchId) {
+            const match = await storage.getMatch(r.claimedMatchId);
+            if (match) matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+          }
+          claimedWithInfo.push({ ...r, claimedByUsername: username, matchLabel });
+        }
+        return res.json({ available, claimed: claimedWithInfo });
+      } catch (err) {
+        console.error("Admin rewards error:", err);
+        return res.status(500).json({ message: "Failed to fetch rewards" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/rewards",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { brand, title, code, terms } = req.body;
+        if (!brand || !title || !code) {
+          return res.status(400).json({ message: "Brand, title, and code are required" });
+        }
+        const reward = await storage.createReward({ brand, title, code, terms: terms || "" });
+        return res.json({ reward });
+      } catch (err) {
+        console.error("Create reward error:", err);
+        return res.status(500).json({ message: "Failed to create reward" });
+      }
+    }
+  );
+  app2.delete(
+    "/api/admin/rewards/:id",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        await storage.deleteReward(req.params.id);
+        return res.json({ message: "Reward deleted" });
+      } catch (err) {
+        console.error("Delete reward error:", err);
+        return res.status(500).json({ message: "Failed to delete reward" });
+      }
+    }
+  );
+  app2.get(
+    "/api/rewards/match/:matchId",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const userId = req.session.userId;
+        const reward = await storage.getRewardForUserMatch(userId, req.params.matchId);
+        return res.json({ reward: reward || null });
+      } catch (err) {
+        console.error("Get match reward error:", err);
+        return res.status(500).json({ message: "Failed to fetch reward" });
+      }
+    }
+  );
+  app2.get(
+    "/api/rewards/my",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const userId = req.session.userId;
+        const myRewards = await storage.getUserRewards(userId);
+        const withMatchInfo = [];
+        for (const r of myRewards) {
+          let matchLabel = "";
+          if (r.claimedMatchId) {
+            const match = await storage.getMatch(r.claimedMatchId);
+            if (match) matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+          }
+          withMatchInfo.push({ ...r, matchLabel });
+        }
+        return res.json({ rewards: withMatchInfo });
+      } catch (err) {
+        console.error("My rewards error:", err);
+        return res.status(500).json({ message: "Failed to fetch your rewards" });
+      }
+    }
+  );
+  app2.post(
+    "/api/tournament/process",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { matchId, tournamentName, stake } = req.body;
+        if (!matchId || !tournamentName || !stake) {
+          return res.status(400).json({ message: "matchId, tournamentName, and stake are required" });
+        }
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (match.status !== "completed") {
+          return res.status(400).json({ message: "Match must be COMPLETED before processing pot" });
+        }
+        if (match.potProcessed) {
+          return res.status(400).json({ message: "Pot already processed for this match (idempotency lock)" });
+        }
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        if (allTeams.length < 2) {
+          return res.status(400).json({ message: `Not enough players. Found ${allTeams.length} team(s), need at least 2.` });
+        }
+        const entryStake = Number(stake) || 30;
+        const maxPoints = Math.max(...allTeams.map((t) => t.totalPoints));
+        const winningTeams = allTeams.filter((t) => t.totalPoints === maxPoints);
+        const losingTeams = allTeams.filter((t) => t.totalPoints < maxPoints);
+        const totalPot = losingTeams.length * entryStake;
+        const winnerPointsEach = losingTeams.length > 0 ? Math.round(totalPot / winningTeams.length) : 0;
+        const userMap = /* @__PURE__ */ new Map();
+        for (const t of allTeams) {
+          if (!userMap.has(t.userId)) {
+            const u = await storage.getUser(t.userId);
+            userMap.set(t.userId, u?.teamName || u?.username || "Unknown");
+          }
+        }
+        for (const t of losingTeams) {
+          await storage.createLedgerEntry({
+            userId: t.userId,
+            userName: userMap.get(t.userId) || "Unknown",
+            matchId,
+            tournamentName,
+            pointsChange: -entryStake
+          });
+        }
+        for (const t of winningTeams) {
+          await storage.createLedgerEntry({
+            userId: t.userId,
+            userName: userMap.get(t.userId) || "Unknown",
+            matchId,
+            tournamentName,
+            pointsChange: winnerPointsEach
+          });
+        }
+        await storage.updateMatch(matchId, {
+          tournamentName,
+          entryStake,
+          potProcessed: true
+        });
+        console.log(`[Tournament Pot] Processed for ${match.team1Short} vs ${match.team2Short}: ${winningTeams.length} winner(s) (+${winnerPointsEach}), ${losingTeams.length} loser(s) (-${entryStake}), totalPot=${totalPot}`);
+        return res.json({
+          message: "Pot processed successfully",
+          winners: winningTeams.length,
+          losers: losingTeams.length,
+          winnerPoints: winnerPointsEach,
+          loserPoints: -entryStake,
+          totalPot,
+          totalTeams: allTeams.length
+        });
+      } catch (err) {
+        console.error("Process pot error:", err);
+        return res.status(500).json({ message: "Failed to process tournament pot" });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/matches/unprocessed",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const allMatches = await storage.getAllMatches();
+        const completed = allMatches.filter((m) => m.status === "completed" && !m.potProcessed);
+        const withParticipation = [];
+        for (const m of completed) {
+          const teams = await storage.getAllTeamsForMatch(m.id);
+          if (teams.length > 0) {
+            withParticipation.push({
+              id: m.id,
+              team1Short: m.team1Short,
+              team2Short: m.team2Short,
+              startTime: m.startTime,
+              teamCount: teams.length
+            });
+          }
+        }
+        return res.json({ matches: withParticipation });
+      } catch (err) {
+        console.error("Unprocessed matches error:", err);
+        return res.status(500).json({ message: "Failed to fetch unprocessed matches" });
+      }
+    }
+  );
+  app2.get(
+    "/api/tournament/names",
+    isAuthenticated,
+    async (_req, res) => {
+      try {
+        const names = await storage.getDistinctTournamentNames();
+        return res.json({ names });
+      } catch (err) {
+        console.error("Tournament names error:", err);
+        return res.status(500).json({ message: "Failed to fetch tournament names" });
+      }
+    }
+  );
+  app2.get(
+    "/api/tournament/standings",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const name = req.query.name;
+        if (!name) return res.status(400).json({ message: "Tournament name required" });
+        const standings = await storage.getTournamentStandings(name);
+        return res.json({ standings });
+      } catch (err) {
+        console.error("Tournament standings error:", err);
+        return res.status(500).json({ message: "Failed to fetch tournament standings" });
+      }
+    }
+  );
   const httpServer = createServer(app2);
   return httpServer;
 }
@@ -2834,6 +3516,10 @@ init_storage();
 import * as fs from "fs";
 import * as path from "path";
 var app = express();
+console.log(
+  "DEPLOY_CHECK",
+  process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || "no-sha"
+);
 app.set("trust proxy", 1);
 var log = console.log;
 function setupCors(app2) {
@@ -2848,8 +3534,10 @@ function setupCors(app2) {
       });
     }
     const origin = req.header("origin");
+    const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+    const isRailway = !!railwayDomain && origin === `https://${railwayDomain}`;
     const isLocalhost = origin?.startsWith("http://localhost:") || origin?.startsWith("http://127.0.0.1:");
-    if (origin && (origins.has(origin) || isLocalhost)) {
+    if (origin && (origins.has(origin) || isLocalhost || isRailway)) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
@@ -2972,39 +3660,72 @@ function configureExpoAndLanding(app2) {
     log("No web build found, will serve landing page to browsers");
   }
   app2.use((req, res, next) => {
-    if (req.path.startsWith("/api")) {
-      return next();
-    }
+    if (req.path.startsWith("/api")) return next();
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
         return serveExpoManifest(platform, res);
       }
     }
-    next();
+    return next();
   });
   if (hasWebBuild) {
-    app2.use(express.static(webDistPath, {
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith(".html")) {
-          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-          res.setHeader("Pragma", "no-cache");
-          res.setHeader("Expires", "0");
-        } else {
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    const expoPath = path.join(webDistPath, "_expo");
+    if (fs.existsSync(expoPath)) {
+      app2.use(
+        "/_expo",
+        express.static(expoPath, {
+          setHeaders: (res, filePath) => {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+            if (/\.(ttf|otf|woff|woff2)$/i.test(filePath)) {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+            }
+          }
+        })
+      );
+    }
+    const assetsPath = path.join(webDistPath, "assets");
+    if (fs.existsSync(assetsPath)) {
+      app2.use(
+        "/assets",
+        express.static(assetsPath, {
+          setHeaders: (res, filePath) => {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+            if (/\.(ttf|otf|woff|woff2)$/i.test(filePath)) {
+              res.setHeader("Access-Control-Allow-Origin", "*");
+            }
+          }
+        })
+      );
+    }
+    const faviconPath = path.join(webDistPath, "favicon.ico");
+    if (fs.existsSync(faviconPath)) {
+      app2.get("/favicon.ico", (_req, res) => res.sendFile(faviconPath));
+    }
+    app2.use(
+      express.static(webDistPath, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith(".html")) {
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            res.setHeader("Pragma", "no-cache");
+            res.setHeader("Expires", "0");
+          } else {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          }
         }
-      }
-    }));
+      })
+    );
   }
-  app2.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app2.use(express.static(path.resolve(process.cwd(), "static-build")));
   app2.use((req, res, next) => {
-    if (req.path.startsWith("/api")) {
-      return next();
+    if (req.path.startsWith("/api")) return next();
+    if (path.extname(req.path)) {
+      return res.status(404).type("text/plain").send("Not Found");
     }
     if (req.method === "GET" && req.accepts("html")) {
       if (hasWebBuild) {
-        const indexHtml = fs.readFileSync(path.join(webDistPath, "index.html"), "utf-8");
+        const indexHtmlPath = path.join(webDistPath, "index.html");
+        const indexHtml = fs.readFileSync(indexHtmlPath, "utf-8");
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         return res.status(200).send(indexHtml);
@@ -3016,7 +3737,7 @@ function configureExpoAndLanding(app2) {
         appName
       });
     }
-    next();
+    return next();
   });
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
@@ -3054,205 +3775,472 @@ function setupErrorHandler(app2) {
       console.error("Failed to seed reference codes:", err);
     }
   }
-  const port = parseInt(process.env.PORT || "5000", 10);
-  server.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true
-    },
-    () => {
-      log(`express server serving on port ${port}`);
-      seedReferenceCodes().catch((err) => {
-        console.error("Reference code seeding failed:", err);
-      });
+  const port = Number(process.env.PORT) || 3e3;
+  server.listen(port, "0.0.0.0", () => {
+    log(`express server serving on port ${port}`);
+    const ADMIN_PHONES2 = ["9840872462", "9884334973", "7406020777"];
+    (async () => {
+      for (const phone of ADMIN_PHONES2) {
+        try {
+          const u = await storage.getUserByPhone(phone);
+          if (u && !u.isAdmin) {
+            await storage.setUserAdmin(u.id, true);
+            log(`Auto-promoted ${u.username} (${phone}) to admin`);
+          }
+        } catch (e) {
+        }
+      }
+    })();
+    seedReferenceCodes().catch((err) => {
+      console.error("Reference code seeding failed:", err);
+    });
+    syncMatchesFromApi().catch((err) => {
+      console.error("Initial match sync failed:", err);
+    });
+    const TWO_HOURS = 2 * 60 * 60 * 1e3;
+    setInterval(() => {
+      log("Periodic match sync (every 2 hours)...");
       syncMatchesFromApi().catch((err) => {
-        console.error("Initial match sync failed:", err);
+        console.error("Periodic match sync failed:", err);
       });
-      const TWO_HOURS = 2 * 60 * 60 * 1e3;
-      setInterval(() => {
-        log("Periodic match sync (every 2 hours)...");
-        syncMatchesFromApi().catch((err) => {
-          console.error("Periodic match sync failed:", err);
-        });
-      }, TWO_HOURS);
-      const recentlyRefreshed = /* @__PURE__ */ new Map();
-      const cricbuzzVerified = /* @__PURE__ */ new Map();
-      const FIVE_MINUTES = 5 * 60 * 1e3;
-      const TEN_MINUTES = 10 * 60 * 1e3;
-      const TWENTY_MINUTES = 20 * 60 * 1e3;
-      async function refreshPlayingXI() {
-        try {
-          const allMatches = await storage.getAllMatches();
-          const now = Date.now();
-          for (const match of allMatches) {
-            if (!match.externalId) continue;
-            if (match.status === "completed") continue;
-            const startMs = new Date(match.startTime).getTime();
-            const timeUntilStart = startMs - now;
-            const isInWindow = timeUntilStart <= TWENTY_MINUTES && timeUntilStart > -TWO_HOURS;
-            const isLive = match.status === "live" || match.status === "delayed";
-            if (!isInWindow && !isLive) continue;
-            const lastRefresh = recentlyRefreshed.get(match.id) || 0;
-            if (now - lastRefresh < FIVE_MINUTES) continue;
-            log(`Playing XI refresh: ${match.team1} vs ${match.team2} (starts in ${Math.round(timeUntilStart / 6e4)}m, status: ${match.status})`);
-            try {
-              let squad = await fetchMatchSquad(match.externalId);
-              if (squad.length === 0 && match.seriesId) {
-                const seriesPlayers = await fetchSeriesSquad(match.seriesId);
-                const t1 = match.team1.toLowerCase();
-                const t2 = match.team2.toLowerCase();
-                squad = seriesPlayers.filter((p) => {
-                  const pt = p.team.toLowerCase();
-                  return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
-                });
-              }
-              if (squad.length > 0) {
-                await storage.upsertPlayersForMatch(
-                  match.id,
-                  squad.map((p) => ({
-                    matchId: match.id,
-                    externalId: p.externalId,
-                    name: p.name,
-                    team: p.team,
-                    teamShort: p.teamShort,
-                    role: p.role,
-                    credits: p.credits
-                  }))
-                );
-                log(`Playing XI upserted: ${squad.length} players for ${match.team1} vs ${match.team2}`);
-              }
-              const playingXICount = await storage.getPlayingXICount(match.id);
-              if (playingXICount === 0 && match.externalId) {
-                let playingXIIds = await fetchPlayingXIFromScorecard(match.externalId);
-                if (playingXIIds.length > 0) {
-                  await storage.markPlayingXI(match.id, playingXIIds);
-                  log(`Playing XI marked from scorecard: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
-                } else {
-                  playingXIIds = await fetchPlayingXIFromMatchInfo(match.externalId);
-                  if (playingXIIds.length > 0) {
-                    await storage.markPlayingXI(match.id, playingXIIds);
-                    log(`Playing XI marked from match_info: ${playingXIIds.length} players for ${match.team1} vs ${match.team2}`);
-                  }
-                }
-              }
-              recentlyRefreshed.set(match.id, now);
-            } catch (err) {
-              console.error(`Playing XI refresh failed for ${match.id}:`, err);
-            }
-          }
-        } catch (err) {
-          console.error("Playing XI scheduler error:", err);
+    }, TWO_HOURS);
+    const HEARTBEAT_INTERVAL = 60 * 1e3;
+    let heartbeatSyncing = false;
+    let heartbeatLockTime = 0;
+    function fuzzyNameMatch(name1, name2) {
+      if (name1 === name2) return true;
+      if (name1.includes(name2) || name2.includes(name1)) return true;
+      const p1 = name1.split(" ");
+      const p2 = name2.split(" ");
+      if (p1.length > 0 && p2.length > 0) {
+        const last1 = p1[p1.length - 1], last2 = p2[p2.length - 1];
+        if (last1 === last2 && last1.length > 2 && p1[0][0] === p2[0][0])
+          return true;
+        if (last1.length >= 4 && last2.length >= 4) {
+          const a = last1, b = last2, m = a.length, n = b.length;
+          const dp = Array.from(
+            { length: m + 1 },
+            () => Array(n + 1).fill(0)
+          );
+          for (let i = 0; i <= m; i++) dp[i][0] = i;
+          for (let j = 0; j <= n; j++) dp[0][j] = j;
+          for (let i = 1; i <= m; i++)
+            for (let j = 1; j <= n; j++)
+              dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+          if (dp[m][n] <= 2 && p1[0][0] === p2[0][0]) return true;
+        }
+        if (p1[0].substring(0, 3) === p2[0].substring(0, 3) && p1[0].length >= 3) {
+          if (last1.substring(0, 3) === last2.substring(0, 3)) return true;
         }
       }
-      async function cricbuzzAutoVerifyPlayingXI() {
-        try {
-          const allMatches = await storage.getAllMatches();
-          const now = Date.now();
-          for (const match of allMatches) {
-            if (match.status === "completed") continue;
-            const startMs = new Date(match.startTime).getTime();
-            const timeUntilStart = startMs - now;
-            const isNearStart = timeUntilStart <= TEN_MINUTES && timeUntilStart > -TWO_HOURS;
-            const isLive = match.status === "live" || match.status === "delayed";
-            if (!isNearStart && !isLive) continue;
-            const lastVerify = cricbuzzVerified.get(match.id) || 0;
-            if (now - lastVerify < TEN_MINUTES) continue;
-            log(`Cricbuzz auto-verify: ${match.team1Short} vs ${match.team2Short} (starts in ${Math.round(timeUntilStart / 6e4)}m)`);
-            try {
-              const { autoVerifyPlayingXI: autoVerifyPlayingXI2 } = await Promise.resolve().then(() => (init_cricbuzz_api(), cricbuzz_api_exports));
-              const result = await autoVerifyPlayingXI2(
-                match.id,
-                match.team1Short,
-                match.team2Short,
-                match.startTime?.toISOString()
-              );
-              if (result && result.matched > 0) {
-                log(`Cricbuzz Playing XI verified: ${result.matched} players matched for ${match.team1Short} vs ${match.team2Short}`);
-              }
-              cricbuzzVerified.set(match.id, now);
-            } catch (err) {
-              console.error(`Cricbuzz auto-verify failed for ${match.id}:`, err);
-            }
-          }
-        } catch (err) {
-          console.error("Cricbuzz auto-verify scheduler error:", err);
-        }
+      if (name1.length >= 5 && name2.length >= 5) {
+        const a = name1, b = name2, m = a.length, n = b.length;
+        const dp = Array.from(
+          { length: m + 1 },
+          () => Array(n + 1).fill(0)
+        );
+        for (let i = 0; i <= m; i++) dp[i][0] = i;
+        for (let j = 0; j <= n; j++) dp[0][j] = j;
+        for (let i = 1; i <= m; i++)
+          for (let j = 1; j <= n; j++)
+            dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        if (dp[m][n] <= 2 && Math.max(m, n) >= 8) return true;
       }
-      const TWO_MINUTES = 2 * 60 * 1e3;
-      const scorecardLastSync = /* @__PURE__ */ new Map();
-      async function autoSyncScorecard() {
-        try {
-          const allMatches = await storage.getAllMatches();
-          const now = Date.now();
-          for (const match of allMatches) {
-            if (!match.externalId) continue;
-            const isLive = match.status === "live" || match.status === "delayed";
-            if (!isLive) continue;
-            const lastSync = scorecardLastSync.get(match.id) || 0;
-            if (now - lastSync < TWO_MINUTES) continue;
-            try {
-              const { fetchMatchScorecard: fetchMatchScorecard3 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-              let pointsMap = await fetchMatchScorecard3(match.externalId);
-              if (pointsMap.size === 0 && match.team1Short && match.team2Short) {
-                const { calculatePointsFromApiCricket: calculatePointsFromApiCricket2 } = await Promise.resolve().then(() => (init_api_cricket(), api_cricket_exports));
-                const matchDateStr = match.startTime ? new Date(match.startTime).toISOString().split("T")[0] : void 0;
-                pointsMap = await calculatePointsFromApiCricket2(match.id, match.team1Short, match.team2Short, matchDateStr);
-                if (pointsMap.size > 0) {
-                  log(`Scorecard fallback: api-cricket.com returned points for ${pointsMap.size} players (${match.team1Short} vs ${match.team2Short})`);
-                }
-              }
-              if (pointsMap.size > 0) {
-                const matchPlayers = await storage.getPlayersForMatch(match.id);
-                let updated = 0;
-                for (const player of matchPlayers) {
-                  if (player.externalId && pointsMap.has(player.externalId)) {
-                    const pts = pointsMap.get(player.externalId);
-                    if (pts !== player.points) {
-                      await storage.updatePlayer(player.id, { points: pts });
-                      updated++;
-                    }
-                  }
-                }
-                if (updated > 0) {
-                  const updatedPlayers = await storage.getPlayersForMatch(match.id);
-                  const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
-                  const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
-                  const allTeams = await storage.getAllTeamsForMatch(match.id);
-                  for (const team of allTeams) {
-                    const teamPlayerIds = team.playerIds;
-                    let totalPoints = 0;
-                    for (const pid of teamPlayerIds) {
-                      const p = playerById.get(pid) || playerByExtId.get(pid);
-                      if (p) {
-                        let pts = p.points || 0;
-                        if (pid === team.captainId) pts *= 2;
-                        else if (pid === team.viceCaptainId) pts *= 1.5;
-                        totalPoints += pts;
-                      }
-                    }
-                    if (totalPoints !== (team.totalPoints || 0)) {
-                      await storage.updateUserTeamPoints(team.id, totalPoints);
-                    }
-                  }
-                  log(`Scorecard auto-sync: updated ${updated} player scores, recalculated team points for ${match.team1Short} vs ${match.team2Short}`);
-                }
-              }
-              scorecardLastSync.set(match.id, now);
-            } catch (err) {
-              console.error(`Scorecard auto-sync failed for ${match.id}:`, err);
-            }
-          }
-        } catch (err) {
-          console.error("Scorecard auto-sync scheduler error:", err);
-        }
-      }
-      setInterval(refreshPlayingXI, FIVE_MINUTES);
-      setInterval(cricbuzzAutoVerifyPlayingXI, FIVE_MINUTES);
-      setInterval(autoSyncScorecard, TWO_MINUTES);
-      log("Playing XI auto-refresh scheduler started (every 5min, 20min before match)");
-      log("Cricbuzz auto-verify scheduler started (every 5min, 10min before match)");
-      log("Scorecard auto-sync scheduler started (every 2min for live matches)");
+      return false;
     }
-  );
+    function resolvePlayerPoints(player, pointsMap, namePointsMap) {
+      if (player.externalId && pointsMap.has(player.externalId)) {
+        return {
+          fantasyPts: pointsMap.get(player.externalId),
+          matchMethod: "externalId"
+        };
+      }
+      if (namePointsMap.size > 0) {
+        if (player.apiName) {
+          const normApiName = player.apiName.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+          if (namePointsMap.has(normApiName)) {
+            return {
+              fantasyPts: namePointsMap.get(normApiName),
+              matchMethod: `apiName(${player.apiName})`
+            };
+          }
+        }
+        if (player.name) {
+          const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+          if (namePointsMap.has(normName)) {
+            return {
+              fantasyPts: namePointsMap.get(normName),
+              matchMethod: "exactName"
+            };
+          }
+          for (const [apiName, apiPts] of namePointsMap) {
+            if (fuzzyNameMatch(apiName, normName)) {
+              return { fantasyPts: apiPts, matchMethod: `fuzzy(${apiName})` };
+            }
+          }
+        }
+      }
+      return { fantasyPts: void 0, matchMethod: "none" };
+    }
+    async function updateLiveScore(match) {
+      const empty = {
+        pointsMap: /* @__PURE__ */ new Map(),
+        namePointsMap: /* @__PURE__ */ new Map(),
+        scoreString: "",
+        matchEnded: false,
+        totalOvers: 0,
+        source: ""
+      };
+      if (!match.externalId) return empty;
+      try {
+        const { fetchMatchScorecardWithScore: fetchMatchScorecardWithScore2, fetchMatchInfo: fetchMatchInfo2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+        const result = await fetchMatchScorecardWithScore2(match.externalId);
+        const source = result.pointsMap.size > 0 || result.scoreString ? "CricAPI" : "";
+        log(
+          `[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}, overs=${result.totalOvers}`
+        );
+        try {
+          const matchInfo = await fetchMatchInfo2(match.externalId);
+          if (matchInfo && matchInfo.score && Array.isArray(matchInfo.score) && matchInfo.score.length > 0) {
+            const infoScoreArr = matchInfo.score;
+            const infoScoreString = infoScoreArr.map(
+              (s) => `${s?.inning ?? "?"}: ${s?.r ?? 0}/${s?.w ?? 0} (${s?.o ?? 0} ov)`
+            ).join(" | ");
+            const infoTotalOvers = infoScoreArr.reduce(
+              (sum, s) => sum + (s?.o || 0),
+              0
+            );
+            const infoStatus = (matchInfo.name || matchInfo.status || "").toLowerCase();
+            const infoEnded = infoStatus.includes("won") || infoStatus.includes("draw") || infoStatus.includes("tied") || infoStatus.includes("finished") || infoStatus.includes("beat") || infoStatus.includes("defeat") || infoStatus.includes("result") || infoStatus.includes("aban") || matchInfo.matchEnded === true;
+            if (infoTotalOvers > result.totalOvers) {
+              log(
+                `[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info has fresher score ${infoTotalOvers} ov vs scorecard ${result.totalOvers} ov`
+              );
+              const statusText = matchInfo.name || matchInfo.status || "";
+              result.scoreString = statusText ? `${infoScoreString} \u2014 ${statusText}` : infoScoreString;
+              result.totalOvers = infoTotalOvers;
+            }
+            if (infoEnded && !result.matchEnded) {
+              log(
+                `[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info says ended`
+              );
+              result.matchEnded = true;
+            }
+          }
+        } catch (infoErr) {
+          log(
+            `[Heartbeat:LiveScore] match_info fallback failed for ${match.team1Short} vs ${match.team2Short}: ${infoErr}`
+          );
+        }
+        return { ...result, source };
+      } catch (err) {
+        console.error(
+          `[Heartbeat:Score] FAILED for ${match.team1Short} vs ${match.team2Short}:`,
+          err
+        );
+        return empty;
+      }
+    }
+    async function updateFantasyPoints(matchId, matchLabel, pointsMap, namePointsMap) {
+      const matchPlayers = await storage.getPlayersForMatch(matchId);
+      const playerUpdates = [];
+      let mapped = 0;
+      let unmapped = 0;
+      let skippedProtected = 0;
+      for (const player of matchPlayers) {
+        try {
+          let resolveResult;
+          try {
+            resolveResult = resolvePlayerPoints(
+              player,
+              pointsMap,
+              namePointsMap
+            );
+          } catch (resolveErr) {
+            console.error(
+              `[Heartbeat:Points] resolvePlayerPoints THREW for "${player.name}" (${player.id}):`,
+              resolveErr
+            );
+            continue;
+          }
+          const { fantasyPts, matchMethod } = resolveResult;
+          const existingPts = player.points || 0;
+          const xiBase = player.isPlayingXI ? 4 : 0;
+          let finalPts;
+          if (fantasyPts !== void 0 && fantasyPts !== null) {
+            finalPts = fantasyPts + xiBase;
+            mapped++;
+            if (finalPts < existingPts) {
+              log(
+                `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} \u2014 keeping existing`
+              );
+              skippedProtected++;
+              continue;
+            }
+            if (matchMethod.startsWith("fuzzy") || matchMethod.startsWith("apiName")) {
+              log(
+                `[Heartbeat:Points] Match: "${player.name}" -> ${matchMethod} = ${fantasyPts} scorecard + ${xiBase} XI base = ${finalPts}`
+              );
+            }
+          } else if (player.isPlayingXI) {
+            finalPts = Math.max(xiBase, existingPts);
+            unmapped++;
+            if (finalPts <= existingPts) {
+              continue;
+            }
+          } else {
+            continue;
+          }
+          if (finalPts !== existingPts) {
+            playerUpdates.push({
+              id: player.id,
+              name: player.name,
+              oldPoints: existingPts,
+              newPoints: finalPts,
+              method: matchMethod
+            });
+          }
+        } catch (err) {
+          console.error(
+            `[Heartbeat:Points] OUTER CATCH for player "${player.name}" (${player.id}):`,
+            err
+          );
+          continue;
+        }
+      }
+      if (playerUpdates.length > 0) {
+        for (const upd of playerUpdates) {
+          try {
+            await storage.updatePlayer(upd.id, { points: upd.newPoints });
+          } catch (dbErr) {
+            console.error(
+              `[Heartbeat:Points] DB WRITE FAILED for "${upd.name}" (${upd.id}):`,
+              dbErr
+            );
+          }
+        }
+        log(
+          `[Heartbeat:Points] ${matchLabel}: ${playerUpdates.length} players updated (${mapped} mapped, ${unmapped} unmapped/XI-only, ${skippedProtected} protected from crash)`
+        );
+        if (playerUpdates.length <= 10) {
+          for (const u of playerUpdates) {
+            log(
+              `  -> ${u.name}: ${u.oldPoints} -> ${u.newPoints} (${u.method})`
+            );
+          }
+        }
+      }
+      return playerUpdates.length;
+    }
+    async function recalculateTeamTotals(matchId, matchLabel) {
+      const updatedPlayers = await storage.getPlayersForMatch(matchId);
+      const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
+      const playerByExtId = new Map(
+        updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p])
+      );
+      const allTeams = await storage.getAllTeamsForMatch(matchId);
+      const teamUpdates = [];
+      for (const team of allTeams) {
+        try {
+          const teamPlayerIds = team.playerIds;
+          let totalPoints = 0;
+          for (const pid of teamPlayerIds) {
+            try {
+              const p = playerById.get(pid) || playerByExtId.get(pid);
+              if (!p) continue;
+              let basePts = p.points || 0;
+              let multiplier = 1;
+              if (pid === team.captainId) {
+                multiplier = 2;
+              } else if (pid === team.viceCaptainId) {
+                multiplier = 1.5;
+              }
+              const finalPts = Math.round(basePts * multiplier);
+              totalPoints += finalPts;
+            } catch (playerErr) {
+              console.error(
+                `[Heartbeat:Teams] FAILED resolving player ${pid} in team ${team.id}:`,
+                playerErr
+              );
+              continue;
+            }
+          }
+          if (totalPoints !== (team.totalPoints || 0)) {
+            teamUpdates.push({
+              teamId: team.id,
+              teamName: team.name || "unnamed",
+              oldTotal: team.totalPoints || 0,
+              newTotal: totalPoints
+            });
+          }
+        } catch (err) {
+          console.error(
+            `[Heartbeat:Teams] OUTER CATCH for team ${team.id}:`,
+            err
+          );
+          continue;
+        }
+      }
+      if (teamUpdates.length > 0) {
+        for (const upd of teamUpdates) {
+          try {
+            await storage.updateUserTeamPoints(upd.teamId, upd.newTotal);
+          } catch (dbErr) {
+            console.error(
+              `[Heartbeat:Teams] DB WRITE FAILED for team ${upd.teamId}:`,
+              dbErr
+            );
+          }
+        }
+        log(
+          `[Heartbeat:Teams] ${matchLabel}: ${teamUpdates.length} teams recalculated \u2014 ${teamUpdates.map((t) => `${t.teamName}: ${t.oldTotal}->${t.newTotal}`).join(", ")}`
+        );
+      }
+    }
+    function extractTotalOversFromScoreString(scoreStr) {
+      if (!scoreStr) return 0;
+      const matches2 = scoreStr.match(/\((\d+(?:\.\d+)?)\s*ov\)/g);
+      if (!matches2) return 0;
+      return matches2.reduce((sum, m) => {
+        const num = parseFloat(m.replace(/[^0-9.]/g, ""));
+        return sum + (isNaN(num) ? 0 : num);
+      }, 0);
+    }
+    async function matchHeartbeat(forcedMatchId) {
+      if (heartbeatSyncing && !forcedMatchId) {
+        const lockAge = Date.now() - heartbeatLockTime;
+        if (lockAge < 6e4) {
+          log("[Heartbeat] SKIPPED: previous sync still in progress");
+          return;
+        }
+        log(
+          `[Heartbeat] FORCE UNLOCK: lock held for ${Math.round(lockAge / 1e3)}s \u2014 resetting stale lock`
+        );
+        heartbeatSyncing = false;
+      }
+      heartbeatSyncing = true;
+      heartbeatLockTime = Date.now();
+      try {
+        const allMatches = await storage.getAllMatches();
+        const now = Date.now();
+        for (const match of allMatches) {
+          if (forcedMatchId && match.id !== forcedMatchId) continue;
+          const startMs = match.startTime ? new Date(match.startTime).getTime() : 0;
+          const isStarted = startMs > 0 && now > startMs && match.status !== "completed";
+          const isLive = match.status === "live" || match.status === "delayed";
+          if (isStarted && !isLive) {
+            log(
+              `[Heartbeat] LOCKOUT: ${match.team1Short} vs ${match.team2Short} -> status=live (was ${match.status}, started ${Math.round((now - startMs) / 6e4)}m ago)`
+            );
+            await storage.updateMatch(match.id, { status: "live" });
+            try {
+              const matchPlayers = await storage.getPlayersForMatch(match.id);
+              const xiPlayers = matchPlayers.filter(
+                (p) => p.isPlayingXI && (!p.points || p.points < 4)
+              );
+              if (xiPlayers.length > 0) {
+                for (const p of xiPlayers) {
+                  await storage.updatePlayer(p.id, { points: 4 });
+                }
+                log(
+                  `[Heartbeat] LIVE BASE POINTS: Awarded +4 base to ${xiPlayers.length} Playing XI players for ${match.team1Short} vs ${match.team2Short}`
+                );
+                await recalculateTeamTotals(
+                  match.id,
+                  `${match.team1Short} vs ${match.team2Short}`
+                );
+              }
+            } catch (baseErr) {
+              console.error(
+                `[Heartbeat] Failed to award base XI points on live transition:`,
+                baseErr
+              );
+            }
+          }
+          if (!isLive && !isStarted && !forcedMatchId) continue;
+          const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+          try {
+            const {
+              pointsMap,
+              namePointsMap,
+              scoreString,
+              matchEnded,
+              totalOvers,
+              source
+            } = await updateLiveScore(match);
+            const existingScoreStr = match.scoreString || "";
+            const existingOvers = extractTotalOversFromScoreString(existingScoreStr);
+            const existingInningsCount = (existingScoreStr.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length;
+            const incomingInningsCount = scoreString ? (scoreString.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length : 0;
+            const isStaleScore = totalOvers > 0 && totalOvers < existingOvers && incomingInningsCount <= existingInningsCount;
+            if (isStaleScore) {
+              log(
+                `[Heartbeat] STALE SCORE skipped for ${matchLabel}: incoming ${totalOvers} ov < existing ${existingOvers} ov \u2014 points still processed`
+              );
+            }
+            if (!isStaleScore && scoreString && scoreString !== match.scoreString) {
+              await storage.updateMatch(match.id, {
+                scoreString,
+                lastSyncAt: /* @__PURE__ */ new Date()
+              });
+            }
+            if (matchEnded && match.status !== "completed") {
+              log(`[Heartbeat] COMPLETED: ${matchLabel}`);
+              await storage.updateMatch(match.id, { status: "completed" });
+              try {
+                const distribute = globalThis.__distributeMatchReward;
+                if (distribute) await distribute(match.id);
+              } catch (rewardErr) {
+                console.error(
+                  `[Heartbeat] Reward distribution failed for ${matchLabel}:`,
+                  rewardErr
+                );
+              }
+            }
+            if (pointsMap.size > 0) {
+              const updatedCount = await updateFantasyPoints(
+                match.id,
+                matchLabel,
+                pointsMap,
+                namePointsMap
+              );
+              if (updatedCount > 0) {
+                await recalculateTeamTotals(match.id, matchLabel);
+              }
+            } else {
+              const matchPlayers = await storage.getPlayersForMatch(match.id);
+              const xiPlayersWithZero = matchPlayers.filter(
+                (p) => p.isPlayingXI && (p.points === 0 || p.points === null)
+              );
+              if (xiPlayersWithZero.length > 0) {
+                log(
+                  `[Heartbeat:Points] ${matchLabel}: No scorecard data yet, applying +4 XI base to ${xiPlayersWithZero.length} players`
+                );
+                for (const p of xiPlayersWithZero) {
+                  await storage.updatePlayer(p.id, { points: 4 });
+                }
+                await recalculateTeamTotals(match.id, matchLabel);
+              }
+            }
+            if (source) {
+              log(
+                `[Heartbeat] ${matchLabel} synced via ${source}${scoreString ? ` \u2014 ${scoreString.substring(0, 80)}` : ""}`
+              );
+            }
+          } catch (err) {
+            console.error(`[Heartbeat] sync FAILED for ${matchLabel}:`, err);
+          }
+        }
+      } catch (err) {
+        console.error("[Heartbeat] scheduler error:", err);
+      } finally {
+        heartbeatSyncing = false;
+      }
+    }
+    globalThis.__matchHeartbeat = matchHeartbeat;
+    setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
+    log(
+      "Match Heartbeat started (every 60s \u2014 score sync, points, lockout, stale-data rejection)"
+    );
+  });
 })();
