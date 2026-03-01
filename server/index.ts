@@ -7,7 +7,10 @@ import * as fs from "fs";
 import * as path from "path";
 
 const app = express();
-console.log("DEPLOY_CHECK", process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || "no-sha");
+console.log(
+  "DEPLOY_CHECK",
+  process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || "no-sha",
+);
 app.set("trust proxy", 1);
 const log = console.log;
 
@@ -197,28 +200,27 @@ function configureExpoAndLanding(app: express.Application) {
     log("No web build found, will serve landing page to browsers");
   }
 
+  // ✅ Expo manifest routing + IMPORTANT: never let SPA fallback hijack file requests
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api")) {
-      return next();
-    }
+    // API should behave normally
+    if (req.path.startsWith("/api")) return next();
 
+    // Expo native clients (ios/android) hit "/" or "/manifest" with expo-platform header
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
         return serveExpoManifest(platform, res);
       }
     }
-  if (path.extname(req.path)) {
-    return next();
-  }
 
-  if (req.method === "GET" && req.accepts("html")) {
-  
-  }
-    // (SPA fallback handled below)
-  next();
-});
-    next();
+    // If the request looks like a file (has an extension), DO NOT serve index.html.
+    // Let express.static try first; if nothing matches, return a real 404 (not HTML).
+    if (path.extname(req.path)) {
+      res.status(404).type("text/plain").send("Not Found");
+      return;
+    }
+
+    return next();
   });
 
   // 1) Serve the web build folder (index.html, bundles, etc.)
@@ -286,9 +288,9 @@ function configureExpoAndLanding(app: express.Application) {
     }),
   );
   app.use(
-  "/assets/node_modules",
-  express.static(path.resolve(process.cwd(), "node_modules")),
-);
+    "/assets/node_modules",
+    express.static(path.resolve(process.cwd(), "node_modules")),
+  );
   // 3) Serve static-build (if used)
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
