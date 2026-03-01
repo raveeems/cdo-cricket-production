@@ -7,6 +7,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const app = express();
+console.log("DEPLOY_CHECK", process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || "no-sha");
 app.set("trust proxy", 1);
 const log = console.log;
 
