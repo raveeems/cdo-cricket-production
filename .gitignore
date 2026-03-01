@@ -39,3 +39,7 @@ yarn-error.*
 .vercel
 
 .env
+
+# Allow Expo web build assets even though they live under a node_modules path
+!web-app/assets/node_modules/
+!web-app/assets/node_modules/**
