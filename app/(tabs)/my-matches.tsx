@@ -17,10 +17,28 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
 import { getTimeUntilMatch, Match } from '@/lib/mock-data';
 
+interface TeamData {
+  id: string;
+  matchId: string;
+  name: string;
+  playerIds: string[];
+  captainId: string;
+  viceCaptainId: string;
+  totalPoints: number;
+  createdAt: string;
+}
+
 export default function MyMatchesScreen() {
   const { colors } = useTheme();
-  const { teams } = useTeams();
+  const { teams: contextTeams } = useTeams();
   const insets = useSafeAreaInsets();
+
+  const { data: teamsData } = useQuery<{ teams: TeamData[] }>({
+    queryKey: ['/api/my-teams'],
+    staleTime: 30000,
+  });
+
+  const teams = teamsData?.teams || contextTeams || [];
 
   const { data, isLoading } = useQuery<{ matches: Match[] }>({
     queryKey: ['/api/matches'],
