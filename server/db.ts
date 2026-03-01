@@ -8,6 +8,9 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('railway') || process.env.DATABASE_URL?.includes('rlwy')
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
 export const db = drizzle(pool, { schema });
