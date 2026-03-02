@@ -711,18 +711,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        const matchPlayersForResponse = await storage.getPlayersForMatch(matchId);
+        const playerById = new Map(matchPlayersForResponse.map(p => [p.id, p]));
+
         const standings = allTeams
-          .map((t) => ({
-            teamId: t.id,
-            teamName: t.name,
-            userId: t.userId,
-            username: allUsers[t.userId]?.username || "Unknown",
-            userTeamName: allUsers[t.userId]?.teamName || "",
-            totalPoints: t.totalPoints || 0,
-            playerIds: t.playerIds,
-            captainId: t.captainId,
-            viceCaptainId: t.viceCaptainId,
-          }))
+          .map((t) => {
+            const resolvedPlayers = (t.playerIds as string[]).map(pid => {
+              const p = playerById.get(pid);
+              if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort };
+              return null;
+            }).filter(Boolean);
+
+            return {
+              teamId: t.id,
+              teamName: t.name,
+              userId: t.userId,
+              username: allUsers[t.userId]?.username || "Unknown",
+              userTeamName: allUsers[t.userId]?.teamName || "",
+              totalPoints: t.totalPoints || 0,
+              playerIds: t.playerIds,
+              captainId: t.captainId,
+              viceCaptainId: t.viceCaptainId,
+              resolvedPlayers,
+            };
+          })
           .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
 
         let rank = 1;
@@ -733,7 +745,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return { ...s, rank };
         });
 
-        const matchPlayersForResponse = await storage.getPlayersForMatch(matchId);
         return res.json({ standings: rankedStandings, isLive: true, players: matchPlayersForResponse });
       } catch (err: any) {
         console.error("Standings error:", err);

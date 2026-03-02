@@ -62,6 +62,14 @@ interface LiveScorecard {
   status: string;
 }
 
+interface ResolvedPlayer {
+  id: string;
+  name: string;
+  role: string;
+  points: number;
+  teamShort: string;
+}
+
 interface StandingEntry {
   rank: number;
   teamId: string;
@@ -73,6 +81,7 @@ interface StandingEntry {
   playerIds: string[];
   captainId: string | null;
   viceCaptainId: string | null;
+  resolvedPlayers?: ResolvedPlayer[];
 }
 
 export default function MatchDetailScreen() {
@@ -1043,16 +1052,36 @@ export default function MatchDetailScreen() {
               </View>
 
               {expandedTeamId === entry.teamId && (() => {
-                const pitchPlayers: PitchPlayer[] = entry.playerIds
-                  .map(pid => players.find(pl => pl.id === pid))
-                  .filter((p): p is Player => !!p)
-                  .map(p => ({
+                let pitchPlayers: PitchPlayer[];
+                if (entry.resolvedPlayers && entry.resolvedPlayers.length > 0) {
+                  pitchPlayers = entry.resolvedPlayers.map(p => ({
                     id: p.id,
                     name: p.name,
                     role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
                     points: p.points || 0,
                     teamShort: p.teamShort,
                   }));
+                } else {
+                  pitchPlayers = entry.playerIds
+                    .map(pid => players.find(pl => pl.id === pid))
+                    .filter((p): p is Player => !!p)
+                    .map(p => ({
+                      id: p.id,
+                      name: p.name,
+                      role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
+                      points: p.points || 0,
+                      teamShort: p.teamShort,
+                    }));
+                }
+                if (pitchPlayers.length === 0) {
+                  return (
+                    <View style={{ marginTop: 10, width: '100%', padding: 16, alignItems: 'center' }}>
+                      <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const }}>
+                        Player data unavailable for this team
+                      </Text>
+                    </View>
+                  );
+                }
                 return (
                   <View style={{ marginTop: 10, width: '100%' }}>
                     <TeamPitchView
