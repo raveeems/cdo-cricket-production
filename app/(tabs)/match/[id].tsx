@@ -1054,7 +1054,7 @@ export default function MatchDetailScreen() {
                     teamShort: p.teamShort,
                   }));
                 return (
-                  <View style={{ marginTop: 10 }}>
+                  <View style={{ marginTop: 10, width: '100%' }}>
                     <TeamPitchView
                       players={pitchPlayers}
                       captainId={entry.captainId}
