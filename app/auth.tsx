@@ -91,12 +91,17 @@ export default function AuthScreen() {
       if (isLogin) {
         const success = await login(phone, password);
         if (!success) {
-          setError('No account found. Please sign up first.');
+          setError('Invalid phone number or password. Please try again.');
           setLoading(false);
           return;
         }
       } else {
-        await signup(username, email, phone, password);
+        const success = await signup(username, email, phone, password);
+        if (!success) {
+          setError('Signup failed. Phone number may already be registered.');
+          setLoading(false);
+          return;
+        }
       }
       router.replace('/reference-code');
     } catch (e) {
