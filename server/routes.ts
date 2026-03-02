@@ -2225,6 +2225,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.post("/api/admin/migrate-match-ids", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+    try {
+      const mappings = [
+        {old:'5cff5671-a073-494a-88db-c9c7dd9cf220', new:'c16fcf2a-bc3a-4e41-8336-b2cb7a873f38'},
+        {old:'9df5426f-512e-43f0-9486-701a54ce46a0', new:'09b1a10d-a265-45dd-98c2-e059e8b9ce3d'},
+        {old:'456c11bf-d4de-45f9-bc62-a8d8e7901402', new:'74cf48d4-0895-4406-8046-2996777c16ba'},
+        {old:'915c6fd3-7c7f-4b3d-bc16-8f65ca6d28fb', new:'311858fb-5fea-4d9c-98fd-27f6c14a733c'},
+        {old:'9f232323-e07f-41a7-92bc-adc60770e9ef', new:'3f7399f4-f8b2-4883-840f-8277b62f987c'},
+        {old:'3c13d6af-3d9f-4844-a42f-998c00d0dd0d', new:'f823bbef-9877-4bf9-83b4-dd9a046b4949'},
+        {old:'9bce2f6d-5ac3-4f10-887a-f6652e3bf627', new:'bc53c4c5-66ee-42ac-b7da-86ec5ff62d8a'},
+        {old:'3cc4d1b3-2959-43c5-9d7c-09f2ed4d0997', new:'c7fd76e3-9d6e-4f2f-a8ad-957d63ab2c9f'},
+        {old:'56467706-bbab-44ff-a4e9-6b369b2470c9', new:'a9237de1-41dd-4c4c-8159-94648eeb3983'},
+        {old:'be24b39b-504c-4e3d-9af7-39eeeaff85ba', new:'33c257ad-38aa-4702-b3a4-95b9b2f1cfa9'},
+        {old:'0440d8c2-e158-45a8-ab0a-e83a8ebfb1e2', new:'d4301561-6c91-45eb-bff5-afe9350c9f53'},
+        {old:'a5d561a2-5fcf-4dcf-b228-8270893bfa3f', new:'b1505e0f-fd24-44f6-9515-574490feabee'},
+        {old:'ffd31432-eed3-42d0-a361-c48ab3440bcc', new:'0e42f217-1788-4a71-84df-4dcced774ae3'},
+        {old:'c1936057-e88b-4ad6-9288-0cc3cef28c80', new:'a2aa3101-7899-4f63-bf81-63e72490e226'},
+        {old:'75dd64de-19be-4ebf-a6c6-ae36b1cfb07a', new:'58f886d7-14e6-41f6-90dc-e7734a67fafa'},
+        {old:'a293303a-6567-49d2-b816-7e072bb674c0', new:'bee61c61-7bf0-425d-95d1-25ba5ac909a6'},
+        {old:'c1def0de-24f3-4035-ab26-b967780c1180', new:'b2fb26dd-acc5-4bf8-af70-6e1eb1dc1561'},
+        {old:'aa047aa9-36b0-4d79-aa54-95bae2be6c23', new:'482eed8f-b65b-43e2-a03c-4e206cb8634e'},
+      ];
+      const results: string[] = [];
+      const tables = ['user_teams', 'match_predictions', 'tournament_ledger', 'players'];
+      for (const table of tables) {
+        for (const m of mappings) {
+          const r = await db.execute(
+            `UPDATE ${table} SET match_id = '${m.new}' WHERE match_id = '${m.old}'`
+          );
+          if (r.rowCount && r.rowCount > 0) {
+            results.push(`${table}: ${m.old} -> ${m.new} (${r.rowCount} rows)`);
+          }
+        }
+      }
+      return res.json({ success: true, updates: results });
+    } catch (err: any) {
+      console.error("Migration error:", err);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
