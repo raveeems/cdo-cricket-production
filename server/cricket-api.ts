@@ -253,6 +253,7 @@ export async function fetchUpcomingMatches(): Promise<
       `${CRICKET_API_BASE}/currentMatches?apikey=${apiKey}&offset=0`,
       `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=0`,
       `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=25`,
+      `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=50`,
     ];
 
     for (const url of endpoints) {
