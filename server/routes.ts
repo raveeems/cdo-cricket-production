@@ -135,10 +135,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (isAdminUser) {
         await storage.setUserAdmin(user.id, true);
+        await storage.updateUserVerified(user.id, true);
         user.isAdmin = true;
+        user.isVerified = true;
       }
 
-      req.session.userId = user.id;
+      if (user.isVerified) {
+        req.session.userId = user.id;
+        return res.json({
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            phone: user.phone,
+            teamName: user.teamName,
+            isVerified: user.isVerified,
+            isAdmin: user.isAdmin,
+          },
+          token: generateAuthToken(user.id),
+        });
+      }
+
       return res.json({
         user: {
           id: user.id,
@@ -146,10 +163,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: user.email,
           phone: user.phone,
           teamName: user.teamName,
-          isVerified: user.isVerified,
-          isAdmin: user.isAdmin,
+          isVerified: false,
+          isAdmin: false,
         },
-        token: generateAuthToken(user.id),
+        message: "pending_approval",
       });
     } catch (err: any) {
       console.error("Signup error:", err);
@@ -174,6 +191,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (ADMIN_PHONES.includes(phone) && !user.isAdmin) {
         await storage.setUserAdmin(user.id, true);
         user.isAdmin = true;
+      }
+
+      if (!user.isVerified && !user.isAdmin) {
+        return res.status(403).json({ message: "pending_approval", detail: "Your account is pending admin approval. Please wait for an admin to approve your signup." });
       }
 
       req.session.userId = user.id;
@@ -2366,6 +2387,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const result = await db.update(users).set({ isVerified: true }).where(eq(users.isVerified, false));
         return res.json({ message: "All users verified" });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.get(
+    "/api/admin/pending-users",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const pending = await db.select({
+          id: users.id,
+          username: users.username,
+          phone: users.phone,
+          email: users.email,
+          joinedAt: users.joinedAt,
+        }).from(users).where(eq(users.isVerified, false));
+        return res.json({ users: pending });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/approve-user",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ message: "userId required" });
+        await db.update(users).set({ isVerified: true }).where(eq(users.id, userId));
+        return res.json({ message: "User approved" });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/reject-user",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ message: "userId required" });
+        await db.delete(userTeams).where(eq(userTeams.userId, userId));
+        await db.delete(users).where(eq(users.id, userId));
+        return res.json({ message: "User rejected and deleted" });
       } catch (err: any) {
         return res.status(500).json({ message: err.message });
       }

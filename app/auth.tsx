@@ -89,12 +89,17 @@ export default function AuthScreen() {
 
     try {
       if (isLogin) {
-        const success = await login(phone, password);
-        if (!success) {
+        const result = await login(phone, password);
+        if (result === 'pending_approval') {
+          router.replace('/pending-approval');
+          return;
+        }
+        if (result !== 'success') {
           setError('Invalid phone number or password. Please try again.');
           setLoading(false);
           return;
         }
+        router.replace('/(tabs)');
       } else {
         const success = await signup(username, email, phone, password);
         if (!success) {
@@ -102,8 +107,8 @@ export default function AuthScreen() {
           setLoading(false);
           return;
         }
+        router.replace('/pending-approval');
       }
-      router.replace('/reference-code');
     } catch (e) {
       setError('Something went wrong. Please try again.');
     } finally {
