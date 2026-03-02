@@ -37,10 +37,42 @@
       @font-face { font-family: 'Inter'; src: url('/fonts/Inter_500Medium.ttf') format('truetype'); font-weight: 500; font-display: swap; }
       @font-face { font-family: 'Inter'; src: url('/fonts/Inter_600SemiBold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
       @font-face { font-family: 'Inter'; src: url('/fonts/Inter_700Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-      #root div[dir="auto"], #root span[dir="auto"] {
-        font-family: 'Inter_400Regular', 'Inter', sans-serif !important;
-      }
     </style>
+    <script>
+      (function(){
+        var ICON_FONTS = ['ionicons','material-community','feather','material','FontAwesome','MaterialCommunityIcons','MaterialIcons','Ionicons','Feather'];
+        var INTER = '"Inter","Inter_400Regular",sans-serif';
+        var mo = new MutationObserver(function(muts){
+          muts.forEach(function(m){
+            m.addedNodes.forEach(function(n){
+              if(n.nodeType===1) fixNode(n);
+            });
+          });
+        });
+        function fixNode(el){
+          if(!el.querySelectorAll) return;
+          var texts = el.querySelectorAll('[dir="auto"]');
+          for(var i=0;i<texts.length;i++){
+            var s = texts[i].style;
+            var ff = s.fontFamily||'';
+            var isIcon = false;
+            for(var j=0;j<ICON_FONTS.length;j++){
+              if(ff.indexOf(ICON_FONTS[j])!==-1){isIcon=true;break;}
+            }
+            if(!isIcon && ff.indexOf('Inter')===-1){
+              s.fontFamily = INTER;
+            }
+          }
+        }
+        document.addEventListener('DOMContentLoaded',function(){
+          var root = document.getElementById('root');
+          if(root){
+            fixNode(root);
+            mo.observe(root,{childList:true,subtree:true});
+          }
+        });
+      })();
+    </script>
   <link rel="preload" href="/_expo/static/css/native-tabs.module-78b0f59737571f455720970791a36bdd.css" as="style"><link rel="stylesheet" href="/_expo/static/css/native-tabs.module-78b0f59737571f455720970791a36bdd.css"><link rel="icon" href="/favicon.ico" /></head>
 
   <body>
