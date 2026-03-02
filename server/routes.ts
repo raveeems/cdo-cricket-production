@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { userTeams } from "@shared/schema";
+import { userTeams, players as playersTable } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { fetchUpcomingMatches, fetchSeriesMatches, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
 import session from "express-session";
@@ -2221,6 +2221,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("Tournament standings error:", err);
         return res.status(500).json({ message: "Failed to fetch tournament standings" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/fix-player-ids",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const oldPlayerMapping = req.body.oldPlayerMapping as Record<string, string> | undefined;
+        if (!oldPlayerMapping || Object.keys(oldPlayerMapping).length === 0) {
+          return res.status(400).json({ message: "Provide oldPlayerMapping: { oldId: playerName }" });
+        }
+
+        const allTeams = await db.select().from(userTeams);
+        const allPlayers = await db.select().from(playersTable);
+
+        const playerIdToName: Record<string, string> = {};
+        for (const p of allPlayers) {
+          playerIdToName[p.id] = p.name;
+        }
+
+        const playersByMatchAndName: Record<string, Record<string, string>> = {};
+        for (const p of allPlayers) {
+          if (!playersByMatchAndName[p.matchId]) playersByMatchAndName[p.matchId] = {};
+          playersByMatchAndName[p.matchId][p.name.toLowerCase().trim()] = p.id;
+        }
+
+        let updatedCount = 0;
+        let skippedCount = 0;
+        const issues: string[] = [];
+
+        for (const team of allTeams) {
+          const currentIds = team.playerIds as string[];
+          const allIdsValid = currentIds.every(pid => playerIdToName[pid]);
+          if (allIdsValid) {
+            skippedCount++;
+            continue;
+          }
+
+          const matchPlayerNames = playersByMatchAndName[team.matchId] || {};
+          const newPlayerIds: string[] = [];
+          let newCaptainId = team.captainId;
+          let newViceCaptainId = team.viceCaptainId;
+          let allMapped = true;
+
+          for (const oldId of currentIds) {
+            if (playerIdToName[oldId]) {
+              newPlayerIds.push(oldId);
+              continue;
+            }
+
+            const oldName = oldPlayerMapping[oldId];
+            if (!oldName) {
+              allMapped = false;
+              issues.push(`Team ${team.name}: No name mapping for old ID ${oldId}`);
+              newPlayerIds.push(oldId);
+              continue;
+            }
+
+            const newId = matchPlayerNames[oldName.toLowerCase().trim()];
+            if (newId) {
+              newPlayerIds.push(newId);
+              if (team.captainId === oldId) newCaptainId = newId;
+              if (team.viceCaptainId === oldId) newViceCaptainId = newId;
+            } else {
+              allMapped = false;
+              issues.push(`Team ${team.name}: Player "${oldName}" not found in match ${team.matchId.substring(0, 8)}`);
+              newPlayerIds.push(oldId);
+            }
+          }
+
+          if (allMapped && newPlayerIds.length === currentIds.length) {
+            await db.update(userTeams)
+              .set({
+                playerIds: newPlayerIds,
+                captainId: newCaptainId,
+                viceCaptainId: newViceCaptainId,
+              })
+              .where(eq(userTeams.id, team.id));
+            updatedCount++;
+          }
+        }
+
+        return res.json({
+          message: `Migration complete`,
+          totalTeams: allTeams.length,
+          updated: updatedCount,
+          skipped: skippedCount,
+          issueCount: issues.length,
+          issues: issues.slice(0, 50),
+        });
+      } catch (err: any) {
+        console.error("Fix player IDs error:", err);
+        return res.status(500).json({ message: err.message });
       }
     }
   );
