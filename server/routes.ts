@@ -2372,6 +2372,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.get(
+    "/api/admin/users",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const allUsers = await db.select({
+          id: users.id,
+          username: users.username,
+          phone: users.phone,
+          email: users.email,
+          teamName: users.teamName,
+          isVerified: users.isVerified,
+          isAdmin: users.isAdmin,
+          password: users.password,
+        }).from(users);
+        return res.json({ users: allUsers });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
   const httpServer = createServer(app);
   return httpServer;
 }
