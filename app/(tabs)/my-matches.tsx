@@ -15,7 +15,9 @@ import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { getTimeUntilMatch, Match } from '@/lib/mock-data';
+import { getQueryFn } from '@/lib/query-client';
 
 interface TeamData {
   id: string;
@@ -31,11 +33,16 @@ interface TeamData {
 export default function MyMatchesScreen() {
   const { colors } = useTheme();
   const { teams: contextTeams } = useTeams();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const { data: teamsData } = useQuery<{ teams: TeamData[] }>({
+  const { data: teamsData } = useQuery<{ teams: TeamData[] } | null>({
     queryKey: ['/api/my-teams'],
+    queryFn: getQueryFn({ on401: 'returnNull' }),
     staleTime: 30000,
+    enabled: !!user,
+    retry: 2,
+    retryDelay: 1000,
   });
 
   const teams = teamsData?.teams || contextTeams || [];
