@@ -2395,6 +2395,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.post(
+    "/api/admin/cleanup-test-users",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const realUserIds = req.body.keepUserIds as string[];
+        if (!realUserIds || realUserIds.length === 0) {
+          return res.status(400).json({ message: "Provide keepUserIds array" });
+        }
+        const allUsersResult = await db.select({ id: users.id }).from(users);
+        const toDelete = allUsersResult.filter(u => !realUserIds.includes(u.id)).map(u => u.id);
+        let deleted = 0;
+        for (const uid of toDelete) {
+          await db.delete(userTeams).where(eq(userTeams.userId, uid));
+          await db.delete(users).where(eq(users.id, uid));
+          deleted++;
+        }
+        return res.json({ message: `Deleted ${deleted} test users`, kept: realUserIds.length });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
   const httpServer = createServer(app);
   return httpServer;
 }
