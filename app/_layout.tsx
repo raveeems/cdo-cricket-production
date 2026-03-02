@@ -19,6 +19,7 @@ function RootLayoutNav() {
       <Stack.Screen name="index" />
       <Stack.Screen name="auth" />
       <Stack.Screen name="reference-code" />
+      <Stack.Screen name="pending-approval" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="create-team/[matchId]" options={{ presentation: 'card' }} />
       <Stack.Screen name="admin" options={{ presentation: 'card' }} />

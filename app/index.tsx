@@ -152,7 +152,7 @@ export default function IndexScreen() {
     if (!isAuthenticated) {
       router.replace('/auth');
     } else if (!isVerified) {
-      router.replace('/reference-code');
+      router.replace('/pending-approval');
     } else {
       router.replace('/(tabs)');
     }

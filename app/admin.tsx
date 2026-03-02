@@ -20,10 +20,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { apiRequest, getApiUrl } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
 
-interface ReferenceCode {
+interface PendingUser {
   id: string;
-  code: string;
-  isActive: boolean;
+  username: string;
+  phone: string;
+  email: string | null;
+  joinedAt: string;
 }
 
 interface MatchInfo {
@@ -51,8 +53,8 @@ export default function AdminScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const [codes, setCodes] = useState<ReferenceCode[]>([]);
-  const [newCode, setNewCode] = useState('');
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [approvingUserId, setApprovingUserId] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -123,7 +125,7 @@ export default function AdminScreen() {
   const xiCount = xiPlayerIds.size;
 
   useEffect(() => {
-    loadCodes();
+    loadPendingUsers();
     loadMatches();
     loadApiCalls();
     loadRewards();
@@ -372,41 +374,52 @@ export default function AdminScreen() {
     }
   };
 
-  const loadCodes = async () => {
+  const loadPendingUsers = async () => {
     try {
-      const res = await apiRequest('GET', '/api/admin/codes');
+      const res = await apiRequest('GET', '/api/admin/pending-users');
       const data = await res.json();
-      setCodes(data.codes || []);
+      setPendingUsers(data.users || []);
     } catch (e) {
-      console.error('Failed to load codes:', e);
+      console.error('Failed to load pending users:', e);
     }
   };
 
-  const generateCode = () => {
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    setNewCode(code);
-  };
-
-  const saveCode = async () => {
-    if (newCode.length !== 4) return;
+  const approveUser = async (userId: string) => {
+    setApprovingUserId(userId);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
-      const res = await apiRequest('POST', '/api/admin/codes', { code: newCode });
-      const data = await res.json();
-      setCodes((prev) => [...prev, data.code]);
-      setNewCode('');
+      await apiRequest('POST', '/api/admin/approve-user', { userId });
+      setPendingUsers((prev) => prev.filter((u) => u.id !== userId));
     } catch (e) {
-      console.error('Failed to save code:', e);
+      console.error('Failed to approve user:', e);
+    } finally {
+      setApprovingUserId(null);
     }
   };
 
-  const deleteCode = async (codeId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await apiRequest('DELETE', `/api/admin/codes/${codeId}`);
-      setCodes((prev) => prev.filter((c) => c.id !== codeId));
-    } catch (e) {
-      console.error('Failed to delete code:', e);
+  const rejectUser = async (userId: string, username: string) => {
+    const doReject = async () => {
+      setApprovingUserId(userId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      try {
+        await apiRequest('POST', '/api/admin/reject-user', { userId });
+        setPendingUsers((prev) => prev.filter((u) => u.id !== userId));
+      } catch (e) {
+        console.error('Failed to reject user:', e);
+      } finally {
+        setApprovingUserId(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Reject and delete user "${username}"?`)) {
+        await doReject();
+      }
+    } else {
+      Alert.alert('Reject User', `Reject and delete "${username}"?`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reject', style: 'destructive', onPress: doReject },
+      ]);
     }
   };
 
@@ -599,76 +612,80 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              Reference Codes
-            </Text>
-            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-              Generate 4-digit codes to invite friends to the platform.
-            </Text>
-
-            <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <View style={styles.generateRow}>
-                <TextInput
-                  style={[styles.codeInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_700Bold' }]}
-                  value={newCode}
-                  onChangeText={setNewCode}
-                  placeholder="0000"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                />
-                <Pressable
-                  onPress={generateCode}
-                  style={[styles.generateBtn, { backgroundColor: colors.primary + '20' }]}
-                >
-                  <Ionicons name="refresh" size={20} color={colors.primary} />
-                </Pressable>
-                <Pressable
-                  onPress={saveCode}
-                  disabled={newCode.length !== 4}
-                  style={[styles.addBtn, { opacity: newCode.length === 4 ? 1 : 0.5 }]}
-                >
-                  <LinearGradient
-                    colors={[colors.accent, colors.accentDark]}
-                    style={styles.addBtnGradient}
-                  >
-                    <Ionicons name="add" size={22} color="#000" />
-                  </LinearGradient>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.codesList}>
-              {codes.length > 0 && (
-                <Text style={[styles.codesHeader, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
-                  Reference Codes ({codes.length})
-                </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                User Approvals
+              </Text>
+              {pendingUsers.length > 0 && (
+                <View style={{ backgroundColor: '#EF4444', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
+                  <Text style={{ color: '#FFF', fontSize: 12, fontFamily: 'Inter_700Bold' }}>{pendingUsers.length}</Text>
+                </View>
               )}
+            </View>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Approve or reject new user signups.
+            </Text>
 
-              {codes.map((codeObj) => (
-                <View
-                  key={codeObj.id}
-                  style={[styles.codeItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                >
-                  <View style={styles.codeItemLeft}>
-                    <View style={[styles.codeChip, { backgroundColor: colors.success + '20' }]}>
-                      <Text style={[styles.codeChipText, { color: colors.success, fontFamily: 'Inter_700Bold' }]}>
-                        {codeObj.code}
-                      </Text>
+            {pendingUsers.length === 0 ? (
+              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, alignItems: 'center', paddingVertical: 20 }]}>
+                <Ionicons name="checkmark-circle" size={28} color={colors.success} />
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 8 }}>
+                  No pending signups
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.codesList}>
+                {pendingUsers.map((pu) => (
+                  <View
+                    key={pu.id}
+                    style={[styles.codeItem, { backgroundColor: colors.card, borderColor: colors.cardBorder, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>
+                          {pu.username}
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+                          {pu.phone}{pu.email ? ` · ${pu.email}` : ''}
+                        </Text>
+                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+                          Signed up {new Date(pu.joinedAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <View style={[styles.activeBadge, { backgroundColor: '#F59E0B15' }]}>
+                        <View style={[styles.activeDot, { backgroundColor: '#F59E0B' }]} />
+                        <Text style={[styles.activeText, { color: '#F59E0B', fontFamily: 'Inter_500Medium' }]}>
+                          Pending
+                        </Text>
+                      </View>
                     </View>
-                    <View style={[styles.activeBadge, { backgroundColor: colors.success + '15' }]}>
-                      <View style={[styles.activeDot, { backgroundColor: colors.success }]} />
-                      <Text style={[styles.activeText, { color: colors.success, fontFamily: 'Inter_500Medium' }]}>
-                        Active
-                      </Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        onPress={() => approveUser(pu.id)}
+                        disabled={approvingUserId === pu.id}
+                        style={{ flex: 1, borderRadius: 10, overflow: 'hidden', opacity: approvingUserId === pu.id ? 0.5 : 1 }}
+                      >
+                        <LinearGradient
+                          colors={['#22C55E', '#16A34A']}
+                          style={{ paddingVertical: 10, alignItems: 'center', borderRadius: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                        >
+                          <Ionicons name="checkmark" size={18} color="#FFF" />
+                          <Text style={{ color: '#FFF', fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Approve</Text>
+                        </LinearGradient>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => rejectUser(pu.id, pu.username)}
+                        disabled={approvingUserId === pu.id}
+                        style={{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: colors.error + '40', paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, opacity: approvingUserId === pu.id ? 0.5 : 1 }}
+                      >
+                        <Ionicons name="close" size={18} color={colors.error} />
+                        <Text style={{ color: colors.error, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Reject</Text>
+                      </Pressable>
                     </View>
                   </View>
-                  <Pressable onPress={() => deleteCode(codeObj.id)}>
-                    <Ionicons name="trash-outline" size={18} color={colors.error} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>

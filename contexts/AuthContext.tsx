@@ -23,7 +23,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isVerified: boolean;
   isAdmin: boolean;
-  login: (phone: string, password: string) => Promise<boolean>;
+  login: (phone: string, password: string) => Promise<string>;
   signup: (username: string, email: string, phone: string, password: string) => Promise<boolean>;
   verifyReferenceCode: (code: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -70,18 +70,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (phone: string, password: string): Promise<boolean> => {
+  const login = async (phone: string, password: string): Promise<string> => {
     try {
-      const res = await apiRequest('POST', '/api/auth/login', { phone, password });
+      const baseUrl = getApiUrl();
+      const url = new URL('/api/auth/login', baseUrl);
+      const res = await fetchFn(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, password }),
+        credentials: 'include',
+      });
       const data = await res.json();
+      if (res.status === 403 && data.message === 'pending_approval') {
+        return 'pending_approval';
+      }
+      if (!res.ok) {
+        return 'invalid_credentials';
+      }
       if (data.token) {
         await setAuthToken(data.token);
       }
       setUser(data.user);
-      return true;
+      return 'success';
     } catch (e: any) {
       console.error('Login failed:', e);
-      return false;
+      return 'error';
     }
   };
 
