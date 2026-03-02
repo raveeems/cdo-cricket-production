@@ -2340,8 +2340,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { phone, newPassword } = req.body;
       if (!phone || !newPassword) return res.status(400).json({ message: "phone and newPassword required" });
       try {
-        const result = await db.update(users).set({ password: newPassword }).where(eq(users.phone, phone));
+        await db.update(users).set({ password: newPassword }).where(eq(users.phone, phone));
         return res.json({ message: "Password reset", phone });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/verify-all-users",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const result = await db.update(users).set({ isVerified: true }).where(eq(users.isVerified, false));
+        return res.json({ message: "All users verified" });
       } catch (err: any) {
         return res.status(500).json({ message: err.message });
       }
