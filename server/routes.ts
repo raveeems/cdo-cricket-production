@@ -377,7 +377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try { await refreshStaleMatchStatuses(); } catch (e) { console.error("Status refresh error:", e); }
     const allMatchesRaw = await storage.getAllMatches();
     const T20_WC_SERIES_ID = "0cdf6736-ad9b-4e95-a647-5ee3a99c5510";
-    const allMatches = allMatchesRaw.filter(m => m.seriesId === T20_WC_SERIES_ID || (m.tournamentName && m.tournamentName.includes("T20")));
+    const allMatches = allMatchesRaw.filter(m => m.seriesId === T20_WC_SERIES_ID || (m.tournamentName && m.tournamentName.includes("T20")) || (m.league && m.league.includes("T20 World Cup")));
     const nowMs = Date.now();
     const MS_48H = 48 * 60 * 60 * 1000;
     const MS_3H = 3 * 60 * 60 * 1000;
