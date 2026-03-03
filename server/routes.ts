@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { userTeams, players as playersTable, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { fetchUpcomingMatches, fetchSeriesMatches, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
+import { fetchUpcomingMatches, fetchSeriesMatches, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { randomUUID, createHmac } from "crypto";
@@ -375,12 +375,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ---- MATCHES ----
   app.get("/api/matches", isAuthenticated, async (_req: Request, res: Response) => {
     try { await refreshStaleMatchStatuses(); } catch (e) { console.error("Status refresh error:", e); }
-    const allMatches = await storage.getAllMatches();
+    const allMatchesRaw = await storage.getAllMatches();
+    const T20_WC_SERIES_ID = "0cdf6736-ad9b-4e95-a647-5ee3a99c5510";
+    const allMatches = allMatchesRaw.filter(m => m.seriesId === T20_WC_SERIES_ID || (m.tournamentName && m.tournamentName.includes("T20")));
     const nowMs = Date.now();
     const MS_48H = 48 * 60 * 60 * 1000;
     const MS_3H = 3 * 60 * 60 * 1000;
 
-    console.log(`[MatchFeed] Server time: ${new Date(nowMs).toISOString()} | 48h window: now → ${new Date(nowMs + MS_48H).toISOString()}`);
+    console.log(`[MatchFeed] Server time: ${new Date(nowMs).toISOString()} | 48h window: now → ${new Date(nowMs + MS_48H).toISOString()} | T20 WC matches: ${allMatches.length}`);
 
     const matchesWithParticipants: { match: typeof allMatches[0]; participantCount: number }[] = [];
 
@@ -1145,60 +1147,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({ serverTime: new Date().toISOString() });
   });
 
-  // ---- CRICKET API: SYNC ----
+  // ---- CRICKET API: SYNC (T20 WC only) ----
   app.post(
     "/api/admin/sync-matches",
     isAuthenticated,
     isAdmin,
     async (_req: Request, res: Response) => {
       try {
-        const apiMatches = await fetchUpcomingMatches();
-        let created = 0;
-        let updated = 0;
-        const existing = await storage.getAllMatches();
-
-        for (const m of apiMatches) {
-          const dup = existing.find((e) => e.externalId === m.externalId);
-          if (!dup) {
-            await storage.createMatch({
-              externalId: m.externalId,
-              seriesId: m.seriesId,
-              team1: m.team1,
-              team1Short: m.team1Short,
-              team1Color: m.team1Color,
-              team2: m.team2,
-              team2Short: m.team2Short,
-              team2Color: m.team2Color,
-              venue: m.venue,
-              startTime: m.startTime,
-              status: m.status,
-              league: m.league,
-              totalPrize: "0",
-              entryFee: 0,
-              spotsTotal: 100,
-              spotsFilled: 0,
-            });
-            created++;
-          } else {
-            const updates: Record<string, any> = {};
-            if (dup.status !== m.status) updates.status = m.status;
-            if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
-            if (dup.league !== m.league) updates.league = m.league;
-            if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
-            if (Object.keys(updates).length > 0) {
-              await storage.updateMatch(dup.id, updates);
-              updated++;
-            }
-          }
-        }
-
+        await syncMatchesFromApi();
         await refreshStaleMatchStatuses();
-
         return res.json({
-          synced: created,
-          updated,
-          total: apiMatches.length,
-          message: `Synced ${created} new, updated ${updated} existing matches from Cricket API`,
+          message: "T20 World Cup match sync triggered successfully",
         });
       } catch (err: any) {
         console.error("Sync error:", err);
