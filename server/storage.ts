@@ -132,6 +132,10 @@ export class DatabaseStorage {
     await db.update(matches).set(data as any).where(eq(matches.id, id));
   }
 
+  async deleteMatch(id: string): Promise<void> {
+    await db.delete(matches).where(eq(matches.id, id));
+  }
+
   // Players
   async getPlayersForMatch(matchId: string): Promise<Player[]> {
     return db.select().from(players).where(eq(players.matchId, matchId));

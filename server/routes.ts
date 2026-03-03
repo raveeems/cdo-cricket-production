@@ -1216,6 +1216,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: UPDATE MATCH ----
+  app.patch(
+    "/api/admin/matches/:id",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const updates = req.body;
+        if (updates.startTime) updates.startTime = new Date(updates.startTime);
+        await storage.updateMatch(matchId, updates);
+        return res.json({ message: "Match updated" });
+      } catch (err: any) {
+        console.error("Update match error:", err);
+        return res.status(500).json({ message: "Failed to update match" });
+      }
+    }
+  );
+
+  // ---- ADMIN: DELETE MATCH ----
+  app.delete(
+    "/api/admin/matches/:id",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const teams = await storage.getAllTeamsForMatch(matchId);
+        if (teams.length > 0) {
+          return res.status(400).json({ message: "Cannot delete match with existing teams" });
+        }
+        await storage.deleteMatch(matchId);
+        return res.json({ message: "Match deleted" });
+      } catch (err: any) {
+        console.error("Delete match error:", err);
+        return res.status(500).json({ message: "Failed to delete match" });
+      }
+    }
+  );
+
   // ---- ADMIN: FETCH SQUAD FROM API ----
   app.post(
     "/api/admin/matches/:id/fetch-squad",
