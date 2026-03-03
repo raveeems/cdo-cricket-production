@@ -401,7 +401,7 @@ export async function fetchSeriesMatches(
     console.log(`Series Info API: fetched ${json.data.matchList.length} matches for ${seriesName}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
 
     return json.data.matchList
-      .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && !m.teams.includes("Tbc"))
+      .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT)
       .map((m) => {
         const team1 = m.teams[0];
         const team2 = m.teams[1];
@@ -500,6 +500,8 @@ async function upsertMatches(
       if (dup.league !== m.league) updates.league = m.league;
       if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
       if (m.venue && dup.venue !== m.venue) updates.venue = m.venue;
+      if (m.team1 !== "Tbc" && dup.team1 !== m.team1) { updates.team1 = m.team1; updates.team1Short = m.team1Short; updates.team1Color = m.team1Color; }
+      if (m.team2 !== "Tbc" && dup.team2 !== m.team2) { updates.team2 = m.team2; updates.team2Short = m.team2Short; updates.team2Color = m.team2Color; }
       if (Object.keys(updates).length > 0) {
         await storage.updateMatch(dup.id, updates);
         console.log(`Match ${m.team1} vs ${m.team2}: updated [${Object.keys(updates).join(', ')}]`);

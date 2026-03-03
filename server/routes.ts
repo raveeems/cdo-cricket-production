@@ -377,7 +377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try { await refreshStaleMatchStatuses(); } catch (e) { console.error("Status refresh error:", e); }
     const allMatchesRaw = await storage.getAllMatches();
     const T20_WC_SERIES_ID = "0cdf6736-ad9b-4e95-a647-5ee3a99c5510";
-    const allMatches = allMatchesRaw.filter(m => m.seriesId === T20_WC_SERIES_ID || (m.tournamentName && m.tournamentName.includes("T20")));
+    const allMatches = allMatchesRaw.filter(m => m.seriesId === T20_WC_SERIES_ID || (m.tournamentName && m.tournamentName.includes("T20")) || (m.league && m.league.includes("T20 World Cup")));
     const nowMs = Date.now();
     const MS_48H = 48 * 60 * 60 * 1000;
     const MS_3H = 3 * 60 * 60 * 1000;
@@ -1212,6 +1212,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("Create match error:", err);
         return res.status(500).json({ message: "Failed to create match" });
+      }
+    }
+  );
+
+  // ---- ADMIN: UPDATE MATCH ----
+  app.patch(
+    "/api/admin/matches/:id",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const updates = req.body;
+        if (updates.startTime) updates.startTime = new Date(updates.startTime);
+        await storage.updateMatch(matchId, updates);
+        return res.json({ message: "Match updated" });
+      } catch (err: any) {
+        console.error("Update match error:", err);
+        return res.status(500).json({ message: "Failed to update match" });
+      }
+    }
+  );
+
+  // ---- ADMIN: DELETE MATCH ----
+  app.delete(
+    "/api/admin/matches/:id",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const teams = await storage.getAllTeamsForMatch(matchId);
+        if (teams.length > 0) {
+          return res.status(400).json({ message: "Cannot delete match with existing teams" });
+        }
+        await storage.deleteMatch(matchId);
+        return res.json({ message: "Match deleted" });
+      } catch (err: any) {
+        console.error("Delete match error:", err);
+        return res.status(500).json({ message: "Failed to delete match" });
       }
     }
   );
