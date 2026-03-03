@@ -2,7 +2,7 @@
 
 ## Overview
 
-CDO Cricket is a private, invite-only Fantasy Cricket platform built for a closed group of friends, inspired by Dream11. Users sign up, enter a 4-digit reference code to gain access, then create fantasy teams for upcoming cricket matches. The app features a modern dark/light theme with blue and yellow primary colors.
+CDO Cricket is a private, invite-only Fantasy Cricket platform built for a closed group of friends, inspired by Dream11. Users sign up and wait for admin approval before they can log in and access the app. The app features a modern dark/light theme with blue and yellow primary colors.
 
 The project uses an **Expo React Native** frontend (targeting web, iOS, and Android) with an **Express.js** backend and **PostgreSQL** database via **Drizzle ORM**. It follows a monorepo structure where the frontend and backend share schema definitions.
 
@@ -23,7 +23,7 @@ Preferred communication style: Simple, everyday language.
 - **Location**: `server/` directory — `index.ts` (entry), `routes.ts` (API routes), `storage.ts` (database access layer), `cricket-api.ts` (external cricket data), `db.ts` (database connection)
 - **Authentication**: Session-based auth using `express-session` with cookies + Bearer token fallback. Sessions stored in PostgreSQL via `connect-pg-simple` (persistent across deploys). Token auth uses HMAC-SHA256 signed tokens
 - **Authorization**: Middleware functions `isAuthenticated` and `isAdmin` protect routes. Admin determined by email whitelist (`admin@cdo.com`) and `isAdmin` flag in database
-- **API Pattern**: RESTful JSON API under `/api/` prefix. Routes include auth (signup/login/logout/me), matches, players, teams (CRUD), admin (reference codes, match sync)
+- **API Pattern**: RESTful JSON API under `/api/` prefix. Routes include auth (signup/login/logout/me), matches, players, teams (CRUD), admin (user approvals, match sync)
 - **CORS**: Dynamic CORS configuration supporting Replit domains and localhost for development
 
 ### Shared Code
@@ -46,7 +46,7 @@ Preferred communication style: Simple, everyday language.
 - **Push command**: `npm run db:push` uses drizzle-kit to push schema to database
 
 ### Key Business Rules
-- **Invite-only access**: After signup, users must enter a valid 4-digit reference code (checked against `referenceCodes` table where `isActive = true`) before accessing the app
+- **Invite-only access**: After signup, users must wait for admin approval before they can log in. All 3 admins (ravee, ajay, Ilamcetni) can approve/reject new signups from the Admin Panel's User Approvals section. Rejected users are deleted from the database
 - **Match visibility**: Matches should only appear on the dashboard 48 hours before start time
 - **Team constraints**: Max 3 teams per user per match; 11 players per team with role limits (WK: 1-4, BAT: 1-6, AR: 1-6, BOWL: 1-6); max 10 players from single real team; Captain (2x points) and Vice-Captain (1.5x points); duplicate teams (same players + same C/VC) are blocked
 - **Entry deadline**: Teams editable up to 1 second before match start; server time used for validation (not device time)
