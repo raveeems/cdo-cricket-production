@@ -417,12 +417,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     matchesWithParticipants.sort((a, b) => {
-      if (a.participantCount > 0 && b.participantCount === 0) return -1;
-      if (a.participantCount === 0 && b.participantCount > 0) return 1;
-      const order: Record<string, number> = { upcoming: 0, delayed: 0, live: 1, completed: 2 };
+      const order: Record<string, number> = { live: 0, delayed: 0, upcoming: 1, completed: 2 };
       const oa = order[a.match.status] ?? 1;
       const ob = order[b.match.status] ?? 1;
       if (oa !== ob) return oa - ob;
+      if (a.match.status === 'completed' && b.match.status === 'completed') {
+        if (a.participantCount > 0 && b.participantCount === 0) return -1;
+        if (a.participantCount === 0 && b.participantCount > 0) return 1;
+      }
+      if (a.match.status === 'upcoming' || a.match.status === 'delayed') {
+        return new Date(a.match.startTime).getTime() - new Date(b.match.startTime).getTime();
+      }
       return new Date(b.match.startTime).getTime() - new Date(a.match.startTime).getTime();
     });
 
