@@ -2,6 +2,7 @@ const CRICKET_API_BASE = "https://api.cricapi.com/v1";
 
 let dailyApiCalls = 0;
 let dailyApiCallDate = "";
+let tier1BlockedUntil = 0;
 
 async function trackApiCall(): Promise<void> {
   try {
@@ -25,6 +26,11 @@ export function getInMemoryApiCallCount(): number {
   return dailyApiCalls;
 }
 
+function markTier1Blocked(): void {
+  tier1BlockedUntil = Date.now() + 60 * 60 * 1000;
+  console.log("[CricAPI] Tier 1 key blocked, switching to Tier 2 for 1 hour");
+}
+
 async function trackedFetch(url: string, init?: RequestInit): Promise<Response> {
   await trackApiCall();
   const controller = new AbortController();
@@ -38,13 +44,19 @@ async function trackedFetch(url: string, init?: RequestInit): Promise<Response> 
 }
 
 function getActiveApiKey(): string | undefined {
+  const now = Date.now();
   const primary = process.env.CRICKET_API_KEY;
-  if (primary) return primary;
+  if (primary && now > tier1BlockedUntil) return primary;
   const fallback = process.env.CRICAPI_KEY_TIER2;
   if (fallback) {
-    console.log("[CricAPI] Using Tier 2 fallback key");
+    if (now <= tier1BlockedUntil) {
+      console.log("[CricAPI] Using Tier 2 fallback key (Tier 1 blocked)");
+    } else {
+      console.log("[CricAPI] Using Tier 2 fallback key");
+    }
     return fallback;
   }
+  if (primary) return primary;
   return undefined;
 }
 
