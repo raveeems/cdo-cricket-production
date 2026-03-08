@@ -4,6 +4,37 @@ let dailyApiCalls = 0;
 let dailyApiCallDate = "";
 let tier1BlockedUntil = 0;
 
+type BowlingState = { o: number; r: number; w: number };
+const scorecardStateCache = new Map<string, Map<string, BowlingState>>();
+
+function detectDotBalls(externalId: string, bowlerName: string, newBowling: any): number {
+  if (!newBowling || typeof newBowling.o !== "number") return 0;
+  
+  const cacheKey = externalId;
+  let matchCache = scorecardStateCache.get(cacheKey);
+  if (!matchCache) {
+    matchCache = new Map();
+    scorecardStateCache.set(cacheKey, matchCache);
+  }
+
+  const previousState = matchCache.get(bowlerName);
+  const currentState = { o: newBowling.o, r: newBowling.r, w: newBowling.w };
+
+  if (previousState) {
+    const newBalls = Math.floor(currentState.o) * 6 + Math.round((currentState.o % 1) * 10);
+    const oldBalls = Math.floor(previousState.o) * 6 + Math.round((previousState.o % 1) * 10);
+    const ballsThrown = newBalls - oldBalls;
+    const runsGiven = currentState.r - previousState.r;
+    const dots = Math.max(0, ballsThrown - runsGiven);
+    
+    matchCache.set(bowlerName, currentState);
+    return dots;
+  }
+
+  matchCache.set(bowlerName, currentState);
+  return 0;
+}
+
 async function trackApiCall(): Promise<void> {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -1000,11 +1031,7 @@ function calculateFantasyPoints(
       else if (bowl.w >= 3) points += 4;
       if (bowl.m > 0) points += bowl.m * 12;
 
-      let dotBalls = typeof bowl.dots === "number" ? bowl.dots : 0;
-      if (dotBalls === 0 && bowl.o > 0) {
-        const totalBalls = Math.floor(bowl.o) * 6 + Math.round((bowl.o % 1) * 10);
-        dotBalls = Math.max(0, totalBalls - bowl.r);
-      }
+      const dotBalls = typeof bowl.dots === "number" ? bowl.dots : 0;
       points += dotBalls * 1;
 
       const totalOvers = bowl.o;
@@ -1375,15 +1402,19 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
           dismissal: b?.dismissal || "not out",
           fantasyPoints: b?.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0,
         })),
-        bowling: bowlingArr.map((b: any) => ({
-          name: b?.bowler?.name || b?.name || "",
-          o: b?.o ?? 0,
-          m: b?.m ?? 0,
-          r: b?.r ?? 0,
-          w: b?.w ?? 0,
-          eco: b?.eco ?? 0,
-          fantasyPoints: b?.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0,
-        })),
+        bowling: bowlingArr.map((b: any) => {
+          const dots = detectDotBalls(externalMatchId, b?.bowler?.name || b?.name || "", b);
+          return {
+            name: b?.bowler?.name || b?.name || "",
+            o: b?.o ?? 0,
+            m: b?.m ?? 0,
+            r: b?.r ?? 0,
+            w: b?.w ?? 0,
+            eco: b?.eco ?? 0,
+            dots: dots,
+            fantasyPoints: b?.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0,
+          };
+        }),
       };
     });
 
