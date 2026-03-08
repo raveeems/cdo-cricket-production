@@ -1003,8 +1003,7 @@ function calculateFantasyPoints(
       let dotBalls = typeof bowl.dots === "number" ? bowl.dots : 0;
       if (dotBalls === 0 && bowl.o > 0) {
         const totalBalls = Math.floor(bowl.o) * 6 + Math.round((bowl.o % 1) * 10);
-        const extras = (bowl.wd || 0) + (bowl.nb || 0);
-        dotBalls = Math.max(0, totalBalls - bowl.r + extras);
+        dotBalls = Math.max(0, totalBalls - bowl.r);
       }
       points += dotBalls * 1;
 
