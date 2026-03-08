@@ -937,6 +937,8 @@ interface ScorecardBowling {
   w: number;
   eco: number;
   dots?: number;
+  wd?: number;
+  nb?: number;
 }
 
 interface ScorecardInning {
@@ -998,7 +1000,12 @@ function calculateFantasyPoints(
       else if (bowl.w >= 3) points += 4;
       if (bowl.m > 0) points += bowl.m * 12;
 
-      const dotBalls = typeof bowl.dots === "number" ? bowl.dots : 0;
+      let dotBalls = typeof bowl.dots === "number" ? bowl.dots : 0;
+      if (dotBalls === 0 && bowl.o > 0) {
+        const totalBalls = Math.floor(bowl.o) * 6 + Math.round((bowl.o % 1) * 10);
+        const extras = (bowl.wd || 0) + (bowl.nb || 0);
+        dotBalls = Math.max(0, totalBalls - bowl.r + extras);
+      }
       points += dotBalls * 1;
 
       const totalOvers = bowl.o;
