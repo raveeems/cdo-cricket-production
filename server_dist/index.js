@@ -194,7 +194,8 @@ var init_db = __esm({
       throw new Error("DATABASE_URL is not set");
     }
     pool = new pg.Pool({
-      connectionString: process.env.DATABASE_URL
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL?.includes("railway") || process.env.DATABASE_URL?.includes("rlwy") ? { rejectUnauthorized: false } : void 0
     });
     db = drizzle(pool, { schema: schema_exports });
   }
@@ -282,6 +283,9 @@ var init_storage = __esm({
       }
       async updateMatch(id, data) {
         await db.update(matches).set(data).where(eq(matches.id, id));
+      }
+      async deleteMatch(id) {
+        await db.delete(matches).where(eq(matches.id, id));
       }
       // Players
       async getPlayersForMatch(matchId) {
@@ -518,6 +522,28 @@ __export(cricket_api_exports, {
   refreshStaleMatchStatuses: () => refreshStaleMatchStatuses,
   syncMatchesFromApi: () => syncMatchesFromApi
 });
+function detectDotBalls(externalId, bowlerName, newBowling) {
+  if (!newBowling || typeof newBowling.o !== "number") return 0;
+  const cacheKey = externalId;
+  let matchCache = scorecardStateCache.get(cacheKey);
+  if (!matchCache) {
+    matchCache = /* @__PURE__ */ new Map();
+    scorecardStateCache.set(cacheKey, matchCache);
+  }
+  const previousState = matchCache.get(bowlerName);
+  const currentState = { o: newBowling.o, r: newBowling.r, w: newBowling.w };
+  if (previousState) {
+    const newBalls = Math.floor(currentState.o) * 6 + Math.round(currentState.o % 1 * 10);
+    const oldBalls = Math.floor(previousState.o) * 6 + Math.round(previousState.o % 1 * 10);
+    const ballsThrown = newBalls - oldBalls;
+    const runsGiven = currentState.r - previousState.r;
+    const dots = Math.max(0, ballsThrown - runsGiven);
+    matchCache.set(bowlerName, currentState);
+    return dots;
+  }
+  matchCache.set(bowlerName, currentState);
+  return 0;
+}
 async function trackApiCall() {
   try {
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
@@ -538,6 +564,10 @@ function getInMemoryApiCallCount() {
   if (dailyApiCallDate !== today) return 0;
   return dailyApiCalls;
 }
+function markTier1Blocked() {
+  tier1BlockedUntil = Date.now() + 60 * 60 * 1e3;
+  console.log("[CricAPI] Tier 1 key blocked, switching to Tier 2 for 1 hour");
+}
 async function trackedFetch(url, init) {
   await trackApiCall();
   const controller = new AbortController();
@@ -550,13 +580,19 @@ async function trackedFetch(url, init) {
   }
 }
 function getActiveApiKey() {
+  const now = Date.now();
   const primary = process.env.CRICKET_API_KEY;
-  if (primary) return primary;
+  if (primary && now > tier1BlockedUntil) return primary;
   const fallback = process.env.CRICAPI_KEY_TIER2;
   if (fallback) {
-    console.log("[CricAPI] Using Tier 2 fallback key");
+    if (now <= tier1BlockedUntil) {
+      console.log("[CricAPI] Using Tier 2 fallback key (Tier 1 blocked)");
+    } else {
+      console.log("[CricAPI] Using Tier 2 fallback key");
+    }
     return fallback;
   }
+  if (primary) return primary;
   return void 0;
 }
 function isMatchDelayed(apiStatusText) {
@@ -626,7 +662,8 @@ async function fetchUpcomingMatches() {
     const endpoints = [
       `${CRICKET_API_BASE}/currentMatches?apikey=${apiKey}&offset=0`,
       `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=0`,
-      `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=25`
+      `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=25`,
+      `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=50`
     ];
     for (const url of endpoints) {
       try {
@@ -722,7 +759,7 @@ async function fetchSeriesMatches(seriesId, seriesName) {
       return [];
     }
     console.log(`Series Info API: fetched ${json.data.matchList.length} matches for ${seriesName}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
-    return json.data.matchList.filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && !m.teams.includes("Tbc")).map((m) => {
+    return json.data.matchList.filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT).map((m) => {
       const team1 = m.teams[0];
       const team2 = m.teams[1];
       const team1Info = m.teamInfo?.find((t) => t.name === team1);
@@ -798,6 +835,16 @@ async function upsertMatches(apiMatches, existingMatches) {
       if (dup.league !== m.league) updates.league = m.league;
       if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
       if (m.venue && dup.venue !== m.venue) updates.venue = m.venue;
+      if (m.team1 !== "Tbc" && dup.team1 !== m.team1) {
+        updates.team1 = m.team1;
+        updates.team1Short = m.team1Short;
+        updates.team1Color = m.team1Color;
+      }
+      if (m.team2 !== "Tbc" && dup.team2 !== m.team2) {
+        updates.team2 = m.team2;
+        updates.team2Short = m.team2Short;
+        updates.team2Color = m.team2Color;
+      }
       if (Object.keys(updates).length > 0) {
         await storage2.updateMatch(dup.id, updates);
         console.log(`Match ${m.team1} vs ${m.team2}: updated [${Object.keys(updates).join(", ")}]`);
@@ -1436,15 +1483,19 @@ async function fetchLiveScorecard(externalMatchId) {
           dismissal: b?.dismissal || "not out",
           fantasyPoints: b?.batsman?.id ? calculateFantasyPoints(b.batsman.id, scorecard) : 0
         })),
-        bowling: bowlingArr.map((b) => ({
-          name: b?.bowler?.name || b?.name || "",
-          o: b?.o ?? 0,
-          m: b?.m ?? 0,
-          r: b?.r ?? 0,
-          w: b?.w ?? 0,
-          eco: b?.eco ?? 0,
-          fantasyPoints: b?.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0
-        }))
+        bowling: bowlingArr.map((b) => {
+          const dots = detectDotBalls(externalMatchId, b?.bowler?.name || b?.name || "", b);
+          return {
+            name: b?.bowler?.name || b?.name || "",
+            o: b?.o ?? 0,
+            m: b?.m ?? 0,
+            r: b?.r ?? 0,
+            w: b?.w ?? 0,
+            eco: b?.eco ?? 0,
+            dots,
+            fantasyPoints: b?.bowler?.id ? calculateFantasyPoints(b.bowler.id, scorecard) : 0
+          };
+        })
       };
     });
     let finalScore = scoreArr.map((s) => ({ r: s?.r ?? 0, w: s?.w ?? 0, o: s?.o ?? 0, inning: s?.inning ?? "" }));
@@ -1494,13 +1545,15 @@ async function fetchLiveScorecard(externalMatchId) {
     return null;
   }
 }
-var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, DELAY_KEYWORDS, TEAM_COLORS, TRACKED_SERIES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
+var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, TRACKED_SERIES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
     "use strict";
     CRICKET_API_BASE = "https://api.cricapi.com/v1";
     dailyApiCalls = 0;
     dailyApiCallDate = "";
+    tier1BlockedUntil = 0;
+    scorecardStateCache = /* @__PURE__ */ new Map();
     DELAY_KEYWORDS = [
       "rain",
       "delay",
@@ -1611,8 +1664,11 @@ async function isAdmin(req, res, next) {
 }
 async function registerRoutes(app2) {
   const PgStore = connectPgSimple(session);
+  const dbUrl = process.env.DATABASE_URL || "";
+  const needsSsl = dbUrl.includes("railway") || dbUrl.includes("rlwy");
   const sessionPool = new pg2.Pool({
-    connectionString: process.env.DATABASE_URL
+    connectionString: dbUrl,
+    ssl: needsSsl ? { rejectUnauthorized: false } : void 0
   });
   app2.use(
     session({
@@ -1662,9 +1718,25 @@ async function registerRoutes(app2) {
       });
       if (isAdminUser) {
         await storage.setUserAdmin(user.id, true);
+        await storage.updateUserVerified(user.id, true);
         user.isAdmin = true;
+        user.isVerified = true;
       }
-      req.session.userId = user.id;
+      if (user.isVerified) {
+        req.session.userId = user.id;
+        return res.json({
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            phone: user.phone,
+            teamName: user.teamName,
+            isVerified: user.isVerified,
+            isAdmin: user.isAdmin
+          },
+          token: generateAuthToken(user.id)
+        });
+      }
       return res.json({
         user: {
           id: user.id,
@@ -1672,10 +1744,10 @@ async function registerRoutes(app2) {
           email: user.email,
           phone: user.phone,
           teamName: user.teamName,
-          isVerified: user.isVerified,
-          isAdmin: user.isAdmin
+          isVerified: false,
+          isAdmin: false
         },
-        token: generateAuthToken(user.id)
+        message: "pending_approval"
       });
     } catch (err) {
       console.error("Signup error:", err);
@@ -1695,6 +1767,9 @@ async function registerRoutes(app2) {
       if (ADMIN_PHONES.includes(phone) && !user.isAdmin) {
         await storage.setUserAdmin(user.id, true);
         user.isAdmin = true;
+      }
+      if (!user.isVerified && !user.isAdmin) {
+        return res.status(403).json({ message: "pending_approval", detail: "Your account is pending admin approval. Please wait for an admin to approve your signup." });
       }
       req.session.userId = user.id;
       return res.json({
@@ -1858,11 +1933,13 @@ async function registerRoutes(app2) {
     } catch (e) {
       console.error("Status refresh error:", e);
     }
-    const allMatches = await storage.getAllMatches();
+    const allMatchesRaw = await storage.getAllMatches();
+    const T20_WC_SERIES_ID = "0cdf6736-ad9b-4e95-a647-5ee3a99c5510";
+    const allMatches = allMatchesRaw.filter((m) => m.seriesId === T20_WC_SERIES_ID || m.tournamentName && m.tournamentName.includes("T20") || m.league && m.league.includes("T20 World Cup"));
     const nowMs = Date.now();
     const MS_48H = 48 * 60 * 60 * 1e3;
     const MS_3H = 3 * 60 * 60 * 1e3;
-    console.log(`[MatchFeed] Server time: ${new Date(nowMs).toISOString()} | 48h window: now \u2192 ${new Date(nowMs + MS_48H).toISOString()}`);
+    console.log(`[MatchFeed] Server time: ${new Date(nowMs).toISOString()} | 48h window: now \u2192 ${new Date(nowMs + MS_48H).toISOString()} | T20 WC matches: ${allMatches.length}`);
     const matchesWithParticipants = [];
     for (const m of allMatches) {
       const startMs = new Date(m.startTime).getTime();
@@ -1877,8 +1954,9 @@ async function registerRoutes(app2) {
       const isLive = m.status === "live";
       const isDelayed = m.status === "delayed";
       const isRecentlyCompleted = m.status === "completed" && nowMs - startMs <= MS_3H;
+      const isCompleted = m.status === "completed";
       const hasParticipants = participantCount > 0;
-      const included = hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted;
+      const included = hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted || isCompleted;
       if (isUpcomingOrDelayed) {
         console.log(`[MatchFeed] ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${hoursUntilStart.toFixed(1)}h away | within48h=${startsWithin48h} | notTooOld=${notTooOld} | included=${included}`);
       }
@@ -1887,12 +1965,17 @@ async function registerRoutes(app2) {
       }
     }
     matchesWithParticipants.sort((a, b) => {
-      if (a.participantCount > 0 && b.participantCount === 0) return -1;
-      if (a.participantCount === 0 && b.participantCount > 0) return 1;
-      const order = { upcoming: 0, delayed: 0, live: 1, completed: 2 };
+      const order = { live: 0, delayed: 0, upcoming: 1, completed: 2 };
       const oa = order[a.match.status] ?? 1;
       const ob = order[b.match.status] ?? 1;
       if (oa !== ob) return oa - ob;
+      if (a.match.status === "completed" && b.match.status === "completed") {
+        if (a.participantCount > 0 && b.participantCount === 0) return -1;
+        if (a.participantCount === 0 && b.participantCount > 0) return 1;
+      }
+      if (a.match.status === "upcoming" || a.match.status === "delayed") {
+        return new Date(a.match.startTime).getTime() - new Date(b.match.startTime).getTime();
+      }
       return new Date(b.match.startTime).getTime() - new Date(a.match.startTime).getTime();
     });
     const result = matchesWithParticipants.map((mp) => ({
@@ -2166,17 +2249,40 @@ async function registerRoutes(app2) {
             };
           }
         }
-        const standings = allTeams.map((t) => ({
-          teamId: t.id,
-          teamName: t.name,
-          userId: t.userId,
-          username: allUsers[t.userId]?.username || "Unknown",
-          userTeamName: allUsers[t.userId]?.teamName || "",
-          totalPoints: t.totalPoints || 0,
-          playerIds: t.playerIds,
-          captainId: t.captainId,
-          viceCaptainId: t.viceCaptainId
-        })).sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+        const matchPlayersForResponse = await storage.getPlayersForMatch(matchId);
+        const playerById = new Map(matchPlayersForResponse.map((p) => [p.id, p]));
+        const standings = allTeams.map((t) => {
+          let resolvedPlayers = t.playerIds.map((pid) => {
+            const p = playerById.get(pid);
+            if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort };
+            return null;
+          }).filter(Boolean);
+          if (resolvedPlayers.length === 0 && matchPlayersForResponse.length > 0) {
+            const targetPts = t.totalPoints || 0;
+            const numPlayers = t.playerIds.length || 11;
+            const sorted = [...matchPlayersForResponse].sort((a, b) => (b.points || 0) - (a.points || 0));
+            const topPlayers = sorted.slice(0, numPlayers);
+            resolvedPlayers = topPlayers.map((p) => ({
+              id: p.id,
+              name: p.name,
+              role: p.role,
+              points: p.points || 0,
+              teamShort: p.teamShort
+            }));
+          }
+          return {
+            teamId: t.id,
+            teamName: t.name,
+            userId: t.userId,
+            username: allUsers[t.userId]?.username || "Unknown",
+            userTeamName: allUsers[t.userId]?.teamName || "",
+            totalPoints: t.totalPoints || 0,
+            playerIds: t.playerIds,
+            captainId: t.captainId,
+            viceCaptainId: t.viceCaptainId,
+            resolvedPlayers
+          };
+        }).sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
         let rank = 1;
         const rankedStandings = standings.map((s, i) => {
           if (i > 0 && s.totalPoints < standings[i - 1].totalPoints) {
@@ -2184,7 +2290,6 @@ async function registerRoutes(app2) {
           }
           return { ...s, rank };
         });
-        const matchPlayersForResponse = await storage.getPlayersForMatch(matchId);
         return res.json({ standings: rankedStandings, isLive: true, players: matchPlayersForResponse });
       } catch (err) {
         console.error("Standings error:", err);
@@ -2523,50 +2628,10 @@ async function registerRoutes(app2) {
     isAdmin,
     async (_req, res) => {
       try {
-        const apiMatches = await fetchUpcomingMatches();
-        let created = 0;
-        let updated = 0;
-        const existing = await storage.getAllMatches();
-        for (const m of apiMatches) {
-          const dup = existing.find((e) => e.externalId === m.externalId);
-          if (!dup) {
-            await storage.createMatch({
-              externalId: m.externalId,
-              seriesId: m.seriesId,
-              team1: m.team1,
-              team1Short: m.team1Short,
-              team1Color: m.team1Color,
-              team2: m.team2,
-              team2Short: m.team2Short,
-              team2Color: m.team2Color,
-              venue: m.venue,
-              startTime: m.startTime,
-              status: m.status,
-              league: m.league,
-              totalPrize: "0",
-              entryFee: 0,
-              spotsTotal: 100,
-              spotsFilled: 0
-            });
-            created++;
-          } else {
-            const updates = {};
-            if (dup.status !== m.status) updates.status = m.status;
-            if (new Date(dup.startTime).getTime() !== m.startTime.getTime()) updates.startTime = m.startTime;
-            if (dup.league !== m.league) updates.league = m.league;
-            if (m.seriesId && dup.seriesId !== m.seriesId) updates.seriesId = m.seriesId;
-            if (Object.keys(updates).length > 0) {
-              await storage.updateMatch(dup.id, updates);
-              updated++;
-            }
-          }
-        }
+        await syncMatchesFromApi();
         await refreshStaleMatchStatuses();
         return res.json({
-          synced: created,
-          updated,
-          total: apiMatches.length,
-          message: `Synced ${created} new, updated ${updated} existing matches from Cricket API`
+          message: "T20 World Cup match sync triggered successfully"
         });
       } catch (err) {
         console.error("Sync error:", err);
@@ -2614,6 +2679,42 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Create match error:", err);
         return res.status(500).json({ message: "Failed to create match" });
+      }
+    }
+  );
+  app2.patch(
+    "/api/admin/matches/:id",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const updates = req.body;
+        if (updates.startTime) updates.startTime = new Date(updates.startTime);
+        await storage.updateMatch(matchId, updates);
+        return res.json({ message: "Match updated" });
+      } catch (err) {
+        console.error("Update match error:", err);
+        return res.status(500).json({ message: "Failed to update match" });
+      }
+    }
+  );
+  app2.delete(
+    "/api/admin/matches/:id",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const teams = await storage.getAllTeamsForMatch(matchId);
+        if (teams.length > 0) {
+          return res.status(400).json({ message: "Cannot delete match with existing teams" });
+        }
+        await storage.deleteMatch(matchId);
+        return res.json({ message: "Match deleted" });
+      } catch (err) {
+        console.error("Delete match error:", err);
+        return res.status(500).json({ message: "Failed to delete match" });
       }
     }
   );
@@ -3503,6 +3604,212 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Tournament standings error:", err);
         return res.status(500).json({ message: "Failed to fetch tournament standings" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/fix-player-ids",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const oldPlayerMapping = req.body.oldPlayerMapping;
+        if (!oldPlayerMapping || Object.keys(oldPlayerMapping).length === 0) {
+          return res.status(400).json({ message: "Provide oldPlayerMapping: { oldId: playerName }" });
+        }
+        const allTeams = await db.select().from(userTeams);
+        const allPlayers = await db.select().from(players);
+        const playerIdToName = {};
+        for (const p of allPlayers) {
+          playerIdToName[p.id] = p.name;
+        }
+        const playersByMatchAndName = {};
+        for (const p of allPlayers) {
+          if (!playersByMatchAndName[p.matchId]) playersByMatchAndName[p.matchId] = {};
+          playersByMatchAndName[p.matchId][p.name.toLowerCase().trim()] = p.id;
+        }
+        let updatedCount = 0;
+        let skippedCount = 0;
+        const issues = [];
+        for (const team of allTeams) {
+          const currentIds = team.playerIds;
+          const allIdsValid = currentIds.every((pid) => playerIdToName[pid]);
+          if (allIdsValid) {
+            skippedCount++;
+            continue;
+          }
+          const matchPlayerNames = playersByMatchAndName[team.matchId] || {};
+          const newPlayerIds = [];
+          let newCaptainId = team.captainId;
+          let newViceCaptainId = team.viceCaptainId;
+          let allMapped = true;
+          for (const oldId of currentIds) {
+            if (playerIdToName[oldId]) {
+              newPlayerIds.push(oldId);
+              continue;
+            }
+            const oldName = oldPlayerMapping[oldId];
+            if (!oldName) {
+              allMapped = false;
+              issues.push(`Team ${team.name}: No name mapping for old ID ${oldId}`);
+              newPlayerIds.push(oldId);
+              continue;
+            }
+            const newId = matchPlayerNames[oldName.toLowerCase().trim()];
+            if (newId) {
+              newPlayerIds.push(newId);
+              if (team.captainId === oldId) newCaptainId = newId;
+              if (team.viceCaptainId === oldId) newViceCaptainId = newId;
+            } else {
+              allMapped = false;
+              issues.push(`Team ${team.name}: Player "${oldName}" not found in match ${team.matchId.substring(0, 8)}`);
+              newPlayerIds.push(oldId);
+            }
+          }
+          if (allMapped && newPlayerIds.length === currentIds.length) {
+            await db.update(userTeams).set({
+              playerIds: newPlayerIds,
+              captainId: newCaptainId,
+              viceCaptainId: newViceCaptainId
+            }).where(eq2(userTeams.id, team.id));
+            updatedCount++;
+          }
+        }
+        return res.json({
+          message: `Migration complete`,
+          totalTeams: allTeams.length,
+          updated: updatedCount,
+          skipped: skippedCount,
+          issueCount: issues.length,
+          issues: issues.slice(0, 50)
+        });
+      } catch (err) {
+        console.error("Fix player IDs error:", err);
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/reset-password",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      const { phone, newPassword } = req.body;
+      if (!phone || !newPassword) return res.status(400).json({ message: "phone and newPassword required" });
+      try {
+        await db.update(users).set({ password: newPassword }).where(eq2(users.phone, phone));
+        return res.json({ message: "Password reset", phone });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/verify-all-users",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const result = await db.update(users).set({ isVerified: true }).where(eq2(users.isVerified, false));
+        return res.json({ message: "All users verified" });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/pending-users",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const pending = await db.select({
+          id: users.id,
+          username: users.username,
+          phone: users.phone,
+          email: users.email,
+          joinedAt: users.joinedAt
+        }).from(users).where(eq2(users.isVerified, false));
+        return res.json({ users: pending });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/approve-user",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ message: "userId required" });
+        await db.update(users).set({ isVerified: true }).where(eq2(users.id, userId));
+        return res.json({ message: "User approved" });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/reject-user",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ message: "userId required" });
+        await db.delete(userTeams).where(eq2(userTeams.userId, userId));
+        await db.delete(users).where(eq2(users.id, userId));
+        return res.json({ message: "User rejected and deleted" });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/users",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const allUsers = await db.select({
+          id: users.id,
+          username: users.username,
+          phone: users.phone,
+          email: users.email,
+          teamName: users.teamName,
+          isVerified: users.isVerified,
+          isAdmin: users.isAdmin,
+          password: users.password
+        }).from(users);
+        return res.json({ users: allUsers });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/cleanup-test-users",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const realUserIds = req.body.keepUserIds;
+        if (!realUserIds || realUserIds.length === 0) {
+          return res.status(400).json({ message: "Provide keepUserIds array" });
+        }
+        const allUsersResult = await db.select({ id: users.id }).from(users);
+        const toDelete = allUsersResult.filter((u) => !realUserIds.includes(u.id)).map((u) => u.id);
+        let deleted = 0;
+        for (const uid of toDelete) {
+          await db.delete(userTeams).where(eq2(userTeams.userId, uid));
+          await db.delete(users).where(eq2(users.id, uid));
+          deleted++;
+        }
+        return res.json({ message: `Deleted ${deleted} test users`, kept: realUserIds.length });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
       }
     }
   );
