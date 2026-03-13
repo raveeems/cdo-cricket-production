@@ -431,7 +431,15 @@ export default function AdminScreen() {
       const res = await apiRequest('GET', '/api/matches');
       const data = await res.json();
       const allMatches = (data.matches || []) as MatchInfo[];
-      const relevant = allMatches.filter((m: MatchInfo) => m.status === 'upcoming' || m.status === 'live' || m.status === 'delayed');
+      const now = Date.now();
+      const ms48h = 48 * 60 * 60 * 1000;
+      const relevant = allMatches.filter((m: MatchInfo) => {
+        if (m.status === 'live' || m.status === 'delayed') return true;
+        if (m.status === 'upcoming') {
+          return new Date(m.startTime).getTime() <= now + ms48h;
+        }
+        return false;
+      });
       setMatches(relevant);
     } catch (e) {
       console.error('Failed to load matches:', e);
