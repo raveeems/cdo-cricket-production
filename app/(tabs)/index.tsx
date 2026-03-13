@@ -187,7 +187,10 @@ export default function HomeScreen() {
     },
   });
 
-  const visibleMatches = data?.matches || [];
+  // Home shows only upcoming/live/delayed — completed matches go to My Matches
+  const visibleMatches = (data?.matches || []).filter(
+    m => m.status !== 'completed'
+  );
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 

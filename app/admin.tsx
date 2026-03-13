@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -122,6 +123,11 @@ export default function AdminScreen() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
+  const [editTimeMatchId, setEditTimeMatchId] = useState<string | null>(null);
+  const [editTimeInput, setEditTimeInput] = useState('');
+  const [editTimeSaving, setEditTimeSaving] = useState(false);
+  const [editTimeResult, setEditTimeResult] = useState('');
+
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const selectedMatch = useMemo(() => matches.find(m => m.id === selectedMatchId), [matches, selectedMatchId]);
@@ -191,6 +197,38 @@ export default function AdminScreen() {
         },
       },
     ]);
+  };
+
+  const openEditTime = (m: MatchInfo) => {
+    const d = new Date(m.startTime);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    setEditTimeInput(local);
+    setEditTimeResult('');
+    setEditTimeMatchId(m.id);
+  };
+
+  const saveEditTime = async () => {
+    if (!editTimeMatchId || !editTimeInput) return;
+    const parsed = new Date(editTimeInput);
+    if (isNaN(parsed.getTime())) {
+      setEditTimeResult('Invalid date/time format');
+      return;
+    }
+    setEditTimeSaving(true);
+    setEditTimeResult('');
+    try {
+      await apiRequest('PATCH', `/api/admin/matches/${editTimeMatchId}`, { startTime: parsed.toISOString() });
+      await loadMatches();
+      setEditTimeResult('Start time updated');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => setEditTimeMatchId(null), 800);
+    } catch (e) {
+      setEditTimeResult('Failed to update start time');
+      console.error('Edit time failed:', e);
+    } finally {
+      setEditTimeSaving(false);
+    }
   };
 
   const loadAuditLogs = async () => {
@@ -347,7 +385,7 @@ export default function AdminScreen() {
       const res = await apiRequest('GET', '/api/matches');
       const data = await res.json();
       const allMatches = (data.matches || []) as MatchInfo[];
-      const relevant = allMatches.filter((m: MatchInfo) => m.status === 'upcoming' || m.status === 'live' || m.status === 'delayed' || m.status === 'completed');
+      const relevant = allMatches.filter((m: MatchInfo) => m.status === 'upcoming' || m.status === 'live' || m.status === 'delayed');
       setMatches(relevant);
     } catch (e) {
       console.error('Failed to load matches:', e);
@@ -853,6 +891,14 @@ export default function AdminScreen() {
                     >
                       <MaterialCommunityIcons name="calculator" size={18} color={colors.primary} />
                     </Pressable>
+                    {(m.status === 'upcoming' || m.status === 'delayed') && (
+                      <Pressable
+                        onPress={() => openEditTime(m)}
+                        style={{ padding: 6 }}
+                      >
+                        <Ionicons name="time-outline" size={16} color={colors.accent} />
+                      </Pressable>
+                    )}
                     {!m.isVoid && (
                       <Pressable
                         onPress={() => voidMatch(m.id)}
@@ -1913,6 +1959,102 @@ export default function AdminScreen() {
             )}
           </View>
       </ScrollView>
+
+      {/* Edit Match Start Time Modal */}
+      <Modal
+        visible={editTimeMatchId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditTimeMatchId(null)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setEditTimeMatchId(null)}
+        >
+          <Pressable
+            style={{
+              width: 320,
+              backgroundColor: colors.card,
+              borderRadius: 20,
+              padding: 24,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+            onPress={() => {}}
+          >
+            <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18, marginBottom: 6 }}>
+              Edit Start Time
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 13, marginBottom: 16 }}>
+              Enter date and time in local format:{'\n'}YYYY-MM-DDTHH:mm (e.g. 2025-04-15T19:30)
+            </Text>
+            <TextInput
+              value={editTimeInput}
+              onChangeText={setEditTimeInput}
+              placeholder="2025-04-15T19:30"
+              placeholderTextColor={colors.textTertiary}
+              style={{
+                height: 46,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                color: colors.text,
+                fontFamily: 'Inter_500Medium',
+                fontSize: 15,
+                paddingHorizontal: 14,
+                marginBottom: 8,
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {editTimeResult !== '' && (
+              <Text style={{
+                color: editTimeResult.includes('updated') ? colors.success : colors.error,
+                fontFamily: 'Inter_500Medium',
+                fontSize: 13,
+                marginBottom: 8,
+              }}>
+                {editTimeResult}
+              </Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+              <Pressable
+                onPress={() => setEditTimeMatchId(null)}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 15 }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={saveEditTime}
+                disabled={editTimeSaving}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: colors.primary,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  opacity: editTimeSaving ? 0.6 : 1,
+                }}
+              >
+                {editTimeSaving
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>Save</Text>
+                }
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

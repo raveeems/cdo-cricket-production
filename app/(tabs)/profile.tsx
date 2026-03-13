@@ -267,20 +267,6 @@ export default function ProfileScreen() {
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            <Pressable style={styles.settingRow}>
-              <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: colors.primary + '20' }]}>
-                  <Ionicons name="notifications-outline" size={18} color={colors.primary} />
-                </View>
-                <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
-                  Notifications
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
             <Pressable style={styles.settingRow} onPress={() => router.push('/how-to-play')}>
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>

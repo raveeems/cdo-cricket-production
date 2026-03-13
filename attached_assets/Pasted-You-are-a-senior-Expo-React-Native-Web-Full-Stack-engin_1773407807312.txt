@@ -1,0 +1,263 @@
+You are a **senior Expo + React Native Web + Full-Stack engineer** responsible for making controlled production-safe improvements to an existing fantasy cricket application.
+
+IMPORTANT:
+The app recently had a mobile blank-screen issue which has now been fixed. Your changes MUST NOT reintroduce rendering failures or routing issues. Ensure the app always renders a safe fallback UI and never returns null indefinitely.
+
+Goal:
+Implement the following product improvements and admin controls while keeping the system stable.
+
+---
+
+SECTION 1 — REMOVE NOTIFICATIONS FEATURE
+
+Notifications are not currently used in the system.
+
+Remove the Notifications option from the Profile page.
+
+Tasks:
+
+* Remove the Notifications menu item from the Profile screen UI.
+* Remove its navigation route if it exists.
+* Ensure Profile page still renders correctly.
+* Do NOT break any other Profile menu options.
+
+Profile should now contain:
+
+* Team Name
+* Dark Mode
+* How To Play
+* Admin Panel (only for Admins) 
+* Log Out
+
+---
+
+SECTION 2 — ADMIN FEATURE: EDIT MATCH START TIME
+
+Add the ability for Admin to revise the start time if a match is delayed.
+
+Location:
+Admin Panel → Match Controls screen.
+
+For each match card, add a new button:
+
+Clock icon + "Edit Start Time"
+
+Behavior:
+
+1. When admin taps the button, open a modal dialog.
+
+2. Modal should show:
+
+   * Match name (read-only)
+   * Current start time
+   * Date picker
+   * Time picker
+   * Save button
+   * Cancel button
+
+3. On Save:
+   Update the match record in the database.
+
+Example:
+
+UPDATE matches
+SET start_time = new_time
+WHERE id = match_id
+
+4. After updating start time:
+
+* Recalculate team lock time
+* Refresh match list UI
+* Update start time anywhere it is displayed
+
+Team lock logic example:
+
+team_lock_time = start_time - 5 minutes
+
+Restrictions:
+
+* Do NOT allow editing start time for completed matches
+* Only allow editing if status is:
+  "scheduled"
+  "delayed"
+
+---
+
+SECTION 3 — FILTER PLAYING XI MATCH LIST
+
+The Playing XI admin screen should not show completed matches.
+
+Update the query so that it only loads matches where:
+
+status != "completed"
+
+or
+
+status IN ("scheduled","lineup_pending","delayed")
+
+Completed matches must not appear here.
+
+---
+
+SECTION 4 — CLEAN UP HOME PAGE MATCH FEED
+
+The Home screen currently shows old tournament matches.
+
+Replace this logic with a clean upcoming match feed.
+
+Rules:
+
+1. Show ONLY matches that occur in the next 48 hours.
+
+Example query logic:
+
+match_time >= now
+AND
+match_time <= now + 48 hours
+
+Sort order:
+
+ORDER BY match_time ASC
+
+Limit results to a reasonable number (5–10).
+
+2. Completed matches older than 48 hours must NOT appear on Home.
+
+3. If a match was completed within the last 48 hours, it may appear in match history but not on Home.
+
+4. If the user has already played the match, it should appear in:
+
+"My Matches"
+
+NOT on the Home screen.
+
+---
+
+SECTION 5 — UPDATE "HOW TO PLAY" PAGE
+
+The How To Play page must reflect the current rules of the platform.
+
+Add the following sections clearly:
+
+1. Creating Teams
+   Users create fantasy teams by selecting players from both sides.
+
+2. Team Lock
+   Teams lock 5 minutes before match start time.
+
+3. Playing XI
+   Only players in the official Playing XI will earn points.
+
+4. Impact Player Rule
+   Admins can activate an Impact Player for a match.
+
+When enabled:
+
+* An Impact Player receives additional scoring impact.
+* The admin toggles this rule per match.
+
+5. Match Processing
+   After the match ends:
+
+* Admin confirms Playing XI
+* Scores are calculated
+* Leaderboard is updated
+* Pot is distributed
+
+6. Admin Adjustments
+   Admins can:
+
+* revise match start times
+* recalculate scores
+* void matches if needed
+
+Ensure the page layout matches the existing UI style.
+
+---
+
+SECTION 6 — ENSURE STABLE RENDERING (CRITICAL)
+
+To prevent the previous blank screen issue:
+
+1. Ensure no component returns null indefinitely.
+
+If async data loads, render a fallback such as:
+
+LoadingScreen
+
+2. Ensure the root layout always renders.
+
+Check _layout.tsx.
+
+Avoid patterns like:
+
+if (!fontsLoaded) return null
+
+Instead render a loading UI.
+
+3. Wrap key routes with ErrorBoundary.
+
+4. Confirm that all match queries return safe defaults.
+
+Example:
+
+matches ?? []
+
+Avoid crashes like:
+
+matches.map(...)
+
+when matches is undefined.
+
+---
+
+SECTION 7 — VALIDATE UI AFTER CHANGES
+
+After implementing changes:
+
+Test the following pages on mobile and desktop:
+
+Home
+My Matches
+Profile
+Admin Panel
+Playing XI screen
+
+Confirm:
+
+* Home shows upcoming matches within next 48 hours
+* Notifications menu is gone
+* Admin can edit match start time
+* Completed matches do not appear in Playing XI
+* No blank screen occurs on mobile browsers
+* Existing scoring, contests, and standings still work
+
+---
+
+SECTION 8 — PROVIDE A CHANGE REPORT
+
+After completing the update, provide a summary including:
+
+1. Files modified
+2. New components created (if any)
+3. Query changes made
+4. Admin start-time edit implementation
+5. Confirmation mobile rendering remains stable
+6. Confirmation that scoring engine and contest logic were untouched
+
+---
+
+IMPORTANT CONSTRAINTS
+
+Do NOT:
+
+* rewrite the application architecture
+* modify fantasy scoring logic
+* change leaderboard calculations
+* affect existing contests
+* remove admin controls
+* introduce UI regressions
+
+Only implement the requested improvements safely.
+
+Always maintain stable rendering across mobile browsers.

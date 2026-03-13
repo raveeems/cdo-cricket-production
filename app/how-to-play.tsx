@@ -72,10 +72,12 @@ const otherPoints: PointRow[] = [
 ];
 
 const steps = [
-  { icon: 'calendar-outline' as const, title: 'Select a Match', desc: 'Browse upcoming matches and pick the one you want to play.' },
-  { icon: 'people-outline' as const, title: 'Pick 11 Players', desc: 'Select 11 players within the credit limit. Max 10 players from a single team.' },
-  { icon: 'star-outline' as const, title: 'Choose C & VC', desc: 'Pick a Captain (2x points) and Vice Captain (1.5x points).' },
-  { icon: 'checkmark-circle-outline' as const, title: 'Submit Before Deadline', desc: 'Lock in your team before the match starts. You can create up to 3 teams.' },
+  { icon: 'calendar-outline' as const, title: 'Select a Match', desc: 'Browse upcoming matches and pick the one you want to play. Matches appear 48 hours before start time.' },
+  { icon: 'people-outline' as const, title: 'Pick 11 Players', desc: 'Select 11 players within the credit limit. Max 10 players from a single real team.' },
+  { icon: 'flash-outline' as const, title: 'Choose Impact Picks', desc: 'Pick a Primary and Backup Impact player from the same franchise (not in your Main XI). If your Primary enters as an Impact Sub, they score for you — plus a +4 bonus.' },
+  { icon: 'star-outline' as const, title: 'Choose C & VC', desc: 'Pick a Captain (2x points) and Vice Captain (1.5x points). You can assign C/VC to your Impact Slot for multiplied impact points.' },
+  { icon: 'trophy-outline' as const, title: 'Predict the Winner', desc: 'Before your first team submission, predict which team will win. A correct prediction earns +50 bonus points.' },
+  { icon: 'checkmark-circle-outline' as const, title: 'Submit Before Deadline', desc: 'Lock in your team before the match starts. Teams are editable right up to 1 second before kick-off.' },
 ];
 
 const teamRules = [
@@ -254,6 +256,119 @@ export default function HowToPlayScreen() {
           {renderPointsTable('Economy Rate', economyPoints, 'speedometer', '#8B5CF6')}
           {renderPointsTable('Strike Rate (Batting)', strikeRatePoints, 'lightning-bolt', '#EC4899')}
           {renderPointsTable('Captain / Vice Captain', otherPoints, 'star-four-points', '#F59E0B')}
+
+          {/* Impact Picks */}
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            Impact Picks
+          </Text>
+          <View style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.featureIconRow, { backgroundColor: '#F59E0B20' }]}>
+              <MaterialCommunityIcons name="lightning-bolt" size={22} color="#F59E0B" />
+            </View>
+            <Text style={[styles.featureTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              The Impact Slot
+            </Text>
+            <Text style={[styles.featureDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Pick a <Text style={{ fontFamily: 'Inter_600SemiBold', color: colors.text }}>Primary</Text> and <Text style={{ fontFamily: 'Inter_600SemiBold', color: colors.text }}>Backup</Text> Impact player from the same IPL franchise but NOT in your Main XI.
+            </Text>
+            <View style={[styles.featureList, { borderTopColor: colors.border }]}>
+              {[
+                'If your Primary enters the game as the Impact Sub → they score for you (+4 bonus)',
+                'If Primary does NOT play → Backup is tried next',
+                'If neither play → the Impact Slot scores 0',
+                'Assign your Captain or VC to the Impact Slot for 2x / 1.5x multiplied points',
+              ].map((item, i) => (
+                <View key={i} style={styles.featureListItem}>
+                  <Ionicons name="chevron-forward" size={14} color="#F59E0B" />
+                  <Text style={[styles.featureListText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Winner Prediction */}
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            Winner Prediction
+          </Text>
+          <View style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.featureIconRow, { backgroundColor: colors.primary + '20' }]}>
+              <Ionicons name="trophy" size={22} color={colors.primary} />
+            </View>
+            <Text style={[styles.featureTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              +50 Prediction Bonus
+            </Text>
+            <Text style={[styles.featureDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Before submitting your first team for a match, you must predict which team will win.
+            </Text>
+            <View style={[styles.featureList, { borderTopColor: colors.border }]}>
+              {[
+                'One prediction per match — update it any time before the match starts',
+                'Correct prediction = +50 points added to your total score',
+                'Predictions are hidden from other users until the match goes live',
+              ].map((item, i) => (
+                <View key={i} style={styles.featureListItem}>
+                  <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                  <Text style={[styles.featureListText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Invisible Mode */}
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            Invisible Mode
+          </Text>
+          <View style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.featureIconRow, { backgroundColor: '#8B5CF620' }]}>
+              <Ionicons name="eye-off" size={22} color="#8B5CF6" />
+            </View>
+            <Text style={[styles.featureTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Hide Your Team
+            </Text>
+            <Text style={[styles.featureDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Enable Invisible Mode when creating or editing a team to hide it from other players during a live match.
+            </Text>
+            <View style={[styles.featureList, { borderTopColor: colors.border }]}>
+              {[
+                'Others see only your team name and that it\'s hidden — no player details',
+                'Your team is revealed automatically once the match completes',
+                'Limited to 1 use per week (Monday–Sunday, IST)',
+              ].map((item, i) => (
+                <View key={i} style={styles.featureListItem}>
+                  <Ionicons name="chevron-forward" size={14} color="#8B5CF6" />
+                  <Text style={[styles.featureListText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Weekly Restrictions */}
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            Weekly Limits
+          </Text>
+          <View style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.featureIconRow, { backgroundColor: colors.success + '20' }]}>
+              <Ionicons name="calendar" size={22} color={colors.success} />
+            </View>
+            <Text style={[styles.featureTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Multi-Team Cap
+            </Text>
+            <Text style={[styles.featureDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              You can only create 2nd and 3rd teams for a combined total of <Text style={{ fontFamily: 'Inter_600SemiBold', color: colors.text }}>3 times per week</Text> across all matches.
+            </Text>
+            <View style={[styles.featureList, { borderTopColor: colors.border }]}>
+              {[
+                'Week runs Monday to Sunday (IST)',
+                'Your first team per match is always free — no limit',
+                'Entering a 2nd or 3rd team counts against your weekly quota',
+              ].map((item, i) => (
+                <View key={i} style={styles.featureListItem}>
+                  <Ionicons name="chevron-forward" size={14} color={colors.success} />
+                  <Text style={[styles.featureListText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
 
           <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             Entry Deadline
@@ -477,5 +592,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 19,
+  },
+  featureCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 16,
+    padding: 16,
+    gap: 10,
+  },
+  featureIconRow: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureTitle: {
+    fontSize: 16,
+  },
+  featureDesc: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  featureList: {
+    borderTopWidth: 1,
+    paddingTop: 10,
+    gap: 8,
+  },
+  featureListItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  featureListText: {
+    fontSize: 13,
+    lineHeight: 19,
+    flex: 1,
   },
 });
