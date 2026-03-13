@@ -63,6 +63,9 @@ export const matches = pgTable("matches", {
   tournamentName: text("tournament_name"),
   entryStake: integer("entry_stake").notNull().default(30),
   potProcessed: boolean("pot_processed").notNull().default(false),
+  officialWinner: varchar("official_winner", { length: 10 }),
+  isVoid: boolean("is_void").notNull().default(false),
+  impactFeaturesEnabled: boolean("impact_features_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -96,6 +99,12 @@ export const userTeams = pgTable("user_teams", {
   captainId: varchar("captain_id").notNull(),
   viceCaptainId: varchar("vice_captain_id").notNull(),
   totalPoints: integer("total_points").notNull().default(0),
+  primaryImpactId: varchar("primary_impact_id"),
+  backupImpactId: varchar("backup_impact_id"),
+  captainType: varchar("captain_type", { length: 20 }).notNull().default("player"),
+  vcType: varchar("vc_type", { length: 20 }).notNull().default("player"),
+  invisibleMode: boolean("invisible_mode").notNull().default(false),
+  predictionPoints: integer("prediction_points").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -154,6 +163,42 @@ export const apiCallLog = pgTable("api_call_log", {
   lastCalledAt: timestamp("last_called_at").notNull().defaultNow(),
 });
 
+export const matchPlayerStatus = pgTable("match_player_status", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  matchId: varchar("match_id").notNull(),
+  playerId: varchar("player_id").notNull(),
+  adminStatus: varchar("admin_status", { length: 20 }).notNull().default("not_active"),
+  actualParticipationStatus: varchar("actual_participation_status", { length: 30 }).notNull().default("unknown"),
+  officialImpactSubUsed: boolean("official_impact_sub_used").notNull().default(false),
+  sourceType: varchar("source_type", { length: 20 }).notNull().default("admin"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const userWeeklyUsage = pgTable("user_weekly_usage", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  weekStartDate: varchar("week_start_date", { length: 10 }).notNull(),
+  multiTeamUsageCount: integer("multi_team_usage_count").notNull().default(0),
+  invisibleModeUsageCount: integer("invisible_mode_usage_count").notNull().default(0),
+});
+
+export const adminAuditLog = pgTable("admin_audit_log", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  adminUserId: varchar("admin_user_id").notNull(),
+  actionType: text("action_type").notNull(),
+  entityType: text("entity_type").notNull().default(""),
+  entityId: varchar("entity_id"),
+  matchId: varchar("match_id"),
+  metadata: text("metadata").notNull().default(""),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -180,6 +225,11 @@ export const insertUserTeamSchema = z.object({
   playerIds: z.array(z.string()),
   captainId: z.string(),
   viceCaptainId: z.string(),
+  primaryImpactId: z.string().optional(),
+  backupImpactId: z.string().optional(),
+  captainType: z.enum(["player", "impact_slot"]).default("player"),
+  vcType: z.enum(["player", "impact_slot"]).default("player"),
+  invisibleMode: z.boolean().default(false),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -191,3 +241,6 @@ export type UserTeam = typeof userTeams.$inferSelect;
 export type MatchPrediction = typeof matchPredictions.$inferSelect;
 export type Reward = typeof rewards.$inferSelect;
 export type TournamentLedger = typeof tournamentLedger.$inferSelect;
+export type MatchPlayerStatus = typeof matchPlayerStatus.$inferSelect;
+export type UserWeeklyUsage = typeof userWeeklyUsage.$inferSelect;
+export type AdminAuditLog = typeof adminAuditLog.$inferSelect;

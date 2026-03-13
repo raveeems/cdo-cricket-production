@@ -11,6 +11,9 @@ import {
   matchPredictions,
   rewards,
   tournamentLedger,
+  matchPlayerStatus,
+  userWeeklyUsage,
+  adminAuditLog,
   type InsertUser,
   type User,
   type ReferenceCode,
@@ -20,6 +23,9 @@ import {
   type MatchPrediction,
   type Reward,
   type TournamentLedger,
+  type MatchPlayerStatus,
+  type UserWeeklyUsage,
+  type AdminAuditLog,
 } from "@shared/schema";
 
 export class DatabaseStorage {
@@ -214,6 +220,11 @@ export class DatabaseStorage {
     playerIds: string[];
     captainId: string;
     viceCaptainId: string;
+    primaryImpactId?: string;
+    backupImpactId?: string;
+    captainType?: string;
+    vcType?: string;
+    invisibleMode?: boolean;
   }): Promise<UserTeam> {
     const [team] = await db.insert(userTeams).values(data).returning();
     return team;
@@ -224,14 +235,25 @@ export class DatabaseStorage {
     captainId: string;
     viceCaptainId: string;
     name?: string;
+    primaryImpactId?: string;
+    backupImpactId?: string;
+    captainType?: string;
+    vcType?: string;
+    invisibleMode?: boolean;
   }): Promise<UserTeam> {
+    const updateData: Record<string, any> = {
+      playerIds: data.playerIds,
+      captainId: data.captainId,
+      viceCaptainId: data.viceCaptainId,
+    };
+    if (data.name) updateData.name = data.name;
+    if (data.primaryImpactId !== undefined) updateData.primaryImpactId = data.primaryImpactId;
+    if (data.backupImpactId !== undefined) updateData.backupImpactId = data.backupImpactId;
+    if (data.captainType !== undefined) updateData.captainType = data.captainType;
+    if (data.vcType !== undefined) updateData.vcType = data.vcType;
+    if (data.invisibleMode !== undefined) updateData.invisibleMode = data.invisibleMode;
     const [updated] = await db.update(userTeams)
-      .set({
-        playerIds: data.playerIds,
-        captainId: data.captainId,
-        viceCaptainId: data.viceCaptainId,
-        ...(data.name ? { name: data.name } : {}),
-      })
+      .set(updateData)
       .where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId)))
       .returning();
     return updated;
@@ -454,6 +476,216 @@ export class DatabaseStorage {
       totalPoints: Number(r.totalPoints),
       matchCount: Number(r.matchCount),
     }));
+  }
+  // ====== IST Week Helpers ======
+  getISTWeekStart(date?: Date): string {
+    const d = date || new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istDate = new Date(d.getTime() + istOffset);
+    const day = istDate.getUTCDay();
+    const diff = day === 0 ? 6 : day - 1;
+    const monday = new Date(istDate);
+    monday.setUTCDate(istDate.getUTCDate() - diff);
+    return monday.toISOString().slice(0, 10);
+  }
+
+  getISTWeekEnd(weekStartDate: string): string {
+    const d = new Date(weekStartDate + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + 6);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // ====== Match Player Status ======
+  async getMatchPlayerStatuses(matchId: string): Promise<MatchPlayerStatus[]> {
+    return db.select().from(matchPlayerStatus).where(eq(matchPlayerStatus.matchId, matchId));
+  }
+
+  async getMatchPlayerStatus(matchId: string, playerId: string): Promise<MatchPlayerStatus | undefined> {
+    const [status] = await db.select().from(matchPlayerStatus)
+      .where(and(eq(matchPlayerStatus.matchId, matchId), eq(matchPlayerStatus.playerId, playerId)));
+    return status;
+  }
+
+  async upsertMatchPlayerStatus(data: {
+    matchId: string;
+    playerId: string;
+    adminStatus?: string;
+    actualParticipationStatus?: string;
+    officialImpactSubUsed?: boolean;
+    sourceType?: string;
+  }): Promise<MatchPlayerStatus> {
+    const existing = await this.getMatchPlayerStatus(data.matchId, data.playerId);
+    if (existing) {
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+      if (data.adminStatus !== undefined) updateData.adminStatus = data.adminStatus;
+      if (data.actualParticipationStatus !== undefined) updateData.actualParticipationStatus = data.actualParticipationStatus;
+      if (data.officialImpactSubUsed !== undefined) updateData.officialImpactSubUsed = data.officialImpactSubUsed;
+      if (data.sourceType !== undefined) updateData.sourceType = data.sourceType;
+      const [updated] = await db.update(matchPlayerStatus)
+        .set(updateData)
+        .where(eq(matchPlayerStatus.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(matchPlayerStatus).values({
+        matchId: data.matchId,
+        playerId: data.playerId,
+        adminStatus: data.adminStatus || "not_active",
+        actualParticipationStatus: data.actualParticipationStatus || "unknown",
+        officialImpactSubUsed: data.officialImpactSubUsed || false,
+        sourceType: data.sourceType || "admin",
+      }).returning();
+      return created;
+    }
+  }
+
+  async bulkSetAdminStatus(matchId: string, playerIds: string[], adminStatus: string): Promise<void> {
+    for (const playerId of playerIds) {
+      await this.upsertMatchPlayerStatus({ matchId, playerId, adminStatus, sourceType: "admin" });
+    }
+  }
+
+  async getImpactSubPlayers(matchId: string): Promise<MatchPlayerStatus[]> {
+    return db.select().from(matchPlayerStatus)
+      .where(and(
+        eq(matchPlayerStatus.matchId, matchId),
+        eq(matchPlayerStatus.officialImpactSubUsed, true)
+      ));
+  }
+
+  // ====== User Weekly Usage ======
+  async getUserWeeklyUsage(userId: string, weekStartDate?: string): Promise<UserWeeklyUsage | undefined> {
+    const week = weekStartDate || this.getISTWeekStart();
+    const [usage] = await db.select().from(userWeeklyUsage)
+      .where(and(eq(userWeeklyUsage.userId, userId), eq(userWeeklyUsage.weekStartDate, week)));
+    return usage;
+  }
+
+  async getOrCreateWeeklyUsage(userId: string, weekStartDate?: string): Promise<UserWeeklyUsage> {
+    const week = weekStartDate || this.getISTWeekStart();
+    const existing = await this.getUserWeeklyUsage(userId, week);
+    if (existing) return existing;
+    const [created] = await db.insert(userWeeklyUsage).values({
+      userId,
+      weekStartDate: week,
+      multiTeamUsageCount: 0,
+      invisibleModeUsageCount: 0,
+    }).returning();
+    return created;
+  }
+
+  async incrementMultiTeamUsage(userId: string): Promise<UserWeeklyUsage> {
+    const usage = await this.getOrCreateWeeklyUsage(userId);
+    const [updated] = await db.update(userWeeklyUsage)
+      .set({ multiTeamUsageCount: usage.multiTeamUsageCount + 1 })
+      .where(eq(userWeeklyUsage.id, usage.id))
+      .returning();
+    return updated;
+  }
+
+  async incrementInvisibleUsage(userId: string): Promise<UserWeeklyUsage> {
+    const usage = await this.getOrCreateWeeklyUsage(userId);
+    const [updated] = await db.update(userWeeklyUsage)
+      .set({ invisibleModeUsageCount: usage.invisibleModeUsageCount + 1 })
+      .where(eq(userWeeklyUsage.id, usage.id))
+      .returning();
+    return updated;
+  }
+
+  async decrementInvisibleUsage(userId: string): Promise<void> {
+    const usage = await this.getOrCreateWeeklyUsage(userId);
+    if (usage.invisibleModeUsageCount > 0) {
+      await db.update(userWeeklyUsage)
+        .set({ invisibleModeUsageCount: usage.invisibleModeUsageCount - 1 })
+        .where(eq(userWeeklyUsage.id, usage.id));
+    }
+  }
+
+  canUseMultiTeam(usage: UserWeeklyUsage): boolean {
+    return usage.multiTeamUsageCount < 3;
+  }
+
+  canUseInvisibleMode(usage: UserWeeklyUsage): boolean {
+    return usage.invisibleModeUsageCount < 1;
+  }
+
+  // ====== Admin Audit Log ======
+  async createAuditLog(data: {
+    adminUserId: string;
+    actionType: string;
+    entityType: string;
+    entityId?: string;
+    matchId?: string;
+    metadata?: string;
+  }): Promise<AdminAuditLog> {
+    const [log] = await db.insert(adminAuditLog).values({
+      adminUserId: data.adminUserId,
+      actionType: data.actionType,
+      entityType: data.entityType,
+      entityId: data.entityId,
+      matchId: data.matchId,
+      metadata: data.metadata || "",
+    }).returning();
+    return log;
+  }
+
+  async getAuditLogsForMatch(matchId: string): Promise<AdminAuditLog[]> {
+    return db.select().from(adminAuditLog)
+      .where(eq(adminAuditLog.matchId, matchId))
+      .orderBy(desc(adminAuditLog.createdAt));
+  }
+
+  async getAllAuditLogs(limit: number = 50): Promise<AdminAuditLog[]> {
+    return db.select().from(adminAuditLog)
+      .orderBy(desc(adminAuditLog.createdAt))
+      .limit(limit);
+  }
+
+  // ====== Impact Slot Resolution ======
+  async resolveImpactSlot(matchId: string, primaryImpactId: string | null, backupImpactId: string | null): Promise<{
+    activePlayerId: string | null;
+    activatedBy: "primary" | "backup" | null;
+  }> {
+    if (primaryImpactId) {
+      const primaryStatus = await this.getMatchPlayerStatus(matchId, primaryImpactId);
+      if (primaryStatus?.officialImpactSubUsed) {
+        return { activePlayerId: primaryImpactId, activatedBy: "primary" };
+      }
+    }
+    if (backupImpactId) {
+      const backupStatus = await this.getMatchPlayerStatus(matchId, backupImpactId);
+      if (backupStatus?.officialImpactSubUsed) {
+        return { activePlayerId: backupImpactId, activatedBy: "backup" };
+      }
+    }
+    return { activePlayerId: null, activatedBy: null };
+  }
+
+  // ====== Match Feature Toggle ======
+  async setImpactFeaturesEnabled(matchId: string, enabled: boolean): Promise<void> {
+    await db.update(matches)
+      .set({ impactFeaturesEnabled: enabled })
+      .where(eq(matches.id, matchId));
+  }
+
+  async setMatchVoid(matchId: string, isVoid: boolean): Promise<void> {
+    await db.update(matches)
+      .set({ isVoid })
+      .where(eq(matches.id, matchId));
+  }
+
+  async setOfficialWinner(matchId: string, winner: string | null): Promise<void> {
+    await db.update(matches)
+      .set({ officialWinner: winner })
+      .where(eq(matches.id, matchId));
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, userId));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
   }
 }
 

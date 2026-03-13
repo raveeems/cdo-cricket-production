@@ -11,6 +11,7 @@ var __export = (target, all) => {
 // shared/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
+  adminAuditLog: () => adminAuditLog,
   apiCallLog: () => apiCallLog,
   codeVerifications: () => codeVerifications,
   insertMatchSchema: () => insertMatchSchema,
@@ -18,6 +19,7 @@ __export(schema_exports, {
   insertReferenceCodeSchema: () => insertReferenceCodeSchema,
   insertUserSchema: () => insertUserSchema,
   insertUserTeamSchema: () => insertUserTeamSchema,
+  matchPlayerStatus: () => matchPlayerStatus,
   matchPredictions: () => matchPredictions,
   matches: () => matches,
   players: () => players,
@@ -25,6 +27,7 @@ __export(schema_exports, {
   rewards: () => rewards,
   tournamentLedger: () => tournamentLedger,
   userTeams: () => userTeams,
+  userWeeklyUsage: () => userWeeklyUsage,
   users: () => users
 });
 import { sql } from "drizzle-orm";
@@ -40,7 +43,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var users, referenceCodes, matches, players, userTeams, codeVerifications, matchPredictions, rewards, tournamentLedger, apiCallLog, insertUserSchema, insertReferenceCodeSchema, insertMatchSchema, insertPlayerSchema, insertUserTeamSchema;
+var users, referenceCodes, matches, players, userTeams, codeVerifications, matchPredictions, rewards, tournamentLedger, apiCallLog, matchPlayerStatus, userWeeklyUsage, adminAuditLog, insertUserSchema, insertReferenceCodeSchema, insertMatchSchema, insertPlayerSchema, insertUserTeamSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -87,6 +90,9 @@ var init_schema = __esm({
       tournamentName: text("tournament_name"),
       entryStake: integer("entry_stake").notNull().default(30),
       potProcessed: boolean("pot_processed").notNull().default(false),
+      officialWinner: varchar("official_winner", { length: 10 }),
+      isVoid: boolean("is_void").notNull().default(false),
+      impactFeaturesEnabled: boolean("impact_features_enabled").notNull().default(false),
       createdAt: timestamp("created_at").notNull().defaultNow()
     });
     players = pgTable("players", {
@@ -114,6 +120,12 @@ var init_schema = __esm({
       captainId: varchar("captain_id").notNull(),
       viceCaptainId: varchar("vice_captain_id").notNull(),
       totalPoints: integer("total_points").notNull().default(0),
+      primaryImpactId: varchar("primary_impact_id"),
+      backupImpactId: varchar("backup_impact_id"),
+      captainType: varchar("captain_type", { length: 20 }).notNull().default("player"),
+      vcType: varchar("vc_type", { length: 20 }).notNull().default("player"),
+      invisibleMode: boolean("invisible_mode").notNull().default(false),
+      predictionPoints: integer("prediction_points").notNull().default(0),
       createdAt: timestamp("created_at").notNull().defaultNow()
     });
     codeVerifications = pgTable("code_verifications", {
@@ -156,6 +168,33 @@ var init_schema = __esm({
       callCount: integer("call_count").notNull().default(0),
       lastCalledAt: timestamp("last_called_at").notNull().defaultNow()
     });
+    matchPlayerStatus = pgTable("match_player_status", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      matchId: varchar("match_id").notNull(),
+      playerId: varchar("player_id").notNull(),
+      adminStatus: varchar("admin_status", { length: 20 }).notNull().default("not_active"),
+      actualParticipationStatus: varchar("actual_participation_status", { length: 30 }).notNull().default("unknown"),
+      officialImpactSubUsed: boolean("official_impact_sub_used").notNull().default(false),
+      sourceType: varchar("source_type", { length: 20 }).notNull().default("admin"),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    });
+    userWeeklyUsage = pgTable("user_weekly_usage", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").notNull(),
+      weekStartDate: varchar("week_start_date", { length: 10 }).notNull(),
+      multiTeamUsageCount: integer("multi_team_usage_count").notNull().default(0),
+      invisibleModeUsageCount: integer("invisible_mode_usage_count").notNull().default(0)
+    });
+    adminAuditLog = pgTable("admin_audit_log", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      adminUserId: varchar("admin_user_id").notNull(),
+      actionType: text("action_type").notNull(),
+      entityType: text("entity_type").notNull().default(""),
+      entityId: varchar("entity_id"),
+      matchId: varchar("match_id"),
+      metadata: text("metadata").notNull().default(""),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
     insertUserSchema = createInsertSchema(users).pick({
       username: true,
       email: true,
@@ -177,7 +216,12 @@ var init_schema = __esm({
       name: z.string(),
       playerIds: z.array(z.string()),
       captainId: z.string(),
-      viceCaptainId: z.string()
+      viceCaptainId: z.string(),
+      primaryImpactId: z.string().optional(),
+      backupImpactId: z.string().optional(),
+      captainType: z.enum(["player", "impact_slot"]).default("player"),
+      vcType: z.enum(["player", "impact_slot"]).default("player"),
+      invisibleMode: z.boolean().default(false)
     });
   }
 });
@@ -348,12 +392,18 @@ var init_storage = __esm({
         return team;
       }
       async updateUserTeam(teamId, userId, data) {
-        const [updated] = await db.update(userTeams).set({
+        const updateData = {
           playerIds: data.playerIds,
           captainId: data.captainId,
-          viceCaptainId: data.viceCaptainId,
-          ...data.name ? { name: data.name } : {}
-        }).where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId))).returning();
+          viceCaptainId: data.viceCaptainId
+        };
+        if (data.name) updateData.name = data.name;
+        if (data.primaryImpactId !== void 0) updateData.primaryImpactId = data.primaryImpactId;
+        if (data.backupImpactId !== void 0) updateData.backupImpactId = data.backupImpactId;
+        if (data.captainType !== void 0) updateData.captainType = data.captainType;
+        if (data.vcType !== void 0) updateData.vcType = data.vcType;
+        if (data.invisibleMode !== void 0) updateData.invisibleMode = data.invisibleMode;
+        const [updated] = await db.update(userTeams).set(updateData).where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId))).returning();
         return updated;
       }
       async deleteUserTeam(teamId, userId) {
@@ -497,6 +547,153 @@ var init_storage = __esm({
           totalPoints: Number(r.totalPoints),
           matchCount: Number(r.matchCount)
         }));
+      }
+      // ====== IST Week Helpers ======
+      getISTWeekStart(date) {
+        const d = date || /* @__PURE__ */ new Date();
+        const istOffset = 5.5 * 60 * 60 * 1e3;
+        const istDate = new Date(d.getTime() + istOffset);
+        const day = istDate.getUTCDay();
+        const diff = day === 0 ? 6 : day - 1;
+        const monday = new Date(istDate);
+        monday.setUTCDate(istDate.getUTCDate() - diff);
+        return monday.toISOString().slice(0, 10);
+      }
+      getISTWeekEnd(weekStartDate) {
+        const d = /* @__PURE__ */ new Date(weekStartDate + "T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() + 6);
+        return d.toISOString().slice(0, 10);
+      }
+      // ====== Match Player Status ======
+      async getMatchPlayerStatuses(matchId) {
+        return db.select().from(matchPlayerStatus).where(eq(matchPlayerStatus.matchId, matchId));
+      }
+      async getMatchPlayerStatus(matchId, playerId) {
+        const [status] = await db.select().from(matchPlayerStatus).where(and(eq(matchPlayerStatus.matchId, matchId), eq(matchPlayerStatus.playerId, playerId)));
+        return status;
+      }
+      async upsertMatchPlayerStatus(data) {
+        const existing = await this.getMatchPlayerStatus(data.matchId, data.playerId);
+        if (existing) {
+          const updateData = { updatedAt: /* @__PURE__ */ new Date() };
+          if (data.adminStatus !== void 0) updateData.adminStatus = data.adminStatus;
+          if (data.actualParticipationStatus !== void 0) updateData.actualParticipationStatus = data.actualParticipationStatus;
+          if (data.officialImpactSubUsed !== void 0) updateData.officialImpactSubUsed = data.officialImpactSubUsed;
+          if (data.sourceType !== void 0) updateData.sourceType = data.sourceType;
+          const [updated] = await db.update(matchPlayerStatus).set(updateData).where(eq(matchPlayerStatus.id, existing.id)).returning();
+          return updated;
+        } else {
+          const [created] = await db.insert(matchPlayerStatus).values({
+            matchId: data.matchId,
+            playerId: data.playerId,
+            adminStatus: data.adminStatus || "not_active",
+            actualParticipationStatus: data.actualParticipationStatus || "unknown",
+            officialImpactSubUsed: data.officialImpactSubUsed || false,
+            sourceType: data.sourceType || "admin"
+          }).returning();
+          return created;
+        }
+      }
+      async bulkSetAdminStatus(matchId, playerIds, adminStatus) {
+        for (const playerId of playerIds) {
+          await this.upsertMatchPlayerStatus({ matchId, playerId, adminStatus, sourceType: "admin" });
+        }
+      }
+      async getImpactSubPlayers(matchId) {
+        return db.select().from(matchPlayerStatus).where(and(
+          eq(matchPlayerStatus.matchId, matchId),
+          eq(matchPlayerStatus.officialImpactSubUsed, true)
+        ));
+      }
+      // ====== User Weekly Usage ======
+      async getUserWeeklyUsage(userId, weekStartDate) {
+        const week = weekStartDate || this.getISTWeekStart();
+        const [usage] = await db.select().from(userWeeklyUsage).where(and(eq(userWeeklyUsage.userId, userId), eq(userWeeklyUsage.weekStartDate, week)));
+        return usage;
+      }
+      async getOrCreateWeeklyUsage(userId, weekStartDate) {
+        const week = weekStartDate || this.getISTWeekStart();
+        const existing = await this.getUserWeeklyUsage(userId, week);
+        if (existing) return existing;
+        const [created] = await db.insert(userWeeklyUsage).values({
+          userId,
+          weekStartDate: week,
+          multiTeamUsageCount: 0,
+          invisibleModeUsageCount: 0
+        }).returning();
+        return created;
+      }
+      async incrementMultiTeamUsage(userId) {
+        const usage = await this.getOrCreateWeeklyUsage(userId);
+        const [updated] = await db.update(userWeeklyUsage).set({ multiTeamUsageCount: usage.multiTeamUsageCount + 1 }).where(eq(userWeeklyUsage.id, usage.id)).returning();
+        return updated;
+      }
+      async incrementInvisibleUsage(userId) {
+        const usage = await this.getOrCreateWeeklyUsage(userId);
+        const [updated] = await db.update(userWeeklyUsage).set({ invisibleModeUsageCount: usage.invisibleModeUsageCount + 1 }).where(eq(userWeeklyUsage.id, usage.id)).returning();
+        return updated;
+      }
+      async decrementInvisibleUsage(userId) {
+        const usage = await this.getOrCreateWeeklyUsage(userId);
+        if (usage.invisibleModeUsageCount > 0) {
+          await db.update(userWeeklyUsage).set({ invisibleModeUsageCount: usage.invisibleModeUsageCount - 1 }).where(eq(userWeeklyUsage.id, usage.id));
+        }
+      }
+      canUseMultiTeam(usage) {
+        return usage.multiTeamUsageCount < 3;
+      }
+      canUseInvisibleMode(usage) {
+        return usage.invisibleModeUsageCount < 1;
+      }
+      // ====== Admin Audit Log ======
+      async createAuditLog(data) {
+        const [log2] = await db.insert(adminAuditLog).values({
+          adminUserId: data.adminUserId,
+          actionType: data.actionType,
+          entityType: data.entityType,
+          entityId: data.entityId,
+          matchId: data.matchId,
+          metadata: data.metadata || ""
+        }).returning();
+        return log2;
+      }
+      async getAuditLogsForMatch(matchId) {
+        return db.select().from(adminAuditLog).where(eq(adminAuditLog.matchId, matchId)).orderBy(desc(adminAuditLog.createdAt));
+      }
+      async getAllAuditLogs(limit = 50) {
+        return db.select().from(adminAuditLog).orderBy(desc(adminAuditLog.createdAt)).limit(limit);
+      }
+      // ====== Impact Slot Resolution ======
+      async resolveImpactSlot(matchId, primaryImpactId, backupImpactId) {
+        if (primaryImpactId) {
+          const primaryStatus = await this.getMatchPlayerStatus(matchId, primaryImpactId);
+          if (primaryStatus?.officialImpactSubUsed) {
+            return { activePlayerId: primaryImpactId, activatedBy: "primary" };
+          }
+        }
+        if (backupImpactId) {
+          const backupStatus = await this.getMatchPlayerStatus(matchId, backupImpactId);
+          if (backupStatus?.officialImpactSubUsed) {
+            return { activePlayerId: backupImpactId, activatedBy: "backup" };
+          }
+        }
+        return { activePlayerId: null, activatedBy: null };
+      }
+      // ====== Match Feature Toggle ======
+      async setImpactFeaturesEnabled(matchId, enabled) {
+        await db.update(matches).set({ impactFeaturesEnabled: enabled }).where(eq(matches.id, matchId));
+      }
+      async setMatchVoid(matchId, isVoid) {
+        await db.update(matches).set({ isVoid }).where(eq(matches.id, matchId));
+      }
+      async setOfficialWinner(matchId, winner) {
+        await db.update(matches).set({ officialWinner: winner }).where(eq(matches.id, matchId));
+      }
+      async deleteUser(userId) {
+        await db.delete(users).where(eq(users.id, userId));
+      }
+      async getAllUsers() {
+        return db.select().from(users);
       }
     };
     storage = new DatabaseStorage();
