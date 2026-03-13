@@ -1,0 +1,76 @@
+Please revise the implementation plan with these final clarifications before coding:
+
+1. Winner Prediction on Review Page
+Keep Winner Prediction on the Review Team page using the current modal/intercept behavior. This is correct and should be preserved.
+
+2. Captain / Vice Captain on Impact Slot
+This is confirmed:
+- Captain on Impact Slot = 2x multiplier on the active Impact player’s total points
+- Vice Captain on Impact Slot = 1.5x multiplier on the active Impact player’s total points
+
+This must work as:
+- If Primary becomes the active Impact Slot player, C/VC multiplier applies to Primary
+- If Primary does not activate and Backup becomes the active Impact Slot player, C/VC multiplier applies to Backup
+- If neither Primary nor Backup activates, Impact Slot gets 0 and no C/VC bonus applies there
+
+3. Do NOT restrict Primary / Backup to players outside Main XI
+Remove the restriction that Primary Impact Pick and Backup Impact Pick must be outside the Main XI.
+
+Final rule:
+- Primary and Backup can be selected from the available squad
+- Primary and Backup must be different players
+- Primary and Backup must be from the same franchise
+
+Important scoring behavior:
+- If a selected Primary or Backup starts directly in the Playing XI, that does NOT activate the Impact Slot
+- The Impact Slot activates only if that player officially enters as the Impact Substitute
+- So Main XI overlap is allowed, but Impact Slot points still depend only on official Impact Substitute entry
+
+4. Do NOT store impact substitute status on the global players table
+Remove impactSubStatus from the global players table.
+
+This is match-specific data and must be stored in a per-match table such as matchPlayerStatus.
+
+Use match-level fields like:
+- matchId
+- playerId
+- adminStatus
+- actualParticipationStatus
+- officialImpactSubUsed
+
+5. Do NOT automatically unlock already locked teams if match time is extended
+Do not make previously locked teams editable by default just because admin updates match start time.
+
+Safer rule:
+- If match is not yet locked, updated start time can change the upcoming lock normally
+- If match is already locked, teams must remain locked by default
+- Any unlock after lock should be an explicit admin override with audit logging, not automatic behavior
+
+6. Do NOT hardcode IPL 2025 tournament migration inside this feature
+Do not mix tournament/series migration into this gameplay change unless separately requested.
+Keep tournament/series configuration independent and configurable.
+
+7. Stepper / user flow
+Final step flow should be:
+- Select XI
+- Impact Picks
+- C & VC
+- Review Team
+- Submit
+
+Winner Prediction can remain part of Review Team using the current modal/intercept behavior.
+
+8. Scoring reminder
+Final scoring logic must be:
+- Main XI scoring remains unchanged
+- Impact Slot scoring:
+  - Check Primary first for official Impact Substitute entry
+  - If not active, check Backup
+  - If neither is active, Impact Slot = 0
+- If Captain is assigned to Impact Slot, apply 2x to active Impact player points
+- If Vice Captain is assigned to Impact Slot, apply 1.5x to active Impact player points
+- Correct winner prediction = +50
+- Wrong prediction = 0
+- Void match = contest should not count in standings/leaderboard
+
+Please send the revised screen flow, revised schema plan, and revised scoring summary with these corrections applied before implementation.
