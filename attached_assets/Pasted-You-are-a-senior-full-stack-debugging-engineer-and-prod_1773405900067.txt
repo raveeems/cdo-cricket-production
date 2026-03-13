@@ -1,0 +1,240 @@
+You are a **senior full-stack debugging engineer and production stability specialist**.
+
+A fantasy sports web application has been recently modified and deployed. The application loads and functions **perfectly on desktop/laptop browsers**, but when opened in a **mobile browser the screen is completely blank**.
+
+Your task is to **systematically diagnose and fix the issue with a production-safe approach**. The solution must **not degrade existing features, logic, scoring engine, UI behavior, or performance**.
+
+The app already works on desktop. The goal is to **identify what breaks only on mobile viewports or mobile browsers**.
+
+Follow the process below.
+
+---
+
+# STEP 1 — Simulate Mobile Environment
+
+Simulate mobile rendering conditions:
+
+* viewport width: 320px – 768px
+* mobile Chrome
+* mobile Safari
+* touch device environment
+* slower network condition
+
+Check how the application initializes and renders under these conditions.
+
+If the root UI fails to render, identify exactly where the render chain stops.
+
+---
+
+# STEP 2 — Detect Runtime Errors
+
+Scan the codebase for possible runtime failures that may only appear on mobile.
+
+Look for:
+
+* undefined variables
+* null API responses
+* `.map()` called on undefined
+* destructuring from undefined objects
+* unsafe state initialization
+* race conditions during first render
+
+Search patterns such as:
+
+```
+object.property
+array.map()
+array.filter()
+const {x} = obj
+```
+
+Ensure safe access patterns like:
+
+```
+object?.property
+array?.map(...)
+obj && obj.property
+```
+
+Prevent any render-time crash that could produce a blank screen.
+
+---
+
+# STEP 3 — Inspect Root Render Tree
+
+Trace the full render path starting from:
+
+* index.html
+* main.js / main.tsx
+* App component
+* root layout container
+
+Ensure that:
+
+* the root container (`#app` or `#root`) always mounts
+* no conditional rendering hides the entire app
+* the app does not return `null` under mobile conditions
+
+Fix cases like:
+
+```
+if (!data) return null
+```
+
+Replace with:
+
+```
+if (!data) return <LoadingScreen />
+```
+
+---
+
+# STEP 4 — Audit Mobile CSS
+
+Search the entire codebase for CSS rules that could hide content on smaller screens.
+
+Look for:
+
+* `display: none`
+* `visibility: hidden`
+* `height: 0`
+* `overflow: hidden`
+* `position: fixed`
+* `100vh` issues
+* media queries affecting containers
+
+Example patterns to check:
+
+```
+@media (max-width: ...)
+.container { display: none }
+```
+
+Ensure the main app container **always has visible height and width**.
+
+If `100vh` is used, replace with safer mobile-friendly alternatives like:
+
+```
+min-height: 100vh
+```
+
+---
+
+# STEP 5 — Verify HTML Meta Configuration
+
+Ensure the base HTML file includes proper mobile viewport configuration.
+
+If missing, add:
+
+```
+<meta name="viewport" content="width=device-width, initial-scale=1">
+```
+
+Without this, some mobile browsers fail to render responsive layouts correctly.
+
+---
+
+# STEP 6 — Check Network and API Calls
+
+Verify that initial API calls succeed on mobile.
+
+Check:
+
+* API base URL configuration
+* environment variables
+* CORS issues
+* mobile browser blocking requests
+
+If API fails, ensure the UI still renders safely with fallback states.
+
+Never allow API failure to cause a full render crash.
+
+---
+
+# STEP 7 — Inspect Routing Logic
+
+Check the routing system.
+
+Ensure mobile browsers do not fail due to:
+
+* incorrect base path
+* history routing mismatch
+* service worker caching stale bundles
+* mobile navigation edge cases
+
+---
+
+# STEP 8 — Detect Service Worker or Cache Issues
+
+Check if an old service worker or cached bundle is causing mobile to load outdated JavaScript.
+
+If service worker exists:
+
+* verify cache invalidation strategy
+* ensure new bundles load properly
+
+If necessary, add cache versioning.
+
+---
+
+# STEP 9 — Implement Defensive Rendering
+
+Introduce safe guards to ensure the UI **never renders a blank screen**.
+
+Implement:
+
+* global error boundary
+* fallback UI for failed components
+* loading state for asynchronous data
+
+The app should always show **something**, even if an error occurs.
+
+---
+
+# STEP 10 — Validate Cross-Device Behavior
+
+After applying fixes, test rendering across:
+
+* mobile portrait
+* mobile landscape
+* tablet
+* desktop
+
+Ensure that:
+
+* desktop behavior remains unchanged
+* mobile UI renders properly
+* no layout regressions occur
+* console errors are eliminated
+
+---
+
+# STEP 11 — Provide a Debugging Report
+
+After completing the debugging process, produce a clear report containing:
+
+1. Root cause of the mobile blank screen
+2. Files that were modified
+3. Code snippets that were fixed
+4. Explanation of why the issue only appeared on mobile
+5. Confirmation that desktop functionality remains unchanged
+6. Steps taken to prevent similar failures in the future
+
+---
+
+# IMPORTANT CONSTRAINTS
+
+Do NOT:
+
+* rewrite the entire app
+* remove existing features
+* modify fantasy game logic
+* change scoring behavior
+* break admin tools
+* degrade performance
+
+Only modify what is necessary to resolve the mobile blank screen.
+
+Maintain production-level code quality and stability.
+
+Begin by scanning the application entry point and identifying the exact point where rendering fails under mobile viewport conditions.
