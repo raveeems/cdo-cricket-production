@@ -118,6 +118,12 @@ export default function IndexScreen() {
   }, []);
 
   useEffect(() => {
+    // On web, skip the 4-second splash animation — navigate immediately
+    if (Platform.OS === 'web') {
+      setAnimDone(true);
+      return;
+    }
+
     logoOpacity.value = withTiming(1, { duration: 500 });
     logoScale.value = withSequence(
       withSpring(1.1, { damping: 8, stiffness: 100 }),
@@ -144,6 +150,10 @@ export default function IndexScreen() {
         runOnJS(onAnimEnd)();
       })
     );
+
+    // Safety fallback: runOnJS can silently fail — ensure navigation always happens
+    const fallback = setTimeout(() => setAnimDone(true), 4200);
+    return () => clearTimeout(fallback);
   }, []);
 
   useEffect(() => {
