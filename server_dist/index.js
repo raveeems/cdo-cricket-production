@@ -2386,6 +2386,7 @@ async function registerRoutes(app2) {
       const isLive = now.getTime() >= matchStart.getTime();
       const allTeams = await storage.getAllTeamsForMatch(req.params.id);
       const matchPlayers = await storage.getPlayersForMatch(req.params.id);
+      const isCompleted = match.status === "completed";
       const allUsers = {};
       for (const t of allTeams) {
         if (!allUsers[t.userId]) {
@@ -2396,13 +2397,46 @@ async function registerRoutes(app2) {
           };
         }
       }
-      if (isLive) {
-        const teamsWithInfo = allTeams.map((t) => ({
-          ...t,
-          username: allUsers[t.userId]?.username || "Unknown",
-          userTeamName: allUsers[t.userId]?.teamName || ""
-        }));
-        return res.json({ teams: teamsWithInfo, visibility: "full", players: matchPlayers });
+      const userTeamsByUser = /* @__PURE__ */ new Map();
+      for (const t of allTeams) {
+        const arr = userTeamsByUser.get(t.userId) || [];
+        arr.push(t);
+        userTeamsByUser.set(t.userId, arr);
+      }
+      if (isLive || isCompleted) {
+        const teamsWithInfo = allTeams.map((t) => {
+          const isOwn = t.userId === req.session.userId;
+          const isInvisible = t.invisibleMode === true;
+          const shouldHide = isInvisible && !isOwn && !isCompleted;
+          if (shouldHide) {
+            return {
+              id: t.id,
+              userId: t.userId,
+              matchId: t.matchId,
+              name: t.name,
+              username: allUsers[t.userId]?.username || "Unknown",
+              userTeamName: allUsers[t.userId]?.teamName || "",
+              invisibleMode: true,
+              invisibleHidden: true,
+              playerIds: [],
+              captainId: null,
+              viceCaptainId: null,
+              primaryImpactId: null,
+              backupImpactId: null,
+              captainType: null,
+              vcType: null,
+              totalPoints: t.totalPoints,
+              createdAt: t.createdAt
+            };
+          }
+          return {
+            ...t,
+            username: allUsers[t.userId]?.username || "Unknown",
+            userTeamName: allUsers[t.userId]?.teamName || "",
+            invisibleHidden: false
+          };
+        });
+        return res.json({ teams: teamsWithInfo, visibility: isCompleted ? "full" : "live", players: matchPlayers, impactFeaturesEnabled: match.impactFeaturesEnabled });
       } else {
         const hiddenTeams = allTeams.map((t) => ({
           id: t.id,
@@ -2414,10 +2448,15 @@ async function registerRoutes(app2) {
           playerIds: t.userId === req.session.userId ? t.playerIds : [],
           captainId: t.userId === req.session.userId ? t.captainId : null,
           viceCaptainId: t.userId === req.session.userId ? t.viceCaptainId : null,
+          primaryImpactId: t.userId === req.session.userId ? t.primaryImpactId : null,
+          backupImpactId: t.userId === req.session.userId ? t.backupImpactId : null,
+          captainType: t.userId === req.session.userId ? t.captainType : null,
+          vcType: t.userId === req.session.userId ? t.vcType : null,
+          invisibleMode: t.userId === req.session.userId ? t.invisibleMode : void 0,
           totalPoints: t.totalPoints,
           createdAt: t.createdAt
         }));
-        return res.json({ teams: hiddenTeams, visibility: "hidden" });
+        return res.json({ teams: hiddenTeams, visibility: "hidden", impactFeaturesEnabled: match.impactFeaturesEnabled });
       }
     }
   );
@@ -2518,8 +2557,8 @@ async function registerRoutes(app2) {
     isAuthenticated,
     async (req, res) => {
       try {
-        const { matchId, name, playerIds, captainId, viceCaptainId } = req.body;
-        console.log("Receiving Team:", JSON.stringify({ matchId, name, playerIds, captainId, viceCaptainId }));
+        const { matchId, name, playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode } = req.body;
+        console.log("Receiving Team:", JSON.stringify({ matchId, name, playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType }));
         console.log("Player IDs count:", playerIds?.length, "IDs:", playerIds);
         const match = await storage.getMatch(matchId);
         if (!match) {
@@ -2537,7 +2576,12 @@ async function registerRoutes(app2) {
           req.session.userId,
           matchId
         );
-        if (existingTeams.length >= 3) {
+        const weeklyUsage = await storage.getOrCreateWeeklyUsage(req.session.userId);
+        const maxTeams = storage.canUseMultiTeam(weeklyUsage) ? 3 : 1;
+        if (existingTeams.length >= maxTeams) {
+          if (maxTeams === 1) {
+            return res.status(400).json({ message: "You've used all 3 multi-team slots this week. Only 1 team allowed for this match." });
+          }
           return res.status(400).json({ message: "Maximum 3 teams per match" });
         }
         if (!playerIds || playerIds.length !== 11) {
@@ -2575,11 +2619,62 @@ async function registerRoutes(app2) {
             return res.status(400).json({ message: "You can only select a maximum of 10 players from one team." });
           }
         }
+        const impactEnabled = match.impactFeaturesEnabled === true;
+        let validPrimaryImpactId = null;
+        let validBackupImpactId = null;
+        let validCaptainType = "player";
+        let validVcType = "player";
+        if (impactEnabled) {
+          if (primaryImpactId) {
+            if (playerIds.includes(primaryImpactId)) {
+              return res.status(400).json({ message: "Primary Impact Pick cannot be from your Main XI." });
+            }
+            const primaryPlayer = playerMap.get(primaryImpactId);
+            if (!primaryPlayer) {
+              return res.status(400).json({ message: "Invalid Primary Impact Pick player." });
+            }
+            validPrimaryImpactId = primaryImpactId;
+          }
+          if (backupImpactId) {
+            if (playerIds.includes(backupImpactId)) {
+              return res.status(400).json({ message: "Backup Impact Pick cannot be from your Main XI." });
+            }
+            if (backupImpactId === primaryImpactId) {
+              return res.status(400).json({ message: "Backup Impact Pick must be different from Primary." });
+            }
+            const backupPlayer = playerMap.get(backupImpactId);
+            if (!backupPlayer) {
+              return res.status(400).json({ message: "Invalid Backup Impact Pick player." });
+            }
+            if (primaryImpactId) {
+              const primaryPlayer = playerMap.get(primaryImpactId);
+              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort === backupPlayer.teamShort) {
+                return res.status(400).json({ message: "Primary and Backup Impact Picks must be from different franchises." });
+              }
+            }
+            validBackupImpactId = backupImpactId;
+          }
+          if (captainType === "impact_slot") {
+            if (!validPrimaryImpactId) {
+              return res.status(400).json({ message: "Cannot set Captain on Impact Slot without an Impact Pick." });
+            }
+            validCaptainType = "impact_slot";
+          }
+          if (vcType === "impact_slot") {
+            if (!validPrimaryImpactId) {
+              return res.status(400).json({ message: "Cannot set Vice-Captain on Impact Slot without an Impact Pick." });
+            }
+            validVcType = "impact_slot";
+          }
+          if (captainType === "impact_slot" && vcType === "impact_slot") {
+            return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+          }
+        }
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           const sortedExisting = [...et.playerIds || []].sort();
           const samePlayerIds = sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i]);
-          if (samePlayerIds && et.captainId === captainId && et.viceCaptainId === viceCaptainId) {
+          if (samePlayerIds && et.captainId === captainId && et.viceCaptainId === viceCaptainId && et.primaryImpactId === validPrimaryImpactId && et.backupImpactId === validBackupImpactId && et.captainType === validCaptainType && et.vcType === validVcType) {
             return res.status(400).json({ message: "You have already created this exact team. Please change at least one player or the Captain/VC." });
           }
         }
@@ -2587,15 +2682,34 @@ async function registerRoutes(app2) {
         if (!existingPrediction) {
           return res.status(400).json({ message: "You must predict a match winner before submitting your team." });
         }
+        let useInvisible = false;
+        if (impactEnabled && invisibleMode === true) {
+          const invUsage = await storage.getOrCreateWeeklyUsage(req.session.userId);
+          if (!storage.canUseInvisibleMode(invUsage)) {
+            return res.status(400).json({ message: "You've already used Invisible Mode once this week." });
+          }
+          const existingInvisible = existingTeams.some((t) => t.invisibleMode === true);
+          if (existingInvisible) {
+            useInvisible = true;
+          } else {
+            useInvisible = true;
+            await storage.incrementInvisibleUsage(req.session.userId);
+          }
+        }
         const team = await storage.createUserTeam({
           userId: req.session.userId,
           matchId,
           name: name || `Team ${existingTeams.length + 1}`,
           playerIds,
           captainId,
-          viceCaptainId
+          viceCaptainId,
+          primaryImpactId: validPrimaryImpactId,
+          backupImpactId: validBackupImpactId,
+          captainType: validCaptainType,
+          vcType: validVcType,
+          invisibleMode: useInvisible
         });
-        return res.json({ team });
+        return res.json({ team, weeklyUsage: { maxTeams, teamsCreated: existingTeams.length + 1 } });
       } catch (err) {
         console.error("CRITICAL TEAM SAVE ERROR:", err);
         console.error("CRITICAL TEAM SAVE STACK:", err?.stack);
@@ -2630,7 +2744,7 @@ async function registerRoutes(app2) {
         if (match.status === "live" || match.status === "completed") {
           return res.status(400).json({ message: "Match has already started" });
         }
-        const { playerIds, captainId, viceCaptainId } = req.body;
+        const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode } = req.body;
         if (!playerIds || playerIds.length !== 11) {
           return res.status(400).json({ message: "Must select exactly 11 players" });
         }
@@ -2666,20 +2780,86 @@ async function registerRoutes(app2) {
             return res.status(400).json({ message: "You can only select a maximum of 10 players from one team." });
           }
         }
+        const impactEnabled = match.impactFeaturesEnabled === true;
+        let validPrimaryImpactId = null;
+        let validBackupImpactId = null;
+        let validCaptainType = "player";
+        let validVcType = "player";
+        if (impactEnabled) {
+          if (primaryImpactId) {
+            if (playerIds.includes(primaryImpactId)) {
+              return res.status(400).json({ message: "Primary Impact Pick cannot be from your Main XI." });
+            }
+            const primaryPlayer = playerMap.get(primaryImpactId);
+            if (!primaryPlayer) return res.status(400).json({ message: "Invalid Primary Impact Pick player." });
+            validPrimaryImpactId = primaryImpactId;
+          }
+          if (backupImpactId) {
+            if (playerIds.includes(backupImpactId)) {
+              return res.status(400).json({ message: "Backup Impact Pick cannot be from your Main XI." });
+            }
+            if (backupImpactId === primaryImpactId) {
+              return res.status(400).json({ message: "Backup Impact Pick must be different from Primary." });
+            }
+            const backupPlayer = playerMap.get(backupImpactId);
+            if (!backupPlayer) return res.status(400).json({ message: "Invalid Backup Impact Pick player." });
+            if (primaryImpactId) {
+              const primaryPlayer = playerMap.get(primaryImpactId);
+              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort === backupPlayer.teamShort) {
+                return res.status(400).json({ message: "Primary and Backup Impact Picks must be from different franchises." });
+              }
+            }
+            validBackupImpactId = backupImpactId;
+          }
+          if (captainType === "impact_slot") {
+            if (!validPrimaryImpactId) return res.status(400).json({ message: "Cannot set Captain on Impact Slot without an Impact Pick." });
+            validCaptainType = "impact_slot";
+          }
+          if (vcType === "impact_slot") {
+            if (!validPrimaryImpactId) return res.status(400).json({ message: "Cannot set Vice-Captain on Impact Slot without an Impact Pick." });
+            validVcType = "impact_slot";
+          }
+          if (captainType === "impact_slot" && vcType === "impact_slot") {
+            return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+          }
+        }
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId, team.matchId);
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           if (et.id === team.id) continue;
           const sortedExisting = [...et.playerIds || []].sort();
           const samePlayerIds = sortedNewIds.length === sortedExisting.length && sortedNewIds.every((id, i) => id === sortedExisting[i]);
-          if (samePlayerIds && et.captainId === captainId && et.viceCaptainId === viceCaptainId) {
+          if (samePlayerIds && et.captainId === captainId && et.viceCaptainId === viceCaptainId && et.primaryImpactId === validPrimaryImpactId && et.backupImpactId === validBackupImpactId && et.captainType === validCaptainType && et.vcType === validVcType) {
             return res.status(400).json({ message: "You have already created this exact team. Please change at least one player or the Captain/VC." });
           }
+        }
+        let useInvisible = team.invisibleMode || false;
+        if (impactEnabled && invisibleMode === true && !team.invisibleMode) {
+          const invUsage = await storage.getOrCreateWeeklyUsage(req.session.userId);
+          if (!storage.canUseInvisibleMode(invUsage)) {
+            return res.status(400).json({ message: "You've already used Invisible Mode once this week." });
+          }
+          const existingInvisible = existingTeams.some((t) => t.id !== team.id && t.invisibleMode === true);
+          if (!existingInvisible) {
+            await storage.incrementInvisibleUsage(req.session.userId);
+          }
+          useInvisible = true;
+        } else if (invisibleMode === false && team.invisibleMode) {
+          const existingInvisible = existingTeams.filter((t) => t.id !== team.id && t.invisibleMode === true);
+          if (existingInvisible.length === 0) {
+            await storage.decrementInvisibleUsage(req.session.userId);
+          }
+          useInvisible = false;
         }
         const updated = await storage.updateUserTeam(req.params.id, req.session.userId, {
           playerIds,
           captainId,
-          viceCaptainId
+          viceCaptainId,
+          primaryImpactId: validPrimaryImpactId,
+          backupImpactId: validBackupImpactId,
+          captainType: validCaptainType,
+          vcType: validVcType,
+          invisibleMode: useInvisible
         });
         return res.json({ team: updated });
       } catch (err) {
@@ -4005,6 +4185,315 @@ async function registerRoutes(app2) {
           deleted++;
         }
         return res.json({ message: `Deleted ${deleted} test users`, kept: realUserIds.length });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.get(
+    "/api/weekly-usage",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const usage = await storage.getOrCreateWeeklyUsage(req.session.userId);
+        const weekStart = storage.getISTWeekStart();
+        const weekEnd = storage.getISTWeekEnd(weekStart);
+        return res.json({
+          weekStart,
+          weekEnd,
+          multiTeamUsageCount: usage.multiTeamUsageCount,
+          multiTeamRemaining: Math.max(0, 3 - usage.multiTeamUsageCount),
+          invisibleModeUsageCount: usage.invisibleModeUsageCount,
+          canUseInvisibleMode: storage.canUseInvisibleMode(usage),
+          canUseMultiTeam: storage.canUseMultiTeam(usage)
+        });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.get(
+    "/api/matches/:id/player-statuses",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const statuses = await storage.getMatchPlayerStatuses(req.params.id);
+        return res.json({ statuses });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/toggle-impact",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const { enabled } = req.body;
+        if (typeof enabled !== "boolean") {
+          return res.status(400).json({ message: "enabled (boolean) required" });
+        }
+        await storage.setImpactFeaturesEnabled(matchId, enabled);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "toggle_impact_features",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ enabled })
+        });
+        return res.json({ message: `Impact features ${enabled ? "enabled" : "disabled"}` });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/player-status",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const { playerId, playerIds, adminStatus, officialImpactSubUsed } = req.body;
+        const validStatuses = ["playing_xi", "impact_sub", "not_active"];
+        if (adminStatus && !validStatuses.includes(adminStatus)) {
+          return res.status(400).json({ message: `adminStatus must be one of: ${validStatuses.join(", ")}` });
+        }
+        if (playerIds && Array.isArray(playerIds)) {
+          await storage.bulkSetAdminStatus(matchId, playerIds, adminStatus);
+          await storage.createAuditLog({
+            adminUserId: req.session.userId,
+            actionType: "bulk_set_player_status",
+            entityType: "player",
+            matchId,
+            metadata: JSON.stringify({ playerIds, adminStatus })
+          });
+          return res.json({ message: `Updated ${playerIds.length} players to ${adminStatus}` });
+        }
+        if (!playerId) {
+          return res.status(400).json({ message: "playerId or playerIds required" });
+        }
+        const data = { matchId, playerId, sourceType: "admin" };
+        if (adminStatus) data.adminStatus = adminStatus;
+        if (typeof officialImpactSubUsed === "boolean") data.officialImpactSubUsed = officialImpactSubUsed;
+        const status = await storage.upsertMatchPlayerStatus(data);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: officialImpactSubUsed !== void 0 ? "set_impact_sub" : "set_player_status",
+          entityType: "player",
+          entityId: playerId,
+          matchId,
+          metadata: JSON.stringify({ adminStatus, officialImpactSubUsed })
+        });
+        return res.json({ status });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/void",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const { isVoid } = req.body;
+        if (typeof isVoid !== "boolean") {
+          return res.status(400).json({ message: "isVoid (boolean) required" });
+        }
+        await storage.setMatchVoid(matchId, isVoid);
+        if (isVoid) {
+          const allTeams = await storage.getAllTeamsForMatch(matchId);
+          for (const team of allTeams) {
+            await storage.updateUserTeamPoints(team.id, 0);
+          }
+        }
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: isVoid ? "void_match" : "unvoid_match",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ isVoid })
+        });
+        return res.json({ message: isVoid ? "Match voided, all points zeroed" : "Match un-voided" });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/set-winner",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const { winner } = req.body;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (winner && winner !== match.team1Short && winner !== match.team2Short) {
+          return res.status(400).json({ message: "Winner must be team1Short or team2Short" });
+        }
+        await storage.setOfficialWinner(matchId, winner || null);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "set_winner",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ winner })
+        });
+        return res.json({ message: `Official winner set to ${winner || "none"}` });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/recalculate",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (match.isVoid) {
+          const allTeams2 = await storage.getAllTeamsForMatch(matchId);
+          for (const team of allTeams2) {
+            await storage.updateUserTeamPoints(team.id, 0);
+          }
+          await storage.createAuditLog({
+            adminUserId: req.session.userId,
+            actionType: "recalculate_void",
+            entityType: "match",
+            entityId: matchId,
+            matchId
+          });
+          return res.json({ message: "Match is void \u2014 all points set to 0", updated: allTeams2.length });
+        }
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        const playerById = new Map(matchPlayers.map((p) => [p.id, p]));
+        const playerByExtId = new Map(matchPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        const impactEnabled = match.impactFeaturesEnabled === true;
+        let updated = 0;
+        for (const team of allTeams) {
+          const teamPlayerIds = team.playerIds;
+          let totalPoints = 0;
+          for (const pid of teamPlayerIds) {
+            const p = playerById.get(pid) || playerByExtId.get(pid);
+            if (p) {
+              let pts = p.points || 0;
+              if (team.captainType === "player" && pid === team.captainId) pts *= 2;
+              else if (team.vcType === "player" && pid === team.viceCaptainId) pts *= 1.5;
+              else if (pid === team.captainId && (!team.captainType || team.captainType === "player")) pts *= 2;
+              else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) pts *= 1.5;
+              totalPoints += pts;
+            }
+          }
+          if (impactEnabled) {
+            const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
+            if (resolved.activePlayerId) {
+              const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
+              if (impactPlayer) {
+                let impactPts = impactPlayer.points || 0;
+                if (!impactPlayer.isPlayingXI) {
+                  impactPts += 4;
+                }
+                if (team.captainType === "impact_slot") impactPts *= 2;
+                else if (team.vcType === "impact_slot") impactPts *= 1.5;
+                totalPoints += impactPts;
+              }
+            }
+          }
+          let predictionPts = 0;
+          if (match.officialWinner) {
+            const prediction = await storage.getUserPredictionForMatch(team.userId, matchId);
+            if (prediction && prediction.predictedWinner === match.officialWinner) {
+              predictionPts = 50;
+            }
+          }
+          totalPoints += predictionPts;
+          await storage.updateUserTeamPoints(team.id, totalPoints);
+          await db.update(userTeams).set({ predictionPoints: predictionPts }).where(eq2(userTeams.id, team.id));
+          updated++;
+        }
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "recalculate",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ teamsUpdated: updated, impactEnabled })
+        });
+        return res.json({ message: `Recalculated ${updated} teams`, updated });
+      } catch (err) {
+        console.error("Recalc error:", err);
+        return res.status(500).json({ message: "Recalculation failed" });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/matches/:id/audit-log",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const logs = await storage.getAuditLogsForMatch(req.params.id);
+        return res.json({ logs });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/audit-log",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const limit = parseInt(req.query.limit) || 50;
+        const logs = await storage.getAllAuditLogs(limit);
+        return res.json({ logs });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/lock-multi-team",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        const userTeamCounts = /* @__PURE__ */ new Map();
+        for (const t of allTeams) {
+          userTeamCounts.set(t.userId, (userTeamCounts.get(t.userId) || 0) + 1);
+        }
+        let usagesIncremented = 0;
+        for (const [userId, count] of userTeamCounts) {
+          if (count > 1) {
+            await storage.incrementMultiTeamUsage(userId);
+            usagesIncremented++;
+          }
+        }
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "lock_multi_team_usage",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ usersWithMultiTeams: usagesIncremented })
+        });
+        return res.json({ message: `Locked multi-team usage for ${usagesIncremented} users` });
       } catch (err) {
         return res.status(500).json({ message: err.message });
       }

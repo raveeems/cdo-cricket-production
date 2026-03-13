@@ -1,0 +1,62 @@
+Before proceeding to the next module, please confirm the following behaviors to ensure everything aligns with the product rules:
+	1.	Impact Slot Resolution
+Please confirm that resolveImpactSlot() works exactly in this order:
+
+	•	Step 1: Check Primary Impact Pick → if officialImpactSubUsed = true, Primary becomes the active Impact Slot player.
+	•	Step 2: If Primary did not enter as Impact Substitute → check Backup Impact Pick.
+	•	Step 3: If Backup has officialImpactSubUsed = true, Backup becomes the active Impact Slot player.
+	•	Step 4: If neither entered as Impact Substitute → Impact Slot = 0 points.
+
+Important rule:
+A player starting in the Playing XI must NOT activate the Impact Slot. Only official Impact Substitute entry should activate it.
+	2.	Impact Slot Points
+When the Impact Slot activates, the player must receive:
+
+	•	+4 playing bonus points
+	•	All normal fantasy scoring (batting/bowling/fielding)
+
+	3.	Captain / Vice Captain on Impact Slot
+Please confirm the multiplier logic:
+
+	•	Captain on Impact Slot → 2x multiplier on the active Impact player’s total points
+	•	Vice Captain on Impact Slot → 1.5x multiplier
+	•	If neither Primary nor Backup activates → Impact Slot = 0 and no multiplier applies
+
+	4.	Weekly Multi-Team Usage
+Please confirm the restriction works as follows:
+
+	•	Creating 2 or 3 teams in a match = 1 weekly usage
+	•	Maximum 3 usages per IST week (Monday–Sunday)
+	•	After 3 usages → user can create only 1 team per match
+	•	Usage is counted only at match lock time
+	•	Deleting extra teams before lock must not consume usage
+
+	5.	Invisible Mode Usage
+Please confirm:
+
+	•	Maximum 1 match per IST week
+	•	Applies to all teams of that user in that match
+	•	Other users can only see:
+	•	user joined
+	•	number of teams
+	•	They cannot see team composition, Captain, VC, or Impact Picks until the match ends
+
+	6.	Feature Toggle
+impactFeaturesEnabled in the matches table should fully control the new system.
+
+If false:
+	•	The app must behave exactly like the current version
+	•	Impact Picks UI should not appear
+
+This allows us to test the feature only on selected upcoming matches.
+	7.	Scoring Safety
+Please ensure the scoring system is idempotent so recalculations are safe if:
+
+	•	Impact substitute status changes
+	•	Winner is updated
+	•	Match is marked void
+	•	Admin triggers recalculation again
+
+Running recalculation multiple times must not duplicate points.
+
+Once these confirmations are done, please proceed with the next module.
