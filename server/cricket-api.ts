@@ -561,7 +561,7 @@ export async function syncMatchesFromApi(): Promise<void> {
     return;
   }
 
-  console.log("Auto-syncing matches (currentMatches + upcoming)...");
+  console.log("Auto-syncing matches (IPL only)...");
   try {
     const existing = await storage.getAllMatches();
 
@@ -600,8 +600,14 @@ export async function syncMatchesFromApi(): Promise<void> {
       return;
     }
 
+    const isIPL = (m: CricApiMatch) => {
+      const name = (m.name || "").toLowerCase();
+      const series = (m.series_id || "").toLowerCase();
+      return name.includes("indian premier league") || name.includes(" ipl") || series.includes("ipl");
+    };
+
     const apiMatches = allApiRaw
-      .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20")
+      .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20" && isIPL(m))
       .map((m) => {
         const team1 = m.teams[0];
         const team2 = m.teams[1];
@@ -646,7 +652,7 @@ export async function syncMatchesFromApi(): Promise<void> {
     }
 
     const result = await upsertMatches(apiMatches, existing);
-    console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} T20 matches from API)`);
+    console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} IPL matches from API)`);
   } catch (err) {
     console.error("Auto-sync failed:", err);
   }
