@@ -396,19 +396,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const isUpcomingOrDelayed = m.status === "upcoming" || m.status === "delayed";
       const startsWithin48h = startMs <= nowMs + MS_48H;
-      const notTooOld = startMs >= nowMs - MS_3H;
-      const isUpcoming = isUpcomingOrDelayed && startsWithin48h && notTooOld;
+      const isUpcoming = isUpcomingOrDelayed && startsWithin48h;
 
       const isLive = m.status === "live";
       const isDelayed = m.status === "delayed";
-      const isRecentlyCompleted = m.status === "completed" && (nowMs - startMs) <= MS_3H;
-      const isCompleted = m.status === "completed";
-      const hasParticipants = participantCount > 0;
 
-      const included = hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted || isCompleted;
+      // Home feed: only show upcoming (next 48h), live, or delayed — never completed
+      const included = isUpcoming || isLive || isDelayed;
 
       if (isUpcomingOrDelayed) {
-        console.log(`[MatchFeed] ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${hoursUntilStart.toFixed(1)}h away | within48h=${startsWithin48h} | notTooOld=${notTooOld} | included=${included}`);
+        console.log(`[MatchFeed] ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${hoursUntilStart.toFixed(1)}h away | within48h=${startsWithin48h} | included=${included}`);
       }
 
       if (included) {
