@@ -39,6 +39,9 @@ interface MatchInfo {
   tournamentName?: string | null;
   entryStake?: number;
   potProcessed?: boolean;
+  impactFeaturesEnabled?: boolean;
+  isVoid?: boolean;
+  officialWinner?: string | null;
 }
 
 interface PlayerInfo {
@@ -108,6 +111,17 @@ export default function AdminScreen() {
   const [potProcessing, setPotProcessing] = useState(false);
   const [potLoadingMatches, setPotLoadingMatches] = useState(false);
 
+  const [impactMatchId, setImpactMatchId] = useState<string | null>(null);
+  const [impactTogglingId, setImpactTogglingId] = useState<string | null>(null);
+  const [recalcMatchId, setRecalcMatchId] = useState<string | null>(null);
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcResult, setRecalcResult] = useState('');
+  const [voidMatchId, setVoidMatchId] = useState<string | null>(null);
+  const [voiding, setVoiding] = useState(false);
+  const [voidResult, setVoidResult] = useState('');
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const selectedMatch = useMemo(() => matches.find(m => m.id === selectedMatchId), [matches, selectedMatchId]);
@@ -123,6 +137,74 @@ export default function AdminScreen() {
   }, [matchPlayers, selectedMatch]);
 
   const xiCount = xiPlayerIds.size;
+
+  const toggleImpactFeatures = async (matchId: string, enabled: boolean) => {
+    setImpactTogglingId(matchId);
+    try {
+      await apiRequest('POST', `/api/admin/matches/${matchId}/toggle-impact`, { enabled });
+      await loadMatches();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.error('Toggle impact failed:', e);
+      Alert.alert('Error', 'Failed to toggle impact features');
+    } finally {
+      setImpactTogglingId(null);
+    }
+  };
+
+  const recalculateMatch = async (matchId: string) => {
+    setRecalculating(true);
+    setRecalcResult('');
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${matchId}/recalculate`);
+      const data = await res.json();
+      setRecalcResult(data.message || `Updated ${data.teamsUpdated || 0} teams`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setRecalcResult('Recalculation failed');
+      console.error('Recalculate failed:', e);
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
+  const voidMatch = async (matchId: string) => {
+    Alert.alert('Void Match', 'Are you sure? This will mark the match as void and exclude it from scoring.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Void It',
+        style: 'destructive',
+        onPress: async () => {
+          setVoiding(true);
+          setVoidResult('');
+          try {
+            await apiRequest('POST', `/api/admin/matches/${matchId}/void`);
+            setVoidResult('Match voided successfully');
+            await loadMatches();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } catch (e) {
+            setVoidResult('Failed to void match');
+            console.error('Void match failed:', e);
+          } finally {
+            setVoiding(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const loadAuditLogs = async () => {
+    setLoadingAudit(true);
+    try {
+      const res = await apiRequest('GET', '/api/admin/audit-log');
+      const data = await res.json();
+      setAuditLogs(data.logs || []);
+    } catch (e) {
+      console.error('Failed to load audit logs:', e);
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
 
   useEffect(() => {
     loadPendingUsers();
@@ -725,6 +807,109 @@ export default function AdminScreen() {
                   {syncMessage}
                 </Text>
               </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Impact Features & Match Controls
+            </Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Toggle Impact Picks per match, recalculate scores, or void matches.
+            </Text>
+
+            {matches.map(m => (
+              <View key={m.id} style={[styles.generateCard, { backgroundColor: colors.card, borderColor: m.isVoid ? colors.error + '40' : colors.cardBorder, marginBottom: 8 }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: m.isVoid ? colors.error : colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>
+                      {m.team1Short} vs {m.team2Short} {m.isVoid ? '(VOID)' : ''}
+                    </Text>
+                    <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                      {m.status} | {new Date(m.startTime).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <Pressable
+                      onPress={() => toggleImpactFeatures(m.id, !m.impactFeaturesEnabled)}
+                      disabled={impactTogglingId === m.id}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        backgroundColor: m.impactFeaturesEnabled ? '#F59E0B20' : colors.surfaceElevated,
+                        borderWidth: 1,
+                        borderColor: m.impactFeaturesEnabled ? '#F59E0B' : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: m.impactFeaturesEnabled ? '#F59E0B' : colors.textTertiary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>
+                        {impactTogglingId === m.id ? '...' : m.impactFeaturesEnabled ? '⚡ ON' : '⚡ OFF'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => recalculateMatch(m.id)}
+                      disabled={recalculating}
+                      style={{ padding: 6 }}
+                    >
+                      <MaterialCommunityIcons name="calculator" size={18} color={colors.primary} />
+                    </Pressable>
+                    {!m.isVoid && (
+                      <Pressable
+                        onPress={() => voidMatch(m.id)}
+                        disabled={voiding}
+                        style={{ padding: 6 }}
+                      >
+                        <Ionicons name="ban" size={16} color={colors.error} />
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              </View>
+            ))}
+
+            {recalcResult !== '' && (
+              <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="information-circle" size={18} color={colors.primary} />
+                <Text style={[styles.syncResultText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>{recalcResult}</Text>
+              </View>
+            )}
+            {voidResult !== '' && (
+              <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="information-circle" size={18} color={colors.error} />
+                <Text style={[styles.syncResultText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>{voidResult}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0 }]}>
+                Audit Log
+              </Text>
+              <Pressable onPress={loadAuditLogs} disabled={loadingAudit} style={{ padding: 6 }}>
+                {loadingAudit ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="refresh" size={18} color={colors.primary} />}
+              </Pressable>
+            </View>
+            {auditLogs.length === 0 ? (
+              <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const }}>
+                {loadingAudit ? 'Loading...' : 'Tap refresh to load audit logs'}
+              </Text>
+            ) : (
+              auditLogs.slice(0, 20).map((log, i) => (
+                <View key={log.id || i} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>
+                      {log.actionType || log.action}
+                    </Text>
+                    <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>
+                      {new Date(log.createdAt).toLocaleString()}
+                    </Text>
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }} numberOfLines={2}>
+                    {log.entityType}: {log.entityId} | by {log.userName || log.userId?.slice(0, 8)}
+                  </Text>
+                </View>
+              ))
             )}
           </View>
 

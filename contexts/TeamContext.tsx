@@ -9,6 +9,12 @@ interface Team {
   playerIds: string[];
   captainId: string;
   viceCaptainId: string;
+  primaryImpactId?: string | null;
+  backupImpactId?: string | null;
+  captainType?: string | null;
+  vcType?: string | null;
+  invisibleMode?: boolean;
+  predictionPoints?: number;
   totalPoints: number;
   createdAt: string;
 }
@@ -19,6 +25,11 @@ interface SaveTeamInput {
   playerIds: string[];
   captainId: string;
   viceCaptainId: string;
+  primaryImpactId?: string | null;
+  backupImpactId?: string | null;
+  captainType?: string;
+  vcType?: string;
+  invisibleMode?: boolean;
 }
 
 interface UpdateTeamInput {
@@ -26,6 +37,11 @@ interface UpdateTeamInput {
   playerIds: string[];
   captainId: string;
   viceCaptainId: string;
+  primaryImpactId?: string | null;
+  backupImpactId?: string | null;
+  captainType?: string;
+  vcType?: string;
+  invisibleMode?: boolean;
 }
 
 interface TeamContextValue {
@@ -93,11 +109,17 @@ export function TeamProvider({ children }: { children: ReactNode }) {
 
   const updateTeam = async (input: UpdateTeamInput) => {
     try {
-      const res = await apiRequest('PUT', `/api/teams/${input.teamId}`, {
+      const body: Record<string, any> = {
         playerIds: input.playerIds,
         captainId: input.captainId,
         viceCaptainId: input.viceCaptainId,
-      });
+      };
+      if (input.primaryImpactId !== undefined) body.primaryImpactId = input.primaryImpactId;
+      if (input.backupImpactId !== undefined) body.backupImpactId = input.backupImpactId;
+      if (input.captainType !== undefined) body.captainType = input.captainType;
+      if (input.vcType !== undefined) body.vcType = input.vcType;
+      if (input.invisibleMode !== undefined) body.invisibleMode = input.invisibleMode;
+      const res = await apiRequest('PUT', `/api/teams/${input.teamId}`, body);
       const data = await res.json();
       setTeams((prev) => prev.map((t) => t.id === input.teamId ? data.team : t));
     } catch (e) {

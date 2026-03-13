@@ -135,7 +135,7 @@ export default function MatchDetailScreen() {
     retry: 2,
   });
 
-  const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string; players?: Player[] }>({
+  const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string; players?: Player[]; impactFeaturesEnabled?: boolean }>({
     queryKey: ['/api/matches', id, 'teams'],
     enabled: !!id,
     staleTime: 30000,
@@ -362,21 +362,31 @@ export default function MatchDetailScreen() {
             <View style={[styles.teamCardDetails, { borderTopColor: colors.border }]}>
               <Text style={[styles.teamDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
                 {team.playerIds.length} players selected
+                {team.invisibleMode ? '  👻 Invisible' : ''}
               </Text>
               <View style={styles.captainRow}>
                 <Text style={[styles.captainLabel, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
-                  C
+                  {team.captainType === 'impact_slot' ? 'C⚡' : 'C'}
                 </Text>
                 <Text style={[styles.captainName, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {players.find((p) => p.id === team.captainId)?.name || 'N/A'}
+                  {team.captainType === 'impact_slot' ? 'Impact Slot' : (players.find((p) => p.id === team.captainId)?.name || 'N/A')}
                 </Text>
                 <Text style={[styles.captainLabel, { color: colors.primary, fontFamily: 'Inter_600SemiBold', marginLeft: 12 }]}>
-                  VC
+                  {team.vcType === 'impact_slot' ? 'VC⚡' : 'VC'}
                 </Text>
                 <Text style={[styles.captainName, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                  {players.find((p) => p.id === team.viceCaptainId)?.name || 'N/A'}
+                  {team.vcType === 'impact_slot' ? 'Impact Slot' : (players.find((p) => p.id === team.viceCaptainId)?.name || 'N/A')}
                 </Text>
               </View>
+              {team.primaryImpactId && (
+                <View style={[styles.captainRow, { marginTop: 4 }]}>
+                  <MaterialCommunityIcons name="lightning-bolt" size={14} color="#F59E0B" />
+                  <Text style={[styles.captainName, { color: '#F59E0B', fontFamily: 'Inter_500Medium', fontSize: 11, marginLeft: 4 }]}>
+                    {players.find(p => p.id === team.primaryImpactId)?.name || 'Impact Pick'}
+                    {team.backupImpactId ? ` / ${players.find(p => p.id === team.backupImpactId)?.name || 'Backup'}` : ''}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         ))
@@ -1176,7 +1186,9 @@ export default function MatchDetailScreen() {
               </View>
 
               {data.teams.map((team) => {
-                const isExpanded = expandedTeamId === team.id && canViewDetails;
+                const isInvisibleHidden = team.invisibleHidden === true;
+                const canExpand = canViewDetails && !isInvisibleHidden;
+                const isExpanded = expandedTeamId === team.id && canExpand;
                 const teamPlayers = isExpanded ? team.playerIds.map(pid => allKnownPlayers.find(p => p.id === pid)).filter(Boolean) : [];
                 const captain = isExpanded ? allKnownPlayers.find(p => p.id === team.captainId) : null;
                 const viceCaptain = isExpanded ? allKnownPlayers.find(p => p.id === team.viceCaptainId) : null;
@@ -1186,7 +1198,7 @@ export default function MatchDetailScreen() {
                   <Pressable
                     key={team.id}
                     onPress={() => {
-                      if (canViewDetails) {
+                      if (canExpand) {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setExpandedTeamId(expandedTeamId === team.id ? null : team.id);
                       }
@@ -1195,12 +1207,17 @@ export default function MatchDetailScreen() {
                   >
                     <View style={styles.contestTeamHeader}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Ionicons name="shield-outline" size={16} color={colors.textSecondary} />
-                        <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }}>
-                          {team.name}
+                        <Ionicons name={isInvisibleHidden ? 'eye-off-outline' : 'shield-outline'} size={16} color={isInvisibleHidden ? colors.textTertiary : colors.textSecondary} />
+                        <Text style={{ color: isInvisibleHidden ? colors.textTertiary : colors.text, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }}>
+                          {isInvisibleHidden ? 'Hidden Team' : team.name}
                         </Text>
+                        {isInvisibleHidden && (
+                          <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>
+                            Invisible until match ends
+                          </Text>
+                        )}
                       </View>
-                      {canViewDetails && (
+                      {canExpand && (
                         <Ionicons
                           name={isExpanded ? 'chevron-up' : 'chevron-down'}
                           size={16}

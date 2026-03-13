@@ -36,10 +36,13 @@ Preferred communication style: Simple, everyday language.
 - **Schema** (`shared/schema.ts`):
   - `users` — id (UUID), username, email, phone, password (plain text currently), isVerified, isAdmin, joinedAt
   - `referenceCodes` — id, code (4-char), isActive, createdBy, createdAt. Used for invite-only gating
-  - `matches` — id, externalId, team1/team2 info (names, short codes, colors), venue, startTime, status, league info, tournamentName, entryStake (default 30), potProcessed
+  - `matches` — id, externalId, team1/team2 info (names, short codes, colors), venue, startTime, status, league info, tournamentName, entryStake (default 30), potProcessed, impactFeaturesEnabled, officialWinner, isVoid
   - `tournamentLedger` — id, userId, userName, matchId, tournamentName, pointsChange, createdAt. Transactional history for zero-sum tournament points
   - `players` — id, match-linked player data with roles (WK/BAT/AR/BOWL), credits, points, impact player flag
-  - `userTeams` — id, userId, matchId, team name, playerIds (JSONB array), captainId, viceCaptainId, totalPoints
+  - `userTeams` — id, userId, matchId, team name, playerIds (JSONB array), captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode, predictionPoints, totalPoints
+  - `matchPlayerStatus` — matchId, playerId, adminStatus, actualParticipationStatus, officialImpactSubUsed, sourceType, updatedAt
+  - `userWeeklyUsage` — userId, weekStartDate, multiTeamUsageCount, invisibleModeUsageCount
+  - `adminAuditLog` — userId, userName, entityType, entityId, actionType, metadata, createdAt
   - `matchPredictions` — id, userId, matchId, predictedWinner (team short code), createdAt. One prediction per user per match
   - `codeVerifications` — tracks which users verified with which codes
   - `rewards` — id, brand, title, code, terms, isClaimed, claimedByUserId, claimedMatchId, claimedAt, createdAt. Reward vault for auto-distribution to match winners
@@ -51,7 +54,11 @@ Preferred communication style: Simple, everyday language.
 - **Team constraints**: Max 3 teams per user per match; 11 players per team with role limits (WK: 1-4, BAT: 1-6, AR: 1-6, BOWL: 1-6); max 10 players from single real team; Captain (2x points) and Vice-Captain (1.5x points); duplicate teams (same players + same C/VC) are blocked
 - **Entry deadline**: Teams editable up to 1 second before match start; server time used for validation (not device time)
 - **Winner Predictions**: Mandatory prediction modal intercepts first team submission per match; user must pick team1 or team2 as winner. Predictions hidden from others pre-match, revealed when match goes live. One prediction per user per match (can be updated pre-match). Displayed on match detail overview tab
-- **Impact Players**: Super sub system where substituted players earn points normally
+- **Impact Picks System**: Users pick Primary + Backup Impact players (same franchise, not in Main XI). If the Primary enters as Impact Sub (officialImpactSubUsed=true), they score for you; otherwise Backup is tried; otherwise slot scores 0. +4 bonus for activated impact player. C/VC can be assigned to Impact Slot (captainType/vcType = 'impact_slot') for 2x/1.5x multiplier on the slot's points. Match-level toggle via `impactFeaturesEnabled`
+- **Invisible Mode**: Users can hide their team from others during live matches (revealed on completion). Weekly limit: 1 invisible mode use per IST week
+- **Weekly Restrictions**: Max 3 multi-team entries per IST week (Mon-Sun). Admin can lock/unlock. Tracked in userWeeklyUsage table
+- **Match Void**: Admin can void matches, zeroing all team points and excluding from scoring
+- **Admin Audit Log**: All admin actions logged with entityType/entityId/actionType/metadata for accountability
 - **Rewards System**: Admin adds reward codes (brand, title, coupon code, terms) to a vault via the Admin Panel. When a match completes (via heartbeat or manual admin action), the Rank 1 player automatically receives an unclaimed reward from the vault. Winners see a gold banner on the match standings page with a modal to reveal and copy their reward code. All rewards are also listed in the Profile → My Rewards section
 - **Tournament Standings (Zero-Sum)**: Matches can be assigned a tournamentName and entryStake (default 30). Admin processes pot after match completion. Winners get (losers × stake / winners), losers get -stake. Each team entry counts separately (user with 2 losing teams gets 2× -stake). Standings tab shows aggregated points per user across tournament. potProcessed flag prevents double-counting
 - **Fantasy Points Engine** (`calculateFantasyPoints` in `server/cricket-api.ts`):

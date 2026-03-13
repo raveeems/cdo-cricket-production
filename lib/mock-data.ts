@@ -33,6 +33,9 @@ export interface Match {
   spotsTotal: number;
   spotsFilled: number;
   participantCount?: number;
+  impactFeaturesEnabled?: boolean;
+  officialWinner?: string | null;
+  isVoid?: boolean;
 }
 
 export interface ContestTeam {
@@ -45,6 +48,13 @@ export interface ContestTeam {
   playerIds: string[];
   captainId: string | null;
   viceCaptainId: string | null;
+  primaryImpactId?: string | null;
+  backupImpactId?: string | null;
+  captainType?: string | null;
+  vcType?: string | null;
+  invisibleMode?: boolean;
+  invisibleHidden?: boolean;
+  predictionPoints?: number;
   totalPoints: number;
   createdAt: string;
 }
@@ -56,6 +66,12 @@ export interface UserTeam {
   players: string[];
   captainId: string;
   viceCaptainId: string;
+  primaryImpactId?: string | null;
+  backupImpactId?: string | null;
+  captainType?: string | null;
+  vcType?: string | null;
+  invisibleMode?: boolean;
+  predictionPoints?: number;
   totalPoints: number;
   createdAt: string;
 }

@@ -30,7 +30,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
 
-type Step = 'select' | 'captain' | 'preview' | 'success';
+type Step = 'select' | 'impact' | 'captain' | 'preview' | 'success';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
 
 const SPLASH_MESSAGES = [
@@ -300,6 +300,11 @@ export default function CreateTeamScreen() {
   });
   const [captainId, setCaptainId] = useState<string | null>(() => editingTeam?.captainId || null);
   const [vcId, setVcId] = useState<string | null>(() => editingTeam?.viceCaptainId || null);
+  const [primaryImpactId, setPrimaryImpactId] = useState<string | null>(() => editingTeam?.primaryImpactId || null);
+  const [backupImpactId, setBackupImpactId] = useState<string | null>(() => editingTeam?.backupImpactId || null);
+  const [captainType, setCaptainType] = useState<'player' | 'impact_slot'>(() => editingTeam?.captainType === 'impact_slot' ? 'impact_slot' : 'player');
+  const [vcType, setVcType] = useState<'player' | 'impact_slot'>(() => editingTeam?.vcType === 'impact_slot' ? 'impact_slot' : 'player');
+  const [invisibleMode, setInvisibleMode] = useState<boolean>(() => editingTeam?.invisibleMode || false);
   const [filter, setFilter] = useState<RoleFilter>('ALL');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -313,9 +318,18 @@ export default function CreateTeamScreen() {
     enabled: !!matchId,
   });
 
+  const { data: weeklyUsageData } = useQuery<{
+    multiTeamRemaining: number;
+    canUseInvisibleMode: boolean;
+    canUseMultiTeam: boolean;
+  }>({
+    queryKey: ['/api/weekly-usage'],
+  });
+
   const match = matchData?.match;
   const allPlayers = playersData?.players || [];
   const existingTeams = matchId ? getTeamsForMatch(matchId) : [];
+  const impactEnabled = match?.impactFeaturesEnabled === true;
 
   const sortedPlayers = useMemo(() => {
     return [...allPlayers].sort((a, b) => {
@@ -393,6 +407,24 @@ export default function CreateTeamScreen() {
 
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
+  const impactEligiblePlayers = useMemo(() => {
+    if (!impactEnabled) return [];
+    return allPlayers.filter(p => !selectedIds.has(p.id));
+  }, [allPlayers, selectedIds, impactEnabled]);
+
+  const primaryImpactPlayer = useMemo(() => {
+    if (!primaryImpactId) return null;
+    return allPlayers.find(p => p.id === primaryImpactId) || null;
+  }, [allPlayers, primaryImpactId]);
+
+  const backupEligiblePlayers = useMemo(() => {
+    if (!primaryImpactPlayer || !impactEnabled) return [];
+    return impactEligiblePlayers.filter(p =>
+      p.id !== primaryImpactId &&
+      (p.teamShort || p.team || '') === (primaryImpactPlayer.teamShort || primaryImpactPlayer.team || '')
+    );
+  }, [impactEligiblePlayers, primaryImpactId, primaryImpactPlayer, impactEnabled]);
+
   const isDuplicateTeam = (cId: string | null, vId: string | null) => {
     if (selectedIds.size !== 11 || !cId || !vId) return false;
     const selectedArray = Array.from(selectedIds).sort();
@@ -403,7 +435,11 @@ export default function CreateTeamScreen() {
       const samePlayerIds = teamIds.every((id, i) => id === selectedArray[i]);
       const sameCaptain = team.captainId === cId;
       const sameVC = team.viceCaptainId === vId;
-      return samePlayerIds && sameCaptain && sameVC;
+      const samePrimary = (team.primaryImpactId || null) === primaryImpactId;
+      const sameBackup = (team.backupImpactId || null) === backupImpactId;
+      const sameCType = (team.captainType || 'player') === captainType;
+      const sameVType = (team.vcType || 'player') === vcType;
+      return samePlayerIds && sameCaptain && sameVC && samePrimary && sameBackup && sameCType && sameVType;
     });
   };
 
@@ -585,12 +621,23 @@ export default function CreateTeamScreen() {
     setDuplicateError(null);
     setSaveError(null);
     try {
+      const safeCaptainType = primaryImpactId ? captainType : 'player';
+      const safeVcType = primaryImpactId ? vcType : 'player';
+      const impactFields = impactEnabled ? {
+        primaryImpactId: primaryImpactId || undefined,
+        backupImpactId: backupImpactId || undefined,
+        captainType: safeCaptainType,
+        vcType: safeVcType,
+        invisibleMode,
+      } : {};
+
       if (isEditMode && editTeamId) {
         await updateTeam({
           teamId: editTeamId,
           playerIds: Array.from(selectedIds),
           captainId,
           viceCaptainId: vcId,
+          ...impactFields,
         });
       } else {
         const baseName = user?.teamName || 'Team';
@@ -605,6 +652,7 @@ export default function CreateTeamScreen() {
           playerIds: Array.from(selectedIds),
           captainId,
           viceCaptainId: vcId,
+          ...impactFields,
         });
       }
 
@@ -676,10 +724,22 @@ export default function CreateTeamScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
+          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'impact' ? 'Impact Picks' : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
+
+      {step !== 'success' && (
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, gap: 4 }}>
+          {(impactEnabled ? ['select', 'impact', 'captain', 'preview'] : ['select', 'captain', 'preview']).map((s, i, arr) => {
+            const stepIndex = arr.indexOf(step);
+            const isActive = i <= stepIndex;
+            return (
+              <View key={s} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: isActive ? colors.accent : colors.border }} />
+            );
+          })}
+        </View>
+      )}
 
       {step === 'select' && (
         <>
@@ -866,7 +926,7 @@ export default function CreateTeamScreen() {
                 if (isValidTeam) {
                   setDuplicateError(null);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setStep('captain');
+                  setStep(impactEnabled ? 'impact' : 'captain');
                 }
               }}
               disabled={!isValidTeam}
@@ -879,11 +939,143 @@ export default function CreateTeamScreen() {
                 style={styles.nextBtnGradient}
               >
                 <Text style={[styles.nextBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                  Next: Choose Captain
+                  {impactEnabled ? 'Next: Impact Picks' : 'Next: Choose Captain'}
                 </Text>
                 <Ionicons name="arrow-forward" size={20} color="#000" />
               </LinearGradient>
             </Pressable>
+          </View>
+        </>
+      )}
+
+      {step === 'impact' && impactEnabled && (
+        <>
+          <View style={[styles.captainInfo, { backgroundColor: colors.surfaceElevated }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <MaterialCommunityIcons name="lightning-bolt" size={22} color={colors.warning} />
+              <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>Impact Picks</Text>
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, lineHeight: 18 }}>
+              Pick a Primary and Backup Impact player (same franchise, not in your Main XI). If they enter as Impact Sub, they score for you!
+            </Text>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={{ color: colors.accent, fontSize: 13, fontFamily: 'Inter_700Bold' as const, marginBottom: 8, marginTop: 8 }}>
+              PRIMARY IMPACT PICK
+            </Text>
+            {impactEligiblePlayers.length === 0 ? (
+              <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 20 }}>No eligible players available</Text>
+            ) : (
+              impactEligiblePlayers.map(player => {
+                const isSelected = primaryImpactId === player.id;
+                return (
+                  <Pressable
+                    key={player.id}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      if (isSelected) {
+                        setPrimaryImpactId(null);
+                        setBackupImpactId(null);
+                      } else {
+                        setPrimaryImpactId(player.id);
+                        if (backupImpactId) {
+                          const backupPlayer = allPlayers.find(p => p.id === backupImpactId);
+                          if (backupPlayer && (backupPlayer.teamShort || backupPlayer.team || '') !== (player.teamShort || player.team || '')) {
+                            setBackupImpactId(null);
+                          }
+                        }
+                      }
+                    }}
+                    style={[styles.captainItem, { backgroundColor: isSelected ? colors.warning + '15' : colors.card, borderColor: isSelected ? colors.warning + '40' : colors.cardBorder }]}
+                  >
+                    <View style={styles.captainLeft}>
+                      <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+                        <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>{player.role}</Text>
+                      </View>
+                      <View>
+                        <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
+                        <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} | {player.credits} Cr</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.checkCircle, { borderColor: isSelected ? colors.warning : colors.border, backgroundColor: isSelected ? colors.warning : 'transparent' }]}>
+                      {isSelected && <Ionicons name="checkmark" size={14} color="#000" />}
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
+
+            {primaryImpactId && (
+              <>
+                <Text style={{ color: colors.primary, fontSize: 13, fontFamily: 'Inter_700Bold' as const, marginBottom: 8, marginTop: 16 }}>
+                  BACKUP IMPACT PICK (same franchise as {primaryImpactPlayer?.teamShort})
+                </Text>
+                {backupEligiblePlayers.length === 0 ? (
+                  <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 20 }}>No eligible backup players from {primaryImpactPlayer?.teamShort}</Text>
+                ) : (
+                  backupEligiblePlayers.map(player => {
+                    const isSelected = backupImpactId === player.id;
+                    return (
+                      <Pressable
+                        key={player.id}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setBackupImpactId(isSelected ? null : player.id);
+                        }}
+                        style={[styles.captainItem, { backgroundColor: isSelected ? colors.primary + '15' : colors.card, borderColor: isSelected ? colors.primary + '40' : colors.cardBorder }]}
+                      >
+                        <View style={styles.captainLeft}>
+                          <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+                            <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>{player.role}</Text>
+                          </View>
+                          <View>
+                            <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
+                            <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} | {player.credits} Cr</Text>
+                          </View>
+                        </View>
+                        <View style={[styles.checkCircle, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' }]}>
+                          {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </>
+            )}
+          </ScrollView>
+
+          <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+            <View style={styles.bottomBarRow}>
+              <Pressable
+                onPress={() => setStep('select')}
+                style={[styles.backStepBtn, { borderColor: colors.border }]}
+              >
+                <Ionicons name="arrow-back" size={20} color={colors.text} />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setStep('captain');
+                }}
+                style={[styles.saveBtn, { flex: 1 }]}
+              >
+                <LinearGradient
+                  colors={[colors.accent, colors.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.saveBtnGradient}
+                >
+                  <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                    {primaryImpactId ? 'Next: Choose C & VC' : 'Skip Impact Picks'}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={20} color="#000" />
+                </LinearGradient>
+              </Pressable>
+            </View>
           </View>
         </>
       )}
@@ -909,32 +1101,83 @@ export default function CreateTeamScreen() {
             </View>
           </View>
 
-          <FlatList
-            data={selectedPlayers}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {impactEnabled && primaryImpactId && (() => {
+              const impactPlayer = allPlayers.find(p => p.id === primaryImpactId);
+              if (!impactPlayer) return null;
+              const isCOnSlot = captainType === 'impact_slot';
+              const isVCOnSlot = vcType === 'impact_slot';
+              return (
+                <View style={[styles.captainItem, { backgroundColor: colors.warning + '10', borderColor: colors.warning + '30', marginBottom: 12 }]}>
+                  <View style={styles.captainLeft}>
+                    <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.warning} />
+                    <View>
+                      <Text style={{ color: colors.warning, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>IMPACT SLOT</Text>
+                      <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                        {impactPlayer.name}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.captainButtons}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (isCOnSlot) {
+                          setCaptainType('player');
+                        } else {
+                          setCaptainType('impact_slot');
+                          if (isVCOnSlot) setVcType('player');
+                        }
+                      }}
+                      style={[styles.captainBtn, { backgroundColor: isCOnSlot ? colors.accent : colors.surfaceElevated, borderColor: isCOnSlot ? colors.accent : colors.border }]}
+                    >
+                      <Text style={[styles.captainBtnText, { color: isCOnSlot ? '#000' : colors.textSecondary, fontFamily: 'Inter_700Bold' }]}>C</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (isVCOnSlot) {
+                          setVcType('player');
+                        } else {
+                          setVcType('impact_slot');
+                          if (isCOnSlot) setCaptainType('player');
+                        }
+                      }}
+                      style={[styles.captainBtn, { backgroundColor: isVCOnSlot ? colors.primary : colors.surfaceElevated, borderColor: isVCOnSlot ? colors.primary : colors.border }]}
+                    >
+                      <Text style={[styles.captainBtnText, { color: isVCOnSlot ? '#FFF' : colors.textSecondary, fontFamily: 'Inter_700Bold' }]}>VC</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })()}
+
+            {selectedPlayers.map(item => (
               <CaptainItem
+                key={item.id}
                 player={item}
-                isCaptain={captainId === item.id}
-                isVC={vcId === item.id}
+                isCaptain={captainId === item.id && captainType === 'player'}
+                isVC={vcId === item.id && vcType === 'player'}
                 onSelectC={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (vcId === item.id) setVcId(null);
+                  if (vcId === item.id && vcType === 'player') setVcId(null);
                   setCaptainId(item.id);
+                  setCaptainType('player');
                 }}
                 onSelectVC={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (captainId === item.id) setCaptainId(null);
+                  if (captainId === item.id && captainType === 'player') setCaptainId(null);
                   setVcId(item.id);
+                  setVcType('player');
                 }}
                 colors={colors}
                 isDark={isDark}
               />
-            )}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={selectedPlayers.length > 0}
-          />
+            ))}
+          </ScrollView>
 
           <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
             {duplicateError && (
@@ -944,7 +1187,7 @@ export default function CreateTeamScreen() {
             )}
             <View style={styles.bottomBarRow}>
               <Pressable
-                onPress={() => setStep('select')}
+                onPress={() => setStep(impactEnabled ? 'impact' : 'select')}
                 style={[styles.backStepBtn, { borderColor: colors.border }]}
               >
                 <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -1016,6 +1259,71 @@ export default function CreateTeamScreen() {
                 <Text style={[styles.previewSummaryValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>{totalCredits.toFixed(1)}</Text>
               </View>
             </View>
+
+            {impactEnabled && primaryImpactId && (() => {
+              const primaryP = allPlayers.find(p => p.id === primaryImpactId);
+              const backupP = backupImpactId ? allPlayers.find(p => p.id === backupImpactId) : null;
+              return (
+                <View style={[styles.previewSummary, { backgroundColor: colors.warning + '08', borderColor: colors.warning + '25', marginTop: 12 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.warning} />
+                    <Text style={{ color: colors.warning, fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>Impact Zone</Text>
+                  </View>
+                  <View style={styles.previewSummaryRow}>
+                    <Text style={[styles.previewSummaryLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>Primary</Text>
+                    <Text style={[styles.previewSummaryValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>{primaryP?.name || '—'}</Text>
+                  </View>
+                  {backupP && (
+                    <View style={styles.previewSummaryRow}>
+                      <Text style={[styles.previewSummaryLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>Backup</Text>
+                      <Text style={[styles.previewSummaryValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>{backupP.name}</Text>
+                    </View>
+                  )}
+                  {captainType === 'impact_slot' && (
+                    <View style={styles.previewSummaryRow}>
+                      <Text style={[styles.previewSummaryLabel, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>Captain on Impact Slot</Text>
+                      <Text style={[styles.previewSummaryValue, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>2x</Text>
+                    </View>
+                  )}
+                  {vcType === 'impact_slot' && (
+                    <View style={styles.previewSummaryRow}>
+                      <Text style={[styles.previewSummaryLabel, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>VC on Impact Slot</Text>
+                      <Text style={[styles.previewSummaryValue, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>1.5x</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+
+            {impactEnabled && (
+              <View style={[styles.previewSummary, { backgroundColor: colors.card, borderColor: colors.cardBorder, marginTop: 12 }]}>
+                <Pressable
+                  onPress={() => {
+                    if (weeklyUsageData?.canUseInvisibleMode === false && !invisibleMode) {
+                      return;
+                    }
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setInvisibleMode(!invisibleMode);
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <Ionicons name="eye-off" size={20} color={invisibleMode ? colors.primary : colors.textTertiary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>Invisible Mode</Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                        {weeklyUsageData?.canUseInvisibleMode === false && !invisibleMode
+                          ? 'Weekly limit reached (1/week)'
+                          : 'Hide your team from others until match ends'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: invisibleMode ? colors.primary : colors.surfaceElevated, justifyContent: 'center', paddingHorizontal: 2 }}>
+                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF', alignSelf: invisibleMode ? 'flex-end' : 'flex-start' }} />
+                  </View>
+                </Pressable>
+              </View>
+            )}
           </ScrollView>
 
           {saveError && (
