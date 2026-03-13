@@ -1,0 +1,56 @@
+Final answers to your questions:
+
+1. Duplicate handling with Impact overlap
+Final rule: there must be NO overlap between Main XI and Impact Picks.
+
+So:
+- User first selects 11 Main XI players
+- On the Impact Picks page, the user cannot select any player already present in the Main XI
+- Therefore:
+  - Primary Impact Pick must be outside the Main XI
+  - Backup Impact Pick must also be outside the Main XI
+  - Primary and Backup must be different players
+  - Primary and Backup must be from the same franchise
+
+Example:
+If Rinku Singh is selected in the Main XI, he cannot be selected again as Primary Impact Pick or Backup Impact Pick.
+
+So duplicate handling confusion is now removed completely.
+
+2. Captain / Vice Captain on Impact overlap
+Since overlap is NOT allowed, this ambiguity no longer exists.
+
+Final rule:
+- C/VC page should show:
+  - 11 Main XI players
+  - 1 Primary Impact Pick
+- Backup should NOT be shown on the C/VC page
+- If user selects Captain or Vice Captain on the Primary Impact Pick row, that means C/VC is assigned to the Impact Slot
+- At scoring time:
+  - if Primary becomes the active Impact Slot player, C/VC multiplier applies to Primary
+  - if Primary does not activate and Backup becomes the active Impact Slot player, C/VC multiplier applies to Backup
+  - if neither activates, Impact Slot gets 0 and no C/VC bonus applies there
+
+Confirmed multiplier rule:
+- Captain on Impact Slot = 2x multiplier on the active Impact player’s total points
+- Vice Captain on Impact Slot = 1.5x multiplier on the active Impact player’s total points
+
+3. Auto Pick Impact selection
+Final rule:
+- Auto Pick must first create a valid Main XI using current logic
+- Then it must auto-select:
+  - 1 Primary Impact Pick
+  - 1 Backup Impact Pick
+- Both must be:
+  - outside the selected Main XI
+  - different from each other
+  - from the same franchise
+
+Selection preference:
+A. If admin pre-match Impact List data is already available, Auto Pick should prefer choosing Primary and Backup from that Impact List
+B. If that data is not available yet, Auto Pick should choose any valid pair from the same franchise using a sensible fallback strategy
+C. Auto Pick should never break the flow waiting for perfect prediction logic
+
+So the final Auto Pick rule is:
+- Prefer likely Impact candidates when available
+- Otherwise select any valid same-franchise pair outside the Main XI and continue smoothly
