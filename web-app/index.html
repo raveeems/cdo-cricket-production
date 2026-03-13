@@ -3,28 +3,36 @@
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>CDO Cricket</title>
     <style id="expo-reset">
-      html,
-      body {
+      html {
         height: 100%;
+        height: -webkit-fill-available;
       }
       body {
+        height: 100%;
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
         overflow: hidden;
+        margin: 0;
+        padding: 0;
       }
       #root {
         display: flex;
         height: 100%;
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
         flex: 1;
+        flex-direction: column;
       }
     </style>
     <style id="app-fonts">
-      @font-face { font-family: 'ionicons'; src: url('/fonts/Ionicons.ttf') format('truetype'); }
-      @font-face { font-family: 'material-community'; src: url('/fonts/MaterialCommunityIcons.ttf') format('truetype'); }
-      @font-face { font-family: 'feather'; src: url('/fonts/Feather.ttf') format('truetype'); }
-      @font-face { font-family: 'material'; src: url('/fonts/MaterialIcons.ttf') format('truetype'); }
-      @font-face { font-family: 'FontAwesome'; src: url('/fonts/FontAwesome.ttf') format('truetype'); }
+      @font-face { font-family: 'ionicons'; src: url('/fonts/Ionicons.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'material-community'; src: url('/fonts/MaterialCommunityIcons.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'feather'; src: url('/fonts/Feather.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'material'; src: url('/fonts/MaterialIcons.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'FontAwesome'; src: url('/fonts/FontAwesome.ttf') format('truetype'); font-display: swap; }
       @font-face { font-family: 'Inter_400Regular'; src: url('/fonts/Inter_400Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
       @font-face { font-family: 'Inter_500Medium'; src: url('/fonts/Inter_500Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
       @font-face { font-family: 'Inter_600SemiBold'; src: url('/fonts/Inter_600SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
@@ -76,6 +84,6 @@
       You need to enable JavaScript to run this app.
     </noscript>
     <div id="root"></div>
-  <script src="/_expo/static/js/web/entry-304d4ee6e6f52c7d3e6b0ee51be9afdd.js" defer></script>
+  <script src="/_expo/static/js/web/entry-f253b6d3c5bc632508b572827dd173e4.js" defer></script>
 </body>
 </html>
