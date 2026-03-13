@@ -128,6 +128,16 @@ export default function AdminScreen() {
   const [editTimeSaving, setEditTimeSaving] = useState(false);
   const [editTimeResult, setEditTimeResult] = useState('');
 
+  const [createTeam1, setCreateTeam1] = useState('');
+  const [createTeam2, setCreateTeam2] = useState('');
+  const [createTeam1Short, setCreateTeam1Short] = useState('');
+  const [createTeam2Short, setCreateTeam2Short] = useState('');
+  const [createStartTime, setCreateStartTime] = useState('');
+  const [createVenue, setCreateVenue] = useState('');
+  const [createLeague, setCreateLeague] = useState('');
+  const [creatingMatch, setCreatingMatch] = useState(false);
+  const [createMatchMsg, setCreateMatchMsg] = useState('');
+
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const selectedMatch = useMemo(() => matches.find(m => m.id === selectedMatchId), [matches, selectedMatchId]);
@@ -197,6 +207,42 @@ export default function AdminScreen() {
         },
       },
     ]);
+  };
+
+  const handleCreateMatch = async () => {
+    if (!createTeam1.trim() || !createTeam2.trim() || !createStartTime.trim()) {
+      setCreateMatchMsg('Team 1, Team 2 and Start Time are required');
+      return;
+    }
+    const parsed = new Date(createStartTime);
+    if (isNaN(parsed.getTime())) {
+      setCreateMatchMsg('Invalid date/time format');
+      return;
+    }
+    setCreatingMatch(true);
+    setCreateMatchMsg('');
+    try {
+      await apiRequest('POST', '/api/admin/matches', {
+        team1: createTeam1.trim(),
+        team2: createTeam2.trim(),
+        team1Short: createTeam1Short.trim() || createTeam1.trim().substring(0, 3).toUpperCase(),
+        team2Short: createTeam2Short.trim() || createTeam2.trim().substring(0, 3).toUpperCase(),
+        startTime: parsed.toISOString(),
+        venue: createVenue.trim(),
+        league: createLeague.trim(),
+      });
+      setCreateMatchMsg('Match created successfully!');
+      setCreateTeam1(''); setCreateTeam2('');
+      setCreateTeam1Short(''); setCreateTeam2Short('');
+      setCreateStartTime(''); setCreateVenue(''); setCreateLeague('');
+      await loadMatches();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      setCreateMatchMsg('Failed to create match');
+      console.error('Create match error:', e);
+    } finally {
+      setCreatingMatch(false);
+    }
   };
 
   const openEditTime = (m: MatchInfo) => {
@@ -846,6 +892,100 @@ export default function AdminScreen() {
                 </Text>
               </View>
             )}
+          </View>
+
+          {/* Create Match */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Create Match Manually
+            </Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Add a match that isn't in the API yet. Start time format: YYYY-MM-DDTHH:mm (e.g. 2026-03-15T19:30)
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+              <TextInput
+                value={createTeam1}
+                onChangeText={setCreateTeam1}
+                placeholder="Team 1 (e.g. Mumbai Indians)"
+                placeholderTextColor={colors.textTertiary}
+                style={[styles.addPlayerInput, { flex: 1, color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
+              />
+              <TextInput
+                value={createTeam1Short}
+                onChangeText={setCreateTeam1Short}
+                placeholder="Short (MI)"
+                placeholderTextColor={colors.textTertiary}
+                style={[styles.addPlayerInput, { width: 80, color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
+                autoCapitalize="characters"
+                maxLength={5}
+              />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+              <TextInput
+                value={createTeam2}
+                onChangeText={setCreateTeam2}
+                placeholder="Team 2 (e.g. Chennai Super Kings)"
+                placeholderTextColor={colors.textTertiary}
+                style={[styles.addPlayerInput, { flex: 1, color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
+              />
+              <TextInput
+                value={createTeam2Short}
+                onChangeText={setCreateTeam2Short}
+                placeholder="Short (CSK)"
+                placeholderTextColor={colors.textTertiary}
+                style={[styles.addPlayerInput, { width: 80, color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
+                autoCapitalize="characters"
+                maxLength={5}
+              />
+            </View>
+            <TextInput
+              value={createStartTime}
+              onChangeText={setCreateStartTime}
+              placeholder="Start Time: 2026-03-15T19:30"
+              placeholderTextColor={colors.textTertiary}
+              style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              value={createVenue}
+              onChangeText={setCreateVenue}
+              placeholder="Venue (optional)"
+              placeholderTextColor={colors.textTertiary}
+              style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
+            />
+            <TextInput
+              value={createLeague}
+              onChangeText={setCreateLeague}
+              placeholder="Tournament / League (e.g. IPL 2026)"
+              placeholderTextColor={colors.textTertiary}
+              style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
+            />
+            {createMatchMsg !== '' && (
+              <Text style={{ color: createMatchMsg.includes('success') ? colors.success : colors.error, fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 8 }}>
+                {createMatchMsg}
+              </Text>
+            )}
+            <Pressable
+              onPress={handleCreateMatch}
+              disabled={creatingMatch}
+              style={[styles.xiSaveBtn, { opacity: creatingMatch ? 0.6 : 1 }]}
+            >
+              <LinearGradient
+                colors={[colors.success, '#15803D']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.xiSaveBtnInner}
+              >
+                {creatingMatch
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Ionicons name="add-circle" size={20} color="#fff" />
+                }
+                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>
+                  {creatingMatch ? 'Creating...' : 'Create Match'}
+                </Text>
+              </LinearGradient>
+            </Pressable>
           </View>
 
           <View style={styles.section}>
