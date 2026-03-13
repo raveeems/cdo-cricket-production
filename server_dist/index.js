@@ -2648,8 +2648,8 @@ async function registerRoutes(app2) {
             }
             if (primaryImpactId) {
               const primaryPlayer = playerMap.get(primaryImpactId);
-              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort === backupPlayer.teamShort) {
-                return res.status(400).json({ message: "Primary and Backup Impact Picks must be from different franchises." });
+              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort !== backupPlayer.teamShort) {
+                return res.status(400).json({ message: "Backup Impact Pick must be from the same franchise as Primary." });
               }
             }
             validBackupImpactId = backupImpactId;
@@ -2805,8 +2805,8 @@ async function registerRoutes(app2) {
             if (!backupPlayer) return res.status(400).json({ message: "Invalid Backup Impact Pick player." });
             if (primaryImpactId) {
               const primaryPlayer = playerMap.get(primaryImpactId);
-              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort === backupPlayer.teamShort) {
-                return res.status(400).json({ message: "Primary and Backup Impact Picks must be from different franchises." });
+              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort !== backupPlayer.teamShort) {
+                return res.status(400).json({ message: "Backup Impact Pick must be from the same franchise as Primary." });
               }
             }
             validBackupImpactId = backupImpactId;
@@ -4363,66 +4363,20 @@ async function registerRoutes(app2) {
         const matchId = req.params.id;
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
-        if (match.isVoid) {
-          const allTeams2 = await storage.getAllTeamsForMatch(matchId);
-          for (const team of allTeams2) {
-            await storage.updateUserTeamPoints(team.id, 0);
-          }
-          await storage.createAuditLog({
-            adminUserId: req.session.userId,
-            actionType: "recalculate_void",
-            entityType: "match",
-            entityId: matchId,
-            matchId
-          });
-          return res.json({ message: "Match is void \u2014 all points set to 0", updated: allTeams2.length });
+        const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+        const recalcFn = globalThis.__recalculateTeamTotals;
+        if (recalcFn) {
+          await recalcFn(matchId, matchLabel);
+        } else {
+          return res.status(500).json({ message: "Recalculation engine not initialized" });
         }
-        const matchPlayers = await storage.getPlayersForMatch(matchId);
-        const playerById = new Map(matchPlayers.map((p) => [p.id, p]));
-        const playerByExtId = new Map(matchPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
         const allTeams = await storage.getAllTeamsForMatch(matchId);
-        const impactEnabled = match.impactFeaturesEnabled === true;
-        let updated = 0;
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds;
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (team.captainType === "player" && pid === team.captainId) pts *= 2;
-              else if (team.vcType === "player" && pid === team.viceCaptainId) pts *= 1.5;
-              else if (pid === team.captainId && (!team.captainType || team.captainType === "player")) pts *= 2;
-              else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-          if (impactEnabled) {
-            const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
-            if (resolved.activePlayerId) {
-              const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
-              if (impactPlayer) {
-                let impactPts = impactPlayer.points || 0;
-                if (!impactPlayer.isPlayingXI) {
-                  impactPts += 4;
-                }
-                if (team.captainType === "impact_slot") impactPts *= 2;
-                else if (team.vcType === "impact_slot") impactPts *= 1.5;
-                totalPoints += impactPts;
-              }
-            }
-          }
-          let predictionPts = 0;
-          if (match.officialWinner) {
+        if (match.officialWinner) {
+          for (const team of allTeams) {
             const prediction = await storage.getUserPredictionForMatch(team.userId, matchId);
-            if (prediction && prediction.predictedWinner === match.officialWinner) {
-              predictionPts = 50;
-            }
+            const predPts = prediction && prediction.predictedWinner === match.officialWinner ? 50 : 0;
+            await db.update(userTeams).set({ predictionPoints: predPts }).where(eq2(userTeams.id, team.id));
           }
-          totalPoints += predictionPts;
-          await storage.updateUserTeamPoints(team.id, totalPoints);
-          await db.update(userTeams).set({ predictionPoints: predictionPts }).where(eq2(userTeams.id, team.id));
-          updated++;
         }
         await storage.createAuditLog({
           adminUserId: req.session.userId,
@@ -4430,9 +4384,9 @@ async function registerRoutes(app2) {
           entityType: "match",
           entityId: matchId,
           matchId,
-          metadata: JSON.stringify({ teamsUpdated: updated, impactEnabled })
+          metadata: JSON.stringify({ teamsUpdated: allTeams.length, impactEnabled: match.impactFeaturesEnabled, isVoid: match.isVoid })
         });
-        return res.json({ message: `Recalculated ${updated} teams`, updated });
+        return res.json({ message: `Recalculated ${allTeams.length} teams`, updated: allTeams.length });
       } catch (err) {
         console.error("Recalc error:", err);
         return res.status(500).json({ message: "Recalculation failed" });
@@ -5026,12 +4980,25 @@ function setupErrorHandler(app2) {
       return playerUpdates.length;
     }
     async function recalculateTeamTotals(matchId, matchLabel) {
+      const match = await storage.getMatch(matchId);
+      if (!match) return;
+      if (match.isVoid) {
+        const allTeams2 = await storage.getAllTeamsForMatch(matchId);
+        for (const team of allTeams2) {
+          if ((team.totalPoints || 0) !== 0) {
+            await storage.updateUserTeamPoints(team.id, 0);
+          }
+        }
+        log(`[Heartbeat:Teams] ${matchLabel}: Match is VOID \u2014 all points zeroed`);
+        return;
+      }
       const updatedPlayers = await storage.getPlayersForMatch(matchId);
       const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
       const playerByExtId = new Map(
         updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p])
       );
       const allTeams = await storage.getAllTeamsForMatch(matchId);
+      const impactEnabled = match.impactFeaturesEnabled === true;
       const teamUpdates = [];
       for (const team of allTeams) {
         try {
@@ -5043,9 +5010,9 @@ function setupErrorHandler(app2) {
               if (!p) continue;
               let basePts = p.points || 0;
               let multiplier = 1;
-              if (pid === team.captainId) {
+              if (pid === team.captainId && (!team.captainType || team.captainType === "player")) {
                 multiplier = 2;
-              } else if (pid === team.viceCaptainId) {
+              } else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) {
                 multiplier = 1.5;
               }
               const finalPts = Math.round(basePts * multiplier);
@@ -5056,6 +5023,36 @@ function setupErrorHandler(app2) {
                 playerErr
               );
               continue;
+            }
+          }
+          if (impactEnabled) {
+            try {
+              const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
+              if (resolved.activePlayerId) {
+                const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
+                if (impactPlayer) {
+                  let impactPts = impactPlayer.points || 0;
+                  if (!impactPlayer.isPlayingXI) {
+                    impactPts += 4;
+                  }
+                  let impactMultiplier = 1;
+                  if (team.captainType === "impact_slot") impactMultiplier = 2;
+                  else if (team.vcType === "impact_slot") impactMultiplier = 1.5;
+                  totalPoints += Math.round(impactPts * impactMultiplier);
+                }
+              }
+            } catch (impactErr) {
+              console.error(`[Heartbeat:Teams] Impact slot error for team ${team.id}:`, impactErr);
+            }
+          }
+          if (match.officialWinner) {
+            try {
+              const prediction = await storage.getUserPredictionForMatch(team.userId, matchId);
+              if (prediction && prediction.predictedWinner === match.officialWinner) {
+                totalPoints += 50;
+              }
+            } catch (predErr) {
+              console.error(`[Heartbeat:Teams] Prediction bonus error for team ${team.id}:`, predErr);
             }
           }
           if (totalPoints !== (team.totalPoints || 0)) {
@@ -5231,6 +5228,7 @@ function setupErrorHandler(app2) {
       }
     }
     globalThis.__matchHeartbeat = matchHeartbeat;
+    globalThis.__recalculateTeamTotals = recalculateTeamTotals;
     setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
     log(
       "Match Heartbeat started (every 60s \u2014 score sync, points, lockout, stale-data rejection)"

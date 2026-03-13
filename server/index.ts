@@ -726,6 +726,20 @@ function setupErrorHandler(app: express.Application) {
       matchId: string,
       matchLabel: string,
     ): Promise<void> {
+      const match = await storage.getMatch(matchId);
+      if (!match) return;
+
+      if (match.isVoid) {
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        for (const team of allTeams) {
+          if ((team.totalPoints || 0) !== 0) {
+            await storage.updateUserTeamPoints(team.id, 0);
+          }
+        }
+        log(`[Heartbeat:Teams] ${matchLabel}: Match is VOID — all points zeroed`);
+        return;
+      }
+
       const updatedPlayers = await storage.getPlayersForMatch(matchId);
       const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
       const playerByExtId = new Map(
@@ -734,6 +748,7 @@ function setupErrorHandler(app: express.Application) {
           .map((p) => [p.externalId!, p]),
       );
       const allTeams = await storage.getAllTeamsForMatch(matchId);
+      const impactEnabled = match.impactFeaturesEnabled === true;
 
       const teamUpdates: Array<{
         teamId: string;
@@ -755,9 +770,9 @@ function setupErrorHandler(app: express.Application) {
               let basePts = p.points || 0;
               let multiplier = 1;
 
-              if (pid === team.captainId) {
+              if (pid === team.captainId && (!team.captainType || team.captainType === "player")) {
                 multiplier = 2;
-              } else if (pid === team.viceCaptainId) {
+              } else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) {
                 multiplier = 1.5;
               }
 
@@ -769,6 +784,38 @@ function setupErrorHandler(app: express.Application) {
                 playerErr,
               );
               continue;
+            }
+          }
+
+          if (impactEnabled) {
+            try {
+              const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
+              if (resolved.activePlayerId) {
+                const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
+                if (impactPlayer) {
+                  let impactPts = impactPlayer.points || 0;
+                  if (!impactPlayer.isPlayingXI) {
+                    impactPts += 4;
+                  }
+                  let impactMultiplier = 1;
+                  if (team.captainType === "impact_slot") impactMultiplier = 2;
+                  else if (team.vcType === "impact_slot") impactMultiplier = 1.5;
+                  totalPoints += Math.round(impactPts * impactMultiplier);
+                }
+              }
+            } catch (impactErr) {
+              console.error(`[Heartbeat:Teams] Impact slot error for team ${team.id}:`, impactErr);
+            }
+          }
+
+          if (match.officialWinner) {
+            try {
+              const prediction = await storage.getUserPredictionForMatch(team.userId, matchId);
+              if (prediction && prediction.predictedWinner === match.officialWinner) {
+                totalPoints += 50;
+              }
+            } catch (predErr) {
+              console.error(`[Heartbeat:Teams] Prediction bonus error for team ${team.id}:`, predErr);
             }
           }
 
@@ -976,6 +1023,7 @@ function setupErrorHandler(app: express.Application) {
     }
 
     (globalThis as any).__matchHeartbeat = matchHeartbeat;
+    (globalThis as any).__recalculateTeamTotals = recalculateTeamTotals;
 
     setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
     log(

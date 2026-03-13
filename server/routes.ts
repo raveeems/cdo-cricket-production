@@ -968,8 +968,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             if (primaryImpactId) {
               const primaryPlayer = playerMap.get(primaryImpactId);
-              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort === backupPlayer.teamShort) {
-                return res.status(400).json({ message: "Primary and Backup Impact Picks must be from different franchises." });
+              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort !== backupPlayer.teamShort) {
+                return res.status(400).json({ message: "Backup Impact Pick must be from the same franchise as Primary." });
               }
             }
             validBackupImpactId = backupImpactId;
@@ -1136,8 +1136,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!backupPlayer) return res.status(400).json({ message: "Invalid Backup Impact Pick player." });
             if (primaryImpactId) {
               const primaryPlayer = playerMap.get(primaryImpactId);
-              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort === backupPlayer.teamShort) {
-                return res.status(400).json({ message: "Primary and Backup Impact Picks must be from different franchises." });
+              if (primaryPlayer && backupPlayer && primaryPlayer.teamShort !== backupPlayer.teamShort) {
+                return res.status(400).json({ message: "Backup Impact Pick must be from the same franchise as Primary." });
               }
             }
             validBackupImpactId = backupImpactId;
@@ -2883,72 +2883,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
 
-        if (match.isVoid) {
-          const allTeams = await storage.getAllTeamsForMatch(matchId);
-          for (const team of allTeams) {
-            await storage.updateUserTeamPoints(team.id, 0);
-          }
-          await storage.createAuditLog({
-            adminUserId: req.session.userId!,
-            actionType: "recalculate_void",
-            entityType: "match",
-            entityId: matchId,
-            matchId,
-          });
-          return res.json({ message: "Match is void — all points set to 0", updated: allTeams.length });
+        const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+        const recalcFn = (globalThis as any).__recalculateTeamTotals;
+        if (recalcFn) {
+          await recalcFn(matchId, matchLabel);
+        } else {
+          return res.status(500).json({ message: "Recalculation engine not initialized" });
         }
 
-        const matchPlayers = await storage.getPlayersForMatch(matchId);
-        const playerById = new Map(matchPlayers.map(p => [p.id, p]));
-        const playerByExtId = new Map(matchPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
         const allTeams = await storage.getAllTeamsForMatch(matchId);
-        const impactEnabled = match.impactFeaturesEnabled === true;
-        let updated = 0;
-
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds as string[];
-          let totalPoints = 0;
-
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (team.captainType === "player" && pid === team.captainId) pts *= 2;
-              else if (team.vcType === "player" && pid === team.viceCaptainId) pts *= 1.5;
-              else if (pid === team.captainId && (!team.captainType || team.captainType === "player")) pts *= 2;
-              else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-
-          if (impactEnabled) {
-            const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
-            if (resolved.activePlayerId) {
-              const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
-              if (impactPlayer) {
-                let impactPts = (impactPlayer.points || 0);
-                if (!impactPlayer.isPlayingXI) {
-                  impactPts += 4;
-                }
-                if (team.captainType === "impact_slot") impactPts *= 2;
-                else if (team.vcType === "impact_slot") impactPts *= 1.5;
-                totalPoints += impactPts;
-              }
-            }
-          }
-
-          let predictionPts = 0;
-          if (match.officialWinner) {
+        if (match.officialWinner) {
+          for (const team of allTeams) {
             const prediction = await storage.getUserPredictionForMatch(team.userId, matchId);
-            if (prediction && prediction.predictedWinner === match.officialWinner) {
-              predictionPts = 50;
-            }
+            const predPts = (prediction && prediction.predictedWinner === match.officialWinner) ? 50 : 0;
+            await db.update(userTeams).set({ predictionPoints: predPts }).where(eq(userTeams.id, team.id));
           }
-          totalPoints += predictionPts;
-
-          await storage.updateUserTeamPoints(team.id, totalPoints);
-          await db.update(userTeams).set({ predictionPoints: predictionPts }).where(eq(userTeams.id, team.id));
-          updated++;
         }
 
         await storage.createAuditLog({
@@ -2957,10 +2906,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entityType: "match",
           entityId: matchId,
           matchId,
-          metadata: JSON.stringify({ teamsUpdated: updated, impactEnabled }),
+          metadata: JSON.stringify({ teamsUpdated: allTeams.length, impactEnabled: match.impactFeaturesEnabled, isVoid: match.isVoid }),
         });
 
-        return res.json({ message: `Recalculated ${updated} teams`, updated });
+        return res.json({ message: `Recalculated ${allTeams.length} teams`, updated: allTeams.length });
       } catch (err: any) {
         console.error("Recalc error:", err);
         return res.status(500).json({ message: "Recalculation failed" });
