@@ -187,10 +187,15 @@ export default function HomeScreen() {
     },
   });
 
-  // Home shows only upcoming/live/delayed — completed matches go to My Matches
-  const visibleMatches = (data?.matches || []).filter(
-    m => m.status !== 'completed'
-  );
+  // Home shows live/delayed always, upcoming only within 48h — completed go to My Matches
+  const MS_48H = 48 * 60 * 60 * 1000;
+  const nowMs = Date.now();
+  const visibleMatches = (data?.matches || []).filter(m => {
+    if (m.status === 'completed') return false;
+    if (m.status === 'live' || m.status === 'delayed') return true;
+    if (m.status === 'upcoming') return new Date(m.startTime).getTime() <= nowMs + MS_48H;
+    return false;
+  });
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
