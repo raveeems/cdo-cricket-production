@@ -1470,7 +1470,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
           spotsTotal: 100,
           spotsFilled: 0,
         });
-        return res.json({ match });
+
+        // Auto-fetch squad so players are available immediately
+        let playersLoaded = 0;
+        let squadMessage = "No squad data found yet — use 'Fetch Squad' in Match Controls.";
+        if (externalId) {
+          try {
+            const { fetchMatchSquad, fetchSeriesSquad } = await import("./cricket-api");
+            let squad = await fetchMatchSquad(externalId);
+            if (squad.length === 0 && seriesId) {
+              const seriesPlayers = await fetchSeriesSquad(seriesId);
+              const t1 = team1.toLowerCase();
+              const t2 = team2.toLowerCase();
+              const t1s = (team1Short || "").toLowerCase();
+              const t2s = (team2Short || "").toLowerCase();
+              squad = seriesPlayers.filter((p) => {
+                const pTeam = p.team.toLowerCase();
+                const pShort = p.teamShort.toLowerCase();
+                return pTeam === t1 || pTeam === t2 ||
+                  pTeam.includes(t1) || t1.includes(pTeam) ||
+                  pTeam.includes(t2) || t2.includes(pTeam) ||
+                  pShort === t1s || pShort === t2s;
+              });
+            }
+            if (squad.length > 0) {
+              await storage.upsertPlayersForMatch(match.id, squad.map((p) => ({
+                matchId: match.id,
+                externalId: p.externalId,
+                name: p.name,
+                team: p.team,
+                teamShort: p.teamShort,
+                role: p.role,
+                credits: p.credits,
+              })));
+              playersLoaded = squad.length;
+              squadMessage = `${playersLoaded} players loaded automatically.`;
+            }
+          } catch (e) {
+            console.error("Auto squad fetch failed:", e);
+          }
+        }
+
+        return res.json({ match, playersLoaded, squadMessage });
       } catch (err: any) {
         console.error("Import API match error:", err);
         return res.status(500).json({ message: "Failed to import match" });

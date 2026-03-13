@@ -237,9 +237,14 @@ export default function AdminScreen() {
         startTime: m.startTime,
         league: m.league,
       });
+      const data = await res.json();
       setApiMatchesBrowse(prev => prev.filter(x => x.externalId !== m.externalId));
       await loadMatches();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const playerMsg = data.playersLoaded > 0
+        ? `${data.playersLoaded} players loaded automatically.`
+        : `Match added. No squad data yet — tap "Fetch Squad" in Match Controls to load players.`;
+      Alert.alert('Match Added', playerMsg);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to import match');
     } finally {
