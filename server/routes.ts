@@ -1414,6 +1414,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: BROWSE API MATCHES (non-IPL, not yet in DB) ----
+  app.get(
+    "/api/admin/browse-api-matches",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const [apiMatches, existingMatches] = await Promise.all([
+          fetchUpcomingMatches(),
+          storage.getAllMatches(),
+        ]);
+        const existingIds = new Set(existingMatches.map((m: any) => m.externalId).filter(Boolean));
+        const isIPL = (name: string, league: string) => {
+          const n = (name + " " + league).toLowerCase();
+          return n.includes("indian premier league") || n.includes(" ipl") || n.includes("ipl ");
+        };
+        const now = Date.now();
+        const ms7d = 7 * 24 * 60 * 60 * 1000;
+        const filtered = apiMatches.filter((m) => {
+          if (existingIds.has(m.externalId)) return false;
+          if (isIPL(m.team1 + " " + m.team2, m.league)) return false;
+          if (m.status === "completed") return false;
+          const t = new Date(m.startTime).getTime();
+          return t >= now - 3600000 && t <= now + ms7d;
+        });
+        return res.json({ matches: filtered });
+      } catch (err: any) {
+        console.error("Browse API matches error:", err);
+        return res.status(500).json({ message: "Failed to fetch API matches" });
+      }
+    }
+  );
+
+  // ---- ADMIN: IMPORT API MATCH ----
+  app.post(
+    "/api/admin/import-api-match",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { externalId, seriesId, team1, team1Short, team1Color, team2, team2Short, team2Color, venue, startTime, league } = req.body;
+        if (!team1 || !team2 || !startTime) {
+          return res.status(400).json({ message: "team1, team2, and startTime are required" });
+        }
+        const existing = await storage.getAllMatches();
+        if (externalId && existing.some((m: any) => m.externalId === externalId)) {
+          return res.status(409).json({ message: "Match already exists in database" });
+        }
+        const match = await storage.createMatch({
+          externalId: externalId || null,
+          seriesId: seriesId || null,
+          team1,
+          team1Short: team1Short || team1.substring(0, 3).toUpperCase(),
+          team1Color: team1Color || "#333",
+          team2,
+          team2Short: team2Short || team2.substring(0, 3).toUpperCase(),
+          team2Color: team2Color || "#666",
+          venue: venue || "",
+          startTime: new Date(startTime),
+          status: "upcoming",
+          league: league || "",
+          totalPrize: "0",
+          entryFee: 0,
+          spotsTotal: 100,
+          spotsFilled: 0,
+        });
+        return res.json({ match });
+      } catch (err: any) {
+        console.error("Import API match error:", err);
+        return res.status(500).json({ message: "Failed to import match" });
+      }
+    }
+  );
+
   // ---- ADMIN: UPDATE MATCH ----
   app.patch(
     "/api/admin/matches/:id",

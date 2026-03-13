@@ -128,15 +128,10 @@ export default function AdminScreen() {
   const [editTimeSaving, setEditTimeSaving] = useState(false);
   const [editTimeResult, setEditTimeResult] = useState('');
 
-  const [createTeam1, setCreateTeam1] = useState('');
-  const [createTeam2, setCreateTeam2] = useState('');
-  const [createTeam1Short, setCreateTeam1Short] = useState('');
-  const [createTeam2Short, setCreateTeam2Short] = useState('');
-  const [createStartTime, setCreateStartTime] = useState('');
-  const [createVenue, setCreateVenue] = useState('');
-  const [createLeague, setCreateLeague] = useState('');
-  const [creatingMatch, setCreatingMatch] = useState(false);
-  const [createMatchMsg, setCreateMatchMsg] = useState('');
+  const [apiMatchesBrowse, setApiMatchesBrowse] = useState<any[]>([]);
+  const [browsingApiMatches, setBrowsingApiMatches] = useState(false);
+  const [browseError, setBrowseError] = useState('');
+  const [importingExternalId, setImportingExternalId] = useState<string | null>(null);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -209,39 +204,46 @@ export default function AdminScreen() {
     ]);
   };
 
-  const handleCreateMatch = async () => {
-    if (!createTeam1.trim() || !createTeam2.trim() || !createStartTime.trim()) {
-      setCreateMatchMsg('Team 1, Team 2 and Start Time are required');
-      return;
-    }
-    const parsed = new Date(createStartTime);
-    if (isNaN(parsed.getTime())) {
-      setCreateMatchMsg('Invalid date/time format');
-      return;
-    }
-    setCreatingMatch(true);
-    setCreateMatchMsg('');
+  const loadApiMatches = async () => {
+    setBrowsingApiMatches(true);
+    setBrowseError('');
+    setApiMatchesBrowse([]);
     try {
-      await apiRequest('POST', '/api/admin/matches', {
-        team1: createTeam1.trim(),
-        team2: createTeam2.trim(),
-        team1Short: createTeam1Short.trim() || createTeam1.trim().substring(0, 3).toUpperCase(),
-        team2Short: createTeam2Short.trim() || createTeam2.trim().substring(0, 3).toUpperCase(),
-        startTime: parsed.toISOString(),
-        venue: createVenue.trim(),
-        league: createLeague.trim(),
+      const res = await apiRequest('GET', '/api/admin/browse-api-matches');
+      const data = await res.json();
+      setApiMatchesBrowse(data.matches || []);
+      if ((data.matches || []).length === 0) setBrowseError('No upcoming non-IPL matches found in the API right now.');
+    } catch (e) {
+      setBrowseError('Failed to fetch matches from the API.');
+      console.error('Browse API matches error:', e);
+    } finally {
+      setBrowsingApiMatches(false);
+    }
+  };
+
+  const importApiMatch = async (m: any) => {
+    setImportingExternalId(m.externalId);
+    try {
+      await apiRequest('POST', '/api/admin/import-api-match', {
+        externalId: m.externalId,
+        seriesId: m.seriesId,
+        team1: m.team1,
+        team1Short: m.team1Short,
+        team1Color: m.team1Color,
+        team2: m.team2,
+        team2Short: m.team2Short,
+        team2Color: m.team2Color,
+        venue: m.venue,
+        startTime: m.startTime,
+        league: m.league,
       });
-      setCreateMatchMsg('Match created successfully!');
-      setCreateTeam1(''); setCreateTeam2('');
-      setCreateTeam1Short(''); setCreateTeam2Short('');
-      setCreateStartTime(''); setCreateVenue(''); setCreateLeague('');
+      setApiMatchesBrowse(prev => prev.filter(x => x.externalId !== m.externalId));
       await loadMatches();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {
-      setCreateMatchMsg('Failed to create match');
-      console.error('Create match error:', e);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to import match');
     } finally {
-      setCreatingMatch(false);
+      setImportingExternalId(null);
     }
   };
 
@@ -902,98 +904,69 @@ export default function AdminScreen() {
             )}
           </View>
 
-          {/* Create Match */}
+          {/* Add Match from API */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              Create Match Manually
+              Add Match from API
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-              Add a match that isn't in the API yet. Start time format: YYYY-MM-DDTHH:mm (e.g. 2026-03-15T19:30)
+              Browse upcoming non-IPL matches available in the cricket API and add them with one tap. IPL matches sync automatically.
             </Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              <TextInput
-                value={createTeam1}
-                onChangeText={setCreateTeam1}
-                placeholder="Team 1 (e.g. Mumbai Indians)"
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.addPlayerInput, { flex: 1, color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
-              />
-              <TextInput
-                value={createTeam1Short}
-                onChangeText={setCreateTeam1Short}
-                placeholder="Short (MI)"
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.addPlayerInput, { width: 80, color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
-                autoCapitalize="characters"
-                maxLength={5}
-              />
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              <TextInput
-                value={createTeam2}
-                onChangeText={setCreateTeam2}
-                placeholder="Team 2 (e.g. Chennai Super Kings)"
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.addPlayerInput, { flex: 1, color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
-              />
-              <TextInput
-                value={createTeam2Short}
-                onChangeText={setCreateTeam2Short}
-                placeholder="Short (CSK)"
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.addPlayerInput, { width: 80, color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
-                autoCapitalize="characters"
-                maxLength={5}
-              />
-            </View>
-            <TextInput
-              value={createStartTime}
-              onChangeText={setCreateStartTime}
-              placeholder="Start Time: 2026-03-15T19:30"
-              placeholderTextColor={colors.textTertiary}
-              style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <TextInput
-              value={createVenue}
-              onChangeText={setCreateVenue}
-              placeholder="Venue (optional)"
-              placeholderTextColor={colors.textTertiary}
-              style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
-            />
-            <TextInput
-              value={createLeague}
-              onChangeText={setCreateLeague}
-              placeholder="Tournament / League (e.g. IPL 2026)"
-              placeholderTextColor={colors.textTertiary}
-              style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background, fontFamily: 'Inter_400Regular' }]}
-            />
-            {createMatchMsg !== '' && (
-              <Text style={{ color: createMatchMsg.includes('success') ? colors.success : colors.error, fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 8 }}>
-                {createMatchMsg}
-              </Text>
-            )}
             <Pressable
-              onPress={handleCreateMatch}
-              disabled={creatingMatch}
-              style={[styles.xiSaveBtn, { opacity: creatingMatch ? 0.6 : 1 }]}
+              onPress={loadApiMatches}
+              disabled={browsingApiMatches}
+              style={[styles.syncBtn, { opacity: browsingApiMatches ? 0.6 : 1, marginBottom: 12 }]}
             >
               <LinearGradient
-                colors={[colors.success, '#15803D']}
+                colors={[colors.primary, '#1a3a8f']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.xiSaveBtnInner}
+                style={styles.syncBtnInner}
               >
-                {creatingMatch
+                {browsingApiMatches
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <Ionicons name="add-circle" size={20} color="#fff" />
+                  : <Ionicons name="search" size={20} color="#fff" />
                 }
-                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>
-                  {creatingMatch ? 'Creating...' : 'Create Match'}
+                <Text style={[styles.syncBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                  {browsingApiMatches ? 'Fetching from API...' : 'Browse Available Matches'}
                 </Text>
               </LinearGradient>
             </Pressable>
+            {browseError !== '' && (
+              <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
+                {browseError}
+              </Text>
+            )}
+            {apiMatchesBrowse.map((m) => {
+              const d = new Date(m.startTime);
+              const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+              const isImporting = importingExternalId === m.externalId;
+              return (
+                <View key={m.externalId} style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingVertical: 12, paddingHorizontal: 14 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
+                      {m.team1Short} vs {m.team2Short}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 }}>
+                      {dateStr}{m.league ? ` · ${m.league}` : ''}{m.venue ? ` · ${m.venue}` : ''}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => importApiMatch(m)}
+                    disabled={isImporting}
+                    style={{ backgroundColor: colors.success, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, opacity: isImporting ? 0.6 : 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
+                    {isImporting
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Ionicons name="add" size={18} color="#fff" />
+                    }
+                    <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>
+                      {isImporting ? 'Adding...' : 'Add'}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            })}
           </View>
 
           <View style={styles.section}>
