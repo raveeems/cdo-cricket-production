@@ -646,11 +646,12 @@ function setupErrorHandler(app: express.Application) {
 
           const { fantasyPts, matchMethod } = resolveResult;
           const existingPts = player.points || 0;
-          const xiBase = player.isPlayingXI ? 4 : 0;
+          const appearedOnScorecard = fantasyPts !== undefined && fantasyPts !== null;
+          const xiBase = (player.isPlayingXI || appearedOnScorecard) ? 4 : 0;
 
           let finalPts: number;
 
-          if (fantasyPts !== undefined && fantasyPts !== null) {
+          if (appearedOnScorecard) {
             finalPts = fantasyPts + xiBase;
             mapped++;
             if (finalPts < existingPts) {
@@ -794,9 +795,6 @@ function setupErrorHandler(app: express.Application) {
                 const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
                 if (impactPlayer) {
                   let impactPts = impactPlayer.points || 0;
-                  if (!impactPlayer.isPlayingXI) {
-                    impactPts += 4;
-                  }
                   let impactMultiplier = 1;
                   if (team.captainType === "impact_slot") impactMultiplier = 2;
                   else if (team.vcType === "impact_slot") impactMultiplier = 1.5;

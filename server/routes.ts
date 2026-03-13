@@ -553,7 +553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           if (pts !== undefined) {
-            if (player.isPlayingXI) pts += 4;
+            pts += 4;
             await storage.updatePlayer(player.id, { points: pts });
             updated++;
           } else if (player.isPlayingXI) {
