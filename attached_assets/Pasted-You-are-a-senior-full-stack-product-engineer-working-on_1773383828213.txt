@@ -1,0 +1,661 @@
+You are a senior full-stack product engineer working on an existing fantasy cricket app. Your task is to carefully modify the current product and codebase without reducing app quality, UI quality, performance, scoring accuracy, stability, or existing good behavior.
+
+This is a production enhancement request, not a prototype.
+
+CRITICAL INSTRUCTIONS
+- First analyze the existing codebase and explain which files, services, database models, UI screens, and scoring modules you will modify before making changes.
+- Do not rebuild from scratch unless absolutely necessary.
+- Reuse the current architecture wherever possible.
+- Do not break any existing working behavior unless explicitly required below.
+- No compromise on UI quality, field-layout design, app responsiveness, scoring reliability, or match lock safety.
+- All critical rules must be enforced backend-side, not just frontend-side.
+- Add robust validation and automated tests.
+- Keep code modular, maintainable, and production-safe.
+
+==================================================
+PRIMARY OBJECTIVE
+==================================================
+
+Implement the following new fantasy product enhancements in the existing IPL fantasy app:
+
+1. Keep the current Main XI selection flow
+2. Add a new Impact system with:
+   - 1 Primary Impact Pick
+   - 1 Backup Impact Pick
+3. Add Winner Prediction bonus
+4. Add weekly multi-team restriction
+5. Add Invisible Mode
+6. Preserve the best current feature: Auto Pick
+7. Ensure zero compromise in UI/UX quality, especially the current cricket field layout and selection experience
+
+==================================================
+FINAL PRODUCT RULES
+==================================================
+
+A) TEAM STRUCTURE
+
+Each fantasy entry must now include:
+
+- 11 Main XI players
+- 1 Primary Impact Pick
+- 1 Backup Impact Pick
+
+Important:
+- Primary Impact Pick and Backup Impact Pick must be from the SAME real-world franchise/team
+- Primary and Backup must be different players
+- These are special conditional scoring picks
+- They are NOT a normal free 12th and 13th player advantage
+
+Validation:
+- exactly 11 valid Main XI players
+- exactly 1 Primary Impact Pick
+- exactly 1 Backup Impact Pick
+- Primary and Backup cannot be same player
+- Primary and Backup must belong to same franchise
+- preserve existing player-composition constraints unless they conflict with this brief
+
+B) IMPACT SLOT RULE
+
+The app must treat the Impact feature as one special Impact Slot with:
+- Primary Impact Pick
+- Backup Impact Pick
+
+Scoring resolution order:
+1. Check if Primary Impact Pick officially entered the match as the Impact Substitute
+2. If yes, Primary becomes the active Impact Slot player
+3. If no, check if Backup Impact Pick officially entered the match as the Impact Substitute
+4. If yes, Backup becomes the active Impact Slot player
+5. If neither officially entered as Impact Substitute, the Impact Slot gets 0 points
+
+Very important:
+- Being in the squad is not enough
+- Being in the official Impact Player list is not enough
+- Starting in the Playing XI is NOT enough for Impact Slot points
+- Only official Impact Substitute entry activates the Impact Slot
+
+Therefore:
+- If Primary starts in the Playing XI, he gets 0 in the Impact Slot
+- If Backup starts in the Playing XI, he gets 0 in the Impact Slot
+- If Primary is in impact list but never enters, 0
+- If Backup is in impact list but never enters, 0
+- If Primary officially enters as Impact Substitute, Primary scores
+- If Primary does not enter and Backup officially enters as Impact Substitute, Backup scores
+- Never award points to both Primary and Backup in the Impact Slot
+
+C) IMPACT SLOT POINTS
+
+If the active Impact Slot player officially enters as Impact Substitute:
+- award +4 playing points
+- award all normal batting/bowling/fielding fantasy points based on actual contribution
+
+If no active Impact Slot player:
+- Impact Slot = 0 points
+
+D) CAPTAIN / VICE CAPTAIN LOGIC FOR IMPACT SLOT
+
+Users may assign Captain or Vice Captain to the Impact Slot.
+
+Important final logic:
+Captain/VC assignment must be tied to the Impact Slot, not permanently tied to only the Primary player name.
+
+This means:
+- If Captain is assigned to the Impact Slot:
+  - if Primary becomes active, Captain bonus applies to Primary
+  - else if Backup becomes active, Captain bonus applies to Backup
+  - else if neither becomes active, Captain bonus for Impact Slot = 0
+- Same logic for Vice Captain
+
+Playing bonus remains:
+- Normal player: +4
+- Captain: +8
+- Vice Captain: +6
+
+Important:
+- No auto reassignment of Captain/VC to any player outside the Impact Slot
+- If neither Primary nor Backup becomes active, the Impact Slot gets 0 and no Captain/VC benefit applies there
+
+If current app already has Captain/VC multipliers for total performance points, preserve current multiplier behavior unless it conflicts with this brief. Only ensure the Impact Slot activation controls whether Captain/VC applies there.
+
+E) MAIN XI SCORING
+
+The 11 Main XI players continue to score under the current fantasy scoring system.
+Do not break or unnecessarily change the existing scoring logic for the Main XI.
+
+F) WINNING TEAM PREDICTION
+
+Each team entry must include a winning team prediction.
+
+Rules:
+- Correct winner prediction = +50 points
+- Wrong prediction = 0
+
+Tie / Super Over:
+- use official match winner for +50
+
+No Result / Abandoned / Washed Out:
+- contest becomes VOID
+- do not calculate final contest standings
+- do not include the contest in totals / leaderboard aggregation / settlement
+- no winner bonus
+
+G) WEEKLY MULTI-TEAM RESTRICTION
+
+Final rule:
+A user can create 2 or 3 teams in a match only 3 times in a week.
+
+For all other matches that week:
+- user can create only 1 team
+
+Week definition:
+- Monday 00:00:00 IST to Sunday 23:59:59 IST
+
+Important counting rule:
+Count weekly multi-team usage only based on FINAL submitted teams at MATCH LOCK TIME.
+
+Examples:
+- user creates 2 drafts, deletes one before lock, final locked count = 1 → do not consume usage
+- user locks 2 teams for a match → consume 1 weekly usage
+- user locks 3 teams for a match → consume 1 weekly usage
+- user locks 1 team → consume 0 usage
+
+H) INVISIBLE MODE
+
+Users may activate Invisible Mode for 1 match per week.
+
+Week definition:
+- Monday to Sunday IST
+
+If Invisible Mode is enabled for a match:
+- it applies to ALL teams that user created for that match
+
+Before match completion / before final standings:
+Other users must NOT see:
+- full team
+- captain
+- vice captain
+- Primary Impact Pick
+- Backup Impact Pick
+- winning team prediction
+- live points
+- live rank
+- scoring breakdown
+- any indirect stat that leaks composition
+
+Other users should only see:
+- that the user has joined
+- number of teams entered
+
+The user himself should still be able to see:
+- his own teams
+- own captain / vice captain
+- own Impact picks
+- own winner prediction
+- own live points
+- own own standings information
+
+After match completion and final standings calculation:
+- reveal Invisible entries normally
+
+Rules:
+- user can turn Invisible Mode on/off before lock
+- after lock it is frozen
+- max 1 Invisible Mode match per IST week
+- resets every Monday IST
+
+I) ADMIN PRE-MATCH STATUS SETUP
+
+Admin must be able to mark for each real team in a match:
+- Playing XI
+- Impact Player list
+- others / not active
+
+Color coding:
+- Green = Playing XI
+- Purple = Impact Player list
+- Red = others / not active
+
+Important:
+- Impact Player list is only a pre-match tag
+- It must NOT automatically generate points
+- Only actual official Impact Substitute entry activates Impact Slot scoring
+
+J) ACTUAL PARTICIPATION / FEED
+
+Admin manually sets:
+- Playing XI
+- Impact Player list
+
+System should capture from scorecard/feed where available:
+- official Impact Substitute usage
+- actual match participation
+- scorecard contributions
+
+If feed fails or is missing:
+- admin should have emergency override to manually correct participation / impact-substitute status and trigger recalculation
+
+==================================================
+MANDATORY UI / UX FLOW
+==================================================
+
+Do not disrupt the overall app flow. Preserve the current simplicity and strengths.
+
+Final required user flow:
+
+MANUAL FLOW
+1. User selects Main XI using current player-selection flow and current rules
+2. App takes user to Impact Picks page
+3. User selects:
+   - 1 Primary Impact Pick
+   - 1 Backup Impact Pick from same franchise
+4. App takes user to Captain / Vice Captain page
+5. App shows only:
+   - 11 Main XI players
+   - 1 Primary Impact Pick
+   Backup must NOT be shown in Captain/VC selection
+6. App takes user to Review Team page
+7. Review Team page shows:
+   - current cricket field layout beautifully preserved
+   - Main XI displayed properly on field
+   - Primary Impact Pick shown clearly in a premium Impact section
+   - Backup Impact Pick shown clearly in the same Impact section
+   - Captain and Vice Captain clearly indicated
+   - Invisible Mode toggle placed here
+8. After review, user taps continue
+9. App takes user to Winning Team Prediction page
+10. Final submit happens after prediction
+
+AUTO PICK FLOW
+The current Auto Pick feature is one of the best features in the app and must be preserved and enhanced, not weakened.
+
+Auto Pick must now:
+1. Automatically select a valid Main XI using current logic
+2. Automatically select:
+   - 1 Primary Impact Pick
+   - 1 Backup Impact Pick from same franchise
+3. Then take user to Captain / Vice Captain page
+4. Then Review Team page
+5. Then Winning Team Prediction page
+6. Then final submit
+
+Important:
+- Auto Pick must respect all new validations
+- Auto Pick should try to choose sensible Impact candidates
+- If smart predictive logic is unavailable, still choose valid Primary + Backup from same franchise without breaking the flow
+
+==================================================
+UI DESIGN REQUIREMENTS
+==================================================
+
+This is extremely important.
+
+There must be ZERO compromise in UI quality.
+
+1. Preserve and beautifully maintain the current cricket field layout
+2. Do not clutter or distort the field
+3. Main XI should remain the main field visualization
+4. Primary Impact Pick and Backup Impact Pick should be presented in a premium, visually elegant "Impact Zone" or similar section on the Review Team page
+5. Do NOT awkwardly force backup into the field layout in a way that hurts aesthetics
+6. The review page should look fantastic, polished, modern, and premium
+7. No disruption in current interaction comfort, speed, or clarity
+
+Recommended stepper at top:
+- Select XI
+- Impact Picks
+- Captain & Vice Captain
+- Review Team
+- Winner Prediction
+- Submit
+
+Add a short helper note on the Impact page:
+"Primary Impact Pick scores only if he officially enters as Impact Substitute. If not, Backup from the same team will be checked."
+
+On Captain/VC page:
+- clearly label Primary Impact Pick as Impact Pick
+- do not show Backup there
+
+On Review Team page:
+- show Main XI beautifully on field
+- show Primary Impact Pick
+- show Backup Impact Pick
+- show Captain / Vice Captain
+- show Invisible Mode toggle and weekly availability status
+- allow smooth back/edit navigation if already available in app
+
+Invisible Mode placement:
+- Must appear on the Review Team page before Winner Prediction
+- This is a privacy/visibility decision, not a team-building decision
+
+Invisible Mode UI:
+- If available this week: allow toggle ON/OFF
+- If already used this week: disable toggle and show clear note
+
+Contest lobby / public visibility:
+- For invisible entries, show only participation + number of teams entered
+- Hide everything else until final standings
+
+==================================================
+DATABASE / DATA MODEL CHANGES
+==================================================
+
+Adapt safely to the current schema. Suggested structure:
+
+1. UserWeeklyUsage
+- id
+- user_id
+- week_start_ist_date
+- multi_team_match_usage_count
+- invisible_mode_usage_count
+- timestamps
+
+2. Match
+- id
+- match_key
+- team_a
+- team_b
+- start_time_utc
+- start_time_ist
+- lock_time
+- status enum:
+  UPCOMING
+  LOCKED
+  LIVE
+  COMPLETED
+  VOID_NO_RESULT
+- official_winner_team_id nullable
+- is_super_over_result
+- is_abandoned
+- is_no_result
+- timestamps
+
+3. MatchPlayerStatus
+- id
+- match_id
+- player_id
+- real_team_id
+- admin_status enum:
+  PLAYING_XI
+  IMPACT_LIST
+  NOT_ACTIVE
+- actual_participation_status enum:
+  STARTED_MATCH
+  ENTERED_AS_IMPACT_SUB
+  DID_NOT_PLAY
+- official_impact_sub_used boolean
+- source_type enum:
+  ADMIN
+  FEED
+  ADMIN_OVERRIDE
+- timestamps
+
+4. FantasyTeamEntry
+- id
+- user_id
+- match_id
+- entry_number
+- selected_main_xi
+- primary_impact_pick_player_id
+- backup_impact_pick_player_id
+- captain_assignment_type enum:
+  PLAYER
+  IMPACT_SLOT
+- captain_player_id nullable
+- vice_captain_assignment_type enum:
+  PLAYER
+  IMPACT_SLOT
+- vice_captain_player_id nullable
+- predicted_winner_team_id
+- invisible_mode_enabled boolean
+- is_locked
+- final_points
+- weekly_multi_team_counted boolean
+- visibility_status enum:
+  VISIBLE
+  HIDDEN_UNTIL_COMPLETION
+  REVEALED_AFTER_COMPLETION
+- timestamps
+
+If the current schema is different, extend it safely rather than replacing it.
+
+==================================================
+VALIDATION REQUIREMENTS
+==================================================
+
+At team creation/update:
+- exactly 11 Main XI players
+- exactly 1 Primary Impact Pick
+- exactly 1 Backup Impact Pick
+- Primary and Backup must be different
+- Primary and Backup must be from same franchise
+- captain required
+- vice captain required
+- winner prediction required before final submit
+
+Captain/VC rules:
+- allow selecting Captain/VC from Main XI players
+- allow assigning Captain/VC to the Impact Slot via Primary Impact Pick representation
+- Backup must not appear separately on Captain/VC page
+- If Impact Slot is chosen for Captain/VC, the bonus later applies to whichever of Primary or Backup becomes active
+- If neither becomes active, bonus for that Impact Slot = 0
+
+Weekly multi-team validation:
+- enforce server-side
+- once 3 weekly multi-team usages are exhausted, only 1 team can be finally submitted in additional matches that week
+
+Invisible Mode validation:
+- only 1 match per week per user
+- server-side enforcement
+- editable only before lock
+
+==================================================
+SCORING ENGINE REQUIREMENTS
+==================================================
+
+Build or modify the scoring engine to be idempotent and safely re-runnable.
+
+Impact resolution pseudocode:
+
+activeImpactPlayer = null
+
+if Primary officially entered as impact substitute:
+    activeImpactPlayer = Primary
+else if Backup officially entered as impact substitute:
+    activeImpactPlayer = Backup
+else:
+    activeImpactPlayer = null
+
+Important:
+- do NOT activate based on Playing XI status
+- do NOT activate based only on impact list status
+- activate only on official Impact Substitute entry
+
+If activeImpactPlayer exists:
+- apply Impact Slot playing bonus:
+  - +4 if regular Impact Slot
+  - +8 if Captain assigned to Impact Slot
+  - +6 if Vice Captain assigned to Impact Slot
+- apply regular performance points
+
+If no activeImpactPlayer:
+- Impact Slot total = 0
+- Captain/VC assigned to Impact Slot also results in 0 there
+
+Winner prediction:
+- +50 if correct
+- +0 if wrong
+
+Void match:
+- if status = VOID_NO_RESULT, contest should not count in standings or totals
+
+Support recalculation after:
+- feed updates
+- admin overrides
+- late-arriving impact substitute data
+- match voiding changes
+
+==================================================
+ADMIN PANEL REQUIREMENTS
+==================================================
+
+Admin must be able to:
+
+1. Set Playing XI
+2. Set Impact Player list
+3. Mark others/not active
+4. View color-coded statuses:
+   - Green / Purple / Red
+5. Sync feed / scorecard data
+6. See actual impact substitute usage
+7. Compare admin tags vs actual usage
+8. Override actual participation if feed fails
+9. Trigger recalculation
+10. Mark contest/match as VOID_NO_RESULT
+11. Mark match completed and trigger standings
+
+==================================================
+TIMEZONE REQUIREMENTS
+==================================================
+
+All weekly logic must use IST.
+
+Even if timestamps are stored in UTC, business logic must calculate weekly restrictions using IST boundaries.
+
+Create reusable helper functions/services for:
+- current IST week start
+- current IST week end
+- determining week bucket for a match/user action
+
+==================================================
+BACKEND SERVICES TO CREATE / UPDATE
+==================================================
+
+Create or update clean modules such as:
+- weeklyUsageService
+- fantasyTeamValidationService
+- impactSlotResolutionService
+- scoringEngineService
+- invisibleModeService
+- contestSettlementService
+- adminMatchStatusService
+- participationSyncService
+- autoPickService
+
+==================================================
+EDGE CASES TO HANDLE
+==================================================
+
+Must handle correctly:
+
+1. Primary and Backup from different franchises
+- reject
+
+2. Primary and Backup same player
+- reject
+
+3. Primary starts in Playing XI but never officially enters as impact substitute
+- gets 0 in Impact Slot
+
+4. Backup starts in Playing XI but never officially enters as impact substitute
+- gets 0 in Impact Slot
+
+5. Primary fails, Backup officially enters as impact substitute
+- Backup becomes active and scores
+
+6. Neither enters as impact substitute
+- Impact Slot = 0
+
+7. Captain assigned to Impact Slot, Primary active
+- Captain bonus applies to Primary
+
+8. Captain assigned to Impact Slot, Backup active
+- Captain bonus applies to Backup
+
+9. Captain assigned to Impact Slot, neither active
+- 0 bonus there
+
+10. User drafts 2 or 3 teams but deletes before lock so final count = 1
+- do not consume multi-team weekly usage
+
+11. User uses 3 multi-team matches already this week
+- remaining matches allow only 1 final team
+
+12. Invisible Mode with multiple teams in a match
+- all teams hidden
+
+13. Invisible entries should not leak through live rank or live points
+- hide fully until completion
+
+14. Match tied and decided by super over
+- official winner counts for +50
+
+15. Match no result / abandoned
+- contest void
+
+==================================================
+TESTS REQUIRED
+==================================================
+
+Add automated tests for at least:
+
+1. Valid 11 + Primary + Backup flow
+2. Reject Primary/Backup from different teams
+3. Reject same player as Primary and Backup
+4. Primary active as official impact substitute
+5. Backup active after Primary fails
+6. Neither active → Impact Slot = 0
+7. Captain assigned to Impact Slot, Primary active
+8. Captain assigned to Impact Slot, Backup active
+9. Captain assigned to Impact Slot, neither active
+10. Winner prediction correct → +50
+11. Winner prediction wrong → +0
+12. No result contest → void
+13. Multi-team weekly cap enforcement
+14. Draft deletion before lock should not consume usage
+15. Invisible Mode hidden during live match
+16. Invisible Mode revealed after completion
+17. Auto Pick generates valid Main XI + Primary + Backup
+18. Captain/VC page shows Main XI + Primary only
+19. Review page shows field layout + Impact zone correctly
+
+==================================================
+IMPLEMENTATION APPROACH
+==================================================
+
+Please execute in this order:
+
+1. Inspect and summarize current architecture
+2. Identify files/modules to change
+3. Propose migration plan
+4. Implement backend schema and validation
+5. Implement scoring and Impact logic
+6. Implement Auto Pick enhancements
+7. Implement admin changes
+8. Implement UI flow changes
+9. Ensure review page design quality remains premium
+10. Add tests
+11. Provide a concise implementation summary
+
+==================================================
+DELIVERABLES
+==================================================
+
+Return:
+1. architecture analysis of existing app
+2. list of files/services changed
+3. schema changes / migrations
+4. backend logic updates
+5. frontend/UI updates
+6. admin panel updates
+7. scoring engine updates
+8. Auto Pick updates
+9. weekly limit logic
+10. Invisible Mode logic
+11. tests
+12. short implementation notes
+
+FINAL REMINDER
+- Do not weaken the current product
+- Do not simplify the Impact feature into a normal extra player
+- Do not compromise the current field layout quality
+- Do not disrupt the existing selection flow
+- Preserve Auto Pick as a premium feature
+- Build safely and production-ready
