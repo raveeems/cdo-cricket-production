@@ -101,7 +101,8 @@ function FloatingPhrase({ phrase, position, index }: {
 export default function IndexScreen() {
   const { isLoading, isAuthenticated, isVerified } = useAuth();
   const { colors, isDark } = useTheme();
-  const [animDone, setAnimDone] = useState(false);
+  // On web, start with animDone=true — skip the 4s native splash entirely
+  const [animDone, setAnimDone] = useState(Platform.OS === 'web');
 
   const logoScale = useSharedValue(0.3);
   const logoOpacity = useSharedValue(0);
@@ -118,11 +119,8 @@ export default function IndexScreen() {
   }, []);
 
   useEffect(() => {
-    // On web, skip the 4-second splash animation — navigate immediately
-    if (Platform.OS === 'web') {
-      setAnimDone(true);
-      return;
-    }
+    // On web, animDone is already true (initialized in useState) — no animation needed
+    if (Platform.OS === 'web') return;
 
     logoOpacity.value = withTiming(1, { duration: 500 });
     logoScale.value = withSequence(
@@ -194,6 +192,38 @@ export default function IndexScreen() {
   const shimmerStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shimmerTranslate.value }],
   }));
+
+  // On web: render a plain View with zero Reanimated styles.
+  // Reanimated worklet runtime can silently fail on mobile Safari causing
+  // useAnimatedStyle to return {opacity: undefined} → invisible blank screen.
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.container, { backgroundColor: isDark ? '#060918' : '#E8EBF5' }]}>
+        <LinearGradient
+          colors={isDark ? ['#060918', '#0A0E1A', '#0D1530', '#0A0E1A'] : ['#E8EBF5', '#F0F2F7', '#F5F7FC', '#F0F2F7']}
+          locations={[0, 0.3, 0.6, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.center}>
+          <View style={styles.logoWrapper}>
+            <View style={[styles.logoBox]}>
+              <Image
+                source={require('@/assets/images/cdo-logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
+          </View>
+          <Text style={[styles.title, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            CDO Cricket
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+            Fantasy Cricket for Your Squad
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <Animated.View style={[styles.container, containerAnimStyle]}>
