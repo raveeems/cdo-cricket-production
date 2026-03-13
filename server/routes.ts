@@ -375,38 +375,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ---- MATCHES ----
   app.get("/api/matches", isAuthenticated, async (_req: Request, res: Response) => {
     try { await refreshStaleMatchStatuses(); } catch (e) { console.error("Status refresh error:", e); }
-    const allMatchesRaw = await storage.getAllMatches();
-    const T20_WC_SERIES_ID = "0cdf6736-ad9b-4e95-a647-5ee3a99c5510";
-    const allMatches = allMatchesRaw.filter(m => m.seriesId === T20_WC_SERIES_ID || (m.tournamentName && m.tournamentName.includes("T20")) || (m.league && m.league.includes("T20 World Cup")));
+    const allMatches = await storage.getAllMatches();
     const nowMs = Date.now();
-    const MS_48H = 48 * 60 * 60 * 1000;
+    const MS_7D = 7 * 24 * 60 * 60 * 1000;
     const MS_3H = 3 * 60 * 60 * 1000;
-
-    console.log(`[MatchFeed] Server time: ${new Date(nowMs).toISOString()} | 48h window: now → ${new Date(nowMs + MS_48H).toISOString()} | T20 WC matches: ${allMatches.length}`);
 
     const matchesWithParticipants: { match: typeof allMatches[0]; participantCount: number }[] = [];
 
     for (const m of allMatches) {
       const startMs = new Date(m.startTime).getTime();
-      const hoursUntilStart = (startMs - nowMs) / 3600000;
 
       const teams = await storage.getAllTeamsForMatch(m.id);
       const uniqueUsers = new Set(teams.map(t => t.userId));
       const participantCount = uniqueUsers.size;
 
       const isUpcomingOrDelayed = m.status === "upcoming" || m.status === "delayed";
-      const startsWithin48h = startMs <= nowMs + MS_48H;
-      const isUpcoming = isUpcomingOrDelayed && startsWithin48h;
+      const startsWithin7d = startMs <= nowMs + MS_7D;
+      const isUpcoming = isUpcomingOrDelayed && startsWithin7d;
 
       const isLive = m.status === "live";
-      const isDelayed = m.status === "delayed";
 
-      // Home feed: only show upcoming (next 48h), live, or delayed — never completed
-      const included = isUpcoming || isLive || isDelayed;
-
-      if (isUpcomingOrDelayed) {
-        console.log(`[MatchFeed] ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${hoursUntilStart.toFixed(1)}h away | within48h=${startsWithin48h} | included=${included}`);
-      }
+      // Home feed: upcoming (next 7 days), live, or delayed — never completed
+      const included = isUpcoming || isLive || (m.status === "delayed");
 
       if (included) {
         matchesWithParticipants.push({ match: m, participantCount });

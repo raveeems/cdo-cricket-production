@@ -434,11 +434,11 @@ export default function AdminScreen() {
       const data = await res.json();
       const allMatches = (data.matches || []) as MatchInfo[];
       const now = Date.now();
-      const ms48h = 48 * 60 * 60 * 1000;
+      const ms7d = 7 * 24 * 60 * 60 * 1000;
       const relevant = allMatches.filter((m: MatchInfo) => {
         if (m.status === 'live' || m.status === 'delayed') return true;
         if (m.status === 'upcoming') {
-          return new Date(m.startTime).getTime() <= now + ms48h;
+          return new Date(m.startTime).getTime() <= now + ms7d;
         }
         return false;
       });
