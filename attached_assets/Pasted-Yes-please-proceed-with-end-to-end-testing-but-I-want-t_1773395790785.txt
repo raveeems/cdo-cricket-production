@@ -1,0 +1,97 @@
+Yes, please proceed with end-to-end testing, but I want the following scenarios tested explicitly so we confirm the entire system behaves correctly.
+	1.	Normal Team (No Impact Slot Captain)
+
+	•	Create team with 11 Main XI players
+	•	Select Primary + Backup Impact Picks
+	•	Assign Captain and Vice Captain to normal players
+	•	Verify:
+	•	Main XI scoring works
+	•	Impact Slot activates only when Primary or Backup enters as Impact Substitute
+	•	+4 playing bonus applied correctly
+
+	2.	Impact Slot as Captain
+
+	•	Create team where Captain = Impact Slot
+	•	If Primary becomes Impact Sub → total points should be 2x
+	•	If Primary does not activate but Backup does → Backup gets 2x
+	•	If neither activates → Impact Slot = 0
+
+	3.	Impact Slot as Vice Captain
+
+	•	VC assigned to Impact Slot
+	•	Verify 1.5x multiplier applies correctly when slot activates.
+
+	4.	Main XI Player Entering as Impact Substitute
+Test this important edge case:
+
+	•	User selects a player in Main XI
+	•	That player does NOT start in Playing XI
+	•	Later enters the match as Impact Substitute
+
+Expected behavior:
+	•	Player should still receive +4 appearance bonus
+	•	Player should receive full batting/bowling/fielding points
+	•	Impact Slot logic should NOT interact with Main XI players
+
+	5.	Backup Activation
+Test scenario:
+
+	•	Primary never enters as Impact Substitute
+	•	Backup enters as Impact Substitute
+
+Expected result:
+	•	Backup activates Impact Slot
+	•	Backup receives:
+	•	+4 playing bonus
+	•	full fantasy points
+
+	6.	Invisible Mode
+
+	•	Create a team with Invisible Mode enabled
+	•	During live match:
+	•	Other users should only see user joined + number of teams
+	•	Team composition, captain, impact picks must remain hidden
+	•	After match completion:
+	•	Team should automatically reveal.
+
+	7.	Weekly Multi-Team Limit
+Test full weekly logic:
+
+	•	Create 3 matches where user enters 2 or 3 teams
+	•	Verify usage count increments correctly
+	•	After 3 usages:
+	•	System must allow only 1 team per match
+
+Also verify:
+	•	Deleting extra teams before lock does not consume usage
+
+	8.	Winner Prediction
+
+	•	Predict winner correctly → +50 points
+	•	Predict wrong → 0
+	•	Void match → prediction bonus must not apply
+
+	9.	Void Match
+
+	•	Mark match as Void
+	•	Verify:
+	•	All teams = 0 points
+	•	Leaderboard ignores match
+	•	Impact Slot ignored
+
+	10.	Feature Toggle
+Test match with impactFeaturesEnabled = false
+
+Expected:
+	•	Impact Picks UI hidden
+	•	Teams behave like current version
+	•	Scoring ignores Impact Slot.
+
+	11.	Recalculation Safety
+Run the recalculate endpoint multiple times.
+
+Expected:
+	•	Team totals remain identical each time
+	•	No duplicate points.
+
+Once these tests pass, we can enable the feature for a few upcoming matches and begin live testing.
