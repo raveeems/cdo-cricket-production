@@ -386,9 +386,6 @@ export async function fetchUpcomingMatches(): Promise<
   }
 }
 
-const TRACKED_SERIES: Array<{ id: string; name: string }> = [
-  { id: "0cdf6736-ad9b-4e95-a647-5ee3a99c5510", name: "ICC Men's T20 World Cup 2026" },
-];
 
 export async function fetchSeriesMatches(
   seriesId: string,
@@ -556,39 +553,100 @@ async function upsertMatches(
   return { created, updated };
 }
 
-const T20_WC_SERIES_ID = "0cdf6736-ad9b-4e95-a647-5ee3a99c5510";
-
-export async function syncMatchesFromApi(retryCount = 0): Promise<void> {
+export async function syncMatchesFromApi(): Promise<void> {
   const { storage } = await import("./storage");
-  
-  console.log("Auto-syncing matches (ICC T20 WC only — 1 API call)...");
+  const apiKey = getActiveApiKey();
+  if (!apiKey) {
+    console.log("No CricAPI key available, skipping auto-sync");
+    return;
+  }
+
+  console.log("Auto-syncing matches (currentMatches + upcoming)...");
   try {
     const existing = await storage.getAllMatches();
-    let totalCreated = 0;
-    let totalUpdated = 0;
 
-    for (const series of TRACKED_SERIES) {
+    // Try currentMatches first, fall back to upcoming matches endpoint
+    const allApiRaw: CricApiMatch[] = [];
+    const seenIds = new Set<string>();
+
+    for (const url of [
+      `${CRICKET_API_BASE}/currentMatches?apikey=${apiKey}&offset=0`,
+      `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=0`,
+    ]) {
       try {
-        const seriesMatches = await fetchSeriesMatches(series.id, series.name);
-        if (seriesMatches.length > 0) {
-          const result = await upsertMatches(seriesMatches, existing);
-          totalCreated += result.created;
-          totalUpdated += result.updated;
-          console.log(`${series.name}: ${result.created} new, ${result.updated} updated (${seriesMatches.length} matches total)`);
-        } else if (retryCount < 2) {
-          const delayMin = retryCount === 0 ? 5 : 15;
-          console.log(`No T20 WC matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/2)`);
-          setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1000);
-          return;
+        const res = await trackedFetch(url);
+        if (!res.ok) continue;
+        const json = (await res.json()) as CricApiResponse<CricApiMatch[]>;
+        if (json.status !== "success" || !json.data) {
+          const reason = (json as any).reason || "";
+          if (reason.toLowerCase().includes("limit") || reason.toLowerCase().includes("blocked")) {
+            markTier1Blocked();
+            break;
+          }
+          continue;
         }
-      } catch (err) {
-        console.error(`Series sync error for ${series.name}:`, err);
+        const label = url.includes("currentMatches") ? "currentMatches" : "matches";
+        console.log(`Auto-sync: ${json.data.length} matches from ${label}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
+        for (const m of json.data) {
+          if (!seenIds.has(m.id)) { seenIds.add(m.id); allApiRaw.push(m); }
+        }
+      } catch (e) {
+        console.error("Auto-sync endpoint error:", e);
       }
     }
 
-    if (totalCreated === 0 && totalUpdated === 0) {
-      console.log("T20 WC sync: no changes");
+    if (allApiRaw.length === 0) {
+      console.log("Auto-sync: no matches returned from API");
+      return;
     }
+
+    const apiMatches = allApiRaw
+      .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20")
+      .map((m) => {
+        const team1 = m.teams[0];
+        const team2 = m.teams[1];
+        const team1Info = m.teamInfo?.find((t) => t.name === team1);
+        const team2Info = m.teamInfo?.find((t) => t.name === team2);
+        const team1Short = team1Info?.shortname || getTeamShort(team1);
+        const team2Short = team2Info?.shortname || getTeamShort(team2);
+
+        const hasScoreData = !!(m.score && m.score.length > 0 && m.score.some(s => s.r > 0 || s.w > 0 || s.o > 0));
+        const { status, statusNote } = determineMatchStatus(
+          m.matchStarted,
+          m.matchEnded,
+          m.status,
+          hasScoreData
+        );
+
+        const nameParts = m.name?.split(",").map((s: string) => s.trim()) || [];
+        let league = nameParts[nameParts.length - 1] || nameParts[0] || "";
+        if (nameParts.length >= 3) league = nameParts.slice(2).join(", ");
+        else if (nameParts.length === 2) league = nameParts[1];
+
+        return {
+          externalId: m.id,
+          seriesId: m.series_id || "",
+          team1,
+          team1Short,
+          team1Color: getTeamColor(team1Short),
+          team2,
+          team2Short,
+          team2Color: getTeamColor(team2Short),
+          venue: m.venue || "",
+          startTime: new Date(m.dateTimeGMT),
+          status,
+          statusNote,
+          league,
+        };
+      });
+
+    if (apiMatches.length === 0) {
+      console.log("Auto-sync: no T20 matches to sync");
+      return;
+    }
+
+    const result = await upsertMatches(apiMatches, existing);
+    console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} T20 matches from API)`);
   } catch (err) {
     console.error("Auto-sync failed:", err);
   }
