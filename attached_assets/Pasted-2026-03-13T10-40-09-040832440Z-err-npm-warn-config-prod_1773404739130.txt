@@ -1,0 +1,662 @@
+2026-03-13T10:40:09.040832440Z [err]  npm warn config production Use `--omit=dev` instead.
+2026-03-13T10:40:09.040837410Z [inf]  
+2026-03-13T10:40:09.040842580Z [inf]  > expo-app@1.0.0 server:prod
+2026-03-13T10:40:09.040847110Z [inf]  > NODE_ENV=production node server_dist/index.js
+2026-03-13T10:40:09.040851390Z [inf]  
+2026-03-13T10:40:09.171799635Z [inf]  Starting Container
+2026-03-13T10:40:09.179047976Z [inf]  DEPLOY_CHECK f15f02bb1e10d106f5b48494ae0b1b02aeb6fd6e
+2026-03-13T10:40:09.190268743Z [inf]  Serving static Expo files with dynamic manifest routing
+2026-03-13T10:40:09.190271783Z [inf]  Web build found at /app/web-app — serving web app to browsers
+2026-03-13T10:40:09.190274632Z [inf]  Expo routing: Checking expo-platform header on / and /manifest
+2026-03-13T10:40:09.190277772Z [err]  (node:25) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+2026-03-13T10:40:09.190280882Z [err]  Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+2026-03-13T10:40:09.190284172Z [err]  To eliminate this warning, add "type": "module" to /app/package.json.
+2026-03-13T10:40:09.190287372Z [err]  (Use `node --trace-warnings ...` to show where the warning was created)
+2026-03-13T10:40:09.192826352Z [inf]  express server serving on port 8080
+2026-03-13T10:40:09.192831852Z [inf]  Match Heartbeat started (every 60s — score sync, points, lockout, stale-data rejection)
+2026-03-13T10:40:09.192834732Z [inf]  Auto-syncing matches (ICC T20 WC only — 1 API call)...
+2026-03-13T10:40:09.201385571Z [err]  (node:25) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-03-13T10:40:09.221796864Z [inf]  [Retroactive] ENG vs SL: Already distributed, skipping
+2026-03-13T10:40:09.224888023Z [inf]  [Retroactive] IND vs RSA: Already distributed, skipping
+2026-03-13T10:40:09.984841994Z [inf]  No T20 WC matches returned - will retry in 5 minute(s) (attempt 1/2)
+2026-03-13T10:41:19.826944924Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:41:19.826950274Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:41:19.826954894Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:41:19.826959584Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:41:19.826963824Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:41:19.826968364Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:41:39.828991739Z [inf]  GET /api/health 404 in 3ms
+2026-03-13T10:41:39.828995289Z [inf]  POST /api/auth/login 400 in 3ms :: {"message":"Phone number and password are re…
+2026-03-13T10:42:09.961052819Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:42:09.961057969Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:42:10.019787829Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:42:10.019794999Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:42:10.311763779Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:42:10.311768209Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:43:10.332587769Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:43:10.332592228Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:43:10.332595878Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:43:10.332598668Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:43:10.486781365Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:43:10.486785445Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:44:10.500846839Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:44:10.500854009Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:44:10.500859049Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:44:10.500863429Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:44:10.500867989Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:44:10.500872619Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:45:10.836280137Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:45:10.836292226Z [inf]  No T20 WC matches returned - will retry in 15 minute(s) (attempt 2/2)
+2026-03-13T10:45:10.836297896Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:45:10.836302506Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:45:10.836305206Z [inf]  Auto-syncing matches (ICC T20 WC only — 1 API call)...
+2026-03-13T10:45:10.836315736Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:45:10.836322886Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:45:10.836330366Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:46:11.099951531Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:46:11.099957511Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:46:11.099967001Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:46:11.099973211Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:46:11.099980301Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:46:11.099987081Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:47:10.910586274Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:47:10.910589204Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:47:10.910592423Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:47:10.910595763Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:47:10.910598743Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:47:10.910603033Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:48:10.970594791Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:48:10.970605571Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:48:10.970613181Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:48:10.970698999Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:48:10.970703319Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:48:10.970707669Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:49:11.094863537Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:49:11.094869517Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:49:11.094876187Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:49:11.094880796Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:49:11.094885936Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:49:11.094892656Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:50:11.351851027Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:50:11.351854947Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:50:11.351858587Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:50:11.351862167Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:50:11.351865266Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:50:11.351868396Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:51:11.209322336Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:51:11.209327515Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:51:11.209410865Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:51:11.209443604Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:51:11.209448114Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:51:11.209452934Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:52:11.219605808Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:52:11.219609268Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:52:11.219612598Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:52:11.219615488Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:52:11.219618358Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:52:11.219621258Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:53:11.674078056Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:53:11.674588416Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:53:11.674592676Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:53:11.674596686Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:53:11.674600056Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:53:11.674603626Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:54:11.758968731Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:54:11.758972541Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:54:11.758976461Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:54:11.758981081Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:54:11.758985541Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:54:11.758989761Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:55:11.515619846Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:55:11.515623596Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:55:11.515626966Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:55:11.515635506Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:55:11.515639056Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:55:11.515642886Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:56:11.518957235Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:56:11.518963285Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:56:11.519034743Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:56:11.519037473Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:56:11.519039943Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:56:11.519043033Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:57:11.229680474Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:57:11.229684074Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:57:11.229687784Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:57:11.229692514Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:57:11.229696124Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:57:11.229699774Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:58:11.366142474Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:58:11.366241533Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:58:11.366245693Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:58:11.366249253Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:58:11.366254372Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:58:11.366258312Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T10:59:11.129357101Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:59:11.129389370Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T10:59:11.129392820Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:59:11.129397330Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T10:59:11.129401190Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T10:59:11.129404810Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:00:11.175031594Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:00:11.175040134Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:00:11.175044783Z [inf]  Auto-syncing matches (ICC T20 WC only — 1 API call)...
+2026-03-13T11:00:11.175048013Z [inf]  T20 WC sync: no changes
+2026-03-13T11:00:11.175051553Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:00:11.175056183Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:00:11.175060423Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:00:11.175066433Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:01:10.866354424Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:01:10.866365194Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:01:10.866422122Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:01:10.866425412Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:01:10.866428952Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:01:10.866432532Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:02:10.901607559Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:02:10.901611268Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:02:10.901615058Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:02:10.901619738Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:02:10.901623848Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:02:10.901627228Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:03:11.012405787Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:03:11.012409307Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:03:11.012412407Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:03:11.012415647Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:03:11.012418407Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:03:11.012421377Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:04:10.750673758Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:04:10.750687618Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:04:10.750694818Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:04:10.750701468Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:04:10.761719496Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:04:10.761723766Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:05:10.788616063Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:05:10.788618463Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:05:10.788621063Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:05:10.788623633Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:05:10.794375403Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:05:10.794381573Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:06:10.840976785Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:06:10.840982055Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:06:10.861736854Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:06:10.861743394Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:06:11.155443037Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:06:11.155447927Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:07:11.275329068Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:07:11.275346058Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:07:11.275346788Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:07:11.275352778Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:07:11.275356638Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:07:11.275360917Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:08:11.001926938Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:08:11.001932248Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:08:11.001936177Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:08:11.001957327Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:08:11.001961287Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:08:11.001965477Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:09:11.022193780Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:09:11.022199540Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:09:11.022209450Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:09:11.022218539Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:09:11.022226809Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:09:11.022232549Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:10:11.246639429Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:10:11.246650989Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:10:11.246801766Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:10:11.246806386Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:10:11.246809986Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:10:11.246813846Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:11:11.014790904Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:11:11.014806673Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:11:11.014862042Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:11:11.014866282Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:11:11.014870662Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:11:11.014875092Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:12:11.039890336Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:12:11.039901436Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:12:11.039905676Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:12:11.039914686Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:12:11.138987335Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:12:11.138991874Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:13:11.163748005Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:13:11.163753575Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:13:11.163756105Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:13:11.163759055Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:13:11.163761435Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:13:11.163763865Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:14:10.914666786Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:14:10.914680856Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:14:10.914685476Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:14:10.914691786Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:14:11.052388135Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:14:11.052393425Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:15:11.089435086Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:15:11.089449186Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:15:11.089455396Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:15:11.089460996Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:15:11.099942612Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:15:11.099950062Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:16:11.329308506Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:16:11.329316156Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:16:11.329320566Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:16:11.329325296Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:16:11.329372155Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:16:11.329377345Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:17:11.203066340Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:17:11.203074849Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:17:11.203079769Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:17:11.203082879Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:17:11.203086289Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:17:11.203089509Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:18:11.217018947Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:18:11.217024767Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:18:11.217028917Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:18:11.217033097Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:18:11.217037097Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:18:11.217041637Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:19:11.353506715Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:19:11.353511595Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:19:11.353516445Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:19:11.353530355Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:19:11.353534635Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:19:11.353539095Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:20:11.166014444Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:20:11.166020713Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:20:11.166024653Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:20:11.166028863Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:20:11.226505732Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:20:11.226512902Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:21:11.239957078Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:21:11.239961998Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:21:11.239965388Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:21:11.239968598Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:21:11.246863499Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:21:11.246868769Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:22:11.563135842Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:22:11.563140342Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:22:11.563145092Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:22:11.563149632Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:22:11.563154262Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:22:11.563158681Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:23:11.363401573Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:23:11.363405653Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:23:11.363409723Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:23:11.363415143Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:23:11.363419053Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:23:11.363422483Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:24:11.425424435Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:24:11.425428464Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:24:11.425433084Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:24:11.425436544Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:24:11.425441514Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:24:11.425445454Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:25:11.734920121Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:25:11.734926280Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:25:11.734931760Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:25:11.734937860Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:25:11.734943540Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:25:11.734949400Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:26:12.040778995Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:26:12.040782295Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:26:12.040785685Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:26:12.040788985Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:26:12.040792415Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:26:12.040798395Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:27:11.906058781Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:27:11.906074011Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:27:11.906081960Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:27:11.906091440Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:27:11.906098090Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:27:11.906145499Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:28:11.923122682Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:28:11.923127662Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:28:11.923133002Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:28:11.923138092Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:28:11.923142532Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:28:11.923147362Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:29:11.736730616Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:29:11.736735386Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:29:11.736740076Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:29:11.736745056Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:29:11.736749365Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:29:11.736754055Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:30:11.193534530Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:30:11.193538190Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:30:11.759297462Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:30:11.759301002Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:30:11.759304781Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:30:11.759308631Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:31:11.421047352Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:31:11.421056252Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:31:11.421059192Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:31:11.421062222Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:31:11.532194647Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:31:11.532207757Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:32:11.544888260Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:32:11.544894199Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:32:11.544898669Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:32:11.544902209Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:32:11.670486584Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:32:11.670492764Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:33:11.856890905Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:33:11.856896415Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:33:11.856901605Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:33:11.856906605Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:33:11.856911465Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:33:11.856916265Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:34:11.601085820Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:34:11.601091860Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:34:11.601096750Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:34:11.601101249Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:34:11.658405118Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:34:11.658410728Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:35:11.703120514Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:35:11.703126344Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:35:11.703131564Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:35:11.703135433Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:35:11.703138513Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:35:11.703141673Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:36:11.813497032Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:36:11.813499752Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:36:11.813502322Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:36:11.813505182Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:36:11.813508142Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:36:11.813511042Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:37:11.612689447Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:37:11.612696037Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:37:11.612699517Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:37:11.612704807Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:37:11.692598502Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:37:11.692606892Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:38:11.720517845Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:38:11.720521155Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:38:11.720524445Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:38:11.720527395Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:38:11.720532904Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:38:11.720536024Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:39:12.048281686Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:39:12.048289185Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:39:12.048293825Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:39:12.048297775Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:39:12.048302515Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:39:12.048372953Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:40:11.709595085Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:40:11.709601625Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:40:11.709605355Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:40:11.709608404Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:40:11.804062676Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:40:11.804070626Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:41:11.827121398Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:41:11.827125087Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:41:11.827128267Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:41:11.827132557Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:41:11.840500003Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:41:11.840507933Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:42:12.057447281Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:42:12.057455781Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:42:12.057461921Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:42:12.057467020Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:42:12.057473120Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:42:12.057477810Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:43:11.838528338Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:43:11.838531688Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:43:11.838534848Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:43:11.838538618Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:43:11.863723015Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:43:11.863730205Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:44:11.879079605Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:44:11.879083075Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:44:11.879085925Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:44:11.879088605Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:44:12.079672678Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:44:12.079678368Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:45:12.355844141Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:45:12.355847591Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:45:12.355850981Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:45:12.355854260Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:45:12.355859460Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:45:12.355862550Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:46:12.817629679Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:46:12.817634379Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:46:12.817638509Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:46:12.817642989Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:46:12.817647409Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:46:12.817651499Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:47:13.049321515Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:47:13.049328385Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:47:13.049334884Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:47:13.049436242Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:47:13.049443252Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:47:13.049449452Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:48:12.830258691Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:48:12.830262521Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:48:12.830266151Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:48:12.830269111Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:48:12.830272091Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:48:12.830275031Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:49:12.850852011Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:49:12.850857350Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:49:12.850861210Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:49:12.850865100Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:49:12.850869860Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:49:12.850875320Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:50:13.184363387Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:50:13.184369257Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:50:13.184374507Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:50:13.184401087Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:50:13.184405676Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:50:13.184409806Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:51:13.461201150Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:51:13.461205670Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:51:13.461209350Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:51:13.461213490Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:51:13.461217780Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:51:13.461221309Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:52:13.170735886Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:52:13.170739266Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:52:13.170743046Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:52:13.170746936Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:52:13.170751656Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:52:13.170755826Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:53:13.218194834Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:53:13.218200213Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:53:13.218209323Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:53:13.218214313Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:53:13.218218843Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:53:13.218223563Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:54:13.549486859Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:54:13.549497949Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:54:13.549503529Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:54:13.549508398Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:54:13.549512328Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:54:13.549518878Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:55:13.336815808Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:55:13.336821388Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:55:13.336826698Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:55:13.336830588Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:55:13.336833598Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:55:13.336836978Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:56:13.344386396Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:56:13.344393596Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:56:13.344399756Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:56:13.344405466Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:56:13.344411036Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:56:13.344416476Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:57:13.052411550Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:57:13.052416530Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:57:13.052435789Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:57:13.052440109Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:57:13.052444459Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:57:13.052449179Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:58:13.092536901Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:58:13.092540491Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:58:13.092545291Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:58:13.092548441Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:58:13.092551640Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:58:13.092555360Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:59:12.812329355Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T11:59:12.812339395Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:59:12.812343175Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T11:59:12.812347324Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T11:59:12.812351314Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T11:59:12.812355584Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:00:13.018944611Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:00:13.018948731Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:00:13.018951951Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:00:13.018955371Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:00:13.018959181Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:00:13.018962891Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:01:12.571419602Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:01:12.571428102Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:01:12.571433342Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:01:12.571437742Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:01:12.571442202Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:01:12.571446022Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:02:12.578192752Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:02:12.578198122Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:02:12.578203842Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:02:12.578207702Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:02:12.599257204Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:02:12.599264734Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:03:12.876392495Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:03:12.876395875Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:03:12.876404795Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:03:12.876409875Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:03:12.876994783Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:03:12.877014033Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:04:12.985337194Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:04:12.985341634Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:04:12.985345464Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:04:12.985349934Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:04:12.985355364Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:04:12.985359554Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:05:12.827549413Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:05:12.827553003Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:05:12.827557913Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:05:12.827577162Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:05:12.827580372Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:05:12.827583892Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:06:12.849690673Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:06:12.849694513Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:06:12.849698973Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:06:12.849703343Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:06:12.849709022Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:06:12.849713222Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:07:13.050462820Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:07:13.050478250Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:07:13.050486260Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:07:13.050496909Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:07:13.050506259Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:07:13.050513090Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:08:13.195075822Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:08:13.195081112Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:08:13.195085882Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:08:13.195091482Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:08:13.195096992Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:08:13.195102492Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:09:13.068631563Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:09:13.068634563Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:09:13.068638573Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:09:13.068641903Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:09:13.068645333Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:09:13.068648753Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:10:13.073191305Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:10:13.073195075Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:10:13.073198945Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:10:13.073201515Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:10:13.073204335Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:10:13.073207175Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:11:12.802052681Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:11:12.802058890Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:11:12.802063050Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:11:12.802067420Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:11:12.802071290Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:11:12.802075630Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:12:12.893425759Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:12:12.893432279Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:12:12.893438528Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:12:12.893443938Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:12:12.893449448Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:12:12.893454328Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:13:12.654682503Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:13:12.654685613Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:13:12.654689973Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:13:12.654693133Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:13:12.785381887Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:13:12.785386937Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:14:12.814900577Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:14:12.814903757Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:14:12.814907377Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:14:12.814910467Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:14:12.814922237Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:14:12.814925276Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:15:13.049243001Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:15:13.049248421Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:15:13.049295290Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:15:13.049311500Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:15:13.049318900Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:15:13.049330590Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:16:12.886898512Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:16:12.886905162Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:16:12.886909422Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:16:12.886913431Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:16:12.886916811Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:16:12.886920381Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:17:12.915817974Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:17:12.915820764Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:17:12.915823304Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:17:12.915825894Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:17:12.915828274Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:17:12.915830914Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:18:13.171562956Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:18:13.171566136Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:18:13.171569916Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:18:13.171572726Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:18:13.171575626Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:18:13.171578416Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:19:13.601855855Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:19:13.601870645Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:19:13.601876195Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:19:13.601881725Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:19:13.601989633Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:19:13.601995942Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:20:13.956841324Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:20:13.956846814Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:20:13.956851734Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:20:13.956857074Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:20:13.956861744Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:20:13.956866234Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:21:14.407864746Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:21:14.407874926Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:21:14.407879216Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:21:14.407883316Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:21:14.407887026Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:21:14.407907595Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:22:14.137788141Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:22:14.137792091Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:22:14.137796511Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:22:14.137800421Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:22:14.137803900Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:22:14.137807160Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:22:54.198434926Z [inf]  GET /api/rewards/match/ffde1b4d-3e55-4d31-b605-cebcaacc22bd 304 in 7ms :: {"rew…
+2026-03-13T12:22:54.198450136Z [inf]  GET /api/matches/ffde1b4d-3e55-4d31-b605-cebcaacc22bd/standings 304 in 21ms :: …
+2026-03-13T12:22:54.198457025Z [err]  [LiveScorecard] API error for b8833e89-6997-4075-ad6a-426b9968e2ef: ERR: Scorecard b8833e89-6997-4075-ad6a-426b9968e2ef not found
+2026-03-13T12:22:54.198463085Z [inf]  GET /api/auth/me 200 in 27ms :: {"user":{"id":"166f6421-e1b0-4ded-adb0-c57e49a2…
+2026-03-13T12:22:54.198463825Z [inf]  GET /api/matches/ffde1b4d-3e55-4d31-b605-cebcaacc22bd/live-scorecard 200 in 512…
+2026-03-13T12:22:54.198477726Z [inf]  GET /api/matches/ffde1b4d-3e55-4d31-b605-cebcaacc22bd 200 in 15ms :: {"match":{…
+2026-03-13T12:22:54.198487436Z [inf]  GET /api/matches/ffde1b4d-3e55-4d31-b605-cebcaacc22bd/players 304 in 33ms :: {"…
+2026-03-13T12:22:54.198492726Z [inf]  GET /api/predictions/ffde1b4d-3e55-4d31-b605-cebcaacc22bd 304 in 59ms :: {"isRe…
+2026-03-13T12:22:54.198499166Z [inf]  GET /api/matches/ffde1b4d-3e55-4d31-b605-cebcaacc22bd/teams 200 in 71ms :: {"te…
+2026-03-13T12:22:54.198513475Z [inf]  GET /api/my-teams 200 in 10ms :: {"teams":[{"id":"13816315-9856-4434-b99e-79ea1…
+2026-03-13T12:23:14.211990443Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:23:14.211998683Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:23:14.212004412Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:23:14.212015582Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:23:14.212024602Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:23:14.212030082Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:24:14.472094096Z [err]  [ScorecardWithScore] API error for 73385a34-e46e-437c-8630-e262631df9d3: ERR: Scorecard 73385a34-e46e-437c-8630-e262631df9d3 not found
+2026-03-13T12:24:14.472100655Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:24:14.472104195Z [err]  [ScorecardWithScore] API error for 7cdf45df-7b85-4fc1-ab7f-49002116f415: ERR: Scorecard 7cdf45df-7b85-4fc1-ab7f-49002116f415 not found
+2026-03-13T12:24:14.472106675Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:24:14.472109415Z [err]  [ScorecardWithScore] API error for 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9: ERR: Scorecard 5180e72f-0a79-4c85-aca6-f7cba2d6d7b9 not found
+2026-03-13T12:24:14.472112295Z [inf]  [Heartbeat:Score] PKA vs ENGL: 0 players in scorecard, score="", ended=false, overs=0
+2026-03-13T12:24:44.530585036Z [inf]  GET /api/test 404 in 3ms
