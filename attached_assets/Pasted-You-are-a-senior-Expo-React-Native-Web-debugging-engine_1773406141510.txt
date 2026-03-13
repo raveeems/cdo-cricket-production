@@ -1,0 +1,199 @@
+You are a **senior Expo + React Native Web debugging engineer**.
+
+The fantasy sports application still shows a **blank screen on mobile browsers** even after fixing the splash animation issue. Desktop browsers render correctly.
+
+Your task is to **perform a deep render-chain diagnosis and fix the issue without breaking any functionality.**
+
+The project uses:
+
+* Expo
+* expo-router
+* React Native Web
+* `_layout.tsx`
+* `app/index.tsx`
+
+Do NOT guess fixes. Instead **trace exactly where rendering stops**.
+
+Follow the steps below.
+
+---
+
+STEP 1 — Verify React Mount
+
+Confirm React is actually mounting the root component.
+
+Check:
+
+index.html
+main entry (expo-router bootstrap)
+
+Temporarily add a visible fallback element before React mounts:
+
+Example diagnostic test:
+
+Render a red banner inside the root container saying:
+
+"React Root Loaded"
+
+If this banner does not appear on mobile, the issue is **before React initialization**.
+
+---
+
+STEP 2 — Trace Router Rendering
+
+In Expo Router, `_layout.tsx` must render `<Slot />`.
+
+Check the file:
+
+app/_layout.tsx
+
+Ensure it **always returns UI**.
+
+Look for patterns like:
+
+if (!fontsLoaded) return null
+if (!session) return null
+if (!isReady) return null
+
+These conditions can cause **permanent blank screens on mobile**.
+
+Replace unsafe logic with a fallback UI like:
+
+LoadingScreen
+
+The layout must **always render something**.
+
+---
+
+STEP 3 — Add Render Trace Logs
+
+Add console logs to verify which components render.
+
+Add logs in:
+
+app/_layout.tsx
+app/index.tsx
+main navigation screen
+
+Example:
+
+console.log("LAYOUT RENDERED")
+console.log("INDEX SCREEN RENDERED")
+
+Run the mobile browser and verify which logs appear.
+
+If logs stop before a certain component, that component is the crash point.
+
+---
+
+STEP 4 — Add Emergency Render Fallback
+
+Add a guaranteed fallback inside `_layout.tsx`:
+
+If routing fails or Slot does not load, render:
+
+"App Loading"
+
+This prevents a blank screen.
+
+---
+
+STEP 5 — Verify Web Height Rendering
+
+React Native Web sometimes collapses height on mobile.
+
+Check global styles.
+
+Ensure the root containers include:
+
+html, body, #root {
+height: 100%;
+min-height: 100vh;
+}
+
+Ensure the main app container does not rely on `100vh` alone.
+
+Prefer:
+
+minHeight: "100vh"
+
+---
+
+STEP 6 — Inspect Expo Router Navigation
+
+Confirm the app actually navigates from:
+
+app/index.tsx
+
+to the next screen.
+
+Add a forced navigation test:
+
+router.replace("/home")
+
+If navigation fails, fix the router configuration.
+
+---
+
+STEP 7 — Detect Silent React Errors
+
+Wrap the root with an additional debug error boundary that renders visible text when a component crashes.
+
+Example fallback:
+
+"Component crashed — see console"
+
+Mobile browsers sometimes suppress errors that desktop shows.
+
+---
+
+STEP 8 — Test Without Animations
+
+Temporarily disable:
+
+Reanimated
+Splash animations
+Gesture handlers
+
+Ensure basic rendering works first.
+
+---
+
+STEP 9 — Verify Mobile Safari Compatibility
+
+Check for unsupported APIs used in the code such as:
+
+window.crypto
+structuredClone
+ResizeObserver
+IntersectionObserver
+
+If any are used, provide safe fallbacks.
+
+---
+
+STEP 10 — Produce a Final Diagnosis Report
+
+After debugging, provide:
+
+1. Exact root cause of the mobile blank screen
+2. File where the render chain stopped
+3. Code changes made
+4. Why desktop worked but mobile failed
+5. Confirmation that gameplay logic and scoring remain untouched
+
+---
+
+IMPORTANT
+
+Do NOT modify:
+
+Fantasy scoring engine
+Team selection logic
+Admin workflow
+Contest logic
+Impact player rules
+
+Only fix the rendering issue.
+
+Begin by tracing rendering from `_layout.tsx` and identifying where the mobile render chain stops.
