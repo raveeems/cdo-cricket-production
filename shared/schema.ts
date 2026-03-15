@@ -66,6 +66,9 @@ export const matches = pgTable("matches", {
   officialWinner: varchar("official_winner", { length: 10 }),
   isVoid: boolean("is_void").notNull().default(false),
   impactFeaturesEnabled: boolean("impact_features_enabled").notNull().default(false),
+  revisedStartTime: timestamp("revised_start_time"),
+  adminUnlockOverride: boolean("admin_unlock_override").notNull().default(false),
+  firstScorecardAt: timestamp("first_scorecard_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -1,0 +1,261 @@
+Task: Implement admin-only delayed match controls with integrity protection for fantasy contest locking.
+
+Context:
+We have a private fantasy cricket app with admin match controls. The current default behavior should remain unchanged:
+- matches auto-lock 1 minute before start time
+- the official API match start time must NOT be overwritten
+- live score and scorecard continue to come from the external cricket API
+
+We now need a robust admin-only delay override system for cricket matches that may start late due to rain, toss delay, technical issues, etc.
+
+==================================================
+CORE REQUIREMENT
+==================================================
+
+Keep the existing default rule:
+- app locks 1 minute before match start time
+
+But add a separate admin-controlled revised fantasy start time that overrides only the app locking/deadline logic.
+
+Important:
+- Do NOT edit or overwrite the external API match start time
+- Keep API time as official source metadata
+- Use a separate revised fantasy start time for contest lock control
+
+Example:
+- API start time = 7:30 PM
+- app auto-locks at 7:29 PM
+- if match is delayed, admin can unlock the match and set revised fantasy start time = 8:30 PM
+- app should then lock at 8:29 PM
+- if delayed again, admin can revise it to 9:30 PM
+- app should then lock at 9:29 PM
+
+==================================================
+BACKEND DATA MODEL
+==================================================
+
+Add the following fields to the match model / database if not already present:
+
+1. api_start_time
+- existing API-derived match start time
+- must remain unchanged by admin actions
+
+2. revised_start_time (nullable)
+- admin-entered revised fantasy start time
+- used only for app lock / deadline control
+
+3. admin_unlock_override (boolean, default false)
+- whether admin has manually reopened the match
+
+4. first_scorecard_at (nullable timestamp)
+- set only once when the first valid scorecard data is received from API
+- never overwrite after first set
+
+==================================================
+EFFECTIVE START TIME + LOCK RULE
+==================================================
+
+Use this logic:
+
+effective_start_time = revised_start_time ?? api_start_time
+
+effective_lock_time = effective_start_time - 1 minute
+
+Default behavior:
+- if no revised_start_time exists, app behaves exactly as today
+- if revised_start_time exists, locking logic must follow revised_start_time instead of api_start_time
+
+==================================================
+ADMIN UI CHANGES
+==================================================
+
+In the admin Match Controls row, add two new icons next to the calculator icon:
+
+1. Lock icon
+- admin-only
+- used to manually lock/unlock the match
+
+2. Clock icon
+- admin-only
+- opens a modal/input to enter revised fantasy start time
+
+Suggested order in UI:
+- impact toggle
+- calculator (recalculate)
+- lock/unlock icon
+- clock icon
+- void icon
+
+Also display clearly in admin view if possible:
+- API start time
+- revised fantasy start time (if set)
+- effective lock time currently being used
+- unlock blocked reason if blocked by integrity rule
+
+==================================================
+LOCK / UNLOCK BEHAVIOR
+==================================================
+
+Admin should be able to manually unlock a locked match ONLY if integrity rule allows it.
+
+Unlock action:
+- set admin_unlock_override = true
+- set locked = false
+
+Manual lock action:
+- admin can lock the match immediately if needed
+
+Important:
+- admin unlock must only affect fantasy contest availability and team editing
+- it must NOT modify API match metadata
+- once revised_start_time is set, the app should automatically re-lock 1 minute before revised_start_time
+
+==================================================
+CLOCK ICON / REVISED START TIME BEHAVIOR
+==================================================
+
+Clock icon opens a modal or date-time input.
+
+Admin can:
+- set revised_start_time
+- update revised_start_time multiple times if delays continue
+- for example 7:30 -> 8:30 -> 9:30
+
+Rules:
+- do NOT overwrite api_start_time
+- revised_start_time only controls fantasy lock/deadline
+- sync from external API must continue normally for official match metadata and scores
+- external API sync must NOT erase revised_start_time
+
+==================================================
+INTEGRITY PROTECTION RULE
+==================================================
+
+This is critical.
+
+If the match has already meaningfully started, admin should not be able to reopen the contest unfairly.
+
+Implement this rule:
+
+Admin cannot unlock the match after 5 minutes from the first valid scorecard data received from the API.
+
+This means:
+- if first_scorecard_at is null -> unlock is allowed
+- if now < first_scorecard_at + 5 minutes -> unlock is allowed
+- if now >= first_scorecard_at + 5 minutes -> unlock is blocked permanently
+
+Important:
+Do NOT set first_scorecard_at for weak or empty scorecard responses.
+
+Set first_scorecard_at only when scorecard clearly proves the match has started, such as when any of the following are true:
+- overs > 0
+- runs > 0
+- wickets > 0
+- batting entries exist
+- bowling entries exist
+- innings object is populated with real play data
+
+Once first_scorecard_at is set:
+- never overwrite it
+- use it as permanent integrity cutoff reference
+
+==================================================
+REVISED START TIME EDIT RESTRICTION
+==================================================
+
+Apply the same integrity rule to revised start time edits.
+
+Meaning:
+- admin may set or change revised_start_time before first_scorecard_at + 5 minutes
+- after 5 minutes from first valid scorecard data, admin cannot change revised_start_time anymore
+
+This protects contest fairness once play is genuinely underway.
+
+==================================================
+ADMIN MESSAGES / UX
+==================================================
+
+If unlock is blocked, show a clear admin error message such as:
+- "Unlock disabled: valid scorecard data started more than 5 minutes ago."
+
+If revised start time edit is blocked, show:
+- "Start time override disabled: match has already started for integrity protection."
+
+If allowed, show current state clearly.
+
+==================================================
+AUTO-LOCK BEHAVIOR
+==================================================
+
+Locking engine should use this logic:
+
+effective_start_time = revised_start_time ?? api_start_time
+effective_lock_time = effective_start_time - 1 minute
+
+Rules:
+- if now >= effective_lock_time, match should lock automatically
+- if admin_unlock_override = true and now < effective_lock_time, match can remain open
+- once effective_lock_time passes, lock again automatically
+- if revised_start_time is changed to a later time before the integrity cutoff, effective_lock_time should update accordingly
+
+==================================================
+SYNC + LIVE DATA BEHAVIOR
+==================================================
+
+Keep normal API sync behavior for:
+- live score
+- scorecard
+- match metadata
+
+But:
+- never overwrite revised_start_time with API data
+- never overwrite first_scorecard_at after first set
+
+==================================================
+SECURITY
+==================================================
+
+This feature is admin-only.
+Normal users must never be able to:
+- unlock matches
+- set revised start time
+- change lock state
+- bypass integrity protection
+
+==================================================
+EXPECTED RESULT
+==================================================
+
+Final behavior should be:
+
+1. Default app behavior remains unchanged:
+- auto-lock 1 minute before official start time
+
+2. If there is a match delay:
+- admin can unlock the match
+- admin can set revised fantasy start time
+- app re-locks automatically 1 minute before revised fantasy start time
+
+3. If scorecard data proves the match has started:
+- admin still has a 5-minute grace window
+
+4. After 5 minutes from first valid scorecard data:
+- admin cannot unlock
+- admin cannot revise start time
+- integrity is protected
+
+5. API official start time remains unchanged throughout
+
+Please implement this end-to-end:
+- DB/model changes
+- backend logic
+- admin endpoints
+- UI icons and modal/input
+- validation and admin messages
+
+After implementation, also summarize:
+- files changed
+- endpoints added/updated
+- DB fields added
+- exact unlock eligibility logic
+- exact effective lock-time logic

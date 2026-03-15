@@ -36,6 +36,9 @@ export interface Match {
   impactFeaturesEnabled?: boolean;
   officialWinner?: string | null;
   isVoid?: boolean;
+  revisedStartTime?: string | null;
+  adminUnlockOverride?: boolean;
+  firstScorecardAt?: string | null;
 }
 
 export interface ContestTeam {
@@ -249,10 +252,13 @@ export function isMatchVisible(startTime: string): boolean {
   return diff > 0 && diff <= 48 * 60 * 60 * 1000;
 }
 
-export function canEditTeam(startTime: string, status?: string): boolean {
+export function canEditTeam(startTime: string, status?: string, revisedStartTime?: string | null, adminUnlockOverride?: boolean): boolean {
   if (status === 'live' || status === 'completed') return false;
-  const diff = new Date(startTime).getTime() - Date.now();
-  return diff > 1000;
+  const effectiveStart = revisedStartTime ?? startTime;
+  const lockMs = new Date(effectiveStart).getTime() - 1000;
+  const nowMs = Date.now();
+  if (adminUnlockOverride === true && nowMs < lockMs) return true;
+  return nowMs < lockMs;
 }
 
 export function getRoleColor(role: string, isDark: boolean): string {

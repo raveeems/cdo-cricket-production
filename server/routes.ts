@@ -37,6 +37,24 @@ function verifyAuthToken(token: string): string | null {
   return userId;
 }
 
+function getEffectiveLockMs(match: { startTime: Date | string; revisedStartTime?: Date | string | null }): number {
+  const effectiveStart = match.revisedStartTime ?? match.startTime;
+  return new Date(effectiveStart).getTime() - 1000;
+}
+
+function checkUnlockEligibility(match: { firstScorecardAt?: Date | string | null }): { allowed: boolean; reason?: string } {
+  if (!match.firstScorecardAt) return { allowed: true };
+  const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 60_000;
+  if (Date.now() < cutoff) return { allowed: true };
+  return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 5 minutes" };
+}
+
+function isEntryOpen(match: { startTime: Date | string; revisedStartTime?: Date | string | null; adminUnlockOverride?: boolean | null }, nowMs: number): boolean {
+  const lockMs = getEffectiveLockMs(match);
+  if (match.adminUnlockOverride === true && nowMs < lockMs) return true;
+  return nowMs < lockMs;
+}
+
 function isAuthenticated(req: Request, res: Response, next: Function) {
   if (req.session.userId) {
     return next();
@@ -1033,8 +1051,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const now = new Date();
-        const matchStart = new Date(match.startTime);
-        if (now.getTime() >= matchStart.getTime() - 1000) {
+        if (!isEntryOpen(match, now.getTime())) {
           return res
             .status(400)
             .json({ message: "Entry deadline has passed" });
@@ -1230,8 +1247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "Match not found" });
         }
         const now = new Date();
-        const matchStart = new Date(match.startTime);
-        if (now.getTime() >= matchStart.getTime() - 1000) {
+        if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
         }
         if (match.status === "live" || match.status === "completed") {
@@ -1384,12 +1400,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const match = await storage.getMatch(team.matchId);
         if (match) {
           const now = new Date();
-          const matchStart = new Date(match.startTime);
-          const isDelayed = match.status === "delayed";
           if (match.status === "live" || match.status === "completed") {
             return res.status(400).json({ message: "Cannot delete team after match has started" });
           }
-          if (!isDelayed && now.getTime() >= matchStart.getTime() - 1000) {
+          if (!isEntryOpen(match, now.getTime())) {
             return res.status(400).json({ message: "Cannot delete team after deadline has passed" });
           }
         }
@@ -1417,8 +1431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "Match not found" });
         }
         const now = new Date();
-        const matchStart = new Date(match.startTime);
-        if (now.getTime() >= matchStart.getTime() - 1000) {
+        if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Prediction deadline has passed" });
         }
         if (match.status === "live" || match.status === "completed") {
@@ -3098,6 +3111,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
           metadata: JSON.stringify({ isVoid }),
         });
         return res.json({ message: isVoid ? "Match voided, all points zeroed" : "Match un-voided" });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/matches/:id/admin-unlock",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const { unlock } = req.body;
+        if (typeof unlock !== "boolean") {
+          return res.status(400).json({ message: "unlock (boolean) required" });
+        }
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (unlock) {
+          const eligibility = checkUnlockEligibility(match as any);
+          if (!eligibility.allowed) {
+            return res.status(409).json({ message: eligibility.reason });
+          }
+        }
+        await storage.updateMatch(matchId, { adminUnlockOverride: unlock } as any);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId!,
+          actionType: unlock ? "admin_unlock_match" : "admin_lock_match",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ unlock }),
+        });
+        return res.json({ message: unlock ? "Match entry window unlocked" : "Match entry window locked" });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/matches/:id/revised-start-time",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const { revisedStartTime } = req.body;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (revisedStartTime !== null && revisedStartTime !== undefined) {
+          const eligibility = checkUnlockEligibility(match as any);
+          if (!eligibility.allowed) {
+            return res.status(409).json({ message: eligibility.reason });
+          }
+          const parsed = new Date(revisedStartTime);
+          if (isNaN(parsed.getTime())) {
+            return res.status(400).json({ message: "Invalid date format" });
+          }
+          await storage.updateMatch(matchId, { revisedStartTime: parsed } as any);
+          await storage.createAuditLog({
+            adminUserId: req.session.userId!,
+            actionType: "set_revised_start_time",
+            entityType: "match",
+            entityId: matchId,
+            matchId,
+            metadata: JSON.stringify({ revisedStartTime: parsed.toISOString() }),
+          });
+          return res.json({ message: `Revised start time set to ${parsed.toISOString()}` });
+        } else {
+          await storage.updateMatch(matchId, { revisedStartTime: null } as any);
+          await storage.createAuditLog({
+            adminUserId: req.session.userId!,
+            actionType: "clear_revised_start_time",
+            entityType: "match",
+            entityId: matchId,
+            matchId,
+            metadata: JSON.stringify({ cleared: true }),
+          });
+          return res.json({ message: "Revised start time cleared" });
+        }
       } catch (err: any) {
         return res.status(500).json({ message: err.message });
       }

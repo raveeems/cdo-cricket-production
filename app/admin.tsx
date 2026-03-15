@@ -43,6 +43,9 @@ interface MatchInfo {
   impactFeaturesEnabled?: boolean;
   isVoid?: boolean;
   officialWinner?: string | null;
+  adminUnlockOverride?: boolean;
+  revisedStartTime?: string | null;
+  firstScorecardAt?: string | null;
 }
 
 interface PlayerInfo {
@@ -127,6 +130,12 @@ export default function AdminScreen() {
   const [editTimeInput, setEditTimeInput] = useState('');
   const [editTimeSaving, setEditTimeSaving] = useState(false);
   const [editTimeResult, setEditTimeResult] = useState('');
+
+  const [revisedTimeMatchId, setRevisedTimeMatchId] = useState<string | null>(null);
+  const [revisedTimeInput, setRevisedTimeInput] = useState('');
+  const [revisedTimeSaving, setRevisedTimeSaving] = useState(false);
+  const [revisedTimeResult, setRevisedTimeResult] = useState('');
+  const [lockTogglingId, setLockTogglingId] = useState<string | null>(null);
 
   const [playerStatusExpandedId, setPlayerStatusExpandedId] = useState<string | null>(null);
   const [playerStatusData, setPlayerStatusData] = useState<Record<string, { players: any[]; statuses: Map<string, any> }>>({});
@@ -385,6 +394,74 @@ export default function AdminScreen() {
       console.error('Edit time failed:', e);
     } finally {
       setEditTimeSaving(false);
+    }
+  };
+
+  const toggleAdminUnlock = async (matchId: string, unlock: boolean) => {
+    setLockTogglingId(matchId);
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${matchId}/admin-unlock`, { unlock });
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('Cannot unlock', data.message || 'Unknown error');
+      } else {
+        await loadMatches();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to toggle lock');
+    } finally {
+      setLockTogglingId(null);
+    }
+  };
+
+  const openRevisedTime = (m: MatchInfo) => {
+    const d = m.revisedStartTime ? new Date(m.revisedStartTime) : new Date(m.startTime);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    setRevisedTimeInput(local);
+    setRevisedTimeResult('');
+    setRevisedTimeMatchId(m.id);
+  };
+
+  const saveRevisedTime = async () => {
+    if (!revisedTimeMatchId || !revisedTimeInput) return;
+    const parsed = new Date(revisedTimeInput);
+    if (isNaN(parsed.getTime())) {
+      setRevisedTimeResult('Invalid date/time format');
+      return;
+    }
+    setRevisedTimeSaving(true);
+    setRevisedTimeResult('');
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${revisedTimeMatchId}/revised-start-time`, { revisedStartTime: parsed.toISOString() });
+      const data = await res.json();
+      if (!res.ok) {
+        setRevisedTimeResult(data.message || 'Failed');
+      } else {
+        await loadMatches();
+        setRevisedTimeResult('Revised time saved');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => setRevisedTimeMatchId(null), 800);
+      }
+    } catch (e) {
+      setRevisedTimeResult('Failed to save revised time');
+    } finally {
+      setRevisedTimeSaving(false);
+    }
+  };
+
+  const clearRevisedTime = async (matchId: string) => {
+    setRevisedTimeSaving(true);
+    try {
+      await apiRequest('POST', `/api/admin/matches/${matchId}/revised-start-time`, { revisedStartTime: null });
+      await loadMatches();
+      setRevisedTimeResult('Revised time cleared');
+      setTimeout(() => setRevisedTimeMatchId(null), 600);
+    } catch (e) {
+      setRevisedTimeResult('Failed to clear');
+    } finally {
+      setRevisedTimeSaving(false);
     }
   };
 
@@ -1094,7 +1171,10 @@ export default function AdminScreen() {
                       {m.team1Short} vs {m.team2Short} {m.isVoid ? '(VOID)' : ''}
                     </Text>
                     <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
-                      {m.status} | {new Date(m.startTime).toLocaleDateString()}
+                      {m.status} | {m.revisedStartTime
+                        ? <Text style={{ color: '#F59E0B' }}>⏰ {new Date(m.revisedStartTime).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</Text>
+                        : new Date(m.startTime).toLocaleDateString()
+                      }
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -1114,6 +1194,22 @@ export default function AdminScreen() {
                         {impactTogglingId === m.id ? '...' : m.impactFeaturesEnabled ? '⚡ ON' : '⚡ OFF'}
                       </Text>
                     </Pressable>
+                    {m.status !== 'completed' && (
+                      <Pressable
+                        onPress={() => toggleAdminUnlock(m.id, !m.adminUnlockOverride)}
+                        disabled={lockTogglingId === m.id}
+                        style={{ padding: 6 }}
+                      >
+                        {lockTogglingId === m.id
+                          ? <ActivityIndicator size="small" color={colors.textTertiary} />
+                          : <Ionicons
+                              name={m.adminUnlockOverride ? 'lock-open-outline' : 'lock-closed-outline'}
+                              size={16}
+                              color={m.adminUnlockOverride ? '#10B981' : colors.textTertiary}
+                            />
+                        }
+                      </Pressable>
+                    )}
                     <Pressable
                       onPress={() => recalculateMatch(m.id)}
                       disabled={recalculating}
@@ -1129,6 +1225,16 @@ export default function AdminScreen() {
                         <Ionicons name="time-outline" size={16} color={colors.accent} />
                       </Pressable>
                     )}
+                    <Pressable
+                      onPress={() => openRevisedTime(m)}
+                      style={{ padding: 6 }}
+                    >
+                      <Ionicons
+                        name="alarm-outline"
+                        size={16}
+                        color={m.revisedStartTime ? '#F59E0B' : colors.textTertiary}
+                      />
+                    </Pressable>
                     {!m.isVoid && (
                       <Pressable
                         onPress={() => voidMatch(m.id)}
@@ -2400,6 +2506,118 @@ export default function AdminScreen() {
                 {editTimeSaving
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>Save</Text>
+                }
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Revised Start Time Modal */}
+      <Modal
+        visible={revisedTimeMatchId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRevisedTimeMatchId(null)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setRevisedTimeMatchId(null)}
+        >
+          <Pressable
+            style={{
+              width: 320,
+              backgroundColor: colors.card,
+              borderRadius: 20,
+              padding: 24,
+              borderWidth: 1,
+              borderColor: '#F59E0B40',
+            }}
+            onPress={() => {}}
+          >
+            <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18, marginBottom: 4 }}>
+              Delay / Revised Time
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 16 }}>
+              Sets a new entry-deadline for this match without changing the official start time.{'\n'}Format: YYYY-MM-DDTHH:mm
+            </Text>
+            <TextInput
+              value={revisedTimeInput}
+              onChangeText={setRevisedTimeInput}
+              placeholder="2025-04-15T21:00"
+              placeholderTextColor={colors.textTertiary}
+              style={{
+                height: 46,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#F59E0B80',
+                backgroundColor: colors.background,
+                color: colors.text,
+                fontFamily: 'Inter_500Medium',
+                fontSize: 15,
+                paddingHorizontal: 14,
+                marginBottom: 8,
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {revisedTimeResult !== '' && (
+              <Text style={{
+                color: revisedTimeResult.includes('saved') || revisedTimeResult.includes('cleared') ? colors.success : colors.error,
+                fontFamily: 'Inter_500Medium',
+                fontSize: 13,
+                marginBottom: 8,
+              }}>
+                {revisedTimeResult}
+              </Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              <Pressable
+                onPress={() => revisedTimeMatchId && clearRevisedTime(revisedTimeMatchId)}
+                disabled={revisedTimeSaving}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.error + '60',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  opacity: revisedTimeSaving ? 0.5 : 1,
+                }}
+              >
+                <Text style={{ color: colors.error, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Clear</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setRevisedTimeMatchId(null)}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={saveRevisedTime}
+                disabled={revisedTimeSaving}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: '#F59E0B',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  opacity: revisedTimeSaving ? 0.6 : 1,
+                }}
+              >
+                {revisedTimeSaving
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Save</Text>
                 }
               </Pressable>
             </View>

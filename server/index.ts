@@ -952,8 +952,12 @@ function setupErrorHandler(app: express.Application) {
           const startMs = match.startTime
             ? new Date(match.startTime).getTime()
             : 0;
+          const revisedMs = (match as any).revisedStartTime
+            ? new Date((match as any).revisedStartTime).getTime()
+            : 0;
+          const effectiveStartMs = revisedMs > 0 ? revisedMs : startMs;
           const isStarted =
-            startMs > 0 && now > startMs && match.status !== "completed";
+            effectiveStartMs > 0 && now > effectiveStartMs && match.status !== "completed";
           const isLive = match.status === "live" || match.status === "delayed";
 
           if (isStarted && !isLive) {
@@ -1052,6 +1056,15 @@ function setupErrorHandler(app: express.Application) {
                   `[Heartbeat] Reward distribution failed for ${matchLabel}:`,
                   rewardErr,
                 );
+              }
+            }
+
+            if (pointsMap.size > 0 && !(match as any).firstScorecardAt) {
+              try {
+                await storage.updateMatch(match.id, { firstScorecardAt: new Date() } as any);
+                log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
+              } catch (fse) {
+                console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
               }
             }
 
