@@ -22,6 +22,12 @@ pool.on("error", (err) => {
   console.error("[DB] Unexpected pool error:", err.message);
 });
 
+pool.on("connect", (client) => {
+  client.query("SET statement_timeout = 5000").catch((err) => {
+    console.error("[DB] Failed to set statement_timeout:", err.message);
+  });
+});
+
 export let dbConnected = false;
 
 export async function connectWithRetry(

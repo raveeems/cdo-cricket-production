@@ -1,0 +1,125 @@
+We are running a production fantasy cricket app using PostgreSQL hosted on Railway. The backend is crashing with the error:
+
+connect ETIMEDOUT
+
+This indicates unstable database connection handling. I need you to implement production-grade PostgreSQL connection management.
+
+Do NOT modify game logic, fantasy scoring, or UI. Only stabilize backend infrastructure.
+
+1. Implement PostgreSQL Connection Pool
+
+Use the official pg pool instead of direct client connections.
+
+Required pool configuration:
+
+max: 10
+idleTimeoutMillis: 30000
+connectionTimeoutMillis: 2000
+
+Example structure:
+
+create pool
+export pool
+use pool across all queries
+
+Ensure the pool is singleton so only one pool exists across the server.
+
+2. Add Database Connection Retry on Startup
+
+When the server starts:
+
+Attempt PostgreSQL connection
+
+If it fails, retry up to 10 times
+
+Wait 3 seconds between attempts
+
+Log each retry
+
+Only start the API server after a successful DB connection.
+
+Example flow:
+
+start server
+try connect DB
+retry if failed
+start API only after success
+3. Prevent Server Crash on DB Failure
+
+If the database becomes temporarily unavailable:
+
+The server must not crash
+
+API endpoints should return safe responses
+
+Example response:
+
+{
+  error: "Database temporarily unavailable"
+}
+
+Add try/catch blocks around all database queries.
+
+4. Add a Health Check Endpoint
+
+Create endpoint:
+
+/health
+
+Response when healthy:
+
+{
+ server: "running",
+ database: "connected"
+}
+
+Response if DB fails:
+
+{
+ server: "running",
+ database: "disconnected"
+}
+5. Ensure DATABASE_URL Is Used Everywhere
+
+Verify the backend always reads the database connection string from:
+
+process.env.DATABASE_URL
+
+No hardcoded host, port, or IP addresses should exist anywhere in the codebase.
+
+6. Add Database Query Timeout Protection
+
+Add query timeout protection so slow queries do not freeze the server.
+
+Recommended:
+
+statement_timeout = 5000
+7. Improve Logging
+
+Add logs for:
+
+DB connection attempt
+DB connection success
+DB retry attempt
+DB query failure
+
+Example log output:
+
+Connecting to PostgreSQL...
+Retry 1/10
+Retry 2/10
+Connected successfully
+Server started
+8. Verify Production Stability
+
+After implementing:
+
+Restart backend
+
+Restart database
+
+Deploy again
+
+Test API endpoints
+
+Ensure the backend never crashes if PostgreSQL briefly disconnects.

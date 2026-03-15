@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-import { db, dbConnected } from "./db";
+import { db } from "./db";
 import { userTeams, players as playersTable, users, matches as matchesTable, matchPlayerStatus as mpsTable } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { fetchUpcomingMatches, fetchSeriesMatches, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
@@ -79,6 +79,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
+  });
+
+  sessionPool.on("error", (err) => {
+    console.error("[DB:session] Unexpected pool error:", err.message);
+  });
+
+  sessionPool.on("connect", (client) => {
+    client.query("SET statement_timeout = 5000").catch((err) => {
+      console.error("[DB:session] Failed to set statement_timeout:", err.message);
+    });
   });
 
   app.use(
