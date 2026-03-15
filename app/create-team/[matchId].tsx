@@ -117,7 +117,7 @@ function PlayerItem({
           {player.credits} Cr  |  {player.points != null ? player.points : 0} pts
         </Text>
         <View style={styles.formRow}>
-          {player.recentForm.slice(0, 3).map((v, i) => (
+          {(player.recentForm || []).slice(0, 3).map((v, i) => (
             <View
               key={i}
               style={[

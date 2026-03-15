@@ -100,7 +100,7 @@ export default function MatchDetailScreen() {
   const [copiedToast, setCopiedToast] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: matchData, isLoading: matchLoading, refetch: refetchMatch } = useQuery<{ match: Match }>({
+  const { data: matchData, isLoading: matchLoading, isError: matchError, refetch: refetchMatch } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
     enabled: !!id,
     retry: 1,
@@ -232,10 +232,21 @@ export default function MatchDetailScreen() {
     );
   }
 
-  if (!match) {
+  if (matchError || !match) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: colors.text, fontFamily: 'Inter_500Medium' }}>Match not found</Text>
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', gap: 12 }]}>
+        <Ionicons name="cloud-offline-outline" size={40} color={matchError ? colors.error : colors.textTertiary} />
+        <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 16 }}>
+          {matchError ? 'Connection error' : 'Match not found'}
+        </Text>
+        {matchError && (
+          <Pressable
+            onPress={() => refetchMatch()}
+            style={{ backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}
+          >
+            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Retry</Text>
+          </Pressable>
+        )}
       </View>
     );
   }
@@ -482,9 +493,9 @@ export default function MatchDetailScreen() {
           )}
 
           {predictionsData.isRevealed ? (
-            predictionsData.predictions.length > 0 ? (
+            (predictionsData.predictions || []).length > 0 ? (
               <View style={styles.predictionsList}>
-                {predictionsData.predictions.map((pred) => {
+                {(predictionsData.predictions || []).map((pred) => {
                   const displayName = pred.teamName || pred.username;
                   const isCurrentUser = pred.userId === user?.id;
                   return (
@@ -1028,7 +1039,7 @@ export default function MatchDetailScreen() {
                       </View>
                     )}
                     {predictionsData?.isRevealed && (() => {
-                      const userPred = predictionsData.predictions.find(p => p.userId === entry.userId);
+                      const userPred = (predictionsData.predictions || []).find(p => p.userId === entry.userId);
                       if (!userPred) return null;
                       const isTeam1 = userPred.predictedWinner === match?.team1Short;
                       return (

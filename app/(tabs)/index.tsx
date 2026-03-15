@@ -174,7 +174,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data, isLoading } = useQuery<{ matches: MatchWithParticipants[] }>({
+  const { data, isLoading, isError, refetch } = useQuery<{ matches: MatchWithParticipants[] }>({
     queryKey: ['/api/matches'],
     refetchInterval: (query) => {
       const matches = query.state.data?.matches || [];
@@ -268,6 +268,22 @@ export default function HomeScreen() {
           {isLoading ? (
             <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
               <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : isError ? (
+            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+              <Ionicons name="cloud-offline-outline" size={48} color={colors.error} />
+              <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
+                Connection error
+              </Text>
+              <Text style={[styles.emptyDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Could not load matches
+              </Text>
+              <Pressable
+                onPress={() => refetch()}
+                style={{ marginTop: 12, backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}
+              >
+                <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Retry</Text>
+              </Pressable>
             </View>
           ) : visibleMatches.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>

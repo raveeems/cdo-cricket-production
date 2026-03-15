@@ -1,0 +1,170 @@
+I need you to perform a full stability hardening of my fantasy cricket app. The app frequently crashes or shows a blank screen whenever updates are made. This must be permanently fixed before any further feature development.
+
+Do NOT modify existing game logic, scoring logic, Impact Player system, or database schema. Only improve stability, rendering safety, and update reliability.
+
+Perform the following steps:
+
+1. Global Error Boundary
+
+Wrap the entire app with a robust React Error Boundary so that if any component crashes, the app never shows a blank screen.
+
+Instead show a fallback UI with:
+
+“Something went wrong”
+
+Retry button
+
+Console error logging
+
+Example structure:
+
+App
+→ ErrorBoundary
+→ Router
+→ Screens
+
+The fallback UI must work on both mobile browsers and desktop browsers.
+
+2. Safe Rendering Guards
+
+Audit the entire codebase and ensure no UI renders data without validation.
+
+Replace unsafe code patterns like:
+
+players.map(...)
+
+with safe guards:
+
+Array.isArray(players) && players.map(...)
+
+or
+
+(players ?? []).map(...)
+
+Do this for:
+
+players
+matches
+teams
+leaderboards
+scorecards
+fantasy points
+
+This must be applied across the entire codebase.
+
+3. Prevent Blank Screens
+
+Search for any cases of:
+
+return null
+
+during loading states.
+
+Replace them with a visible UI:
+
+Loading spinner
+Retry button
+Error message if API fails
+
+The app must NEVER render a blank screen again.
+
+4. API Failure Protection
+
+Wrap all API calls with try/catch.
+
+If API fails:
+
+Show fallback UI
+Do NOT crash the render tree.
+
+Example:
+
+try
+fetch data
+
+catch
+show retry button
+
+5. Splash Screen Fix (Permanent)
+
+Ensure splash screen navigation does not depend on animation callbacks.
+
+Specifically avoid:
+
+runOnJS navigation triggers.
+
+Instead use:
+
+Platform.OS === 'web' immediate navigation
+Fallback timeout safety
+
+Ensure splash screen cannot block navigation.
+
+6. Cache Busting System
+
+Implement automatic cache busting for new builds.
+
+Add versioned JS bundles or build hash so browsers always fetch the latest build after updates.
+
+Clear any stale service workers or cached builds.
+
+7. Mobile Browser Compatibility Audit
+
+Test rendering on:
+
+Mobile Safari
+Android Chrome
+Desktop Chrome
+
+Ensure:
+
+viewport meta tag correct
+-webkit-fill-available used properly
+no fixed height containers blocking render
+
+8. Defensive Routing
+
+Ensure every route has fallback handling.
+
+If route params fail or data not found:
+
+Show safe screen instead of crashing.
+
+Example:
+
+Match not found
+Data loading
+Retry
+
+9. Logging System
+
+Add structured console logging for:
+
+API failures
+Render failures
+Data parsing errors
+
+This helps debugging future issues.
+
+10. Final Validation
+
+After implementing fixes:
+
+Test:
+
+Home page load
+Match list load
+Create team screen
+Scorecard screen
+Leaderboard screen
+Admin panel
+
+Ensure none of these can crash even if API returns bad data.
+
+Important requirement:
+
+The app must never show a blank screen again.
+All failures must show a fallback UI instead of crashing.
+
+Focus only on stability and resilience.
+Do not modify gameplay logic or existing scoring systems.
