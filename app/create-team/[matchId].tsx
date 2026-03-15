@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   Modal,
   Animated,
+  Image,
 } from 'react-native';
+import { getTeamLogo } from '@/utils/teamLogo';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -894,22 +896,31 @@ export default function CreateTeamScreen() {
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.splitHeader}>
-                <View style={[styles.splitHeaderCol, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_700Bold' as const }} numberOfLines={1}>
-                    {match.team1Short}
-                  </Text>
-                  <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>
-                    {allPlayers.filter(p => (p.teamShort || p.team) === match.team1Short).length} players
-                  </Text>
-                </View>
-                <View style={[styles.splitHeaderCol, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_700Bold' as const }} numberOfLines={1}>
-                    {match.team2Short}
-                  </Text>
-                  <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>
-                    {allPlayers.filter(p => (p.teamShort || p.team) === match.team2Short).length} players
-                  </Text>
-                </View>
+                {([
+                  { teamShort: match.team1Short, color: match.team1Color },
+                  { teamShort: match.team2Short, color: match.team2Color },
+                ] as const).map(({ teamShort, color }) => {
+                  const logo = getTeamLogo(teamShort);
+                  return (
+                    <View key={teamShort} style={[styles.splitHeaderCol, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {logo ? (
+                          <Image source={logo} style={{ width: 20, height: 20 }} resizeMode="contain" />
+                        ) : (
+                          <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: color, justifyContent: 'center', alignItems: 'center' }}>
+                            <Text style={{ color: '#FFF', fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>{teamShort[0]}</Text>
+                          </View>
+                        )}
+                        <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_700Bold' as const }} numberOfLines={1}>
+                          {teamShort}
+                        </Text>
+                      </View>
+                      <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>
+                        {allPlayers.filter(p => (p.teamShort || p.team) === teamShort).length} players
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
               <View style={styles.splitContainer}>
                 {([

@@ -8,7 +8,9 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
+import { getTeamLogo } from '@/utils/teamLogo';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1396,11 +1398,15 @@ export default function MatchDetailScreen() {
 
           <View style={styles.heroTeams}>
             <View style={styles.heroTeamInfo}>
-              <View style={[styles.heroTeamCircle, { backgroundColor: match.team1Color }]}>
-                <Text style={[styles.heroTeamInitial, { fontFamily: 'Inter_700Bold' }]}>
-                  {match.team1Short[0]}
-                </Text>
-              </View>
+              {getTeamLogo(match.team1Short) ? (
+                <Image source={getTeamLogo(match.team1Short)!} style={styles.heroTeamLogo} resizeMode="contain" />
+              ) : (
+                <View style={[styles.heroTeamCircle, { backgroundColor: match.team1Color }]}>
+                  <Text style={[styles.heroTeamInitial, { fontFamily: 'Inter_700Bold' }]}>
+                    {match.team1Short[0]}
+                  </Text>
+                </View>
+              )}
               <Text style={[styles.heroTeamShort, { fontFamily: 'Inter_700Bold' }]}>
                 {match.team1Short}
               </Text>
@@ -1480,11 +1486,15 @@ export default function MatchDetailScreen() {
             </View>
 
             <View style={[styles.heroTeamInfo, { alignItems: 'flex-end' }]}>
-              <View style={[styles.heroTeamCircle, { backgroundColor: match.team2Color }]}>
-                <Text style={[styles.heroTeamInitial, { fontFamily: 'Inter_700Bold' }]}>
-                  {match.team2Short[0]}
-                </Text>
-              </View>
+              {getTeamLogo(match.team2Short) ? (
+                <Image source={getTeamLogo(match.team2Short)!} style={styles.heroTeamLogo} resizeMode="contain" />
+              ) : (
+                <View style={[styles.heroTeamCircle, { backgroundColor: match.team2Color }]}>
+                  <Text style={[styles.heroTeamInitial, { fontFamily: 'Inter_700Bold' }]}>
+                    {match.team2Short[0]}
+                  </Text>
+                </View>
+              )}
               <Text style={[styles.heroTeamShort, { fontFamily: 'Inter_700Bold' }]}>
                 {match.team2Short}
               </Text>
@@ -1696,6 +1706,10 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  heroTeamLogo: {
+    width: 56,
+    height: 56,
   },
   heroTeamInitial: {
     fontSize: 24,

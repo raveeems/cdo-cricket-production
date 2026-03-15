@@ -8,7 +8,10 @@ import {
   Platform,
   RefreshControl,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import { getTeamLogo } from '@/utils/teamLogo';
+import { getMatchBanter } from '@/utils/getMatchBanter';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -30,6 +33,9 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
   const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(match.startTime, match.status));
   const matchStarted = new Date(match.startTime).getTime() <= Date.now();
   const effectiveStatus = (match.status === 'delayed' || match.status === 'upcoming') && matchStarted ? 'live' : match.status;
+  const logo1 = getTeamLogo(match.team1Short);
+  const logo2 = getTeamLogo(match.team2Short);
+  const [banter] = useState<string | null>(() => getMatchBanter(match.team1Short, match.team2Short));
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -92,11 +98,15 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
 
       <View style={styles.compactTeams}>
         <View style={styles.compactTeamSide}>
-          <View style={[styles.compactCircle, { backgroundColor: match.team1Color }]}>
-            <Text style={[styles.compactInitial, { fontFamily: 'Inter_700Bold' }]}>
-              {match.team1Short[0]}
-            </Text>
-          </View>
+          {logo1 ? (
+            <Image source={logo1} style={styles.teamLogo} resizeMode="contain" />
+          ) : (
+            <View style={[styles.compactCircle, { backgroundColor: match.team1Color }]}>
+              <Text style={[styles.compactInitial, { fontFamily: 'Inter_700Bold' }]}>
+                {match.team1Short[0]}
+              </Text>
+            </View>
+          )}
           <Text style={[styles.compactShort, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             {match.team1Short}
           </Text>
@@ -129,16 +139,26 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
         })()}
 
         <View style={[styles.compactTeamSide, { alignItems: 'flex-end' as const }]}>
-          <View style={[styles.compactCircle, { backgroundColor: match.team2Color }]}>
-            <Text style={[styles.compactInitial, { fontFamily: 'Inter_700Bold' }]}>
-              {match.team2Short[0]}
-            </Text>
-          </View>
+          {logo2 ? (
+            <Image source={logo2} style={styles.teamLogo} resizeMode="contain" />
+          ) : (
+            <View style={[styles.compactCircle, { backgroundColor: match.team2Color }]}>
+              <Text style={[styles.compactInitial, { fontFamily: 'Inter_700Bold' }]}>
+                {match.team2Short[0]}
+              </Text>
+            </View>
+          )}
           <Text style={[styles.compactShort, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             {match.team2Short}
           </Text>
         </View>
       </View>
+
+      {banter ? (
+        <Text style={[styles.banterText, { color: colors.textTertiary }]} numberOfLines={1}>
+          {banter}
+        </Text>
+      ) : null}
 
       <View style={[styles.compactBottom, { borderTopColor: colors.border }]}>
         {participants > 0 && (
@@ -434,6 +454,17 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  teamLogo: {
+    width: 36,
+    height: 36,
+  },
+  banterText: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 4,
+    fontFamily: 'Inter_400Regular',
   },
   compactInitial: {
     fontSize: 15,

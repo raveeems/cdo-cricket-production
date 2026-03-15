@@ -1,0 +1,233 @@
+You are working on an existing fantasy cricket application built with React Native + Expo frontend and Node/Express backend with PostgreSQL.
+
+IMPORTANT:
+This task is **purely a UI/UX enhancement**.
+DO NOT modify any backend logic, APIs, scoring engine, database schema, or match logic.
+DO NOT change existing API calls or queries.
+This must NOT break any working functionality.
+
+Goal:
+Add an **IPL festival themed UI** using team logos and rotating banter lines to make the app feel lively during IPL matches.
+
+---
+
+ASSETS ALREADY PROVIDED
+
+Logos folder:
+
+assets/ipl/logos/
+
+Files inside:
+
+csk.png
+rcb.png
+mi.png
+kkr.png
+srh.png
+gt.png
+pbks.png
+rr.png
+dc.png
+lsg.png
+
+Banter file:
+
+assets/ipl/banter/teamBanter.ts
+
+Export:
+
+export const teamBanter = {
+CSK: [...],
+RCB: [...],
+MI: [...],
+KKR: [...],
+SRH: [...],
+GT: [...],
+PBKS: [...],
+RR: [...],
+DC: [...],
+LSG: [...]
+}
+
+---
+
+FEATURE REQUIREMENTS
+
+1. TEAM LOGO SYSTEM
+
+Create a reusable helper:
+
+utils/teamLogo.ts
+
+Function:
+
+getTeamLogo(teamShortCode: string)
+
+It should return the correct image path:
+
+Example:
+
+CSK → require('../assets/ipl/logos/csk.png')
+RCB → require('../assets/ipl/logos/rcb.png')
+
+Fallback: if code not found, return null.
+
+---
+
+2. MATCH CARD UPGRADE (HOME PAGE)
+
+On the home screen where matches are listed:
+
+Current format:
+
+CSK vs RCB
+
+Update it to:
+
+[CSK LOGO]  CSK vs RCB  [RCB LOGO]
+
+Design rules:
+
+* logos size: 28px
+* horizontally aligned
+* keep current match card layout intact
+* do NOT modify match loading logic
+
+---
+
+3. ROTATING TEAM BANTER
+
+Import:
+
+teamBanter from assets/ipl/banter/teamBanter.ts
+
+Create utility:
+
+utils/getMatchBanter.ts
+
+Logic:
+
+* read banter lines for team1Short and team2Short
+* combine both arrays
+* randomly pick one line
+* return string
+
+Example output:
+
+"Whistle Podu 🔥"
+"King Kohli show!"
+"Pant dei!!"
+
+---
+
+4. DISPLAY BANTER ON MATCH CARDS
+
+Below the match title:
+
+Example layout:
+
+[CSK LOGO]  CSK vs RCB  [RCB LOGO]
+
+"Whistle Podu 🔥"
+
+Design:
+
+* italic text
+* slightly smaller font
+* color: grey or accent
+
+Ensure banter updates each time the screen reloads.
+
+---
+
+5. TEAM LOGOS IN MATCH PAGE
+
+Inside the match detail page:
+
+Add logos beside team names.
+
+Example:
+
+[RCB LOGO] Royal Challengers Bengaluru
+vs
+[MI LOGO] Mumbai Indians
+
+Logo size:
+
+32px
+
+---
+
+6. TEAM LOGOS IN CREATE TEAM SCREEN
+
+When users select players:
+
+Show team logo near the team header.
+
+Example:
+
+[CSK LOGO] Chennai Super Kings Players
+
+Do NOT change player selection logic.
+
+---
+
+7. PERFORMANCE SAFETY
+
+Logos must be loaded locally (not from internet).
+
+Use static require() so Expo bundles images.
+
+No dynamic imports that can break build.
+
+---
+
+8. SAFE GUARDS
+
+If teamShortCode does not match any IPL team:
+
+* do not render logo
+* do not render banter
+
+This keeps non-IPL tournaments safe.
+
+---
+
+9. DO NOT MODIFY
+
+DO NOT modify:
+
+* backend routes
+* database queries
+* scoring engine
+* match player API
+* impact picks logic
+* captain/VC logic
+* create-team selection logic
+* WK/BAT/AR/BOWL tabs
+
+UI enhancements only.
+
+---
+
+10. FINAL VERIFICATION
+
+Ensure the following still works exactly as before:
+
+* home screen match loading
+* create team screen
+* player selection
+* impact picks
+* match detail page
+* scoring system
+* admin panel
+
+If any UI error occurs, fail gracefully (do not crash).
+
+---
+
+After implementation provide a short summary of:
+
+* files created
+* files modified
+* confirmation that backend logic remains unchanged.
