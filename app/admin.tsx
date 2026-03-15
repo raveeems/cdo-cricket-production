@@ -626,6 +626,9 @@ export default function AdminScreen() {
         if (m.status === 'upcoming') {
           return new Date(m.startTime).getTime() <= now + ms7d;
         }
+        if (m.status === 'completed') {
+          return new Date(m.startTime).getTime() >= now - ms7d;
+        }
         return false;
       });
       setMatches(relevant);
