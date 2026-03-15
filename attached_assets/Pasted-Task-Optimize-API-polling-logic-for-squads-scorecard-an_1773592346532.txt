@@ -1,0 +1,113 @@
+Task: Optimize API polling logic for squads, scorecard, and live score to reduce unnecessary Cricket API calls.
+
+Context:
+We are running a private fantasy cricket app using Node.js + Express backend with a Cricket API. The API has a strict daily limit of 12,000 requests, so we must minimize unnecessary polling.
+
+We need to implement smarter polling rules based on match state and time to match start.
+
+---
+
+GLOBAL RULES
+
+1. Do NOT poll any cricket API for matches that:
+
+* Have status = "completed"
+* Have no users joined AND were not manually activated by admin
+
+2. Only poll matches that are:
+
+* LIVE
+* Starting within 48 hours
+* Manually activated by admin
+
+---
+
+SQUAD FETCHING LOGIC
+
+Squad availability from the API is inconsistent. Sometimes squads appear only 10–12 hours before the match.
+
+Polling should follow this staged logic.
+
+STEP 1 — More than 48 hours before match
+
+If time_to_match > 48 hours:
+
+Do NOT call squad API.
+
+---
+
+STEP 2 — Between 48 hours and 60 minutes before match
+
+If 48h > time_to_match > 60 minutes:
+
+Poll squad API every 20 minutes.
+
+---
+
+STEP 3 — Final 60 minutes before match
+
+If 60 minutes > time_to_match > match start:
+
+Poll squad API every 5 minutes.
+
+---
+
+STEP 4 — Stop polling
+
+Once squad is successfully fetched (players >= 22 or squad exists):
+
+Stop squad polling for that match permanently.
+
+Also stop squad polling once match becomes LIVE.
+
+---
+
+LIVE MATCH DATA POLLING
+
+For matches that are LIVE:
+
+Score Tab Endpoint:
+GET /api/matches/:id/live-score
+
+Polling interval:
+Every 45 seconds.
+
+Scorecard Endpoint:
+GET /api/matches/:id/live-scorecard
+
+Polling interval:
+Every 60 seconds.
+
+Both endpoints must use a server-side cache to avoid duplicate external API calls when multiple users request data.
+
+Cache TTL:
+45 seconds.
+
+If cache exists and is fresh:
+Return cached data.
+
+If cache expired:
+Fetch from cricket API, update cache, return response.
+
+---
+
+INACTIVE MATCHES
+
+Matches should NOT poll any cricket API if:
+
+* No users joined the match
+* Admin has not manually activated the match
+
+---
+
+EXPECTED RESULT
+
+The system should:
+
+• Avoid polling for unused matches
+• Poll squads intelligently as match approaches
+• Stop squad polling once squad is available
+• Cache live score and scorecard responses
+• Support multiple users without multiplying API calls
+
+This should dramatically reduce unnecessary API usage while still keeping match data updated in near real time.

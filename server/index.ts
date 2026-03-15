@@ -450,6 +450,12 @@ function setupErrorHandler(app: express.Application) {
     let heartbeatSyncing = false;
     let heartbeatLockTime = 0;
 
+    // Squad fetch timing: track last attempt per matchId so we respect intervals
+    const lastSquadFetchAttempt = new Map<string, number>();
+    const SQUAD_POLL_FAR   = 20 * 60 * 1000; // every 20 min when 48h > time_to_start > 60 min
+    const SQUAD_POLL_CLOSE =  5 * 60 * 1000; // every 5 min in final 60 min before start
+    const SQUAD_MIN_PLAYERS = 22;             // stop fetching once we have a full squad
+
     function fuzzyNameMatch(name1: string, name2: string): boolean {
       if (name1 === name2) return true;
       if (name1.includes(name2) || name2.includes(name1)) return true;
@@ -985,6 +991,16 @@ function setupErrorHandler(app: express.Application) {
 
           const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
 
+          // Skip live-score API calls if no users have joined this match
+          // (forcedMatchId = admin-triggered run — always poll regardless)
+          if (!forcedMatchId) {
+            const joinedTeams = await storage.getAllTeamsForMatch(match.id);
+            if (joinedTeams.length === 0) {
+              log(`[Heartbeat] SKIP ${matchLabel} — 0 users joined, no API calls needed`);
+              continue;
+            }
+          }
+
           try {
             const {
               pointsMap,
@@ -1075,23 +1091,39 @@ function setupErrorHandler(app: express.Application) {
           }
         }
 
-        // Auto-fetch squads ONLY for matches with 0 players (saves API quota)
+        // Time-based squad fetching for upcoming matches
+        // Stages: >48h → skip | 48h–60min → every 20min | <60min → every 5min
+        // Permanently stop once players >= SQUAD_MIN_PLAYERS or match is live
         try {
           const { fetchMatchSquad, fetchSeriesSquad } = await import("./cricket-api");
-          const activeMatches = allMatches.filter(
-            (m) => m.externalId && (m.status === "upcoming" || m.status === "delayed" || m.status === "live")
+          const squadCandidates = allMatches.filter(
+            (m) => m.externalId && m.status === "upcoming" && m.startTime
           );
-          // Check player counts and only fetch where 0 — cap at 3 per heartbeat cycle to avoid quota burn
-          let fetchedThisCycle = 0;
-          for (const match of activeMatches) {
-            if (fetchedThisCycle >= 3) break;
-            const existingPlayers = await storage.getPlayersForMatch(match.id);
-            if (existingPlayers.length > 0) continue; // already have squad, skip
 
-            fetchedThisCycle++;
+          for (const match of squadCandidates) {
+            const startMs = new Date(match.startTime!).getTime();
+            const minsToStart = (startMs - now) / 60_000;
+
+            // >48h away: too early, don't poll
+            if (minsToStart > 48 * 60) continue;
+
+            // Already have a full squad: done permanently
+            const existingPlayers = await storage.getPlayersForMatch(match.id);
+            if (existingPlayers.length >= SQUAD_MIN_PLAYERS) continue;
+
+            // Determine the polling interval for this window
+            const pollInterval = minsToStart > 60 ? SQUAD_POLL_FAR : SQUAD_POLL_CLOSE;
+            const lastAttempt = lastSquadFetchAttempt.get(match.id) ?? 0;
+            if (now - lastAttempt < pollInterval) continue; // not due yet
+
+            lastSquadFetchAttempt.set(match.id, now);
+            const label = `${match.team1Short} vs ${match.team2Short}`;
+            const windowTag = minsToStart > 60 ? "48h–60min window" : "final 60min window";
+            log(`[Heartbeat:Squad] Fetching squad for ${label} (${Math.round(minsToStart)}min to start, ${windowTag})`);
+
             try {
               let squad = await fetchMatchSquad(match.externalId!);
-              let source = "match_squad";
+              let squadSource = "match_squad";
 
               if (squad.length === 0 && match.seriesId) {
                 const seriesPlayers = await fetchSeriesSquad(match.seriesId);
@@ -1109,7 +1141,7 @@ function setupErrorHandler(app: express.Application) {
                     pShort === t1s || pShort === t2s
                   );
                 });
-                source = "series_squad";
+                squadSource = "series_squad";
               }
 
               if (squad.length > 0) {
@@ -1125,12 +1157,12 @@ function setupErrorHandler(app: express.Application) {
                     credits: p.credits,
                   }))
                 );
-                log(`[Heartbeat] Auto-loaded ${squad.length} players for ${match.team1Short} vs ${match.team2Short} (${source})`);
+                log(`[Heartbeat:Squad] Loaded ${squad.length} players for ${label} via ${squadSource}`);
               } else {
-                log(`[Heartbeat] No squad yet for ${match.team1Short} vs ${match.team2Short} — will retry`);
+                log(`[Heartbeat:Squad] No squad yet for ${label} — will retry in ${minsToStart > 60 ? "20min" : "5min"}`);
               }
             } catch (squadErr) {
-              // Silent fail — will retry next heartbeat
+              // Silent fail — will retry at next interval
             }
           }
         } catch (squadErr) {
