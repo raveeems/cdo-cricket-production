@@ -1427,7 +1427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (isIPL(m.team1 + " " + m.team2, m.league)) return false;
           if (m.status === "completed") return false;
           const t = new Date(m.startTime).getTime();
-          return t >= now - 3600000 && t <= now + ms7d;
+          return t >= now - 86400000 && t <= now + ms7d; // 24hr lookback so live matches can still be added
         });
         return res.json({ matches: filtered });
       } catch (err: any) {
@@ -1568,10 +1568,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const matchId = req.params.id;
       const match = await storage.getMatch(matchId);
       if (!match) return res.status(404).json({ message: "Match not found" });
+      if (!match.externalId) return res.status(400).json({ message: "This match has no external API ID — squad cannot be fetched automatically." });
 
       try {
         const { fetchMatchSquad, fetchSeriesSquad } = await import("./cricket-api");
-        let squad = await fetchMatchSquad(match.externalId!);
+        let squad = await fetchMatchSquad(match.externalId);
         let source = "CricAPI (match_squad)";
         console.log(`[Fetch Squad] Tier 1 match_squad returned ${squad.length} players for ${match.team1Short} vs ${match.team2Short}`);
 
@@ -2177,8 +2178,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const startMs = new Date(m.startTime).getTime();
           return (now - startMs) <= THIRTY_SIX_HOURS;
         });
-        const matchStatuses = filteredMatches.map(m => {
+        const matchStatusesRaw = await Promise.all(filteredMatches.map(async m => {
           const startMs = new Date(m.startTime).getTime();
+          const players = await storage.getPlayersForMatch(m.id);
           return {
             id: m.id,
             teams: `${m.team1Short} vs ${m.team2Short}`,
@@ -2189,9 +2191,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hasExternalId: !!m.externalId,
             isLocked: now >= startMs,
             minutesUntilStart: Math.round((startMs - now) / 60000),
+            playerCount: players.length,
+            impactFeaturesEnabled: m.impactFeaturesEnabled,
           };
-        });
-        return res.json({ matches: matchStatuses, serverTime: new Date().toISOString() });
+        }));
+        return res.json({ matches: matchStatusesRaw, serverTime: new Date().toISOString() });
       } catch (err: any) {
         return res.status(500).json({ message: err.message });
       }

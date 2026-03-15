@@ -1730,37 +1730,61 @@ export default function AdminScreen() {
                       <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
                         locked: {m.isLocked ? 'YES' : 'NO'} | ext_id: {m.hasExternalId ? 'YES' : 'NO'} | start: {m.minutesUntilStart}min
                       </Text>
+                      <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 11, marginTop: 2 }, { color: m.playerCount > 0 ? colors.success : '#EF4444' }]}>
+                        Players: {m.playerCount ?? 0} {m.playerCount > 0 ? '✓' : '— squad not loaded'}
+                      </Text>
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                        <Pressable
-                          onPress={async () => {
-                            setForceSyncing(true);
-                            setForceSyncResult('');
-                            try {
-                              if (m.status === 'upcoming' || m.status === 'delayed') {
+                        {m.hasExternalId && (
+                          <Pressable
+                            onPress={async () => {
+                              setForceSyncing(true);
+                              setForceSyncResult('');
+                              try {
                                 const res = await apiRequest('POST', `/api/admin/matches/${m.id}/fetch-squad`);
                                 const data = await res.json();
                                 setForceSyncResult(data.message || 'Done');
                                 if (Platform.OS !== 'web') Haptics.notificationAsync(data.totalPlayers > 0 ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning);
-                              } else {
+                                loadMatchDebug();
+                              } catch (e: any) {
+                                setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
+                              } finally {
+                                setForceSyncing(false);
+                              }
+                            }}
+                            disabled={forceSyncing}
+                            style={[styles.debugBtn, { backgroundColor: colors.primary + '15' }]}
+                          >
+                            <Ionicons name="download" size={14} color={colors.primary} />
+                            <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                              Fetch Squad
+                            </Text>
+                          </Pressable>
+                        )}
+                        {(m.status === 'live' || m.status === 'delayed') && (
+                          <Pressable
+                            onPress={async () => {
+                              setForceSyncing(true);
+                              setForceSyncResult('');
+                              try {
                                 const res = await apiRequest('POST', '/api/debug/force-sync', { matchId: m.id });
                                 const data = await res.json();
                                 setForceSyncResult(data.message || 'Sync complete');
+                                loadMatchDebug();
+                              } catch (e: any) {
+                                setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
+                              } finally {
+                                setForceSyncing(false);
                               }
-                              loadMatchDebug();
-                            } catch (e: any) {
-                              setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
-                            } finally {
-                              setForceSyncing(false);
-                            }
-                          }}
-                          disabled={forceSyncing}
-                          style={[styles.debugBtn, { backgroundColor: m.status === 'upcoming' ? colors.primary + '15' : colors.warning + '15' }]}
-                        >
-                          <Ionicons name={m.status === 'upcoming' ? 'download' : 'flash'} size={14} color={m.status === 'upcoming' ? colors.primary : colors.warning} />
-                          <Text style={[{ color: m.status === 'upcoming' ? colors.primary : colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                            {m.status === 'upcoming' ? 'Fetch Squad from API' : 'Force Sync'}
-                          </Text>
-                        </Pressable>
+                            }}
+                            disabled={forceSyncing}
+                            style={[styles.debugBtn, { backgroundColor: colors.warning + '15' }]}
+                          >
+                            <Ionicons name="flash" size={14} color={colors.warning} />
+                            <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                              Force Sync
+                            </Text>
+                          </Pressable>
+                        )}
                         {(m.status === 'live' || m.status === 'delayed') && (
                           <Pressable
                             onPress={async () => {
