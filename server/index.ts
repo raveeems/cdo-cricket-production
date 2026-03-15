@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { syncMatchesFromApi } from "./cricket-api";
 import { storage } from "./storage";
-import { connectWithRetry } from "./db";
+import { connectWithRetry, markServerReady } from "./db";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -315,10 +315,28 @@ const DB_ERROR_CODES = new Set([
   "ECONNREFUSED",
   "ENOTFOUND",
   "ECONNRESET",
-  "57P01",
-  "08006",
-  "08001",
+  "57P01",  // admin_shutdown
+  "57014",  // query_canceled (statement_timeout fired)
+  "08006",  // connection_failure
+  "08001",  // sqlclient_unable_to_establish_sqlconnection
 ]);
+
+function setupRequestTimeout(app: express.Application) {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith("/api")) return next();
+
+    const timer = setTimeout(() => {
+      if (!res.headersSent) {
+        console.error(`[TIMEOUT] ${req.method} ${req.path} exceeded 6000ms`);
+        res.status(504).json({ error: "Request timed out. Please try again." });
+      }
+    }, 6000);
+
+    res.on("finish", () => clearTimeout(timer));
+    res.on("close", () => clearTimeout(timer));
+    next();
+  });
+}
 
 function isDbError(err: unknown): boolean {
   const e = err as any;
@@ -367,6 +385,7 @@ function setupErrorHandler(app: express.Application) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
+  setupRequestTimeout(app);
 
   const server = await registerRoutes(app);
 
@@ -395,6 +414,7 @@ function setupErrorHandler(app: express.Application) {
   const port = Number(process.env.PORT) || 3000;
 
   server.listen(port, "0.0.0.0", () => {
+    markServerReady();
     log(`express server serving on port ${port}`);
 
     const ADMIN_PHONES = ["9840872462", "9884334973", "7406020777"];

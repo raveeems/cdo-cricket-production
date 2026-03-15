@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-import { db } from "./db";
+import { db, dbConnected, serverReady } from "./db";
 import { userTeams, players as playersTable, users, matches as matchesTable, matchPlayerStatus as mpsTable } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { fetchUpcomingMatches, fetchSeriesMatches, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
@@ -125,6 +125,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(dbStatus === "connected" ? 200 : 503).json({
       server: "running",
       database: dbStatus,
+    });
+  });
+
+  app.get("/ready", async (_req: Request, res: Response) => {
+    const checks = {
+      database: false,
+      api: serverReady,
+      routes: true,
+    };
+
+    try {
+      const client = await sessionPool.connect();
+      await client.query("SELECT 1");
+      client.release();
+      checks.database = true;
+    } catch {
+      checks.database = false;
+    }
+
+    const allReady = checks.database && checks.api && checks.routes;
+    res.status(allReady ? 200 : 503).json({
+      ready: allReady,
+      checks,
     });
   });
 

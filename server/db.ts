@@ -29,6 +29,11 @@ pool.on("connect", (client) => {
 });
 
 export let dbConnected = false;
+export let serverReady = false;
+
+export function markServerReady(): void {
+  serverReady = true;
+}
 
 export async function connectWithRetry(
   maxAttempts = 10,
