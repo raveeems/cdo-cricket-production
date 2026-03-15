@@ -224,7 +224,7 @@ export default function AdminScreen() {
   const importApiMatch = async (m: any) => {
     setImportingExternalId(m.externalId);
     try {
-      await apiRequest('POST', '/api/admin/import-api-match', {
+      const res = await apiRequest('POST', '/api/admin/import-api-match', {
         externalId: m.externalId,
         seriesId: m.seriesId,
         team1: m.team1,
@@ -926,7 +926,7 @@ export default function AdminScreen() {
                 colors={[colors.primary, '#1a3a8f']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.syncBtnInner}
+                style={styles.syncBtnGradient}
               >
                 {browsingApiMatches
                   ? <ActivityIndicator size="small" color="#fff" />
