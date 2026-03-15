@@ -49,9 +49,15 @@ function checkUnlockEligibility(match: { firstScorecardAt?: Date | string | null
   return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 5 minutes" };
 }
 
-function isEntryOpen(match: { startTime: Date | string; revisedStartTime?: Date | string | null; adminUnlockOverride?: boolean | null }, nowMs: number): boolean {
+function isEntryOpen(match: { startTime: Date | string; revisedStartTime?: Date | string | null; adminUnlockOverride?: boolean | null; firstScorecardAt?: Date | string | null }, nowMs: number): boolean {
   const lockMs = getEffectiveLockMs(match);
-  if (match.adminUnlockOverride === true && nowMs < lockMs) return true;
+  if (match.adminUnlockOverride === true && nowMs < lockMs) {
+    if (match.firstScorecardAt) {
+      const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 60_000;
+      if (nowMs >= cutoff) return false;
+    }
+    return true;
+  }
   return nowMs < lockMs;
 }
 
