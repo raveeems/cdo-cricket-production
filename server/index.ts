@@ -934,6 +934,12 @@ function setupErrorHandler(app: express.Application) {
         const allMatches = await storage.getAllMatches();
         const now = Date.now();
 
+        const liveMatches = allMatches.filter(
+          (m) => m.status === "live" || m.status === "delayed" ||
+            (m.startTime && new Date(m.startTime).getTime() < now && m.status !== "completed")
+        );
+        log(`[Heartbeat] polling ${liveMatches.length} active matches (${allMatches.length} total in DB)`);
+
         for (const match of allMatches) {
           if (forcedMatchId && match.id !== forcedMatchId) continue;
 
