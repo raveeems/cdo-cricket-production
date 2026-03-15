@@ -128,6 +128,12 @@ export default function AdminScreen() {
   const [editTimeSaving, setEditTimeSaving] = useState(false);
   const [editTimeResult, setEditTimeResult] = useState('');
 
+  const [playerStatusExpandedId, setPlayerStatusExpandedId] = useState<string | null>(null);
+  const [playerStatusData, setPlayerStatusData] = useState<Record<string, { players: any[]; statuses: Map<string, any> }>>({});
+  const [loadingPlayerStatus, setLoadingPlayerStatus] = useState<string | null>(null);
+  const [updatingPlayerId, setUpdatingPlayerId] = useState<string | null>(null);
+  const [settingWinnerId, setSettingWinnerId] = useState<string | null>(null);
+
   const [apiMatchesBrowse, setApiMatchesBrowse] = useState<any[]>([]);
   const [browsingApiMatches, setBrowsingApiMatches] = useState(false);
   const [browseError, setBrowseError] = useState('');
@@ -249,6 +255,104 @@ export default function AdminScreen() {
       Alert.alert('Error', e.message || 'Failed to import match');
     } finally {
       setImportingExternalId(null);
+    }
+  };
+
+  const promptSetWinner = (m: MatchInfo) => {
+    const options: any[] = [
+      { text: m.team1Short, onPress: () => callSetWinner(m.id, m.team1Short) },
+      { text: m.team2Short, onPress: () => callSetWinner(m.id, m.team2Short) },
+    ];
+    if (m.officialWinner) {
+      options.push({ text: 'Clear Winner', style: 'destructive', onPress: () => callSetWinner(m.id, null) });
+    }
+    options.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Set Official Winner', `${m.team1Short} vs ${m.team2Short}${m.officialWinner ? `\nCurrent: ${m.officialWinner}` : ''}`, options);
+  };
+
+  const callSetWinner = async (matchId: string, winner: string | null) => {
+    setSettingWinnerId(matchId);
+    try {
+      await apiRequest('POST', `/api/admin/matches/${matchId}/set-winner`, { winner });
+      setMatches(prev => prev.map(m => m.id === matchId ? { ...m, officialWinner: winner } : m));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to set winner');
+    } finally {
+      setSettingWinnerId(null);
+    }
+  };
+
+  const togglePlayerStatusExpand = async (matchId: string) => {
+    if (playerStatusExpandedId === matchId) {
+      setPlayerStatusExpandedId(null);
+      return;
+    }
+    setPlayerStatusExpandedId(matchId);
+    if (!playerStatusData[matchId]) {
+      await refreshPlayerStatusData(matchId);
+    }
+  };
+
+  const refreshPlayerStatusData = async (matchId: string) => {
+    setLoadingPlayerStatus(matchId);
+    try {
+      const [pRes, sRes] = await Promise.all([
+        apiRequest('GET', `/api/matches/${matchId}/players`),
+        apiRequest('GET', `/api/matches/${matchId}/player-statuses`),
+      ]);
+      const pData = await pRes.json();
+      const sData = await sRes.json();
+      const statusMap = new Map<string, any>((sData.statuses || []).map((s: any) => [s.playerId, s]));
+      setPlayerStatusData(prev => ({ ...prev, [matchId]: { players: pData.players || [], statuses: statusMap } }));
+    } catch (e) {
+      console.error('Failed to load player status data', e);
+    } finally {
+      setLoadingPlayerStatus(null);
+    }
+  };
+
+  const STATUS_CYCLE: Record<string, string> = { playing_xi: 'not_active', not_active: 'impact_sub', impact_sub: 'playing_xi' };
+  const STATUS_COLORS: Record<string, string> = { playing_xi: '#22C55E', not_active: '#EF4444', impact_sub: '#F59E0B' };
+  const STATUS_LABELS: Record<string, string> = { playing_xi: 'XI', not_active: 'OUT', impact_sub: 'SUB' };
+
+  const cyclePlayerStatus = async (matchId: string, playerId: string, currentStatus: string | undefined) => {
+    const next = currentStatus ? (STATUS_CYCLE[currentStatus] || 'playing_xi') : 'playing_xi';
+    setUpdatingPlayerId(playerId);
+    try {
+      await apiRequest('POST', `/api/admin/matches/${matchId}/player-status`, { playerId, adminStatus: next });
+      setPlayerStatusData(prev => {
+        const d = prev[matchId];
+        if (!d) return prev;
+        const newMap = new Map(d.statuses);
+        const existing = newMap.get(playerId) || { playerId, officialImpactSubUsed: false };
+        newMap.set(playerId, { ...existing, adminStatus: next });
+        return { ...prev, [matchId]: { ...d, statuses: newMap } };
+      });
+    } catch (e) {
+      Alert.alert('Error', 'Failed to update player status');
+    } finally {
+      setUpdatingPlayerId(null);
+    }
+  };
+
+  const toggleImpactSub = async (matchId: string, playerId: string, currentValue: boolean) => {
+    setUpdatingPlayerId(playerId);
+    try {
+      await apiRequest('POST', `/api/admin/matches/${matchId}/player-status`, { playerId, officialImpactSubUsed: !currentValue });
+      setPlayerStatusData(prev => {
+        const d = prev[matchId];
+        if (!d) return prev;
+        const newMap = new Map(d.statuses);
+        const existing = newMap.get(playerId) || { playerId, adminStatus: 'impact_sub' };
+        newMap.set(playerId, { ...existing, officialImpactSubUsed: !currentValue });
+        return { ...prev, [matchId]: { ...d, statuses: newMap } };
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to toggle impact sub');
+    } finally {
+      setUpdatingPlayerId(null);
     }
   };
 
@@ -1034,8 +1138,105 @@ export default function AdminScreen() {
                         <Ionicons name="ban" size={16} color={colors.error} />
                       </Pressable>
                     )}
+                    <Pressable
+                      onPress={() => promptSetWinner(m)}
+                      disabled={settingWinnerId === m.id}
+                      style={{ padding: 6 }}
+                    >
+                      <Ionicons name="trophy-outline" size={16} color={m.officialWinner ? '#F59E0B' : colors.textTertiary} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => togglePlayerStatusExpand(m.id)}
+                      style={{ padding: 6 }}
+                    >
+                      <Ionicons
+                        name={playerStatusExpandedId === m.id ? 'people' : 'people-outline'}
+                        size={16}
+                        color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary}
+                      />
+                    </Pressable>
                   </View>
                 </View>
+                {m.officialWinner && (
+                  <Text style={{ color: '#F59E0B', fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, marginTop: 4 }}>
+                    Winner: {m.officialWinner}
+                  </Text>
+                )}
+                {playerStatusExpandedId === m.id && (
+                  <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const }}>
+                        Player Status
+                      </Text>
+                      <Pressable onPress={() => refreshPlayerStatusData(m.id)} style={{ padding: 4 }}>
+                        {loadingPlayerStatus === m.id
+                          ? <ActivityIndicator size="small" color={colors.primary} />
+                          : <Ionicons name="refresh" size={14} color={colors.primary} />
+                        }
+                      </Pressable>
+                    </View>
+                    {(!playerStatusData[m.id] || playerStatusData[m.id].players.length === 0) ? (
+                      <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                        {loadingPlayerStatus === m.id ? 'Loading...' : 'No players loaded for this match'}
+                      </Text>
+                    ) : (
+                      (['team1Short', 'team2Short'] as const).map(teamKey => {
+                        const teamShort = m[teamKey];
+                        const teamPlayers = playerStatusData[m.id].players.filter((p: any) => p.teamShort === teamShort);
+                        if (teamPlayers.length === 0) return null;
+                        return (
+                          <View key={teamKey} style={{ marginBottom: 8 }}>
+                            <Text style={{ color: colors.text, fontSize: 11, fontFamily: 'Inter_700Bold' as const, marginBottom: 4 }}>
+                              {teamShort}
+                            </Text>
+                            {teamPlayers.map((p: any) => {
+                              const ps = playerStatusData[m.id].statuses.get(p.id);
+                              const adminStatus = ps?.adminStatus;
+                              const isImpactSub = ps?.officialImpactSubUsed === true;
+                              const statusColor = adminStatus ? STATUS_COLORS[adminStatus] : colors.textTertiary;
+                              const statusLabel = adminStatus ? STATUS_LABELS[adminStatus] : '—';
+                              const isUpdating = updatingPlayerId === p.id;
+                              return (
+                                <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 3, gap: 6 }}>
+                                  <Pressable
+                                    onPress={() => cyclePlayerStatus(m.id, p.id, adminStatus)}
+                                    disabled={isUpdating}
+                                    style={{
+                                      width: 34, height: 20, borderRadius: 4, backgroundColor: statusColor + '30',
+                                      borderWidth: 1, borderColor: statusColor, justifyContent: 'center', alignItems: 'center',
+                                    }}
+                                  >
+                                    {isUpdating
+                                      ? <ActivityIndicator size="small" color={statusColor} style={{ transform: [{ scale: 0.6 }] }} />
+                                      : <Text style={{ color: statusColor, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>{statusLabel}</Text>
+                                    }
+                                  </Pressable>
+                                  <Text style={{ flex: 1, color: colors.text, fontSize: 12, fontFamily: 'Inter_400Regular' as const }} numberOfLines={1}>
+                                    {p.name}
+                                  </Text>
+                                  <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const, width: 28 }}>
+                                    {p.role}
+                                  </Text>
+                                  <Pressable
+                                    onPress={() => toggleImpactSub(m.id, p.id, isImpactSub)}
+                                    disabled={isUpdating}
+                                    style={{
+                                      paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+                                      backgroundColor: isImpactSub ? '#F59E0B30' : colors.surfaceElevated,
+                                      borderWidth: 1, borderColor: isImpactSub ? '#F59E0B' : colors.border,
+                                    }}
+                                  >
+                                    <Text style={{ color: isImpactSub ? '#F59E0B' : colors.textTertiary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>⚡</Text>
+                                  </Pressable>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        );
+                      })
+                    )}
+                  </View>
+                )}
               </View>
             ))}
 

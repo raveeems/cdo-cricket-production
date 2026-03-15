@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { userTeams, players as playersTable, users, matches as matchesTable, matchPlayerStatus as mpsTable } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { fetchUpcomingMatches, fetchSeriesMatches, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -549,23 +549,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        const updatedMatchPlayers = await storage.getPlayersForMatch(matchId);
-        const playerById = new Map(updatedMatchPlayers.map(p => [p.id, p]));
-        const playerByExtId = new Map(updatedMatchPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
-        const allTeams = await storage.getAllTeamsForMatch(matchId);
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds as string[];
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (pid === team.captainId) pts *= 2;
-              else if (pid === team.viceCaptainId) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-          await storage.updateUserTeamPoints(team.id, totalPoints);
+        const recalcAfterScorecard = (globalThis as any).__recalculateTeamTotals;
+        if (recalcAfterScorecard) {
+          await recalcAfterScorecard(matchId, `${match.team1Short} vs ${match.team2Short}`);
         }
 
         return res.json({ message: `Updated ${updated} player scores`, updated });
@@ -1708,24 +1694,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         await storage.markPlayingXI(matchId, playingIds);
 
-        const updatedPlayers = await storage.getPlayersForMatch(matchId);
-        const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
-        const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
-        const allTeams = await storage.getAllTeamsForMatch(matchId);
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds as string[];
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (pid === team.captainId) pts *= 2;
-              else if (pid === team.viceCaptainId) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-          await storage.updateUserTeamPoints(team.id, totalPoints);
-        }
+        const recalcAfterXI = (globalThis as any).__recalculateTeamTotals;
+        if (recalcAfterXI) await recalcAfterXI(matchId, `${match.team1Short} vs ${match.team2Short}`);
 
         return res.json({ message: `Playing XI updated: ${playingIds.length} players marked, team points recalculated`, count: playingIds.length, source });
       } catch (err: any) {
@@ -1758,24 +1728,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const updated = await storage.markPlayingXIByIds(matchId, playerIds);
         await storage.updateMatch(matchId, { playingXIManual: true });
 
-        const updatedPlayers = await storage.getPlayersForMatch(matchId);
-        const playerById = new Map(updatedPlayers.map(p => [p.id, p]));
-        const playerByExtId = new Map(updatedPlayers.filter(p => p.externalId).map(p => [p.externalId!, p]));
-        const allTeams = await storage.getAllTeamsForMatch(matchId);
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds as string[];
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (pid === team.captainId) pts *= 2;
-              else if (pid === team.viceCaptainId) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-          await storage.updateUserTeamPoints(team.id, totalPoints);
-        }
+        const recalcAfterManualXI = (globalThis as any).__recalculateTeamTotals;
+        if (recalcAfterManualXI) await recalcAfterManualXI(matchId, `${match.team1Short} vs ${match.team2Short}`);
 
         return res.json({
           message: `Playing XI manually set: ${updated} players marked, team points recalculated`,
@@ -2178,9 +2132,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const startMs = new Date(m.startTime).getTime();
           return (now - startMs) <= THIRTY_SIX_HOURS;
         });
-        const matchStatusesRaw = await Promise.all(filteredMatches.map(async m => {
+        // Single query for all player counts — avoids N+1 DB calls
+        const playerCountRows = await db
+          .select({ matchId: playersTable.matchId, cnt: sql<number>`count(*)::int` })
+          .from(playersTable)
+          .groupBy(playersTable.matchId);
+        const playerCountMap = new Map<string, number>();
+        for (const row of playerCountRows) {
+          if (row.matchId) playerCountMap.set(row.matchId, row.cnt);
+        }
+
+        const matchStatuses = filteredMatches.map(m => {
           const startMs = new Date(m.startTime).getTime();
-          const players = await storage.getPlayersForMatch(m.id);
           return {
             id: m.id,
             teams: `${m.team1Short} vs ${m.team2Short}`,
@@ -2191,11 +2154,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hasExternalId: !!m.externalId,
             isLocked: now >= startMs,
             minutesUntilStart: Math.round((startMs - now) / 60000),
-            playerCount: players.length,
+            playerCount: playerCountMap.get(m.id) ?? 0,
             impactFeaturesEnabled: m.impactFeaturesEnabled,
           };
-        }));
-        return res.json({ matches: matchStatusesRaw, serverTime: new Date().toISOString() });
+        });
+        return res.json({ matches: matchStatuses, serverTime: new Date().toISOString() });
       } catch (err: any) {
         return res.status(500).json({ message: err.message });
       }

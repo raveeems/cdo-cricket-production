@@ -794,7 +794,7 @@ function setupErrorHandler(app: express.Application) {
               if (resolved.activePlayerId) {
                 const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
                 if (impactPlayer) {
-                  let impactPts = impactPlayer.points || 0;
+                  let impactPts = (impactPlayer.points || 0) + 4; // +4 bonus for activated impact sub
                   let impactMultiplier = 1;
                   if (team.captainType === "impact_slot") impactMultiplier = 2;
                   else if (team.vcType === "impact_slot") impactMultiplier = 1.5;
