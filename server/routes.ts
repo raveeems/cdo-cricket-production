@@ -582,7 +582,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastMatchXI = {};
       }
 
-      return res.json({ players: matchPlayers, lastMatchXI });
+      // Build per-player historical points (lastMatchPoints + tournamentPoints)
+      // Reuses the same prev-match queries as lastMatchXI — safe, read-only, no schema changes
+      const playerPointsMap: Record<string, { lastMatchPoints: number | null; tournamentPoints: number | null }> = {};
+      try {
+        const matchForPts = await storage.getMatch(matchId);
+        if (matchForPts && matchPlayers.length > 0) {
+          // 1. Last match points — same prev-match lookup as lastMatchXI
+          const prevPointsLookup: Record<string, number> = {}; // "name|teamShort" → points
+          for (const teamShort of [matchForPts.team1Short, matchForPts.team2Short]) {
+            const [prevMatch] = await db
+              .select({ id: matchesTable.id })
+              .from(matchesTable)
+              .where(
+                and(
+                  sql`(${matchesTable.team1Short} = ${teamShort} OR ${matchesTable.team2Short} = ${teamShort})`,
+                  eq(matchesTable.status, "completed"),
+                  sql`${matchesTable.id} != ${matchId}`
+                )
+              )
+              .orderBy(sql`${matchesTable.startTime} DESC`)
+              .limit(1);
+            if (prevMatch) {
+              const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
+              for (const p of prevPlayers) {
+                if (p.teamShort === teamShort && p.points > 0) {
+                  prevPointsLookup[`${p.name}|${p.teamShort}`] = p.points;
+                }
+              }
+            }
+          }
+
+          // 2. Tournament total points — single aggregated query
+          const tournamentTotalsLookup: Record<string, number> = {};
+          if (matchForPts.tournamentName) {
+            const rows = await db
+              .select({
+                name: playersTable.name,
+                teamShort: playersTable.teamShort,
+                total: sql<number>`CAST(SUM(${playersTable.points}) AS INTEGER)`,
+              })
+              .from(playersTable)
+              .innerJoin(matchesTable, eq(playersTable.matchId, matchesTable.id))
+              .where(
+                and(
+                  eq(matchesTable.tournamentName, matchForPts.tournamentName),
+                  eq(matchesTable.status, "completed"),
+                  sql`${playersTable.points} > 0`
+                )
+              )
+              .groupBy(playersTable.name, playersTable.teamShort);
+            for (const row of rows) {
+              tournamentTotalsLookup[`${row.name}|${row.teamShort}`] = row.total;
+            }
+          }
+
+          // 3. Build per-player map
+          for (const p of matchPlayers) {
+            const key = `${p.name}|${p.teamShort}`;
+            playerPointsMap[p.id] = {
+              lastMatchPoints: prevPointsLookup[key] ?? null,
+              tournamentPoints: tournamentTotalsLookup[key] ?? null,
+            };
+          }
+        }
+      } catch (err) {
+        console.error("[playerPoints] fetch error:", err);
+      }
+
+      const augmentedPlayers = matchPlayers.map((p) => ({
+        ...p,
+        lastMatchPoints: playerPointsMap[p.id]?.lastMatchPoints ?? null,
+        tournamentPoints: playerPointsMap[p.id]?.tournamentPoints ?? null,
+      }));
+
+      return res.json({ players: augmentedPlayers, lastMatchXI });
     }
   );
 

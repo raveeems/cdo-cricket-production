@@ -1,0 +1,232 @@
+You are working on an existing fantasy cricket app built with:
+
+Frontend: React Native (Expo)
+Backend: Node.js + Express
+Database: PostgreSQL
+
+IMPORTANT RULES:
+
+This feature must be **read-only UI enhancement**.
+
+DO NOT modify:
+
+* scoring engine
+* match calculation logic
+* captain/VC multiplier logic
+* impact player logic
+* existing database schema
+* team selection rules
+* APIs already in production
+
+This feature should **only display player points to help user decisions**.
+
+---
+
+FEATURE GOAL
+
+While selecting players in the Create Team screen, show:
+
+1️⃣ Last Match Points (preferred)
+2️⃣ Tournament Total Points (fallback)
+
+Example UI:
+
+Virat Kohli
+Credits: 9.5
+Last Match: 78 pts
+
+or
+
+Virat Kohli
+Credits: 9.5
+IPL 2026: 542 pts
+
+---
+
+BACKEND CHANGES
+
+Modify:
+
+GET /api/matches/:id/players
+
+Currently this endpoint returns player list.
+
+Enhance it to include two optional fields per player:
+
+lastMatchPoints
+tournamentPoints
+
+Do NOT remove any existing fields.
+
+---
+
+LAST MATCH POINTS LOGIC
+
+For each player:
+
+Query the most recent completed match (status='completed')
+before the current match where this player had points recorded.
+
+Table to use: playerMatchPoints (or equivalent scoring table already used in the scoring engine).
+
+Return:
+
+lastMatchPoints = points from that match
+
+If no record exists → return null.
+
+IMPORTANT:
+
+This query must be safe and fast.
+
+Use a subquery or indexed lookup.
+
+---
+
+TOURNAMENT TOTAL POINTS
+
+For each player:
+
+Calculate total fantasy points scored by that player in the current tournament/series.
+
+Example query logic:
+
+SUM(points)
+GROUP BY playerId
+WHERE tournamentId = currentMatch.tournamentId
+
+Return:
+
+tournamentPoints
+
+If tournamentId unavailable → return null.
+
+---
+
+ERROR SAFETY
+
+All additional queries must be wrapped in try/catch.
+
+If any error occurs:
+
+lastMatchPoints = null
+tournamentPoints = null
+
+The API must still return the player list normally.
+
+Never allow this feature to break the player list API.
+
+---
+
+FRONTEND CHANGES
+
+File:
+
+app/create-team/[matchId].tsx
+
+Inside CompactPlayerItem component (player card):
+
+Display points under credits.
+
+Priority logic:
+
+If lastMatchPoints exists:
+
+show
+
+Last Match: XX pts
+
+Else if tournamentPoints exists:
+
+show
+
+Series: XXX pts
+
+Else:
+
+show nothing.
+
+---
+
+UI DESIGN
+
+Add small secondary text below credits.
+
+Example layout:
+
+Virat Kohli
+Credits: 9.5
+Last Match: 78 pts
+
+Style rules:
+
+fontSize: 11–12
+color: muted grey
+do not increase card height significantly.
+
+---
+
+PERFORMANCE RULES
+
+Do NOT run one query per player.
+
+Use a single optimized query or join.
+
+Prefer:
+
+LEFT JOIN aggregated table
+
+or
+
+subquery grouped by playerId.
+
+Player list should still load within milliseconds.
+
+---
+
+SAFEGUARDS
+
+If API returns null values:
+
+Frontend must simply hide the points label.
+
+Never show:
+
+Last Match: null pts.
+
+---
+
+DO NOT MODIFY
+
+* WK/BAT/AR/BOWL filtering
+* player selection limits
+* togglePlayer logic
+* impact picks logic
+* captain/vice captain logic
+* existing player card layout
+
+Only add the small points indicator.
+
+---
+
+FINAL VERIFICATION
+
+Ensure the following still works exactly as before:
+
+Home page loads matches
+Create Team screen loads players
+Player selection works
+Impact picks still work
+Captain/VC selection works
+No API crashes occur
+
+---
+
+OUTPUT SUMMARY
+
+After implementing provide summary of:
+
+* backend query added
+* fields added to player response
+* frontend display change
+* confirmation scoring engine untouched.

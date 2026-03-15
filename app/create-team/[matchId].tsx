@@ -150,7 +150,7 @@ function CompactPlayerItem({
   showPlayingXI,
   isDisabled,
 }: {
-  player: Player;
+  player: Player & { lastMatchPoints?: number | null; tournamentPoints?: number | null };
   isSelected: boolean;
   onToggle: () => void;
   colors: any;
@@ -210,6 +210,15 @@ function CompactPlayerItem({
         <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>
           {player.credits} Cr  |  {player.points != null ? player.points : 0} pts
         </Text>
+        {player.lastMatchPoints != null ? (
+          <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const, marginTop: 1 }}>
+            Last Match: {player.lastMatchPoints} pts
+          </Text>
+        ) : player.tournamentPoints != null ? (
+          <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const, marginTop: 1 }}>
+            Series: {player.tournamentPoints} pts
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -316,7 +325,7 @@ export default function CreateTeamScreen() {
   });
 
   const { data: playersData, isLoading: playersLoading } = useQuery<{
-    players: Player[];
+    players: (Player & { lastMatchPoints?: number | null; tournamentPoints?: number | null })[];
     lastMatchXI: Record<string, { xi: string[]; impact: string | null }>;
   }>({
     queryKey: ['/api/matches', matchId, 'players'],
