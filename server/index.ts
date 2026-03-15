@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { syncMatchesFromApi } from "./cricket-api";
 import { storage } from "./storage";
+import { connectWithRetry } from "./db";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -309,13 +310,45 @@ function configureExpoAndLanding(app: express.Application) {
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
 
+const DB_ERROR_CODES = new Set([
+  "ETIMEDOUT",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "ECONNRESET",
+  "57P01",
+  "08006",
+  "08001",
+]);
+
+function isDbError(err: unknown): boolean {
+  const e = err as any;
+  if (!e) return false;
+  if (e.code && DB_ERROR_CODES.has(e.code)) return true;
+  const msg: string = e.message || "";
+  return (
+    msg.includes("ETIMEDOUT") ||
+    msg.includes("ECONNREFUSED") ||
+    msg.includes("connection") ||
+    msg.includes("database")
+  );
+}
+
 function setupErrorHandler(app: express.Application) {
   app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     const error = err as {
       status?: number;
       statusCode?: number;
       message?: string;
+      code?: string;
     };
+
+    if (isDbError(err)) {
+      console.error("[DB] Runtime DB error on request:", (err as any).message);
+      if (res.headersSent) return next(err);
+      return res
+        .status(503)
+        .json({ error: "Database temporarily unavailable. Please try again." });
+    }
 
     const status = error.status || error.statusCode || 500;
     const message = error.message || "Internal Server Error";
@@ -356,6 +389,8 @@ function setupErrorHandler(app: express.Application) {
       console.error("Failed to seed reference codes:", err);
     }
   }
+
+  await connectWithRetry(10, 3000);
 
   const port = Number(process.env.PORT) || 3000;
 

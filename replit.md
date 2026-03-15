@@ -32,7 +32,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Database (PostgreSQL + Drizzle ORM)
 - **ORM**: Drizzle ORM with `drizzle-kit` for migrations
-- **Connection**: `pg` (node-postgres) pool, configured via `DATABASE_URL` environment variable
+- **Connection**: `pg` (node-postgres) pool via `DATABASE_URL`. Pool settings: max 10, idleTimeout 30s, connectionTimeout 2s. `connectWithRetry()` in `server/db.ts` retries up to 10× with 3s delay before server starts accepting requests. Pool error events logged to console. Health check endpoint at `/health` returns `{server, database}` status
 - **Schema** (`shared/schema.ts`):
   - `users` — id (UUID), username, email, phone, password (plain text currently), isVerified, isAdmin, joinedAt
   - `referenceCodes` — id, code (4-char), isActive, createdBy, createdAt. Used for invite-only gating

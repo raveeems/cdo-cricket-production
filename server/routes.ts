@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-import { db } from "./db";
+import { db, dbConnected } from "./db";
 import { userTeams, players as playersTable, users, matches as matchesTable, matchPlayerStatus as mpsTable } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { fetchUpcomingMatches, fetchSeriesMatches, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
@@ -76,6 +76,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const sessionPool = new pg.Pool({
     connectionString: dbUrl,
     ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
   });
 
   app.use(
@@ -97,6 +100,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       },
     })
   );
+
+  // ---- HEALTH CHECK ----
+  app.get("/health", async (_req: Request, res: Response) => {
+    let dbStatus = "disconnected";
+    try {
+      const client = await sessionPool.connect();
+      await client.query("SELECT 1");
+      client.release();
+      dbStatus = "connected";
+    } catch {
+      dbStatus = "disconnected";
+    }
+    res.status(dbStatus === "connected" ? 200 : 503).json({
+      server: "running",
+      database: dbStatus,
+    });
+  });
 
   // ---- AUTH ----
   app.post("/api/auth/signup", async (req: Request, res: Response) => {
