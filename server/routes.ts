@@ -69,6 +69,10 @@ async function isAdmin(req: Request, res: Response, next: Function) {
   next();
 }
 
+const LIVE_CACHE_TTL_MS = 45_000;
+const liveScorecardCache = new Map<string, { data: any; fetchedAt: number }>();
+const liveScoreCache = new Map<string, { data: any; fetchedAt: number }>();
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const PgStore = connectPgSimple(session);
   const dbUrl = process.env.DATABASE_URL || '';
@@ -738,27 +742,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
 
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.set('Pragma', 'no-cache');
-
       try {
+        if (!match.externalId) {
+          return res.json({ scorecard: null, message: "No external match ID" });
+        }
+
+        const cacheKey = match.externalId;
+        const cached = liveScorecardCache.get(cacheKey);
+        const now = Date.now();
+
+        if (cached && now - cached.fetchedAt < LIVE_CACHE_TTL_MS) {
+          console.log(`[LiveScorecard] cache HIT for ${cacheKey} (age ${Math.round((now - cached.fetchedAt) / 1000)}s)`);
+          return res.json(cached.data);
+        }
+
+        console.log(`[LiveScorecard] cache MISS for ${cacheKey} — fetching from CricAPI`);
         let scorecard = null;
         let source = "none";
-
-        if (match.externalId) {
-          try {
-            const { fetchLiveScorecard } = await import("./cricket-api");
-            scorecard = await fetchLiveScorecard(match.externalId);
-            if (scorecard) source = "CricAPI";
-          } catch (apiErr: any) {
-            console.error(`[LiveScorecard] Failed to fetch for ${match.externalId}:`, apiErr?.message || apiErr);
-          }
+        try {
+          const { fetchLiveScorecard } = await import("./cricket-api");
+          scorecard = await fetchLiveScorecard(cacheKey);
+          if (scorecard) source = "CricAPI";
+        } catch (apiErr: any) {
+          console.error(`[LiveScorecard] fetch failed for ${cacheKey}:`, apiErr?.message || apiErr);
         }
 
-        if (!scorecard) {
-          return res.json({ scorecard: null, message: "No scorecard data available yet" });
-        }
-        return res.json({ scorecard, source });
+        const payload = scorecard
+          ? { scorecard, source }
+          : { scorecard: null, message: "No scorecard data available yet" };
+        liveScorecardCache.set(cacheKey, { data: payload, fetchedAt: now });
+        return res.json(payload);
       } catch (err: any) {
         console.error("Live scorecard route error:", err?.message || err);
         return res.json({ scorecard: null, error: err?.message || "Failed to fetch scorecard" });
@@ -775,23 +788,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!match) return res.status(404).json({ message: "Match not found" });
 
       try {
-        let scoreData = null;
+        if (!match.externalId) return res.json({ score: null });
 
-        if (match.externalId) {
-          const info = await fetchMatchInfo(match.externalId);
-          if (info) {
-            scoreData = {
-              score: info.score || [],
-              status: info.status,
-              matchStarted: info.matchStarted,
-              matchEnded: info.matchEnded,
-              source: "CricAPI",
-            };
-          }
+        const cacheKey = match.externalId;
+        const cached = liveScoreCache.get(cacheKey);
+        const now = Date.now();
+
+        if (cached && now - cached.fetchedAt < LIVE_CACHE_TTL_MS) {
+          console.log(`[LiveScore] cache HIT for ${cacheKey} (age ${Math.round((now - cached.fetchedAt) / 1000)}s)`);
+          return res.json(cached.data);
         }
 
-        if (!scoreData) return res.json({ score: null });
-        return res.json(scoreData);
+        console.log(`[LiveScore] cache MISS for ${cacheKey} — fetching from CricAPI`);
+        let scoreData = null;
+        const info = await fetchMatchInfo(cacheKey);
+        if (info) {
+          scoreData = {
+            score: info.score || [],
+            status: info.status,
+            matchStarted: info.matchStarted,
+            matchEnded: info.matchEnded,
+            source: "CricAPI",
+          };
+        }
+
+        const payload = scoreData ?? { score: null };
+        liveScoreCache.set(cacheKey, { data: payload, fetchedAt: now });
+        return res.json(payload);
       } catch (err: any) {
         console.error("Live score error:", err);
         return res.status(500).json({ message: "Failed to fetch live score" });
