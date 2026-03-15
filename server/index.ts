@@ -1014,64 +1014,62 @@ function setupErrorHandler(app: express.Application) {
           }
         }
 
-        // Auto-fetch squads for matches without players (every heartbeat cycle)
+        // Auto-fetch squads ONLY for matches with 0 players (saves API quota)
         try {
-          const matchesNeedingSquads = allMatches.filter(
+          const { fetchMatchSquad, fetchSeriesSquad } = await import("./cricket-api");
+          const activeMatches = allMatches.filter(
             (m) => m.externalId && (m.status === "upcoming" || m.status === "delayed" || m.status === "live")
           );
+          // Check player counts and only fetch where 0 — cap at 3 per heartbeat cycle to avoid quota burn
+          let fetchedThisCycle = 0;
+          for (const match of activeMatches) {
+            if (fetchedThisCycle >= 3) break;
+            const existingPlayers = await storage.getPlayersForMatch(match.id);
+            if (existingPlayers.length > 0) continue; // already have squad, skip
 
-          if (matchesNeedingSquads.length > 0) {
-            const { fetchMatchSquad, fetchSeriesSquad } = await import(
-              "./cricket-api"
-            );
-            for (const match of matchesNeedingSquads) {
-              try {
-                let squad = await fetchMatchSquad(match.externalId!);
-                let source = "match_squad";
+            fetchedThisCycle++;
+            try {
+              let squad = await fetchMatchSquad(match.externalId!);
+              let source = "match_squad";
 
-                if (squad.length === 0 && match.seriesId) {
-                  const seriesPlayers = await fetchSeriesSquad(match.seriesId);
-                  const t1 = match.team1.toLowerCase();
-                  const t2 = match.team2.toLowerCase();
-                  const t1s = (match.team1Short || "").toLowerCase();
-                  const t2s = (match.team2Short || "").toLowerCase();
-                  squad = seriesPlayers.filter((p) => {
-                    const pTeam = p.team.toLowerCase();
-                    const pShort = p.teamShort.toLowerCase();
-                    return (
-                      pTeam === t1 ||
-                      pTeam === t2 ||
-                      pTeam.includes(t1) ||
-                      t1.includes(pTeam) ||
-                      pTeam.includes(t2) ||
-                      t2.includes(pTeam) ||
-                      pShort === t1s ||
-                      pShort === t2s
-                    );
-                  });
-                  source = "series_squad";
-                }
-
-                if (squad.length > 0) {
-                  await storage.upsertPlayersForMatch(
-                    match.id,
-                    squad.map((p) => ({
-                      matchId: match.id,
-                      externalId: p.externalId,
-                      name: p.name,
-                      team: p.team,
-                      teamShort: p.teamShort,
-                      role: p.role,
-                      credits: p.credits,
-                    }))
+              if (squad.length === 0 && match.seriesId) {
+                const seriesPlayers = await fetchSeriesSquad(match.seriesId);
+                const t1 = match.team1.toLowerCase();
+                const t2 = match.team2.toLowerCase();
+                const t1s = (match.team1Short || "").toLowerCase();
+                const t2s = (match.team2Short || "").toLowerCase();
+                squad = seriesPlayers.filter((p) => {
+                  const pTeam = p.team.toLowerCase();
+                  const pShort = p.teamShort.toLowerCase();
+                  return (
+                    pTeam === t1 || pTeam === t2 ||
+                    pTeam.includes(t1) || t1.includes(pTeam) ||
+                    pTeam.includes(t2) || t2.includes(pTeam) ||
+                    pShort === t1s || pShort === t2s
                   );
-                  log(
-                    `[Heartbeat] Auto-loaded ${squad.length} players for ${match.team1Short} vs ${match.team2Short} from ${source}`
-                  );
-                }
-              } catch (squadErr) {
-                // Silent fail — will retry next heartbeat
+                });
+                source = "series_squad";
               }
+
+              if (squad.length > 0) {
+                await storage.upsertPlayersForMatch(
+                  match.id,
+                  squad.map((p) => ({
+                    matchId: match.id,
+                    externalId: p.externalId,
+                    name: p.name,
+                    team: p.team,
+                    teamShort: p.teamShort,
+                    role: p.role,
+                    credits: p.credits,
+                  }))
+                );
+                log(`[Heartbeat] Auto-loaded ${squad.length} players for ${match.team1Short} vs ${match.team2Short} (${source})`);
+              } else {
+                log(`[Heartbeat] No squad yet for ${match.team1Short} vs ${match.team2Short} — will retry`);
+              }
+            } catch (squadErr) {
+              // Silent fail — will retry next heartbeat
             }
           }
         } catch (squadErr) {

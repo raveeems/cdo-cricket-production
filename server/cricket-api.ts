@@ -1007,7 +1007,44 @@ export async function fetchMatchSquad(
       }
     }
 
-    return allPlayers;
+    // If match_squad returned players, return them
+    if (allPlayers.length > 0) return allPlayers;
+
+    // Fallback: try match_info which has teamInfo[].players[] — works for live matches
+    console.log(`[fetchMatchSquad] match_squad returned 0 for ${externalMatchId}, trying match_info fallback...`);
+    const infoApiKey = getActiveApiKey();
+    if (!infoApiKey) return [];
+    const infoUrl = `${CRICKET_API_BASE}/match_info?apikey=${infoApiKey}&id=${externalMatchId}`;
+    const infoRes = await trackedFetch(infoUrl);
+    if (!infoRes.ok) return [];
+    const infoJson = await infoRes.json() as any;
+    if (infoJson.status !== "success" || !infoJson.data) return [];
+
+    const infoPlayers: typeof allPlayers = [];
+    const teamInfo: any[] = infoJson.data.teamInfo || [];
+    for (const team of teamInfo) {
+      const teamName: string = team.name || "";
+      const teamShort: string = team.shortname || getTeamShort(teamName);
+      // teamInfo.players[] if present (full squad from match_info)
+      const teamPlayers: any[] = team.players || [];
+      for (const p of teamPlayers) {
+        if (!p.id || !p.name) continue;
+        const role = mapCricApiRole(p.role || "");
+        infoPlayers.push({
+          externalId: p.id,
+          name: p.name,
+          team: teamName,
+          teamShort,
+          role,
+          credits: assignCredits(role),
+        });
+      }
+    }
+
+    if (infoPlayers.length > 0) {
+      console.log(`[fetchMatchSquad] match_info fallback: found ${infoPlayers.length} players for ${externalMatchId}`);
+    }
+    return infoPlayers;
   } catch (err) {
     console.error("Squad API error:", err);
     return [];
