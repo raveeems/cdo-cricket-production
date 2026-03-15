@@ -1,0 +1,267 @@
+FINAL SUPER PROMPT — FEATURE 1
+“Show Players in Last Match XI Order + Impact Logic (Crash-Proof Version)”
+
+Act as a Senior Full Stack Engineer responsible for production stability.
+The app is a React Native + Expo frontend with Express + PostgreSQL backend.
+
+We already implemented a Last Match XI player ordering system, but we need to finalize and optimize it for stability before IPL launch.
+
+Do NOT change any existing scoring logic, team selection logic, captain logic, or database schema unless explicitly required.
+
+The goal is to make the player selection screen smarter but 100% crash-proof.
+
+FEATURE GOAL
+
+When a user opens Create Team → Player Selection, the ALL Players tab should display players grouped in this order for each team:
+
+⭐ LAST MATCH XI
+⚡ LAST MATCH IMPACT PLAYER (if applicable)
+⚪ REST OF SQUAD
+
+This should help users predict likely Playing XI before toss.
+
+CRITICAL STABILITY REQUIREMENTS
+
+The screen must never crash, even if:
+
+• no previous match exists
+• database returns null
+• impact player not found
+• team name mismatch
+• first match of tournament
+
+Always ensure fallback rendering.
+
+FINAL LOGIC FLOW
+Step 1 — Determine if Impact Rule Applies
+
+The app already has:
+
+match.impactFeaturesEnabled
+
+Use this logic:
+
+impactEnabled = match.impactFeaturesEnabled
+
+If true → show impact sections
+If false → ignore all impact logic
+
+Admin toggle must always override.
+
+Do NOT hardcode IPL detection.
+
+Step 2 — Fetch Last Completed Match For Each Team
+
+In:
+
+GET /api/matches/:id/players
+
+Add safe queries to fetch the most recent completed match for both teams.
+
+Example logic:
+
+SELECT * FROM matches
+WHERE status = 'completed'
+AND (team1Short = currentTeam OR team2Short = currentTeam)
+ORDER BY matchDate DESC
+LIMIT 1
+
+Wrap every query in try/catch.
+
+If query fails:
+
+return {}
+
+Never throw an error that breaks the endpoint.
+
+Step 3 — Extract Last Match XI
+
+From the previous match data:
+
+players where isPlayingXI = true
+
+Return these as:
+
+lastMatchXI
+
+IMPORTANT:
+
+Do NOT reorder them by credits if batting order is already known.
+
+However, if order cannot be determined:
+
+sort by credits DESC
+
+This fallback is mainly for first matches of the tournament.
+
+Step 4 — Extract Impact Player (IPL Only)
+
+Only run this logic if:
+
+impactEnabled === true
+
+Find player where:
+
+isImpactPlayer = true
+AND isPlayingXI = false
+
+Return this as:
+
+lastMatchImpactPlayer
+
+If none exists:
+
+impactPlayer = null
+
+Never break rendering.
+
+Step 5 — Build Player Sections (Frontend)
+
+In:
+
+app/create-team/[matchId].tsx
+
+Update the ALL tab rendering logic.
+
+Use:
+
+useMemo()
+
+to create sections.
+
+Structure should be:
+
+TEAM A
+
+⭐ LAST MATCH XI
+(players)
+
+⚡ LAST MATCH IMPACT PLAYER
+(player)
+
+⚪ REST OF SQUAD
+(players)
+
+TEAM B
+
+⭐ LAST MATCH XI
+(players)
+
+⚡ LAST MATCH IMPACT PLAYER
+(player)
+
+⚪ REST OF SQUAD
+(players)
+IMPORTANT EDGE CASES
+Case 1 — First Match of Tournament
+
+No previous match exists.
+
+Fallback:
+
+show all players sorted by credits
+
+Do NOT show section headers.
+
+Case 2 — Impact Feature Disabled
+
+For non-IPL tournaments:
+
+Show only:
+
+⭐ LAST MATCH XI
+⚪ REST OF SQUAD
+
+Do NOT show any impact section.
+
+Case 3 — Admin Already Added Playing XI
+
+If the current match already has:
+
+isPlayingXI
+
+Then override previous logic and show:
+
+🟢 PLAYING XI
+⚪ NON PLAYING XI
+
+For IPL:
+
+🟢 PLAYING XI
+⚡ IMPACT OPTIONS
+⚪ REST OF SQUAD
+PERFORMANCE REQUIREMENTS
+
+Ensure the player endpoint runs fast and safely.
+
+Rules:
+
+• run only 2 extra queries (one per team)
+• use indexed columns
+• wrap all DB calls with try/catch
+• never block the main player list
+
+Worst case fallback:
+
+return players normally
+UI REQUIREMENTS
+
+Keep existing component:
+
+CompactPlayerItem
+
+Do NOT create new player components.
+
+Add only section headers.
+
+Suggested labels:
+
+⭐ LAST MATCH XI
+⚡ IMPACT PLAYER
+⚪ REST OF SQUAD
+🟢 PLAYING XI
+DO NOT MODIFY
+
+The following systems must remain untouched:
+
+• Player selection logic
+• Captain / Vice Captain logic
+• Impact picks logic
+• Team limits
+• Scoring engine
+• WK / BAT / AR / BOWL tabs
+• Database schema
+
+TEST CASES REQUIRED
+
+Verify these scenarios:
+
+1️⃣ First match of tournament
+→ players sorted by credits
+
+2️⃣ Second match with previous data
+→ last match XI displayed
+
+3️⃣ Impact rule disabled
+→ no impact section
+
+4️⃣ Impact rule enabled
+→ impact player shown
+
+5️⃣ Admin adds Playing XI
+→ Playing XI overrides previous match data
+
+6️⃣ Database failure simulation
+→ players still load normally
+
+FINAL REQUIREMENT
+
+Ensure:
+
+• the screen never shows blank content
+• the app never crashes on player load
+• the player list always renders something
+
+If any logic fails:
+
+fallback to standard player list

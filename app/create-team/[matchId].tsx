@@ -341,9 +341,26 @@ export default function CreateTeamScreen() {
       const teamPlayers = (allPlayers || []).filter(
         (p) => (p.teamShort || p.team) === teamShort
       );
-      const lmxi = lastMatchXIData[teamShort];
 
-      // Priority 1: use last-match XI names from backend
+      // Priority 1: admin has announced current match Playing XI — highest priority, overrides everything
+      const hasCurrentXI = teamPlayers.some((p) => p.isPlayingXI);
+      if (hasCurrentXI) {
+        const xiPlayers = teamPlayers
+          .filter((p) => p.isPlayingXI)
+          .sort((a, b) => b.credits - a.credits);
+        const impactPlayer = teamPlayers.find((p) => p.isImpactPlayer && !p.isPlayingXI) ?? null;
+        const seenIds = new Set([
+          ...xiPlayers.map((p) => p.id),
+          ...(impactPlayer ? [impactPlayer.id] : []),
+        ]);
+        const rest = teamPlayers
+          .filter((p) => !seenIds.has(p.id))
+          .sort((a, b) => b.credits - a.credits);
+        return { xi: xiPlayers, impact: impactPlayer, rest, source: 'currentXI' as const };
+      }
+
+      // Priority 2: use last-match XI names from backend (prediction hint pre-announcement)
+      const lmxi = lastMatchXIData[teamShort];
       if (lmxi && (lmxi.xi || []).length > 0) {
         const xiNames = new Set(lmxi.xi);
         const xiPlayers = (lmxi.xi || [])
@@ -363,24 +380,7 @@ export default function CreateTeamScreen() {
         return { xi: xiPlayers, impact: impactPlayer, rest, source: 'lastMatch' as const };
       }
 
-      // Priority 2: use current match isPlayingXI flags
-      const hasXI = teamPlayers.some((p) => p.isPlayingXI);
-      if (hasXI) {
-        const xiPlayers = teamPlayers
-          .filter((p) => p.isPlayingXI)
-          .sort((a, b) => b.credits - a.credits);
-        const impactPlayer = teamPlayers.find((p) => p.isImpactPlayer && !p.isPlayingXI) ?? null;
-        const seenIds = new Set([
-          ...xiPlayers.map((p) => p.id),
-          ...(impactPlayer ? [impactPlayer.id] : []),
-        ]);
-        const rest = teamPlayers
-          .filter((p) => !seenIds.has(p.id))
-          .sort((a, b) => b.credits - a.credits);
-        return { xi: xiPlayers, impact: impactPlayer, rest, source: 'currentXI' as const };
-      }
-
-      // Fallback: no section grouping — return all sorted by credits
+      // Fallback: first match of tournament or no data — no section headers, just credits sort
       return {
         xi: [],
         impact: null,
@@ -923,8 +923,8 @@ export default function CreateTeamScreen() {
                         {(sections.xi || []).length > 0 && (
                           <>
                             <View style={[styles.sectionLabel, { backgroundColor: colors.surfaceElevated }]}>
-                              <Text style={[styles.sectionLabelText, { color: colors.primary }]}>
-                                {sections.source === 'lastMatch' ? '⭐ LAST MATCH XI' : '⭐ PLAYING XI'}
+                              <Text style={[styles.sectionLabelText, { color: sections.source === 'currentXI' ? '#22C55E' : colors.primary }]}>
+                                {sections.source === 'lastMatch' ? '⭐ LAST MATCH XI' : '🟢 PLAYING XI'}
                               </Text>
                             </View>
                             {sections.xi.map(item => (
@@ -941,11 +941,13 @@ export default function CreateTeamScreen() {
                             ))}
                           </>
                         )}
-                        {/* IMPACT PLAYER section */}
-                        {sections.impact && (
+                        {/* IMPACT PLAYER section — only shown when impact feature is enabled */}
+                        {impactEnabled && sections.impact && (
                           <>
                             <View style={[styles.sectionLabel, { backgroundColor: colors.surfaceElevated }]}>
-                              <Text style={[styles.sectionLabelText, { color: '#F59E0B' }]}>⚡ IMPACT PLAYER</Text>
+                              <Text style={[styles.sectionLabelText, { color: '#F59E0B' }]}>
+                                {sections.source === 'currentXI' ? '⚡ IMPACT OPTIONS' : '⚡ IMPACT PLAYER'}
+                              </Text>
                             </View>
                             <CompactPlayerItem
                               key={sections.impact.id}
