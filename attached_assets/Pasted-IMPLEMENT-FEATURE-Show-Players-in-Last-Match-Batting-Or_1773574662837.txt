@@ -1,0 +1,182 @@
+IMPLEMENT FEATURE: **Show Players in Last Match Batting Order in Player Selection Screen**
+
+Context:
+We want to improve the UX of the **Select Players screen** in the fantasy cricket app.
+
+Currently the screen shows players grouped by **team columns (Team A | Team B)** with player cards.
+
+We want to **display the last match playing XI in batting order**, followed by the **impact player**, and then **the remaining squad players**.
+
+This should help users estimate the **likely playing XI and impact player** quickly.
+
+IMPORTANT:
+This feature must **NOT change any team selection logic, scoring logic, or database schema related to teams**.
+It is **only a display ordering improvement**.
+
+---
+
+SECTION 1 — UI LAYOUT
+
+Maintain the **existing two-column layout**:
+
+Left column = Team A
+Right column = Team B
+
+Inside each column the order should be:
+
+⭐ LAST MATCH XI
+(list of 11 players in batting order)
+
+⚡ IMPACT PLAYER
+(the impact substitute from the last match)
+
+⚪ REST OF SQUAD
+(all remaining squad players not included above)
+
+Example layout:
+
+## Team A                       | Team B
+
+LAST MATCH XI                | LAST MATCH XI
+
+1. Player                    | 1. Player
+2. Player                    | 2. Player
+3. Player                    | 3. Player
+   ...                          | ...
+4. Player                   | 11. Player
+
+IMPACT PLAYER                | IMPACT PLAYER
+Player                       | Player
+
+REST OF SQUAD                | REST OF SQUAD
+Player                       | Player
+Player                       | Player
+
+The player cards must continue using the **existing player card component**.
+
+Only the **order of rendering changes**.
+
+---
+
+SECTION 2 — DATA SOURCE
+
+Use the **most recent completed match for each team** to determine:
+
+* Playing XI
+* Batting order
+* Impact player
+
+Logic:
+
+lastMatchXI = ordered list of 11 players
+impactPlayer = impact substitute used in that match
+
+If batting order is unavailable, fallback to:
+
+sort by batting_position if available
+otherwise fallback to squad order.
+
+---
+
+SECTION 3 — DISPLAY ORDER LOGIC
+
+When rendering the player list for a team:
+
+1️⃣ Render players in `lastMatchXI` in batting order
+2️⃣ Render the `impactPlayer` (if not already in XI)
+3️⃣ Render remaining players in the squad
+
+Pseudo logic:
+
+playersDisplayed = [
+...lastMatchXI,
+impactPlayer,
+...remainingSquadPlayers
+]
+
+Ensure **no duplicate players appear**.
+
+---
+
+SECTION 4 — TAB BEHAVIOUR (IMPORTANT)
+
+This feature must **ONLY apply to the ALL tab**.
+
+The following tabs must remain **unchanged**:
+
+WK
+BAT
+AR
+BOWL
+
+Those tabs must continue using the **existing filtering logic**.
+
+---
+
+SECTION 5 — SAFETY GUARDS (CRITICAL)
+
+Add null-safe handling to prevent crashes.
+
+Use patterns like:
+
+(players || [])
+(player.recentForm || [])
+
+If last match data cannot be found:
+
+Fallback to the **existing squad list rendering**.
+
+The screen must **never crash or show blank UI**.
+
+---
+
+SECTION 6 — PERFORMANCE RULE
+
+Do NOT call any external cricket API from the frontend.
+
+Use existing backend match data.
+
+If necessary, compute last match XI in backend once and send in API response.
+
+---
+
+SECTION 7 — TESTING CHECKLIST
+
+Verify the following after implementation:
+
+✔ Player selection works normally
+✔ Captain and Vice Captain selection works
+✔ Impact picks logic remains unchanged
+✔ ALL tab shows the new ordered structure
+✔ WK / BAT / AR / BOWL tabs behave exactly the same
+✔ No duplicate players appear
+✔ No crashes when last match data is missing
+
+Test on both:
+
+* mobile layout
+* browser preview
+
+---
+
+SECTION 8 — EXPECTED RESULT
+
+When a user opens **Select Players → ALL tab**, they should see:
+
+LAST MATCH XI players first (batting order)
+then IMPACT PLAYER
+then REST OF SQUAD
+
+But the user can still **select any player normally**.
+
+---
+
+SECTION 9 — AFTER IMPLEMENTATION
+
+Provide a short summary including:
+
+1. How last match XI is determined
+2. What fallback is used if data is missing
+3. What files were modified
+4. Confirmation that filters and selection logic were not changed
+5. Any performance considerations

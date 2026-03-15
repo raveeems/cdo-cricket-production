@@ -541,7 +541,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      return res.json({ players: matchPlayers });
+      // Build last-match XI for each team (used by frontend ALL-tab ordering)
+      let lastMatchXI: Record<string, { xi: string[]; impact: string | null }> = {};
+      try {
+        const matchForXI = await storage.getMatch(matchId);
+        if (matchForXI) {
+          for (const teamShort of [matchForXI.team1Short, matchForXI.team2Short]) {
+            const [prevMatch] = await db
+              .select({ id: matchesTable.id })
+              .from(matchesTable)
+              .where(
+                and(
+                  sql`(${matchesTable.team1Short} = ${teamShort} OR ${matchesTable.team2Short} = ${teamShort})`,
+                  eq(matchesTable.status, "completed"),
+                  sql`${matchesTable.id} != ${matchId}`
+                )
+              )
+              .orderBy(sql`${matchesTable.startTime} DESC`)
+              .limit(1);
+
+            if (prevMatch) {
+              const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
+              const teamPrev = prevPlayers.filter((p) => p.teamShort === teamShort);
+              const xi = teamPrev
+                .filter((p) => p.isPlayingXI)
+                .sort((a, b) => b.credits - a.credits)
+                .map((p) => p.name);
+              const impactPlayer = teamPrev.find(
+                (p) => p.isImpactPlayer && !p.isPlayingXI
+              );
+              lastMatchXI[teamShort] = {
+                xi,
+                impact: impactPlayer?.name ?? null,
+              };
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[lastMatchXI] fetch error:", err);
+        lastMatchXI = {};
+      }
+
+      return res.json({ players: matchPlayers, lastMatchXI });
     }
   );
 

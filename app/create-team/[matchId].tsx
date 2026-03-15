@@ -313,7 +313,10 @@ export default function CreateTeamScreen() {
     enabled: !!matchId,
   });
 
-  const { data: playersData, isLoading: playersLoading } = useQuery<{ players: Player[] }>({
+  const { data: playersData, isLoading: playersLoading } = useQuery<{
+    players: Player[];
+    lastMatchXI: Record<string, { xi: string[]; impact: string | null }>;
+  }>({
     queryKey: ['/api/matches', matchId, 'players'],
     enabled: !!matchId,
   });
@@ -328,8 +331,69 @@ export default function CreateTeamScreen() {
 
   const match = matchData?.match;
   const allPlayers = playersData?.players || [];
+  const lastMatchXIData = playersData?.lastMatchXI || {};
   const existingTeams = matchId ? getTeamsForMatch(matchId) : [];
   const impactEnabled = match?.impactFeaturesEnabled === true;
+
+  // Groups players for ALL tab: Last Match XI → Impact Player → Rest of Squad
+  const allTabSections = useMemo(() => {
+    const buildSections = (teamShort: string) => {
+      const teamPlayers = (allPlayers || []).filter(
+        (p) => (p.teamShort || p.team) === teamShort
+      );
+      const lmxi = lastMatchXIData[teamShort];
+
+      // Priority 1: use last-match XI names from backend
+      if (lmxi && (lmxi.xi || []).length > 0) {
+        const xiNames = new Set(lmxi.xi);
+        const xiPlayers = (lmxi.xi || [])
+          .map((name) => teamPlayers.find((p) => p.name === name))
+          .filter(Boolean) as Player[];
+        const impactName = lmxi.impact;
+        const impactPlayer = impactName
+          ? teamPlayers.find((p) => p.name === impactName && !xiNames.has(p.name))
+          : null;
+        const seenIds = new Set([
+          ...xiPlayers.map((p) => p.id),
+          ...(impactPlayer ? [impactPlayer.id] : []),
+        ]);
+        const rest = teamPlayers
+          .filter((p) => !seenIds.has(p.id))
+          .sort((a, b) => b.credits - a.credits);
+        return { xi: xiPlayers, impact: impactPlayer, rest, source: 'lastMatch' as const };
+      }
+
+      // Priority 2: use current match isPlayingXI flags
+      const hasXI = teamPlayers.some((p) => p.isPlayingXI);
+      if (hasXI) {
+        const xiPlayers = teamPlayers
+          .filter((p) => p.isPlayingXI)
+          .sort((a, b) => b.credits - a.credits);
+        const impactPlayer = teamPlayers.find((p) => p.isImpactPlayer && !p.isPlayingXI) ?? null;
+        const seenIds = new Set([
+          ...xiPlayers.map((p) => p.id),
+          ...(impactPlayer ? [impactPlayer.id] : []),
+        ]);
+        const rest = teamPlayers
+          .filter((p) => !seenIds.has(p.id))
+          .sort((a, b) => b.credits - a.credits);
+        return { xi: xiPlayers, impact: impactPlayer, rest, source: 'currentXI' as const };
+      }
+
+      // Fallback: no section grouping — return all sorted by credits
+      return {
+        xi: [],
+        impact: null,
+        rest: [...teamPlayers].sort((a, b) => b.credits - a.credits),
+        source: 'fallback' as const,
+      };
+    };
+
+    return {
+      team1: match ? buildSections(match.team1Short) : null,
+      team2: match ? buildSections(match.team2Short) : null,
+    };
+  }, [allPlayers, lastMatchXIData, match]);
 
   const sortedPlayers = useMemo(() => {
     return [...allPlayers].sort((a, b) => {
@@ -848,38 +912,91 @@ export default function CreateTeamScreen() {
                 </View>
               </View>
               <View style={styles.splitContainer}>
-                <View style={styles.splitColumn}>
-                  {sortedPlayers
-                    .filter(p => (p.teamShort || p.team) === match.team1Short)
-                    .map(item => (
-                      <CompactPlayerItem
-                        key={item.id}
-                        player={item}
-                        isSelected={selectedIds.has(item.id)}
-                        onToggle={() => togglePlayer(item)}
-                        colors={colors}
-                        isDark={isDark}
-                        showPlayingXI={hasPlayingXIData}
-                        isDisabled={!canSelectPlayer(item)}
-                      />
-                    ))}
-                </View>
-                <View style={styles.splitColumn}>
-                  {sortedPlayers
-                    .filter(p => (p.teamShort || p.team) === match.team2Short)
-                    .map(item => (
-                      <CompactPlayerItem
-                        key={item.id}
-                        player={item}
-                        isSelected={selectedIds.has(item.id)}
-                        onToggle={() => togglePlayer(item)}
-                        colors={colors}
-                        isDark={isDark}
-                        showPlayingXI={hasPlayingXIData}
-                        isDisabled={!canSelectPlayer(item)}
-                      />
-                    ))}
-                </View>
+                {([
+                  { key: 'team1', teamShort: match.team1Short, sections: allTabSections.team1 },
+                  { key: 'team2', teamShort: match.team2Short, sections: allTabSections.team2 },
+                ] as const).map(({ key, sections }) => (
+                  <View key={key} style={styles.splitColumn}>
+                    {sections && sections.source !== 'fallback' ? (
+                      <>
+                        {/* LAST MATCH XI / PLAYING XI section */}
+                        {(sections.xi || []).length > 0 && (
+                          <>
+                            <View style={[styles.sectionLabel, { backgroundColor: colors.surfaceElevated }]}>
+                              <Text style={[styles.sectionLabelText, { color: colors.primary }]}>
+                                {sections.source === 'lastMatch' ? '⭐ LAST MATCH XI' : '⭐ PLAYING XI'}
+                              </Text>
+                            </View>
+                            {sections.xi.map(item => (
+                              <CompactPlayerItem
+                                key={item.id}
+                                player={item}
+                                isSelected={selectedIds.has(item.id)}
+                                onToggle={() => togglePlayer(item)}
+                                colors={colors}
+                                isDark={isDark}
+                                showPlayingXI={hasPlayingXIData}
+                                isDisabled={!canSelectPlayer(item)}
+                              />
+                            ))}
+                          </>
+                        )}
+                        {/* IMPACT PLAYER section */}
+                        {sections.impact && (
+                          <>
+                            <View style={[styles.sectionLabel, { backgroundColor: colors.surfaceElevated }]}>
+                              <Text style={[styles.sectionLabelText, { color: '#F59E0B' }]}>⚡ IMPACT PLAYER</Text>
+                            </View>
+                            <CompactPlayerItem
+                              key={sections.impact.id}
+                              player={sections.impact}
+                              isSelected={selectedIds.has(sections.impact.id)}
+                              onToggle={() => togglePlayer(sections.impact!)}
+                              colors={colors}
+                              isDark={isDark}
+                              showPlayingXI={hasPlayingXIData}
+                              isDisabled={!canSelectPlayer(sections.impact)}
+                            />
+                          </>
+                        )}
+                        {/* REST OF SQUAD section */}
+                        {(sections.rest || []).length > 0 && (
+                          <>
+                            <View style={[styles.sectionLabel, { backgroundColor: colors.surfaceElevated }]}>
+                              <Text style={[styles.sectionLabelText, { color: colors.textTertiary }]}>⚪ REST OF SQUAD</Text>
+                            </View>
+                            {sections.rest.map(item => (
+                              <CompactPlayerItem
+                                key={item.id}
+                                player={item}
+                                isSelected={selectedIds.has(item.id)}
+                                onToggle={() => togglePlayer(item)}
+                                colors={colors}
+                                isDark={isDark}
+                                showPlayingXI={hasPlayingXIData}
+                                isDisabled={!canSelectPlayer(item)}
+                              />
+                            ))}
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      /* Fallback: no section grouping, show all players sorted by credits */
+                      (sections?.rest || sortedPlayers.filter(p => (p.teamShort || p.team) === (key === 'team1' ? match.team1Short : match.team2Short))).map(item => (
+                        <CompactPlayerItem
+                          key={item.id}
+                          player={item}
+                          isSelected={selectedIds.has(item.id)}
+                          onToggle={() => togglePlayer(item)}
+                          colors={colors}
+                          isDark={isDark}
+                          showPlayingXI={hasPlayingXIData}
+                          isDisabled={!canSelectPlayer(item)}
+                        />
+                      ))
+                    )}
+                  </View>
+                ))}
               </View>
             </ScrollView>
           ) : (
@@ -2115,6 +2232,18 @@ const styles = StyleSheet.create({
   splitColumn: {
     flex: 1,
     gap: 6,
+  },
+  sectionLabel: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  sectionLabelText: {
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold' as const,
+    letterSpacing: 0.5,
   },
   compactCard: {
     borderRadius: 10,
