@@ -35,6 +35,23 @@ export function markServerReady(): void {
   serverReady = true;
 }
 
+async function runMigrations(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    console.log("[DB] Running idempotent schema migrations...");
+    await client.query(`
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS revised_start_time TIMESTAMP;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS admin_unlock_override BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_scorecard_at TIMESTAMP;
+    `);
+    console.log("[DB] Migrations complete.");
+  } catch (err: any) {
+    console.error("[DB] Migration error:", err.message);
+  } finally {
+    client.release();
+  }
+}
+
 export async function connectWithRetry(
   maxAttempts = 10,
   delayMs = 3000,
@@ -49,6 +66,7 @@ export async function connectWithRetry(
       client.release();
       dbConnected = true;
       console.log("[DB] Connected successfully");
+      await runMigrations();
       return;
     } catch (err: any) {
       console.error(
