@@ -321,7 +321,7 @@ export default function MatchDetailScreen() {
         </View>
       </View>
 
-      <View style={styles.sectionHeader}>
+      <View style={[styles.sectionHeader, { borderLeftColor: colors.accent }]}>
         <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
           Your Teams ({userTeams.length}/3)
         </Text>
@@ -1147,7 +1147,7 @@ export default function MatchDetailScreen() {
 
     return (
       <View style={styles.contentSection}>
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader, { borderLeftColor: colors.accent }]}>
           <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             {participants.length} {participants.length === 1 ? 'Participant' : 'Participants'}
           </Text>
@@ -1325,7 +1325,7 @@ export default function MatchDetailScreen() {
       <View style={styles.contentSection}>
         {hasPlayingXI ? (
           <>
-            <View style={styles.sectionHeader}>
+            <View style={[styles.sectionHeader, { borderLeftColor: colors.accent }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <View style={[styles.playingXIBadge, { backgroundColor: colors.success + '20' }]}>
                   <View style={[styles.playingXIDot, { backgroundColor: colors.success }]} />
@@ -1342,7 +1342,7 @@ export default function MatchDetailScreen() {
 
             {bench.length > 0 && (
               <>
-                <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+                <View style={[styles.sectionHeader, { marginTop: 20, borderLeftColor: colors.accent }]}>
                   <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
                     Bench ({bench.length})
                   </Text>
@@ -1353,7 +1353,7 @@ export default function MatchDetailScreen() {
           </>
         ) : (
           <>
-            <View style={styles.sectionHeader}>
+            <View style={[styles.sectionHeader, { borderLeftColor: colors.accent }]}>
               <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
                 Squad ({players.length})
               </Text>
@@ -1851,7 +1851,6 @@ const styles = StyleSheet.create({
   sectionHeader: {
     marginBottom: 12,
     borderLeftWidth: 3,
-    borderLeftColor: '#FFD700',
     paddingLeft: 10,
   },
   sectionTitle: {

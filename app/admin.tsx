@@ -939,7 +939,7 @@ export default function AdminScreen() {
 
           <View style={styles.section}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0 }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0, borderLeftColor: colors.accent }]}>
                 API Usage Today
               </Text>
               <Pressable onPress={loadApiCalls} style={{ padding: 4 }}>
@@ -988,7 +988,7 @@ export default function AdminScreen() {
 
           <View style={styles.section}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
                 User Approvals
               </Text>
               {pendingUsers.length > 0 && (
@@ -1064,7 +1064,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Match Management
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -1105,7 +1105,7 @@ export default function AdminScreen() {
 
           {/* Add Match from API */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Add Match from API
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -1169,7 +1169,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Impact Features & Match Controls
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -1417,7 +1417,7 @@ export default function AdminScreen() {
 
           <View style={styles.section}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0 }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0, borderLeftColor: colors.accent }]}>
                 Audit Log
               </Text>
               <Pressable onPress={loadAuditLogs} disabled={loadingAudit} style={{ padding: 6 }}>
@@ -1448,7 +1448,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Tournament Pot Management
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -1617,7 +1617,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Playing XI
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -1872,7 +1872,7 @@ export default function AdminScreen() {
 
           {selectedMatchId && selectedMatch && (
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
                 Add Player to {selectedMatch.team1Short} v {selectedMatch.team2Short}
               </Text>
               <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -1966,7 +1966,7 @@ export default function AdminScreen() {
           )}
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Scoring System
             </Text>
 
@@ -2011,7 +2011,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Match Debug
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -2218,7 +2218,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Player Name Mapping
             </Text>
             <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 12 }]}>
@@ -2378,7 +2378,7 @@ export default function AdminScreen() {
         </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
               Rewards Vault
             </Text>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -2821,7 +2821,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginBottom: 4,
     borderLeftWidth: 3,
-    borderLeftColor: '#FFD700',
     paddingLeft: 10,
   },
   sectionDesc: {
