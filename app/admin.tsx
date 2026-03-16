@@ -201,6 +201,7 @@ export default function AdminScreen() {
   };
 
   const confirmVoidMatch = async () => {
+    console.log('[Admin] confirmVoidMatch called, matchId:', voidConfirmMatchId);
     if (!voidConfirmMatchId) return;
     const matchId = voidConfirmMatchId;
     setVoiding(true);
@@ -211,15 +212,17 @@ export default function AdminScreen() {
         const vData = await vRes.json().catch(() => ({}));
         throw new Error(vData.message || `Server error ${vRes.status}`);
       }
-      setVoidResult('Match voided successfully');
+      setVoidResult('✔ Match voided successfully');
       setMatchResult(matchId, '✔ Match voided');
+      console.log('[Admin] Void success for match:', matchId);
       await loadMatches();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => setVoidConfirmMatchId(null), 900);
-    } catch (e) {
-      setVoidResult('Failed to void match');
-      setMatchResult(matchId, '❌ Void failed');
-      console.error('Void match failed:', e);
+      setTimeout(() => setVoidConfirmMatchId(null), 1200);
+    } catch (e: any) {
+      const errMsg = e?.message || 'Unknown error';
+      console.error('[Admin] Void match failed:', errMsg, e);
+      setVoidResult(`❌ Void failed: ${errMsg}`);
+      setMatchResult(matchId, `❌ Void failed: ${errMsg}`);
     } finally {
       setVoiding(false);
     }
@@ -1235,7 +1238,7 @@ export default function AdminScreen() {
                   {/* 🚫 Void/Cancel — only when not already voided */}
                   {!m.isVoid && (
                     <Pressable
-                      onPress={() => setVoidConfirmMatchId(m.id)}
+                      onPress={() => { console.log('[Admin] Void button pressed for match:', m.id); setVoidResult(''); setVoidConfirmMatchId(m.id); }}
                       disabled={voiding}
                       accessibilityLabel="Void/Cancel Match"
                       accessibilityHint="Void this match and exclude it from all scoring calculations"
@@ -2453,16 +2456,21 @@ export default function AdminScreen() {
           </View>
       </ScrollView>
 
-      {/* Void/Cancel Confirmation Modal */}
-      <Modal
-        visible={voidConfirmMatchId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setVoidConfirmMatchId(null)}
-      >
+      {/* Void/Cancel Confirmation Overlay — uses absolute positioning instead of Modal for reliable web rendering */}
+      {voidConfirmMatchId !== null && (
         <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
-          onPress={() => setVoidConfirmMatchId(null)}
+          onPress={() => { setVoidConfirmMatchId(null); setVoidResult(''); }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+          }}
         >
           <Pressable
             style={{
@@ -2473,7 +2481,7 @@ export default function AdminScreen() {
               borderWidth: 1,
               borderColor: colors.error + '40',
             }}
-            onPress={() => {}}
+            onPress={(e) => e.stopPropagation()}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <Ionicons name="close-circle-outline" size={20} color={colors.error} />
@@ -2486,7 +2494,7 @@ export default function AdminScreen() {
             </Text>
             {voidResult !== '' && (
               <Text style={{
-                color: voidResult.includes('success') ? colors.success : colors.error,
+                color: voidResult.startsWith('✔') ? '#10B981' : colors.error,
                 fontFamily: 'Inter_500Medium',
                 fontSize: 13,
                 marginBottom: 8,
@@ -2524,13 +2532,13 @@ export default function AdminScreen() {
               >
                 {voiding
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Void Match</Text>
+                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Confirm Void</Text>
                 }
               </Pressable>
             </View>
           </Pressable>
         </Pressable>
-      </Modal>
+      )}
 
       {/* Entry Deadline Override Modal */}
       <Modal
