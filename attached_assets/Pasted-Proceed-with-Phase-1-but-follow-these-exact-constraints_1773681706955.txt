@@ -1,0 +1,47 @@
+Proceed with Phase 1, but follow these exact constraints so the result does not end up as a minor cosmetic refresh.
+
+PHASE 1 ACCEPTANCE CRITERIA
+
+1. Deep Blue & Gold must remain the dominant brand language across the webapp.
+2. Purple/Magenta should be used only for featured hero/spotlight surfaces, not everywhere.
+3. Orange should be used only for live, urgency, deadlines, and selected CTA emphasis.
+4. Do not just recolor existing UI. Improve hierarchy, spacing, card depth, and button quality.
+5. This must feel like a visible premium upgrade, not the same layout with slightly different colors.
+
+MANDATORY PHASE 1 VISUAL CHANGES
+
+HOME
+- hero banner must feel premium and more immersive
+- match cards must have better depth, hierarchy, and CTA treatment
+- team-vs-team presentation should be more visually prominent
+- status/deadline/live indicators should look richer and clearer
+- desktop width usage must be improved
+
+PROFILE
+- profile header/identity card should look more premium and branded
+- stat cards should look more elevated and intentional
+- settings rows should feel more polished, not generic list items
+
+TAB BAR / NAV
+- improve polish without making it noisy
+- desktop web should still feel intentional, not like a stretched mobile nav
+- all clickable elements should show cursor:pointer and visible hover/focus states on web
+
+GLOBAL
+- introduce a consistent max-width container system for desktop web
+- improve hover states on cards, buttons, and interactive list rows
+- improve focus states for keyboard navigation
+- improve contrast and depth in both dark mode and light mode
+
+IMPORTANT
+Do not start Phase 1 until you confirm:
+1. exact files being changed
+2. exact components in each file being changed
+3. exact visible before/after improvement expected per file
+
+After implementation, provide:
+- exact files changed
+- exact components changed in each file
+- what visibly changed in each screen
+- GitHub push handoff
+- whether this is only in dev or ready for publish

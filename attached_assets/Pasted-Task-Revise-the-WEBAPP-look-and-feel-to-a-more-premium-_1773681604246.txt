@@ -1,0 +1,228 @@
+Task: Revise the WEBAPP look and feel to a more premium fantasy-cricket visual system inspired by the reference directions I provided.
+
+Important platform rule:
+This is a WEBAPP only.
+Do not design this like a Play Store / App Store native app.
+All changes must be webapp-first and browser-first.
+The final result must work elegantly across desktop web and responsive web, while still supporting dark mode and light mode.
+
+====================================
+1. DESIGN DIRECTION TO FOLLOW
+====================================
+
+Use the reference images as visual inspiration only, not as literal copies.
+
+My preferred visual directions are:
+1. Deep Blue & Gold
+2. Regal Purple & Magenta
+3. Graphite & Orange
+
+Recommended design system approach:
+- Primary brand foundation: Deep Blue & Gold
+- Premium spotlight / featured sections: Regal Purple & Magenta
+- Action / live / urgency / CTA accents: Graphite & Orange or orange-highlight system
+
+The final look should feel:
+- premium
+- bold
+- fantasy-cricket focused
+- modern
+- rich but not tacky
+- visually dramatic without becoming cluttered
+
+It should NOT feel:
+- flat
+- generic
+- overly plain
+- mobile-only
+- utility/admin-first
+- random in color usage
+
+====================================
+2. THEME SYSTEM REQUIREMENTS
+====================================
+
+Create a coherent visual theme system for the WEBAPP that supports both DARK MODE and LIGHT MODE.
+
+Required theme structure:
+
+A. DARK MODE
+- Main base: deep navy / midnight blue / graphite
+- Premium highlights: gold
+- Featured/promo areas: regal purple / magenta gradients where appropriate
+- Live/alert/action accents: orange where appropriate
+
+B. LIGHT MODE
+- Keep the same premium brand language, but lighter and cleaner
+- Avoid washed-out pale gray UI
+- Cards/backgrounds should still feel premium and layered
+- Preserve gold / royal blue / premium accent hierarchy
+
+Define a clear color hierarchy for:
+1. page background
+2. cards
+3. elevated cards
+4. hero banners
+5. primary CTA buttons
+6. secondary buttons
+7. featured contest cards
+8. live badges
+9. status pills
+10. icons
+11. text hierarchy
+12. borders/dividers
+13. hover states
+14. focus states
+
+====================================
+3. IMPLEMENTATION GOAL
+====================================
+
+I do NOT want only an audit or style suggestion.
+I want an actual implementation plan plus code changes.
+
+Revise the current WEBAPP UI so it feels closer to a premium fantasy cricket product.
+
+Priority screens/components:
+1. Home screen
+2. Match cards
+3. Profile screen
+4. Admin screen
+5. Navigation / tab experience
+6. Contest / leaderboard visual blocks where applicable
+
+====================================
+4. VISUAL CHANGES REQUIRED
+====================================
+
+Please implement a first high-impact visual pass with these goals:
+
+A. GLOBAL LOOK
+- stronger premium color palette
+- more layered card system
+- better gradients
+- richer typography hierarchy
+- more polished spacing
+- cleaner icon presentation
+- more contrast and depth
+
+B. WEBAPP-FIRST INTERACTION POLISH
+- hover states for clickable elements
+- cursor:pointer for interactive elements
+- visible focus states for keyboard accessibility
+- better desktop-width usage
+- more premium button interactions
+- avoid mobile-only visual behavior on desktop
+
+C. HOME / MATCH CARD IMPROVEMENTS
+- make hero banner feel more premium and fantasy-sports oriented
+- improve match card hierarchy
+- stronger team-vs-team presentation
+- better CTA styling
+- better live/upcoming/deadline styling
+- use featured-card treatment where appropriate
+
+D. PROFILE IMPROVEMENTS
+- more premium identity card/header
+- improve stats card visuals
+- better settings-list styling
+- stronger use of accent colors
+
+E. ADMIN IMPROVEMENTS
+- admin should remain functional, but not plain
+- larger and clearer control buttons for desktop web
+- better section headers
+- improved card styling
+- better spacing and visual grouping
+- preserve usability while making it feel part of the same premium system
+
+F. NAVIGATION
+- improve bottom navigation visual polish
+- if desktop-specific enhancement is reasonable, propose it
+- ensure current nav looks intentional on web, not just mobile carried over
+
+====================================
+5. DESIGN LANGUAGE RULES
+====================================
+
+Use this color strategy:
+
+PRIMARY BASE
+- Deep Blue & Gold
+
+PREMIUM FEATURED ACCENTS
+- Regal Purple & Magenta
+
+ACTION / LIVE / CONTEST ENERGY
+- Orange accents on dark/graphite-compatible surfaces
+
+Important:
+- Do not overuse all three equally on every screen
+- maintain hierarchy and restraint
+- Deep Blue & Gold should remain the dominant brand language
+- Purple/Magenta should be used for featured/high-value modules
+- Orange should be used selectively for urgency/live/CTA energy
+
+====================================
+6. WHAT I NEED FROM YOU FIRST
+====================================
+
+Before implementation, give me:
+
+1. Exact files you will change
+2. Exact screens/components affected
+3. Exact visual system updates you will make
+4. Which palette will be dominant where
+5. How dark mode and light mode will both be handled
+6. What is included in Phase 1
+7. What is left for Phase 2
+
+Then proceed with Phase 1 implementation.
+
+====================================
+7. WORKFLOW REQUIREMENT
+====================================
+
+Do not treat dev-only work as completion.
+
+This task is complete only if:
+1. changes are saved in source files
+2. exact files changed are listed
+3. GitHub push handoff is provided
+4. published WEBAPP status is clearly stated separately from dev status
+
+Do not make temporary runtime-only or DB-only changes for this task.
+
+====================================
+8. REQUIRED FINAL HANDOFF
+====================================
+
+After implementation, provide:
+
+1. Exact files changed
+2. What changed in each file
+3. Which screens now reflect the new premium theme
+4. How dark mode works
+5. How light mode works
+6. Recommended commit message
+7. Exact git commands for push
+8. What I should verify after publish on the live WEBAPP
+
+====================================
+9. DESIGN QUALITY BAR
+====================================
+
+The result should feel closer to:
+- premium fantasy cricket
+- richer gradients
+- stronger feature cards
+- better depth and contrast
+- cleaner premium hierarchy
+
+The result should NOT feel like:
+- same old flat UI with small cosmetic changes
+- generic admin utility styling
+- only blue buttons on white cards
+- mobile app styling pasted into web with no desktop polish
+
+Please treat this as a real visual upgrade sprint, not a minor styling tweak.
