@@ -137,6 +137,11 @@ export default function AdminScreen() {
   const [revisedTimeResult, setRevisedTimeResult] = useState('');
   const [lockTogglingId, setLockTogglingId] = useState<string | null>(null);
   const [markingCompleteId, setMarkingCompleteId] = useState<string | null>(null);
+  const [matchActionResult, setMatchActionResult] = useState<Record<string, string>>({});
+  const setMatchResult = (matchId: string, msg: string) => {
+    setMatchActionResult(prev => ({ ...prev, [matchId]: msg }));
+    setTimeout(() => setMatchActionResult(prev => { const n = { ...prev }; delete n[matchId]; return n; }), 4000);
+  };
 
   const [playerStatusExpandedId, setPlayerStatusExpandedId] = useState<string | null>(null);
   const [playerStatusData, setPlayerStatusData] = useState<Record<string, { players: any[]; statuses: Map<string, any> }>>({});
@@ -170,10 +175,11 @@ export default function AdminScreen() {
     try {
       await apiRequest('POST', `/api/admin/matches/${matchId}/toggle-impact`, { enabled });
       await loadMatches();
+      setMatchResult(matchId, enabled ? '✔ Impact picks ON' : '✔ Impact picks OFF');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.error('Toggle impact failed:', e);
-      Alert.alert('Error', 'Failed to toggle impact features');
+      setMatchResult(matchId, '❌ Impact toggle failed');
     } finally {
       setImpactTogglingId(null);
     }
@@ -185,10 +191,13 @@ export default function AdminScreen() {
     try {
       const res = await apiRequest('POST', `/api/admin/matches/${matchId}/recalculate`);
       const data = await res.json();
-      setRecalcResult(data.message || `Updated ${data.teamsUpdated || 0} teams`);
+      const msg = data.message || `Updated ${data.teamsUpdated || 0} teams`;
+      setRecalcResult(msg);
+      setMatchResult(matchId, `✔ ${msg}`);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       setRecalcResult('Recalculation failed');
+      setMatchResult(matchId, '❌ Recalculate failed');
       console.error('Recalculate failed:', e);
     } finally {
       setRecalculating(false);
@@ -207,10 +216,12 @@ export default function AdminScreen() {
           try {
             await apiRequest('POST', `/api/admin/matches/${matchId}/void`);
             setVoidResult('Match voided successfully');
+            setMatchResult(matchId, '✔ Match voided');
             await loadMatches();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } catch (e) {
             setVoidResult('Failed to void match');
+            setMatchResult(matchId, '❌ Void failed');
             console.error('Void match failed:', e);
           } finally {
             setVoiding(false);
@@ -405,12 +416,15 @@ export default function AdminScreen() {
       const data = await res.json();
       if (!res.ok) {
         Alert.alert('Cannot unlock', data.message || 'Unknown error');
+        setMatchResult(matchId, `❌ ${data.message || 'Cannot change lock'}`);
       } else {
         await loadMatches();
+        setMatchResult(matchId, unlock ? '✔ Entry unlocked' : '✔ Entry locked');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (e) {
       Alert.alert('Error', 'Failed to toggle lock');
+      setMatchResult(matchId, '❌ Lock toggle failed');
     } finally {
       setLockTogglingId(null);
     }
@@ -1169,109 +1183,124 @@ export default function AdminScreen() {
 
             {matches.map(m => (
               <View key={m.id} style={[styles.generateCard, { backgroundColor: colors.card, borderColor: m.isVoid ? colors.error + '40' : colors.cardBorder, marginBottom: 8 }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: m.isVoid ? colors.error : colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>
-                      {m.team1Short} vs {m.team2Short} {m.isVoid ? '(VOID)' : ''}
-                    </Text>
-                    <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
-                      {m.status} | {m.revisedStartTime
-                        ? <Text style={{ color: '#F59E0B' }}>⏰ {new Date(m.revisedStartTime).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</Text>
-                        : new Date(m.startTime).toLocaleDateString()
-                      }
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    <Pressable
-                      onPress={() => toggleImpactFeatures(m.id, !m.impactFeaturesEnabled)}
-                      disabled={impactTogglingId === m.id}
-                      style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        borderRadius: 8,
-                        backgroundColor: m.impactFeaturesEnabled ? '#F59E0B20' : colors.surfaceElevated,
-                        borderWidth: 1,
-                        borderColor: m.impactFeaturesEnabled ? '#F59E0B' : colors.border,
-                      }}
-                    >
-                      <Text style={{ color: m.impactFeaturesEnabled ? '#F59E0B' : colors.textTertiary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>
-                        {impactTogglingId === m.id ? '...' : m.impactFeaturesEnabled ? '⚡ ON' : '⚡ OFF'}
-                      </Text>
-                    </Pressable>
-                    {m.status !== 'completed' && (
-                      <Pressable
-                        onPress={() => toggleAdminUnlock(m.id, !m.adminUnlockOverride)}
-                        disabled={lockTogglingId === m.id}
-                        style={{ padding: 6 }}
-                      >
-                        {lockTogglingId === m.id
-                          ? <ActivityIndicator size="small" color={colors.textTertiary} />
-                          : <Ionicons
-                              name={m.adminUnlockOverride ? 'lock-open-outline' : 'lock-closed-outline'}
-                              size={16}
-                              color={m.adminUnlockOverride ? '#10B981' : colors.textTertiary}
-                            />
-                        }
-                      </Pressable>
-                    )}
-                    <Pressable
-                      onPress={() => recalculateMatch(m.id)}
-                      disabled={recalculating}
-                      style={{ padding: 6 }}
-                    >
-                      <MaterialCommunityIcons name="calculator" size={18} color={colors.primary} />
-                    </Pressable>
-                    {m.status !== 'completed' && (
-                      <Pressable
-                        onPress={() => openEditTime(m)}
-                        style={{ padding: 6 }}
-                      >
-                        <Ionicons name="time-outline" size={16} color={colors.accent} />
-                      </Pressable>
-                    )}
-                    <Pressable
-                      onPress={() => openRevisedTime(m)}
-                      style={{ padding: 6 }}
-                    >
-                      <Ionicons
-                        name="alarm-outline"
-                        size={16}
-                        color={m.revisedStartTime ? '#F59E0B' : colors.textTertiary}
-                      />
-                    </Pressable>
-                    {!m.isVoid && (
-                      <Pressable
-                        onPress={() => voidMatch(m.id)}
-                        disabled={voiding}
-                        style={{ padding: 6 }}
-                      >
-                        <Ionicons name="ban" size={16} color={colors.error} />
-                      </Pressable>
-                    )}
-                    <Pressable
-                      onPress={() => promptSetWinner(m)}
-                      disabled={settingWinnerId === m.id}
-                      style={{ padding: 6 }}
-                    >
-                      <Ionicons name="trophy-outline" size={16} color={m.officialWinner ? '#F59E0B' : colors.textTertiary} />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => togglePlayerStatusExpand(m.id)}
-                      style={{ padding: 6 }}
-                    >
-                      <Ionicons
-                        name={playerStatusExpandedId === m.id ? 'people' : 'people-outline'}
-                        size={16}
-                        color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary}
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-                {m.officialWinner && (
-                  <Text style={{ color: '#F59E0B', fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, marginTop: 4 }}>
-                    Winner: {m.officialWinner}
+                {/* Row 1: match info */}
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={{ color: m.isVoid ? colors.error : colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>
+                    {m.team1Short} vs {m.team2Short}
+                    {m.isVoid ? <Text style={{ color: colors.error }}> (VOID)</Text> : null}
+                    {m.officialWinner ? <Text style={{ color: '#F59E0B', fontSize: 11 }}> · 🏆 {m.officialWinner}</Text> : null}
                   </Text>
-                )}
+                  <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                    {m.status}{m.revisedStartTime
+                      ? ` · ⏰ ${new Date(m.revisedStartTime).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                      : ` · ${new Date(m.startTime).toLocaleDateString()}`}
+                  </Text>
+                </View>
+
+                {/* Row 2: action buttons — flex wrap so all are visible on mobile */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                  {/* ⚡ Impact toggle */}
+                  <Pressable
+                    onPress={() => toggleImpactFeatures(m.id, !m.impactFeaturesEnabled)}
+                    disabled={impactTogglingId === m.id}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      backgroundColor: m.impactFeaturesEnabled ? '#F59E0B20' : colors.surfaceElevated,
+                      borderWidth: 1,
+                      borderColor: m.impactFeaturesEnabled ? '#F59E0B' : colors.border,
+                    }}
+                  >
+                    <Text style={{ color: m.impactFeaturesEnabled ? '#F59E0B' : colors.textTertiary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>
+                      {impactTogglingId === m.id ? '...' : m.impactFeaturesEnabled ? '⚡ ON' : '⚡ OFF'}
+                    </Text>
+                  </Pressable>
+
+                  {/* 🔒 Lock/Unlock — all non-completed */}
+                  {m.status !== 'completed' && (
+                    <Pressable
+                      onPress={() => toggleAdminUnlock(m.id, !m.adminUnlockOverride)}
+                      disabled={lockTogglingId === m.id}
+                      style={{ padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }}
+                    >
+                      {lockTogglingId === m.id
+                        ? <ActivityIndicator size="small" color={colors.textTertiary} />
+                        : <Ionicons
+                            name={m.adminUnlockOverride ? 'lock-open-outline' : 'lock-closed-outline'}
+                            size={16}
+                            color={m.adminUnlockOverride ? '#10B981' : colors.textTertiary}
+                          />
+                      }
+                    </Pressable>
+                  )}
+
+                  {/* 🧮 Recalculate */}
+                  <Pressable
+                    onPress={() => recalculateMatch(m.id)}
+                    disabled={recalculating}
+                    style={{ padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: recalculating ? 0.5 : 1 }}
+                  >
+                    <MaterialCommunityIcons name="calculator" size={16} color={colors.primary} />
+                  </Pressable>
+
+                  {/* ⏱ Edit Start Time — non-completed only */}
+                  {m.status !== 'completed' && (
+                    <Pressable
+                      onPress={() => openEditTime(m)}
+                      style={{ padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }}
+                    >
+                      <Ionicons name="time-outline" size={16} color={colors.accent} />
+                    </Pressable>
+                  )}
+
+                  {/* ⏰ Revised Time — always */}
+                  <Pressable
+                    onPress={() => openRevisedTime(m)}
+                    style={{ padding: 8, borderRadius: 8, backgroundColor: m.revisedStartTime ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.revisedStartTime ? '#F59E0B' : colors.border }}
+                  >
+                    <Ionicons name="alarm-outline" size={16} color={m.revisedStartTime ? '#F59E0B' : colors.textTertiary} />
+                  </Pressable>
+
+                  {/* 🚫 Void — only when not already voided */}
+                  {!m.isVoid && (
+                    <Pressable
+                      onPress={() => voidMatch(m.id)}
+                      disabled={voiding}
+                      style={{ padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: voiding ? 0.5 : 1 }}
+                    >
+                      <Ionicons name="ban" size={16} color={colors.error} />
+                    </Pressable>
+                  )}
+
+                  {/* 🏆 Set Winner — always */}
+                  <Pressable
+                    onPress={() => promptSetWinner(m)}
+                    disabled={settingWinnerId === m.id}
+                    style={{ padding: 8, borderRadius: 8, backgroundColor: m.officialWinner ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.officialWinner ? '#F59E0B' : colors.border, opacity: settingWinnerId === m.id ? 0.5 : 1 }}
+                  >
+                    <Ionicons name="trophy-outline" size={16} color={m.officialWinner ? '#F59E0B' : colors.textTertiary} />
+                  </Pressable>
+
+                  {/* 👥 Player Status — always */}
+                  <Pressable
+                    onPress={() => togglePlayerStatusExpand(m.id)}
+                    style={{ padding: 8, borderRadius: 8, backgroundColor: playerStatusExpandedId === m.id ? colors.primary + '20' : colors.surfaceElevated, borderWidth: 1, borderColor: playerStatusExpandedId === m.id ? colors.primary : colors.border }}
+                  >
+                    <Ionicons
+                      name={playerStatusExpandedId === m.id ? 'people' : 'people-outline'}
+                      size={16}
+                      color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary}
+                    />
+                  </Pressable>
+                </View>
+
+                {/* Per-match feedback */}
+                {matchActionResult[m.id] ? (
+                  <Text style={{ color: matchActionResult[m.id].startsWith('✔') ? '#10B981' : colors.error, fontSize: 11, fontFamily: 'Inter_500Medium' as const, marginTop: 6 }}>
+                    {matchActionResult[m.id]}
+                  </Text>
+                ) : null}
                 {playerStatusExpandedId === m.id && (
                   <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>

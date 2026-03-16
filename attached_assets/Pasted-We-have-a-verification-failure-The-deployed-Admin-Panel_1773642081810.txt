@@ -1,0 +1,74 @@
+We have a verification failure.
+
+The deployed Admin Panel UI still does NOT show the controls you claimed were added.
+
+Actual visible UI on mobile currently shows only:
+- ⚡ Impact
+- 🧮 Recalculate
+- 🚫 Void
+
+It does NOT show:
+- 🔒 Lock
+- ⏱ Edit Time
+- ⏰ Revised Time
+- 🏆 Winner
+- 👥 Players
+
+This means the change is either:
+1. not implemented in the real component being rendered,
+2. hidden by a mobile layout issue,
+3. blocked by a render condition,
+4. not deployed,
+5. or added in a different screen/component than the one visible here.
+
+Your task is to audit the ACTUAL rendered Admin Panel row and fix it properly.
+
+STRICT REQUIREMENTS
+
+1. Identify the exact component used to render each match row in:
+   Admin Panel → Impact Features & Match Controls
+
+2. Confirm the exact JSX currently rendered for each row.
+
+3. Do NOT rely on assumptions.
+   Inspect the real component and list:
+   - file path
+   - component name
+   - exact icons/buttons currently rendered
+
+4. Add or restore these actions visibly in the row for non-completed matches:
+   - 🔒 Lock
+   - ⏱ Edit Time
+   - 🚫 Void
+   Keep existing:
+   - ⚡ Impact
+   - 🧮 Recalculate
+
+5. If the row is too crowded on mobile, redesign safely:
+   Option A:
+   Keep the row with 5 visible actions
+   Option B:
+   Add a “More” / overflow button that opens the extra admin actions
+   But the missing controls must be accessible and visible in the UI.
+
+6. Verify on mobile layout specifically.
+   The issue may be that buttons exist in code but are clipped, wrapped, or hidden off-screen.
+
+7. After fixing, provide proof in your summary:
+   - exact file modified
+   - exact controls now visible
+   - whether you changed layout
+   - what mobile constraint caused the issue
+   - why the earlier summary was incorrect
+
+8. Do not say “done” until you confirm the rendered row visibly includes the missing controls in the actual Admin Panel screen.
+
+9. Also add user feedback for each admin action:
+   - success toast/message
+   - error toast/message
+   - loading/disabled state while processing
+
+10. Backend logic must remain unchanged unless required for wiring an existing action.
+
+Deliverable:
+A corrected admin row that visibly shows or safely exposes the missing controls on mobile in the deployed UI.
