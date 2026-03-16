@@ -123,6 +123,7 @@ export default function AdminScreen() {
   const [voidMatchId, setVoidMatchId] = useState<string | null>(null);
   const [voiding, setVoiding] = useState(false);
   const [voidResult, setVoidResult] = useState('');
+  const [voidConfirmMatchId, setVoidConfirmMatchId] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
@@ -199,35 +200,29 @@ export default function AdminScreen() {
     }
   };
 
-  const voidMatch = async (matchId: string) => {
-    Alert.alert('Void Match', 'Are you sure? This will mark the match as void and exclude it from scoring.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Void It',
-        style: 'destructive',
-        onPress: async () => {
-          setVoiding(true);
-          setVoidResult('');
-          try {
-            const vRes = await apiRequest('POST', `/api/admin/matches/${matchId}/void`, { isVoid: true });
-            if (!vRes.ok) {
-              const vData = await vRes.json().catch(() => ({}));
-              throw new Error(vData.message || `Server error ${vRes.status}`);
-            }
-            setVoidResult('Match voided successfully');
-            setMatchResult(matchId, '✔ Match voided');
-            await loadMatches();
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch (e) {
-            setVoidResult('Failed to void match');
-            setMatchResult(matchId, '❌ Void failed');
-            console.error('Void match failed:', e);
-          } finally {
-            setVoiding(false);
-          }
-        },
-      },
-    ]);
+  const confirmVoidMatch = async () => {
+    if (!voidConfirmMatchId) return;
+    const matchId = voidConfirmMatchId;
+    setVoiding(true);
+    setVoidResult('');
+    try {
+      const vRes = await apiRequest('POST', `/api/admin/matches/${matchId}/void`, { isVoid: true });
+      if (!vRes.ok) {
+        const vData = await vRes.json().catch(() => ({}));
+        throw new Error(vData.message || `Server error ${vRes.status}`);
+      }
+      setVoidResult('Match voided successfully');
+      setMatchResult(matchId, '✔ Match voided');
+      await loadMatches();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => setVoidConfirmMatchId(null), 900);
+    } catch (e) {
+      setVoidResult('Failed to void match');
+      setMatchResult(matchId, '❌ Void failed');
+      console.error('Void match failed:', e);
+    } finally {
+      setVoiding(false);
+    }
   };
 
   const loadApiMatches = async () => {
@@ -1172,6 +1167,8 @@ export default function AdminScreen() {
                   <Pressable
                     onPress={() => toggleImpactFeatures(m.id, !m.impactFeaturesEnabled)}
                     disabled={impactTogglingId === m.id}
+                    accessibilityLabel="Toggle Impact Picks"
+                    accessibilityHint="Enable or disable Impact Player picks for this match"
                     style={{
                       paddingHorizontal: 10,
                       paddingVertical: 8,
@@ -1192,6 +1189,7 @@ export default function AdminScreen() {
                       onPress={() => toggleAdminUnlock(m.id, !m.adminUnlockOverride)}
                       disabled={lockTogglingId === m.id}
                       accessibilityLabel={m.adminUnlockOverride ? 'Lock Entry' : 'Unlock Entry'}
+                      accessibilityHint="Force-lock or unlock team entry for this match regardless of deadline"
                       style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.adminUnlockOverride ? '#10B98120' : colors.surfaceElevated, borderWidth: 1, borderColor: m.adminUnlockOverride ? '#10B981' : colors.border }}
                     >
                       {lockTogglingId === m.id
@@ -1213,35 +1211,38 @@ export default function AdminScreen() {
                     onPress={() => recalculateMatch(m.id)}
                     disabled={recalculating}
                     accessibilityLabel="Recalculate Scores"
+                    accessibilityHint="Recalculate all team and prediction scores for this match"
                     style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: recalculating ? 0.5 : 1 }}
                   >
                     {recalculating
                       ? <ActivityIndicator size="small" color={colors.primary} />
-                      : <Ionicons name="refresh-circle-outline" size={18} color={colors.primary} />
+                      : <Ionicons name="sync-outline" size={18} color={colors.primary} />
                     }
                     <Text style={{ color: colors.primary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Recalc</Text>
                   </Pressable>
 
-                  {/* ⏳ Entry Deadline Override — always */}
+                  {/* ⏳ Entry Deadline Override — only time-related action */}
                   <Pressable
                     onPress={() => openDeadline(m)}
                     accessibilityLabel="Entry Deadline Override"
+                    accessibilityHint="Override the fantasy entry cutoff time. Does not change the official API start time."
                     style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.revisedStartTime ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.revisedStartTime ? '#F59E0B' : colors.border }}
                   >
                     <Ionicons name="hourglass-outline" size={16} color={m.revisedStartTime ? '#F59E0B' : colors.textTertiary} />
                     <Text style={{ color: m.revisedStartTime ? '#F59E0B' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Deadline</Text>
                   </Pressable>
 
-                  {/* 🚫 Void — only when not already voided */}
+                  {/* 🚫 Void/Cancel — only when not already voided */}
                   {!m.isVoid && (
                     <Pressable
-                      onPress={() => voidMatch(m.id)}
+                      onPress={() => setVoidConfirmMatchId(m.id)}
                       disabled={voiding}
-                      accessibilityLabel="Void Match"
+                      accessibilityLabel="Void/Cancel Match"
+                      accessibilityHint="Void this match and exclude it from all scoring calculations"
                       style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: voiding ? 0.5 : 1 }}
                     >
-                      <Ionicons name="ban" size={16} color={colors.error} />
-                      <Text style={{ color: colors.error, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Void</Text>
+                      <Ionicons name="close-circle-outline" size={16} color={colors.error} />
+                      <Text style={{ color: colors.error, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Void/Cancel</Text>
                     </Pressable>
                   )}
 
@@ -1250,6 +1251,7 @@ export default function AdminScreen() {
                     onPress={() => promptSetWinner(m)}
                     disabled={settingWinnerId === m.id}
                     accessibilityLabel="Settle Match"
+                    accessibilityHint="Set the official match winner to finalize scoring"
                     style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.officialWinner ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.officialWinner ? '#F59E0B' : colors.border, opacity: settingWinnerId === m.id ? 0.5 : 1 }}
                   >
                     <Ionicons name="trophy-outline" size={16} color={m.officialWinner ? '#F59E0B' : colors.textTertiary} />
@@ -1260,6 +1262,7 @@ export default function AdminScreen() {
                   <Pressable
                     onPress={() => togglePlayerStatusExpand(m.id)}
                     accessibilityLabel="View Participants"
+                    accessibilityHint="Expand to view and manage player statuses for this match"
                     style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: playerStatusExpandedId === m.id ? colors.primary + '20' : colors.surfaceElevated, borderWidth: 1, borderColor: playerStatusExpandedId === m.id ? colors.primary : colors.border }}
                   >
                     <Ionicons
@@ -2449,6 +2452,85 @@ export default function AdminScreen() {
             )}
           </View>
       </ScrollView>
+
+      {/* Void/Cancel Confirmation Modal */}
+      <Modal
+        visible={voidConfirmMatchId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVoidConfirmMatchId(null)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setVoidConfirmMatchId(null)}
+        >
+          <Pressable
+            style={{
+              width: 320,
+              backgroundColor: colors.card,
+              borderRadius: 20,
+              padding: 24,
+              borderWidth: 1,
+              borderColor: colors.error + '40',
+            }}
+            onPress={() => {}}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="close-circle-outline" size={20} color={colors.error} />
+              <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18 }}>
+                Void/Cancel Match
+              </Text>
+            </View>
+            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 16 }}>
+              Are you sure you want to void this match? This will mark the match as void and exclude it from all scoring calculations. This action cannot be undone.
+            </Text>
+            {voidResult !== '' && (
+              <Text style={{
+                color: voidResult.includes('success') ? colors.success : colors.error,
+                fontFamily: 'Inter_500Medium',
+                fontSize: 13,
+                marginBottom: 8,
+              }}>
+                {voidResult}
+              </Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              <Pressable
+                onPress={() => { setVoidConfirmMatchId(null); setVoidResult(''); }}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmVoidMatch}
+                disabled={voiding}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: colors.error,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  opacity: voiding ? 0.6 : 1,
+                }}
+              >
+                {voiding
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Void Match</Text>
+                }
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Entry Deadline Override Modal */}
       <Modal
