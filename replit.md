@@ -2,7 +2,7 @@
 
 ## Overview
 
-CDO Cricket is a private, invite-only Fantasy Cricket platform built for a closed group of friends, inspired by Dream11. Users sign up and wait for admin approval before they can log in and access the app. The app features a modern dark/light theme with blue and yellow primary colors.
+CDO Cricket is a private, invite-only Fantasy Cricket platform built for a closed group of friends, inspired by Dream11. Users sign up and wait for admin approval before they can log in and access the app. The app features a premium dark/light theme with a 4-tier color palette: Deep Blue & Gold (dominant brand), Purple/Magenta (featured accent for hero/spotlight), Orange (live/urgency indicators). All screens use desktop max-width containers (700px screens, 800px admin), web hover states with cursor:pointer, and consistent card depth/hierarchy.
 
 The project uses an **Expo React Native** frontend (targeting web, iOS, and Android) with an **Express.js** backend and **PostgreSQL** database via **Drizzle ORM**. It follows a monorepo structure where the frontend and backend share schema definitions.
 

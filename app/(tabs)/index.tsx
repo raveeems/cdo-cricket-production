@@ -28,14 +28,17 @@ interface MatchWithParticipants extends Match {
   participantCount?: number;
 }
 
+const isWeb = Platform.OS === 'web';
+
 function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants; teamsCount: number }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(match.startTime, match.status));
   const matchStarted = new Date(match.startTime).getTime() <= Date.now();
   const effectiveStatus = (match.status === 'delayed' || match.status === 'upcoming') && matchStarted ? 'live' : match.status;
   const logo1 = getTeamLogo(match.team1Short);
   const logo2 = getTeamLogo(match.team2Short);
   const [banter] = useState<string | null>(() => getMatchBanter(match.team1Short, match.team2Short));
+  const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -45,6 +48,12 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
   }, [match.startTime, match.status]);
 
   const participants = match.participantCount ?? 0;
+  const isLive = effectiveStatus === 'live';
+
+  const webHoverProps = isWeb ? {
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+  } : {};
 
   return (
     <Pressable
@@ -55,39 +64,51 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
       style={({ pressed }) => [
         styles.compactCard,
         {
-          backgroundColor: colors.card,
-          borderColor: colors.cardBorder,
+          backgroundColor: hovered ? colors.cardHover : colors.card,
+          borderColor: isLive ? colors.live + '40' : (hovered ? colors.accent + '30' : colors.cardBorder),
+          borderWidth: isLive ? 1.5 : 1,
           transform: [{ scale: pressed ? 0.98 : 1 }],
+          ...(isWeb ? { cursor: 'pointer' as any, transition: 'all 0.2s ease' as any } : {}),
         },
       ]}
+      {...webHoverProps}
     >
+      {isLive && (
+        <LinearGradient
+          colors={colors.liveGradient as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.liveStripe}
+        />
+      )}
+
       <View style={styles.compactTop}>
         <Text style={[styles.compactLeague, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
           {match.league}
         </Text>
-        {effectiveStatus === 'live' ? (
-          <View style={[styles.statusBadge, { backgroundColor: colors.error + '18' }]}>
-            <View style={[styles.statusDot, { backgroundColor: colors.error }]} />
-            <Text style={[styles.statusText, { color: colors.error, fontFamily: 'Inter_700Bold' }]}>
+        {isLive ? (
+          <View style={[styles.statusBadge, { backgroundColor: colors.liveSoft }]}>
+            <View style={[styles.statusDot, { backgroundColor: colors.live }]} />
+            <Text style={[styles.statusText, { color: colors.live, fontFamily: 'Inter_700Bold' }]}>
               LIVE
             </Text>
           </View>
         ) : match.status === 'delayed' ? (
-          <View style={[styles.statusBadge, { backgroundColor: '#F39C12' + '18' }]}>
-            <Ionicons name="rainy-outline" size={11} color="#F39C12" style={{ marginRight: 3 }} />
-            <Text style={[styles.statusText, { color: '#F39C12', fontFamily: 'Inter_700Bold' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: colors.warning + '18' }]}>
+            <Ionicons name="rainy-outline" size={11} color={colors.warning} style={{ marginRight: 3 }} />
+            <Text style={[styles.statusText, { color: colors.warning, fontFamily: 'Inter_700Bold' }]}>
               DELAYED
             </Text>
           </View>
         ) : effectiveStatus === 'completed' ? (
-          <View style={[styles.statusBadge, { backgroundColor: '#22C55E18' }]}>
-            <Ionicons name="checkmark-circle" size={11} color="#22C55E" style={{ marginRight: 3 }} />
-            <Text style={[styles.statusText, { color: '#22C55E', fontFamily: 'Inter_600SemiBold' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: colors.success + '18' }]}>
+            <Ionicons name="checkmark-circle" size={11} color={colors.success} style={{ marginRight: 3 }} />
+            <Text style={[styles.statusText, { color: colors.success, fontFamily: 'Inter_600SemiBold' }]}>
               Completed
             </Text>
           </View>
         ) : (
-          <View style={styles.timerRow}>
+          <View style={[styles.timerRow, { backgroundColor: colors.accentSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
             <Ionicons name="time-outline" size={12} color={colors.accent} />
             <Text style={[styles.timerVal, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
               {timeLeft}
@@ -114,17 +135,17 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
 
         {(() => {
           const rawScore = (match as any).scoreString || "";
-          if (effectiveStatus === 'live' && rawScore.length > 3) {
+          if (isLive && rawScore.length > 3) {
             const segments = rawScore.split(/\s*\|\s*/);
             const lastSeg = segments[segments.length - 1].replace(/\s*[—\-]\s*.+$/, '').trim();
             const scoreMatch = lastSeg.match(/(\d+\/\d+)\s*\(([^)]+)\)/);
             if (scoreMatch) {
               return (
-                <View style={{ alignItems: 'center', minWidth: 60 }}>
-                  <Text style={{ fontSize: 16, color: colors.error, fontFamily: 'Inter_700Bold' as const }}>
+                <View style={{ alignItems: 'center', minWidth: 70 }}>
+                  <Text style={{ fontSize: 18, color: colors.live, fontFamily: 'Inter_700Bold' as const }}>
                     {scoreMatch[1]}
                   </Text>
-                  <Text style={{ fontSize: 10, color: colors.textTertiary, fontFamily: 'Inter_500Medium' as const, marginTop: 1 }}>
+                  <Text style={{ fontSize: 10, color: colors.textTertiary, fontFamily: 'Inter_500Medium' as const, marginTop: 2 }}>
                     {scoreMatch[2].trim()}
                   </Text>
                 </View>
@@ -132,9 +153,11 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
             }
           }
           return (
-            <Text style={[styles.compactVs, { color: colors.textTertiary, fontFamily: 'Inter_600SemiBold' }]}>
-              vs
-            </Text>
+            <View style={[styles.vsContainer, { backgroundColor: isDark ? colors.surfaceElevated : colors.background }]}>
+              <Text style={[styles.compactVs, { color: colors.textTertiary, fontFamily: 'Inter_700Bold' }]}>
+                VS
+              </Text>
+            </View>
           );
         })()}
 
@@ -182,13 +205,18 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
             No entries yet
           </Text>
         )}
+        <View style={{ flex: 1 }} />
+        <View style={[styles.viewCta, { backgroundColor: colors.primary + '18' }]}>
+          <Text style={{ color: colors.primary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const }}>View</Text>
+          <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+        </View>
       </View>
     </Pressable>
   );
 }
 
 export default function HomeScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const { getTeamsForMatch } = useTeams();
   const insets = useSafeAreaInsets();
@@ -207,7 +235,6 @@ export default function HomeScreen() {
     },
   });
 
-  // Home shows live/delayed always, upcoming only within 48h — completed go to My Matches
   const MS_48H = 48 * 60 * 60 * 1000;
   const nowMs = Date.now();
   const visibleMatches = (data?.matches || []).filter(m => {
@@ -217,7 +244,7 @@ export default function HomeScreen() {
     return false;
   });
 
-  const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const webTopInset = isWeb ? 67 : 0;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -238,7 +265,7 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
         }
       >
-        <View style={{ paddingTop: insets.top + webTopInset + 8 }}>
+        <View style={[styles.innerContainer, { paddingTop: insets.top + webTopInset + 8 }]}>
           <View style={styles.headerRow}>
             <View>
               <Text style={[styles.greeting, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -254,7 +281,14 @@ export default function HomeScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push('/admin');
                 }}
-                style={[styles.adminBtn, { backgroundColor: colors.primary + '20' }]}
+                style={({ pressed }) => [
+                  styles.adminBtn,
+                  {
+                    backgroundColor: colors.primary + '20',
+                    opacity: pressed ? 0.7 : 1,
+                    ...(isWeb ? { cursor: 'pointer' as any } : {}),
+                  },
+                ]}
               >
                 <Ionicons name="settings" size={20} color={colors.primary} />
               </Pressable>
@@ -262,12 +296,22 @@ export default function HomeScreen() {
           </View>
 
           <LinearGradient
-            colors={[colors.primary, '#003D7A']}
+            colors={colors.heroGradient as [string, string, string]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.bannerCard}
           >
+            <View style={styles.bannerOverlay}>
+              <View style={[styles.bannerGlowOrb, { backgroundColor: colors.accent + '08', top: -20, right: -20 }]} />
+              <View style={[styles.bannerGlowOrb, { backgroundColor: colors.featured + '10', bottom: -30, left: -30, width: 120, height: 120 }]} />
+            </View>
             <View style={styles.bannerContent}>
+              <View style={[styles.bannerBadge, { backgroundColor: colors.accent + '25' }]}>
+                <Ionicons name="flash" size={10} color={colors.accent} />
+                <Text style={{ color: colors.accent, fontSize: 10, fontFamily: 'Inter_700Bold' as const, letterSpacing: 1 }}>
+                  FANTASY CRICKET
+                </Text>
+              </View>
               <Text style={[styles.bannerTitle, { fontFamily: 'Inter_700Bold' }]}>
                 CDO Fantasy Cricket
               </Text>
@@ -275,22 +319,30 @@ export default function HomeScreen() {
                 Create your dream team and compete with friends
               </Text>
             </View>
-            <MaterialCommunityIcons name="cricket" size={48} color="rgba(255,255,255,0.3)" />
+            <View style={styles.bannerIconWrap}>
+              <MaterialCommunityIcons name="cricket" size={52} color="rgba(255,255,255,0.12)" />
+            </View>
           </LinearGradient>
 
           <View style={styles.sectionHeader}>
+            <View style={[styles.sectionAccent, { backgroundColor: colors.accent }]} />
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
               Matches
             </Text>
-            <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
+            {visibleMatches.some(m => {
+              const started = new Date(m.startTime).getTime() <= Date.now();
+              return m.status === 'live' || ((m.status === 'delayed' || m.status === 'upcoming') && started);
+            }) && (
+              <View style={[styles.livePulse, { backgroundColor: colors.live }]} />
+            )}
           </View>
 
           {isLoading ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : isError ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
               <Ionicons name="cloud-offline-outline" size={48} color={colors.error} />
               <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
                 Connection error
@@ -300,13 +352,21 @@ export default function HomeScreen() {
               </Text>
               <Pressable
                 onPress={() => refetch()}
-                style={{ marginTop: 12, backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}
+                style={({ pressed }) => ({
+                  marginTop: 12,
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 24,
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  opacity: pressed ? 0.8 : 1,
+                  ...(isWeb ? { cursor: 'pointer' as any } : {}),
+                })}
               >
                 <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Retry</Text>
               </Pressable>
             </View>
           ) : visibleMatches.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
               <Ionicons name="calendar-outline" size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
                 No matches right now
@@ -337,88 +397,129 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
   },
+  innerContainer: {
+    width: '100%',
+    maxWidth: 700,
+    alignSelf: 'center' as const,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
     paddingHorizontal: 4,
   },
   greeting: {
     fontSize: 14,
   },
   username: {
-    fontSize: 24,
+    fontSize: 26,
+    marginTop: 2,
   },
   adminBtn: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   bannerCard: {
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 24,
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 28,
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
+    minHeight: 120,
+    position: 'relative',
+  },
+  bannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  bannerGlowOrb: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   bannerContent: {
     flex: 1,
+    zIndex: 1,
+  },
+  bannerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 10,
   },
   bannerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#FFF',
     marginBottom: 6,
   },
   bannerSubtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-    lineHeight: 18,
+    color: 'rgba(255,255,255,0.65)',
+    lineHeight: 19,
+  },
+  bannerIconWrap: {
+    zIndex: 1,
+    marginLeft: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 16,
     paddingHorizontal: 4,
+  },
+  sectionAccent: {
+    width: 3,
+    height: 18,
+    borderRadius: 2,
   },
   sectionTitle: {
     fontSize: 18,
   },
-  liveDot: {
+  livePulse: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
   compactCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 10,
+    borderRadius: 14,
+    marginBottom: 12,
     overflow: 'hidden',
+  },
+  liveStripe: {
+    height: 3,
   },
   compactTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingTop: 10,
+    paddingHorizontal: 14,
+    paddingTop: 12,
     paddingBottom: 4,
   },
   compactLeague: {
-    fontSize: 10,
+    fontSize: 11,
     flex: 1,
     marginRight: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   statusDot: {
     width: 6,
@@ -427,11 +528,12 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 10,
+    letterSpacing: 0.5,
   },
   timerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
   timerVal: {
     fontSize: 11,
@@ -440,49 +542,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   compactTeamSide: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   compactCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  teamLogo: {
+    width: 44,
+    height: 44,
+  },
+  vsContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  teamLogo: {
-    width: 36,
-    height: 36,
-  },
   banterText: {
     fontSize: 11,
     fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 2,
+    marginBottom: 4,
     fontFamily: 'Inter_400Regular',
+    paddingHorizontal: 16,
   },
   compactInitial: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#FFF',
   },
   compactShort: {
-    fontSize: 13,
+    fontSize: 14,
   },
   compactVs: {
-    fontSize: 11,
-    paddingHorizontal: 10,
-    letterSpacing: 1,
+    fontSize: 10,
+    letterSpacing: 1.5,
   },
   compactBottom: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderTopWidth: 1,
     gap: 8,
   },
@@ -498,15 +608,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   myTeamText: {
     fontSize: 10,
   },
   noParticipants: {
     fontSize: 11,
+  },
+  viewCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   emptyState: {
     borderRadius: 16,

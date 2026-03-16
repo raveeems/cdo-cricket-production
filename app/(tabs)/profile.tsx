@@ -22,6 +22,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/contexts/TeamContext';
 import { LinearGradient } from 'expo-linear-gradient';
 
+const isWeb = Platform.OS === 'web';
+
 export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, logout, isAdmin, updateTeamName } = useAuth();
@@ -31,8 +33,9 @@ export default function ProfileScreen() {
   const [editingTeamName, setEditingTeamName] = useState(false);
   const [teamNameInput, setTeamNameInput] = useState(user?.teamName || '');
   const [teamNameSaving, setTeamNameSaving] = useState(false);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
-  const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const webTopInset = isWeb ? 67 : 0;
 
   const { data: myRewardsData, isLoading: rewardsLoading } = useQuery<{ rewards: any[] }>({
     queryKey: ['/api/rewards/my'],
@@ -60,6 +63,17 @@ export default function ProfileScreen() {
     }
   };
 
+  const webHover = (key: string) => isWeb ? {
+    onMouseEnter: () => setHoveredRow(key),
+    onMouseLeave: () => setHoveredRow(null),
+  } : {};
+
+  const statCards = [
+    { icon: <MaterialCommunityIcons name="cricket" size={24} color={colors.accent} />, value: matchesJoined, label: 'Matches', accentColor: colors.accent },
+    { icon: <Ionicons name="people" size={24} color={colors.primary} />, value: totalTeams, label: 'Teams', accentColor: colors.primary },
+    { icon: <Ionicons name="trophy" size={24} color={colors.success} />, value: myRewards.length, label: 'Wins', accentColor: colors.success },
+  ];
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -67,17 +81,20 @@ export default function ProfileScreen() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16 }}>
+        <View style={[styles.innerContainer, { paddingTop: insets.top + webTopInset + 8 }]}>
           <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             Profile
           </Text>
 
           <LinearGradient
-            colors={[colors.primary, '#1E40AF']}
+            colors={colors.profileGradient as [string, string, string]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.profileCard}
           >
+            <View style={styles.profileCardOverlay}>
+              <View style={[styles.profileGlowOrb, { backgroundColor: colors.accent + '10', top: -15, right: -15 }]} />
+            </View>
             <View style={styles.profileAvatar}>
               <Text style={[styles.profileInitial, { fontFamily: 'Inter_700Bold' }]}>
                 {(user?.username || 'U')[0].toUpperCase()}
@@ -121,13 +138,13 @@ export default function ProfileScreen() {
                 <Pressable
                   onPress={handleSaveTeamName}
                   disabled={teamNameSaving || !teamNameInput.trim()}
-                  style={[styles.teamNameSaveBtn, { backgroundColor: colors.primary, opacity: teamNameInput.trim() ? 1 : 0.5 }]}
+                  style={[styles.teamNameSaveBtn, { backgroundColor: colors.primary, opacity: teamNameInput.trim() ? 1 : 0.5, ...(isWeb ? { cursor: 'pointer' as any } : {}) }]}
                 >
                   <Ionicons name="checkmark" size={20} color="#FFF" />
                 </Pressable>
                 <Pressable
                   onPress={() => { setEditingTeamName(false); setTeamNameInput(user?.teamName || ''); }}
-                  style={[styles.teamNameCancelBtn, { borderColor: colors.border }]}
+                  style={[styles.teamNameCancelBtn, { borderColor: colors.border, ...(isWeb ? { cursor: 'pointer' as any } : {}) }]}
                 >
                   <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </Pressable>
@@ -136,7 +153,15 @@ export default function ProfileScreen() {
           ) : (
             <Pressable
               onPress={() => { setTeamNameInput(user?.teamName || ''); setEditingTeamName(true); }}
-              style={[styles.teamNameCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+              style={[
+                styles.teamNameCard,
+                {
+                  backgroundColor: hoveredRow === 'teamName' ? colors.cardHover : colors.card,
+                  borderColor: colors.cardBorder,
+                  ...(isWeb ? { cursor: 'pointer' as any, transition: 'background-color 0.15s ease' as any } : {}),
+                },
+              ]}
+              {...webHover('teamName')}
             >
               <View style={styles.teamNameCardLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.accent + '20' }]}>
@@ -156,40 +181,38 @@ export default function ProfileScreen() {
           )}
 
           <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <MaterialCommunityIcons name="cricket" size={24} color={colors.accent} />
-              <Text style={[styles.statValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-                {matchesJoined}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                Matches
-              </Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <Ionicons name="people" size={24} color={colors.primary} />
-              <Text style={[styles.statValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-                {totalTeams}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                Teams
-              </Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <Ionicons name="trophy" size={24} color={colors.success} />
-              <Text style={[styles.statValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-                {myRewards.length}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                Wins
-              </Text>
-            </View>
+            {statCards.map((stat, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.statCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.cardBorder,
+                    borderTopWidth: 3,
+                    borderTopColor: stat.accentColor + '50',
+                  },
+                ]}
+              >
+                {stat.icon}
+                <Text style={[styles.statValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                  {stat.value}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                  {stat.label}
+                </Text>
+              </View>
+            ))}
           </View>
 
           {myRewards.length > 0 && (
             <View style={{ marginBottom: 16 }}>
-              <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const, marginBottom: 10 }}>
-                My Rewards
-              </Text>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.sectionAccent, { backgroundColor: colors.accent }]} />
+                <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                  My Rewards
+                </Text>
+              </View>
               {myRewards.map((r: any) => (
                 <View
                   key={r.id}
@@ -228,7 +251,7 @@ export default function ProfileScreen() {
                         await Clipboard.setStringAsync(r.code);
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                       }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: colors.primary + '10', borderRadius: 8 }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: colors.primary + '10', borderRadius: 8, ...(isWeb ? { cursor: 'pointer' as any } : {}) }}
                     >
                       <Ionicons name="copy-outline" size={14} color={colors.primary} />
                       <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>Copy</Text>
@@ -245,7 +268,13 @@ export default function ProfileScreen() {
           )}
 
           <View style={[styles.settingsSection, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <View style={styles.settingRow}>
+            <Pressable
+              style={[
+                styles.settingRow,
+                hoveredRow === 'darkMode' && isWeb ? { backgroundColor: colors.cardHover } : {},
+              ]}
+              {...webHover('darkMode')}
+            >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.accent + '20' }]}>
                   <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={colors.accent} />
@@ -263,11 +292,19 @@ export default function ProfileScreen() {
                 trackColor={{ false: '#767577', true: colors.primary }}
                 thumbColor="#fff"
               />
-            </View>
+            </Pressable>
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            <Pressable style={styles.settingRow} onPress={() => router.push('/how-to-play')}>
+            <Pressable
+              style={[
+                styles.settingRow,
+                hoveredRow === 'howToPlay' && isWeb ? { backgroundColor: colors.cardHover } : {},
+                isWeb ? { cursor: 'pointer' as any } : {},
+              ]}
+              onPress={() => router.push('/how-to-play')}
+              {...webHover('howToPlay')}
+            >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
                   <Feather name="help-circle" size={18} color={colors.success} />
@@ -283,11 +320,16 @@ export default function ProfileScreen() {
               <>
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
                 <Pressable
-                  style={styles.settingRow}
+                  style={[
+                    styles.settingRow,
+                    hoveredRow === 'admin' && isWeb ? { backgroundColor: colors.cardHover } : {},
+                    isWeb ? { cursor: 'pointer' as any } : {},
+                  ]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     router.push('/admin');
                   }}
+                  {...webHover('admin')}
                 >
                   <View style={styles.settingLeft}>
                     <View style={[styles.settingIcon, { backgroundColor: colors.error + '20' }]}>
@@ -305,7 +347,15 @@ export default function ProfileScreen() {
 
           <Pressable
             onPress={handleLogout}
-            style={[styles.logoutButton, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}
+            style={({ pressed }) => [
+              styles.logoutButton,
+              {
+                backgroundColor: colors.error + '15',
+                borderColor: colors.error + '30',
+                opacity: pressed ? 0.8 : 1,
+                ...(isWeb ? { cursor: 'pointer' as any } : {}),
+              },
+            ]}
           >
             <Ionicons name="log-out-outline" size={20} color={colors.error} />
             <Text style={[styles.logoutText, { color: colors.error, fontFamily: 'Inter_600SemiBold' }]}>
@@ -322,6 +372,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  innerContainer: {
+    paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 700,
+    alignSelf: 'center' as const,
+  },
   pageTitle: {
     fontSize: 24,
     marginBottom: 20,
@@ -329,41 +385,57 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     borderRadius: 18,
-    padding: 20,
+    padding: 22,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
     marginBottom: 20,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  profileCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  profileGlowOrb: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
   },
   profileAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.15)',
+    zIndex: 1,
   },
   profileInitial: {
-    fontSize: 24,
+    fontSize: 26,
     color: '#FFF',
   },
   profileInfo: {
     flex: 1,
+    zIndex: 1,
   },
   profileName: {
-    fontSize: 20,
+    fontSize: 21,
     color: '#FFF',
     marginBottom: 2,
   },
-  profileEmail: {
+  profileTeamName: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
   },
   adminBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 6,
+    marginTop: 8,
     backgroundColor: 'rgba(255,209,48,0.15)',
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -374,6 +446,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#FFD130',
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionAccent: {
+    width: 3,
+    height: 16,
+    borderRadius: 2,
+  },
+  sectionTitle: {
+    fontSize: 16,
+  },
   statsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -383,7 +469,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 14,
     borderWidth: 1,
-    padding: 14,
+    padding: 16,
     alignItems: 'center',
     gap: 6,
   },
@@ -412,8 +498,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   settingIcon: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -423,7 +509,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    marginLeft: 62,
+    marginLeft: 64,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -436,11 +522,6 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontSize: 15,
-  },
-  profileTeamName: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 2,
   },
   teamNameCard: {
     flexDirection: 'row',

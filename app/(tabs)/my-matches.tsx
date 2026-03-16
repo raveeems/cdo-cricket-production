@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getTimeUntilMatch, Match } from '@/lib/mock-data';
 import { getQueryFn } from '@/lib/query-client';
 
+const isWeb = Platform.OS === 'web';
+
 interface TeamData {
   id: string;
   matchId: string;
@@ -35,6 +37,7 @@ export default function MyMatchesScreen() {
   const { teams: contextTeams } = useTeams();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
   const { data: teamsData } = useQuery<{ teams: TeamData[] } | null>({
     queryKey: ['/api/my-teams'],
@@ -62,7 +65,7 @@ export default function MyMatchesScreen() {
 
   const allMatches = data?.matches || [];
 
-  const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const webTopInset = isWeb ? 67 : 0;
 
   const matchesWithTeams = allMatches.filter((m) =>
     teams.some((t) => t.matchId === m.id)
@@ -73,6 +76,11 @@ export default function MyMatchesScreen() {
     teams: teams.filter((t) => t.matchId === match.id),
   }));
 
+  const webHover = (key: string) => isWeb ? {
+    onMouseEnter: () => setHoveredCard(key),
+    onMouseLeave: () => setHoveredCard(null),
+  } : {};
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -80,17 +88,17 @@ export default function MyMatchesScreen() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16 }}>
+        <View style={[styles.innerContainer, { paddingTop: insets.top + webTopInset + 8 }]}>
           <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             My Matches
           </Text>
 
           {isLoading ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : userTeamsByMatch.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
               <MaterialCommunityIcons name="cricket" size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
                 No teams yet
@@ -103,7 +111,7 @@ export default function MyMatchesScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push('/(tabs)');
                 }}
-                style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+                style={[styles.emptyButton, { backgroundColor: colors.primary, ...(isWeb ? { cursor: 'pointer' as any } : {}) }]}
               >
                 <Text style={[styles.emptyButtonText, { fontFamily: 'Inter_600SemiBold' }]}>
                   View Matches
@@ -118,7 +126,15 @@ export default function MyMatchesScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push({ pathname: '/(tabs)/match/[id]', params: { id: match.id } });
                 }}
-                style={[styles.matchItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                style={[
+                  styles.matchItem,
+                  {
+                    backgroundColor: hoveredCard === match.id ? colors.cardHover : colors.card,
+                    borderColor: hoveredCard === match.id ? colors.accent + '30' : colors.cardBorder,
+                    ...(isWeb ? { cursor: 'pointer' as any, transition: 'all 0.2s ease' as any } : {}),
+                  },
+                ]}
+                {...webHover(match.id)}
               >
                 <View style={styles.matchItemHeader}>
                   <View style={styles.teamRow}>
@@ -137,7 +153,7 @@ export default function MyMatchesScreen() {
                         if (sm) {
                           return (
                             <View style={{ alignItems: 'center', marginHorizontal: 4 }}>
-                              <Text style={{ fontSize: 13, color: '#EF4444', fontFamily: 'Inter_700Bold' as const }}>{sm[1]}</Text>
+                              <Text style={{ fontSize: 13, color: colors.live, fontFamily: 'Inter_700Bold' as const }}>{sm[1]}</Text>
                               <Text style={{ fontSize: 9, color: colors.textTertiary, fontFamily: 'Inter_400Regular' as const }}>{sm[2].trim()}</Text>
                             </View>
                           );
@@ -157,33 +173,30 @@ export default function MyMatchesScreen() {
                     const matchStarted = new Date(match.startTime).getTime() <= Date.now();
                     const effectiveStatus = (match.status === 'delayed' || match.status === 'upcoming') && matchStarted ? 'live' : match.status;
                     const showLiveScore = effectiveStatus === 'live' && rawScore.length > 3;
-                    const scoreSegments = rawScore.split(/\s*\|\s*/);
-                    const lastSeg = showLiveScore ? scoreSegments[scoreSegments.length - 1].replace(/\s*[—\-]\s*.+$/, '').trim() : '';
-                    const scoreInfo = showLiveScore ? lastSeg.match(/(\d+\/\d+)\s*\(([^)]+)\)/) : null;
                     if (effectiveStatus === 'live') {
                       return (
-                        <View style={[styles.timerBadge, { backgroundColor: '#EF444418', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
-                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' }} />
-                          <Text style={[styles.timerSmall, { color: '#EF4444', fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
+                        <View style={[styles.timerBadge, { backgroundColor: colors.liveSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.live }} />
+                          <Text style={[styles.timerSmall, { color: colors.live, fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
                         </View>
                       );
                     } else if (effectiveStatus === 'completed') {
                       return (
-                        <View style={[styles.timerBadge, { backgroundColor: '#22C55E18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
-                          <Ionicons name="checkmark-circle" size={12} color="#22C55E" />
-                          <Text style={[styles.timerSmall, { color: '#22C55E', fontFamily: 'Inter_600SemiBold' }]}>Completed</Text>
+                        <View style={[styles.timerBadge, { backgroundColor: colors.success + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
+                          <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+                          <Text style={[styles.timerSmall, { color: colors.success, fontFamily: 'Inter_600SemiBold' }]}>Completed</Text>
                         </View>
                       );
                     } else if (match.status === 'delayed') {
                       return (
-                        <View style={[styles.timerBadge, { backgroundColor: '#F39C1218', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
-                          <Ionicons name="rainy-outline" size={12} color="#F39C12" />
-                          <Text style={[styles.timerSmall, { color: '#F39C12', fontFamily: 'Inter_600SemiBold' }]}>Delayed</Text>
+                        <View style={[styles.timerBadge, { backgroundColor: colors.warning + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
+                          <Ionicons name="rainy-outline" size={12} color={colors.warning} />
+                          <Text style={[styles.timerSmall, { color: colors.warning, fontFamily: 'Inter_600SemiBold' }]}>Delayed</Text>
                         </View>
                       );
                     } else {
                       return (
-                        <View style={styles.timerBadge}>
+                        <View style={[styles.timerBadge, { backgroundColor: colors.accentSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }]}>
                           <Ionicons name="time-outline" size={12} color={colors.accent} />
                           <Text style={[styles.timerSmall, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>
                             {getTimeUntilMatch(match.startTime)}
@@ -225,6 +238,12 @@ export default function MyMatchesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  innerContainer: {
+    paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 700,
+    alignSelf: 'center' as const,
   },
   pageTitle: {
     fontSize: 24,

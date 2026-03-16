@@ -910,7 +910,7 @@ export default function AdminScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16 }}>
+        <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16, width: '100%', maxWidth: 800, alignSelf: 'center' as const }}>
           <View style={styles.headerRow}>
             <Pressable onPress={() => {
               if (router.canGoBack()) {
@@ -1193,7 +1193,7 @@ export default function AdminScreen() {
                 </View>
 
                 {/* Row 2: action buttons — flex wrap so all are visible on mobile */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
                   {/* ⚡ Impact toggle */}
                   <Pressable
                     onPress={() => toggleImpactFeatures(m.id, !m.impactFeaturesEnabled)}
@@ -1231,7 +1231,7 @@ export default function AdminScreen() {
                             color={m.adminUnlockOverride ? '#10B981' : colors.textTertiary}
                           />
                       }
-                      <Text style={{ color: m.adminUnlockOverride ? '#10B981' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>
+                      <Text style={{ color: m.adminUnlockOverride ? '#10B981' : colors.textTertiary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>
                         {m.adminUnlockOverride ? 'Unlocked' : 'Lock'}
                       </Text>
                     </Pressable>
@@ -1249,7 +1249,7 @@ export default function AdminScreen() {
                       ? <ActivityIndicator size="small" color={colors.primary} />
                       : <Ionicons name="sync-outline" size={18} color={colors.primary} />
                     }
-                    <Text style={{ color: colors.primary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Recalc</Text>
+                    <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Recalc</Text>
                   </Pressable>
 
                   {/* ⏳ Entry Deadline Override — only time-related action */}
@@ -1260,7 +1260,7 @@ export default function AdminScreen() {
                     style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.revisedStartTime ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.revisedStartTime ? '#F59E0B' : colors.border }}
                   >
                     <Ionicons name="hourglass-outline" size={16} color={m.revisedStartTime ? '#F59E0B' : colors.textTertiary} />
-                    <Text style={{ color: m.revisedStartTime ? '#F59E0B' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Deadline</Text>
+                    <Text style={{ color: m.revisedStartTime ? '#F59E0B' : colors.textTertiary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Deadline</Text>
                   </Pressable>
 
                   {/* 🚫 Void/Cancel — only when not already voided */}
@@ -1273,7 +1273,7 @@ export default function AdminScreen() {
                       style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: voiding ? 0.5 : 1 }}
                     >
                       <Ionicons name="close-circle-outline" size={16} color={colors.error} />
-                      <Text style={{ color: colors.error, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Void/Cancel</Text>
+                      <Text style={{ color: colors.error, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Void/Cancel</Text>
                     </Pressable>
                   )}
 
@@ -1286,7 +1286,7 @@ export default function AdminScreen() {
                     style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.officialWinner ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.officialWinner ? '#F59E0B' : colors.border, opacity: settingWinnerId === m.id ? 0.5 : 1 }}
                   >
                     <Ionicons name="trophy-outline" size={16} color={m.officialWinner ? '#F59E0B' : colors.textTertiary} />
-                    <Text style={{ color: m.officialWinner ? '#F59E0B' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Settle</Text>
+                    <Text style={{ color: m.officialWinner ? '#F59E0B' : colors.textTertiary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Settle</Text>
                   </Pressable>
 
                   {/* 👥 View Entries — always */}
@@ -1301,7 +1301,7 @@ export default function AdminScreen() {
                       size={16}
                       color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary}
                     />
-                    <Text style={{ color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Entries</Text>
+                    <Text style={{ color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Entries</Text>
                   </Pressable>
 
                   {/* 🗑️ Delete Match — permanent removal */}
@@ -1313,7 +1313,7 @@ export default function AdminScreen() {
                     style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.error + '40', opacity: deleting ? 0.5 : 1 }}
                   >
                     <Ionicons name="trash-outline" size={16} color={colors.error} />
-                    <Text style={{ color: colors.error, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Delete</Text>
+                    <Text style={{ color: colors.error, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Delete</Text>
                   </Pressable>
                 </View>
 

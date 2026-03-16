@@ -17,6 +17,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/query-client';
 
+const isWeb = Platform.OS === 'web';
+
 interface StandingEntry {
   userId: string;
   userName: string;
@@ -58,8 +60,9 @@ export default function LeaderboardScreen() {
   const insets = useSafeAreaInsets();
   const [selectedTournament, setSelectedTournament] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
-  const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const webTopInset = isWeb ? 67 : 0;
 
   const { data: tournamentNames = [], isLoading: namesLoading } = useQuery<string[]>({
     queryKey: ['/api/tournament/names'],
@@ -93,14 +96,19 @@ export default function LeaderboardScreen() {
   const rest = standings.slice(3);
   const isLoading = namesLoading || standingsLoading;
 
+  const webHover = (key: string) => isWeb ? {
+    onMouseEnter: () => setHoveredRow(key),
+    onMouseLeave: () => setHoveredRow(null),
+  } : {};
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ paddingTop: insets.top + webTopInset + 8 }}>
-          <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold', paddingHorizontal: 20 }]}>
+        <View style={[styles.innerContainer, { paddingTop: insets.top + webTopInset + 8 }]}>
+          <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
             Tournament Standings
           </Text>
 
@@ -117,10 +125,17 @@ export default function LeaderboardScreen() {
             </View>
           ) : (
             <>
-              <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+              <View style={{ marginBottom: 16 }}>
                 <Pressable
                   onPress={() => setDropdownOpen(true)}
-                  style={[styles.dropdown, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                  style={[
+                    styles.dropdown,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.cardBorder,
+                      ...(isWeb ? { cursor: 'pointer' as any } : {}),
+                    },
+                  ]}
                 >
                   <Ionicons name="trophy" size={18} color={colors.primary} />
                   <Text style={[styles.dropdownText, { color: colors.text, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
@@ -151,7 +166,7 @@ export default function LeaderboardScreen() {
                           }}
                           style={[
                             styles.modalOption,
-                            { borderBottomColor: colors.cardBorder },
+                            { borderBottomColor: colors.cardBorder, ...(isWeb ? { cursor: 'pointer' as any } : {}) },
                             selectedTournament === name && { backgroundColor: colors.primary + '15' },
                           ]}
                         >
@@ -198,14 +213,20 @@ export default function LeaderboardScreen() {
                         const rank = index + 4;
                         const isCurrentUser = entry.userId === user?.id;
                         const pointsColor = entry.totalPoints < 0 ? '#EF4444' : colors.accent;
+                        const isHovered = hoveredRow === entry.userId;
                         return (
                           <View
                             key={entry.userId}
                             style={[
                               styles.listItem,
-                              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                              {
+                                backgroundColor: isHovered ? colors.cardHover : colors.card,
+                                borderColor: colors.cardBorder,
+                                ...(isWeb ? { transition: 'background-color 0.15s ease' as any } : {}),
+                              },
                               isCurrentUser && { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primary + '08' },
                             ]}
+                            {...(isWeb ? { onMouseEnter: () => setHoveredRow(entry.userId), onMouseLeave: () => setHoveredRow(null) } as any : {})}
                           >
                             <View style={[styles.rankBadge, { backgroundColor: colors.surfaceElevated }]}>
                               <Text style={[styles.rankText, { color: colors.textSecondary, fontFamily: 'Inter_700Bold' }]}>
@@ -253,9 +274,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  innerContainer: {
+    paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 700,
+    alignSelf: 'center' as const,
+  },
   pageTitle: {
     fontSize: 24,
     marginBottom: 20,
+    paddingHorizontal: 4,
   },
   loadingContainer: {
     paddingVertical: 60,
@@ -320,7 +348,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 20,
     borderRadius: 20,
-    marginHorizontal: 16,
   },
   topRow: {
     flexDirection: 'row',
@@ -354,7 +381,6 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   listSection: {
-    paddingHorizontal: 16,
     gap: 8,
     marginBottom: 20,
   },

@@ -60,8 +60,7 @@ function ClassicTabLayout() {
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.tabBar,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: colors.border,
+          borderTopWidth: 0,
           elevation: 0,
           ...(isWeb ? { height: 84 } : {}),
         },
@@ -76,7 +75,11 @@ function ClassicTabLayout() {
             <View
               style={[
                 StyleSheet.absoluteFill,
-                { backgroundColor: colors.tabBar },
+                {
+                  backgroundColor: colors.tabBar,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.accent + '20',
+                },
               ]}
             />
           ) : null,
@@ -84,6 +87,9 @@ function ClassicTabLayout() {
           fontFamily: "Inter_500Medium",
           fontSize: 11,
         },
+        tabBarItemStyle: isWeb
+          ? { cursor: "pointer" as any }
+          : {},
       }}
     >
       <Tabs.Screen
