@@ -1,0 +1,47 @@
+====================================
+11. DEPLOYMENT / RAILWAY IS PART OF THE TASK
+====================================
+
+This task is NOT complete unless the fix is live on Railway production.
+
+Do not reply saying:
+- "code is fixed but Railway has old build"
+- "source is updated but deployment did not pick it up"
+- "the bundle is stale"
+- "manual redeploy is needed from user side"
+
+That is explicitly NOT acceptable.
+
+You must take full ownership from source change to live production verification.
+
+Required deployment responsibilities:
+1. Ensure the correct production app/service is being built
+2. Ensure the latest source code is actually compiled into the production bundle
+3. Ensure Railway deploys the NEW build, not a stale/previous artifact
+4. Ensure the deployed admin page reflects the exact UI and behavior changes requested
+5. Verify production after deploy by checking the live admin URL and confirming the updated controls are visible and working
+
+Mandatory deployment verification:
+- Confirm which app/folder/service Railway is building from
+- Confirm the admin page bundle was rebuilt after the code changes
+- Confirm there is no stale frontend artifact being served
+- Confirm production is showing the new control row, not an older cached version
+- If cache-busting/versioning is needed for frontend assets, do it
+- If build/start configuration is incorrect, fix it
+- If Railway is pointing to the wrong directory/output, fix it
+- If the deployment pipeline is serving an old compiled frontend, fix that too
+
+Required proof in your reply:
+1. Exact production service/app that was deployed
+2. Exact build target/folder used by Railway
+3. Confirmation that the latest frontend bundle was rebuilt
+4. Confirmation that Railway production now serves the updated build
+5. Confirmation that the LIVE admin page was checked after deploy
+6. Explanation of what was done to prevent stale build issues from recurring
+
+Acceptance rule:
+This work is incomplete unless both are true:
+- source code is fixed
+- live Railway production is fixed
+
+Do not hand this back as a partial engineering task. Treat deployment and live verification as part of the same job.
