@@ -1,0 +1,181 @@
+Task: I want a complete look-and-feel audit of the WEBAPP and a source-code / push / publish-readiness audit for all updates made in the last 4 days.
+
+Critical platform rule:
+This product is a WEBAPP only.
+It is NOT a mobile app for App Store or Play Store.
+Do NOT build, suggest, optimize, or justify anything as if this is a native mobile application.
+Do NOT make platform decisions based on iOS/Android app behavior unless they are also relevant to the webapp.
+All implementation, testing, UI behavior, overlays, modals, responsiveness, interactions, and deployment decisions must be made from a WEBAPP-FIRST perspective.
+
+That means:
+- prioritize browser behavior
+- prioritize published web build behavior
+- prioritize desktop/laptop browser UX and responsive web UX
+- verify what is rendered in the deployed webapp, not in a native/mobile runtime
+- do not use “works on iOS/Android” as a success criterion if the webapp behavior is broken
+- do not frame solutions around Play Store / App Store deployment
+- do not rely on native-only assumptions for modal, overlay, click, hover, focus, or layout behavior
+
+Important workflow rule:
+Do NOT treat development-preview changes, temporary runtime changes, DB-only changes, or internal test changes as completion.
+I only want durable source-code changes that are saved in files and are either already pushed/published or clearly identified as not yet pushed/published.
+
+This task has 2 parts and both are mandatory.
+
+====================================
+PART 1 — WEBAPP LOOK AND FEEL AUDIT
+====================================
+
+I want you to review the overall visual look and feel of the WEBAPP and tell me exactly where the intended premium fantasy / IPL-inspired theme is implemented and where it is missing or inconsistent.
+
+Audit the webapp screen by screen and component by component.
+
+Check for:
+1. overall theme consistency
+2. color palette consistency
+3. gradients
+4. header styling
+5. cards
+6. buttons
+7. typography
+8. spacing/padding
+9. icon consistency
+10. match cards
+11. fantasy/team-selection screens
+12. leaderboard/contest screens
+13. admin screens
+14. whether the webapp feels generic or premium sports/fantasy
+15. where the IPL-inspired feel is clearly visible
+16. where the webapp still looks default/generic/incomplete
+17. browser responsiveness
+18. desktop web layout quality
+19. web interaction quality:
+   - clicks
+   - hover states
+   - focus states
+   - modals
+   - overlays
+   - dropdowns
+   - scroll behavior
+
+For the look-and-feel audit, give me:
+1. Which screens are strongly themed
+2. Which screens are partially themed
+3. Which screens still look generic/default
+4. Exact files controlling the main visual theme
+5. The reusable style/theme components used across the webapp
+6. A gap list of what is still needed to make the webapp feel fully premium fantasy / IPL-inspired
+7. Priority order of visual fixes:
+   - high priority
+   - medium priority
+   - low priority
+
+Be specific. I do not want vague statements like “looks good” or “needs polish”.
+I want exact screen names, exact component names, and exact file names.
+
+====================================
+PART 2 — LAST 4 DAYS CODE / PUSH / PUBLISH AUDIT
+====================================
+
+I want a complete audit of everything updated in the last 4 days for the WEBAPP.
+
+Your job is to identify all meaningful changes made in the codebase in the last 4 days and classify each one into the categories below:
+
+A. Saved in source code files
+B. Present only in development / preview
+C. Changed in DB/runtime/manual state only
+D. Already pushed to GitHub
+E. Not yet pushed to GitHub
+F. Already reflected in published/deployed web version
+G. Not yet reflected in published/deployed web version
+
+I want a full report with NO ambiguity.
+
+For every meaningful change in the last 4 days, provide:
+1. feature/change name
+2. exact file(s) changed
+3. what was changed in plain English
+4. whether frontend, backend, DB, config, or mixed
+5. whether the change is actually saved in source files
+6. whether it has been pushed to GitHub
+7. whether it is visible in the published/deployed web version
+8. whether there is any mismatch between dev and published
+9. whether any manual action is still required from me
+10. whether the change is durable or temporary
+
+This audit must include at minimum all recent work related to:
+- fantasy app logic / webapp fantasy logic
+- admin match controls
+- impact toggle
+- lock/unlock
+- recalculate
+- deadline override
+- void/cancel
+- settle
+- entries/player status
+- any theme/look-and-feel work
+- any stale build / publish issues
+- any DB/schema/API updates related to these
+
+====================================
+MANDATORY WEBAPP / GITHUB / PUBLISH HANDOFF
+====================================
+
+At the end, give me these exact sections:
+
+SECTION 1 — FILES CHANGED IN LAST 4 DAYS
+List every changed file relevant to the work.
+
+SECTION 2 — SAFE SOURCE-CODE CHANGES READY FOR GITHUB PUSH
+Only list changes that are definitely present in source files and safe to push.
+
+SECTION 3 — CHANGES THAT EXIST ONLY IN DEV / PREVIEW / RUNTIME / DB
+Call these out clearly and separately.
+Do NOT mix them with source-code changes.
+
+SECTION 4 — CHANGES ALREADY PUSHED VS NOT YET PUSHED
+I want a clear yes/no status for each major feature.
+
+SECTION 5 — CHANGES ALREADY IN PUBLISHED WEB VERSION VS NOT YET PUBLISHED
+Again, clear yes/no status for each major feature.
+
+SECTION 6 — EXACT GITHUB PUSH HANDOFF
+Give me:
+1. recommended commit message
+2. exact git commands I should run
+3. any branch notes if relevant
+4. what I should test immediately after push/publish in the WEBAPP
+
+SECTION 7 — FINAL GAP SUMMARY
+Give me a concise summary of:
+- what is complete
+- what is only in dev
+- what is only in DB/runtime
+- what is missing from published/live web version
+- what is missing visually from the IPL-inspired premium fantasy webapp feel
+
+====================================
+STRICT WEBAPP RULES
+====================================
+
+1. This is a WEBAPP ONLY. Treat it as a browser-deployed web product.
+2. Do NOT evaluate success using native app logic, native mobile modals, or App Store / Play Store assumptions.
+3. Do NOT mark anything complete because it works in a native runtime if it is broken in the browser.
+4. Do NOT say “done” unless you clearly separate:
+   - source code
+   - dev preview
+   - GitHub push status
+   - published/deployed WEBAPP status
+5. Do NOT hide behind vague statements like:
+   - “should be live”
+   - “appears implemented”
+   - “likely published”
+   - “may need redeploy”
+6. If you do not know whether something is pushed or published, say “unknown” explicitly.
+7. If something was changed manually in DB/runtime but not saved into code, say that explicitly.
+8. If something is implemented only in development but not yet pushed/published, say that explicitly.
+9. I want a file-by-file and feature-by-feature audit. No vague summaries.
+10. When discussing overlays, modals, click behavior, z-index, focus, hover, responsiveness, and layout, evaluate them from a WEBAPP/browser perspective first.
+
+Final output format:
+Use a structured report with tables wherever helpful.
