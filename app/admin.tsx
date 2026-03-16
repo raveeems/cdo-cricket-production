@@ -124,6 +124,9 @@ export default function AdminScreen() {
   const [voiding, setVoiding] = useState(false);
   const [voidResult, setVoidResult] = useState('');
   const [voidConfirmMatchId, setVoidConfirmMatchId] = useState<string | null>(null);
+  const [deleteConfirmMatchId, setDeleteConfirmMatchId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteResult, setDeleteResult] = useState('');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
@@ -225,6 +228,31 @@ export default function AdminScreen() {
       setMatchResult(matchId, `❌ Void failed: ${errMsg}`);
     } finally {
       setVoiding(false);
+    }
+  };
+
+  const confirmDeleteMatch = async () => {
+    if (!deleteConfirmMatchId) return;
+    const matchId = deleteConfirmMatchId;
+    setDeleting(true);
+    setDeleteResult('');
+    try {
+      const res = await apiRequest('DELETE', `/api/admin/matches/${matchId}?force=true`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || `Server error ${res.status}`);
+      }
+      setDeleteResult('✔ Match permanently deleted');
+      setMatchResult(matchId, '✔ Deleted');
+      await loadMatches();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => setDeleteConfirmMatchId(null), 1200);
+    } catch (e: any) {
+      const errMsg = e?.message || 'Unknown error';
+      setDeleteResult(`❌ Delete failed: ${errMsg}`);
+      setMatchResult(matchId, `❌ Delete failed: ${errMsg}`);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -1274,6 +1302,18 @@ export default function AdminScreen() {
                       color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary}
                     />
                     <Text style={{ color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Entries</Text>
+                  </Pressable>
+
+                  {/* 🗑️ Delete Match — permanent removal */}
+                  <Pressable
+                    onPress={() => { setDeleteResult(''); setDeleteConfirmMatchId(m.id); }}
+                    disabled={deleting}
+                    accessibilityLabel="Delete Match"
+                    accessibilityHint="Permanently remove this match and all related data from the system"
+                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.error + '40', opacity: deleting ? 0.5 : 1 }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={colors.error} />
+                    <Text style={{ color: colors.error, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Delete</Text>
                   </Pressable>
                 </View>
 
@@ -2533,6 +2573,90 @@ export default function AdminScreen() {
                 {voiding
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Confirm Void</Text>
+                }
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      )}
+
+      {/* Delete Match Confirmation Overlay */}
+      {deleteConfirmMatchId !== null && (
+        <Pressable
+          onPress={() => { setDeleteConfirmMatchId(null); setDeleteResult(''); }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <Pressable
+            style={{
+              width: 320,
+              backgroundColor: colors.card,
+              borderRadius: 20,
+              padding: 24,
+              borderWidth: 1,
+              borderColor: colors.error + '40',
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="trash-outline" size={20} color={colors.error} />
+              <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18 }}>
+                Delete Match Permanently
+              </Text>
+            </View>
+            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 16 }}>
+              This will permanently remove this match and all associated data (players, predictions, statuses) from the system. This cannot be undone.
+            </Text>
+            {deleteResult !== '' && (
+              <Text style={{
+                color: deleteResult.startsWith('✔') ? '#10B981' : colors.error,
+                fontFamily: 'Inter_500Medium',
+                fontSize: 13,
+                marginBottom: 8,
+              }}>
+                {deleteResult}
+              </Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              <Pressable
+                onPress={() => { setDeleteConfirmMatchId(null); setDeleteResult(''); }}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmDeleteMatch}
+                disabled={deleting}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: colors.error,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  opacity: deleting ? 0.6 : 1,
+                }}
+              >
+                {deleting
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Delete Forever</Text>
                 }
               </Pressable>
             </View>

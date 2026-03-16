@@ -1742,12 +1742,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const matchId = req.params.id;
+        const forceDelete = req.query.force === "true";
         const teams = await storage.getAllTeamsForMatch(matchId);
-        if (teams.length > 0) {
-          return res.status(400).json({ message: "Cannot delete match with existing teams" });
+        if (teams.length > 0 && !forceDelete) {
+          return res.status(400).json({ message: `Cannot delete match with ${teams.length} existing teams. Use force=true to override.` });
         }
-        await storage.deleteMatch(matchId);
-        return res.json({ message: "Match deleted" });
+        if (teams.length > 0 && forceDelete) {
+          for (const team of teams) {
+            await storage.deleteTeam(team.id);
+          }
+        }
+        await storage.deleteMatchCascade(matchId);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId!,
+          actionType: "delete_match",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ forced: forceDelete, teamsRemoved: teams.length }),
+        });
+        return res.json({ message: "Match permanently deleted" });
       } catch (err: any) {
         console.error("Delete match error:", err);
         return res.status(500).json({ message: "Failed to delete match" });

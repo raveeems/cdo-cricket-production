@@ -142,6 +142,18 @@ export class DatabaseStorage {
     await db.delete(matches).where(eq(matches.id, id));
   }
 
+  async deleteMatchCascade(id: string): Promise<void> {
+    await db.delete(matchPlayerStatus).where(eq(matchPlayerStatus.matchId, id));
+    await db.delete(matchPredictions).where(eq(matchPredictions.matchId, id));
+    await db.delete(players).where(eq(players.matchId, id));
+    await db.delete(adminAuditLog).where(eq(adminAuditLog.matchId, id));
+    await db.delete(matches).where(eq(matches.id, id));
+  }
+
+  async deleteTeam(id: string): Promise<void> {
+    await db.delete(userTeams).where(eq(userTeams.id, id));
+  }
+
   // Players
   async getPlayersForMatch(matchId: string): Promise<Player[]> {
     return db.select().from(players).where(eq(players.matchId, matchId));
