@@ -409,13 +409,19 @@ function setupErrorHandler(app: express.Application) {
     }
   }
 
-  await connectWithRetry(10, 3000);
-
   const port = Number(process.env.PORT) || 3000;
 
   server.listen(port, "0.0.0.0", () => {
-    markServerReady();
-    log(`express server serving on port ${port}`);
+    log(`express server listening on port ${port}`);
+  });
+
+  await connectWithRetry(10, 3000);
+  markServerReady();
+  log(`express server fully ready on port ${port}`);
+
+  seedReferenceCodes().catch((err) => {
+    console.error("Reference code seeding failed:", err);
+  });
 
     const ADMIN_PHONES = ["9840872462", "9884334973", "7406020777"];
     (async () => {
@@ -429,10 +435,6 @@ function setupErrorHandler(app: express.Application) {
         } catch (e) {}
       }
     })();
-
-    seedReferenceCodes().catch((err) => {
-      console.error("Reference code seeding failed:", err);
-    });
 
     syncMatchesFromApi().catch((err) => {
       console.error("Initial match sync failed:", err);
@@ -1195,5 +1197,4 @@ function setupErrorHandler(app: express.Application) {
     log(
       "Match Heartbeat started (every 60s — score sync, points, lockout, stale-data rejection)",
     );
-  });
 })();

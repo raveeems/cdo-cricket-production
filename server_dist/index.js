@@ -5239,72 +5239,57 @@ function setupErrorHandler(app2) {
       console.error("Failed to seed reference codes:", err);
     }
   }
-  await connectWithRetry(10, 3e3);
   const port = Number(process.env.PORT) || 3e3;
   server.listen(port, "0.0.0.0", () => {
-    markServerReady();
-    log(`express server serving on port ${port}`);
-    const ADMIN_PHONES2 = ["9840872462", "9884334973", "7406020777"];
-    (async () => {
-      for (const phone of ADMIN_PHONES2) {
-        try {
-          const u = await storage.getUserByPhone(phone);
-          if (u && !u.isAdmin) {
-            await storage.setUserAdmin(u.id, true);
-            log(`Auto-promoted ${u.username} (${phone}) to admin`);
-          }
-        } catch (e) {
+    log(`express server listening on port ${port}`);
+  });
+  await connectWithRetry(10, 3e3);
+  markServerReady();
+  log(`express server fully ready on port ${port}`);
+  seedReferenceCodes().catch((err) => {
+    console.error("Reference code seeding failed:", err);
+  });
+  const ADMIN_PHONES2 = ["9840872462", "9884334973", "7406020777"];
+  (async () => {
+    for (const phone of ADMIN_PHONES2) {
+      try {
+        const u = await storage.getUserByPhone(phone);
+        if (u && !u.isAdmin) {
+          await storage.setUserAdmin(u.id, true);
+          log(`Auto-promoted ${u.username} (${phone}) to admin`);
         }
+      } catch (e) {
       }
-    })();
-    seedReferenceCodes().catch((err) => {
-      console.error("Reference code seeding failed:", err);
-    });
+    }
+  })();
+  syncMatchesFromApi().catch((err) => {
+    console.error("Initial match sync failed:", err);
+  });
+  const TWO_HOURS = 2 * 60 * 60 * 1e3;
+  setInterval(() => {
+    log("Periodic match sync (every 2 hours)...");
     syncMatchesFromApi().catch((err) => {
-      console.error("Initial match sync failed:", err);
+      console.error("Periodic match sync failed:", err);
     });
-    const TWO_HOURS = 2 * 60 * 60 * 1e3;
-    setInterval(() => {
-      log("Periodic match sync (every 2 hours)...");
-      syncMatchesFromApi().catch((err) => {
-        console.error("Periodic match sync failed:", err);
-      });
-    }, TWO_HOURS);
-    const HEARTBEAT_INTERVAL = 60 * 1e3;
-    let heartbeatSyncing = false;
-    let heartbeatLockTime = 0;
-    const lastSquadFetchAttempt = /* @__PURE__ */ new Map();
-    const SQUAD_POLL_FAR = 20 * 60 * 1e3;
-    const SQUAD_POLL_CLOSE = 5 * 60 * 1e3;
-    const SQUAD_MIN_PLAYERS = 22;
-    function fuzzyNameMatch(name1, name2) {
-      if (name1 === name2) return true;
-      if (name1.includes(name2) || name2.includes(name1)) return true;
-      const p1 = name1.split(" ");
-      const p2 = name2.split(" ");
-      if (p1.length > 0 && p2.length > 0) {
-        const last1 = p1[p1.length - 1], last2 = p2[p2.length - 1];
-        if (last1 === last2 && last1.length > 2 && p1[0][0] === p2[0][0])
-          return true;
-        if (last1.length >= 4 && last2.length >= 4) {
-          const a = last1, b = last2, m = a.length, n = b.length;
-          const dp = Array.from(
-            { length: m + 1 },
-            () => Array(n + 1).fill(0)
-          );
-          for (let i = 0; i <= m; i++) dp[i][0] = i;
-          for (let j = 0; j <= n; j++) dp[0][j] = j;
-          for (let i = 1; i <= m; i++)
-            for (let j = 1; j <= n; j++)
-              dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-          if (dp[m][n] <= 2 && p1[0][0] === p2[0][0]) return true;
-        }
-        if (p1[0].substring(0, 3) === p2[0].substring(0, 3) && p1[0].length >= 3) {
-          if (last1.substring(0, 3) === last2.substring(0, 3)) return true;
-        }
-      }
-      if (name1.length >= 5 && name2.length >= 5) {
-        const a = name1, b = name2, m = a.length, n = b.length;
+  }, TWO_HOURS);
+  const HEARTBEAT_INTERVAL = 60 * 1e3;
+  let heartbeatSyncing = false;
+  let heartbeatLockTime = 0;
+  const lastSquadFetchAttempt = /* @__PURE__ */ new Map();
+  const SQUAD_POLL_FAR = 20 * 60 * 1e3;
+  const SQUAD_POLL_CLOSE = 5 * 60 * 1e3;
+  const SQUAD_MIN_PLAYERS = 22;
+  function fuzzyNameMatch(name1, name2) {
+    if (name1 === name2) return true;
+    if (name1.includes(name2) || name2.includes(name1)) return true;
+    const p1 = name1.split(" ");
+    const p2 = name2.split(" ");
+    if (p1.length > 0 && p2.length > 0) {
+      const last1 = p1[p1.length - 1], last2 = p2[p2.length - 1];
+      if (last1 === last2 && last1.length > 2 && p1[0][0] === p2[0][0])
+        return true;
+      if (last1.length >= 4 && last2.length >= 4) {
+        const a = last1, b = last2, m = a.length, n = b.length;
         const dp = Array.from(
           { length: m + 1 },
           () => Array(n + 1).fill(0)
@@ -5314,522 +5299,538 @@ function setupErrorHandler(app2) {
         for (let i = 1; i <= m; i++)
           for (let j = 1; j <= n; j++)
             dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-        if (dp[m][n] <= 2 && Math.max(m, n) >= 8) return true;
+        if (dp[m][n] <= 2 && p1[0][0] === p2[0][0]) return true;
       }
-      return false;
+      if (p1[0].substring(0, 3) === p2[0].substring(0, 3) && p1[0].length >= 3) {
+        if (last1.substring(0, 3) === last2.substring(0, 3)) return true;
+      }
     }
-    function resolvePlayerPoints(player, pointsMap, namePointsMap) {
-      if (player.externalId && pointsMap.has(player.externalId)) {
-        return {
-          fantasyPts: pointsMap.get(player.externalId),
-          matchMethod: "externalId"
-        };
-      }
-      if (namePointsMap.size > 0) {
-        if (player.apiName) {
-          const normApiName = player.apiName.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-          if (namePointsMap.has(normApiName)) {
-            return {
-              fantasyPts: namePointsMap.get(normApiName),
-              matchMethod: `apiName(${player.apiName})`
-            };
-          }
-        }
-        if (player.name) {
-          const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-          if (namePointsMap.has(normName)) {
-            return {
-              fantasyPts: namePointsMap.get(normName),
-              matchMethod: "exactName"
-            };
-          }
-          for (const [apiName, apiPts] of namePointsMap) {
-            if (fuzzyNameMatch(apiName, normName)) {
-              return { fantasyPts: apiPts, matchMethod: `fuzzy(${apiName})` };
-            }
-          }
-        }
-      }
-      return { fantasyPts: void 0, matchMethod: "none" };
+    if (name1.length >= 5 && name2.length >= 5) {
+      const a = name1, b = name2, m = a.length, n = b.length;
+      const dp = Array.from(
+        { length: m + 1 },
+        () => Array(n + 1).fill(0)
+      );
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+      for (let i = 1; i <= m; i++)
+        for (let j = 1; j <= n; j++)
+          dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      if (dp[m][n] <= 2 && Math.max(m, n) >= 8) return true;
     }
-    async function updateLiveScore(match) {
-      const empty = {
-        pointsMap: /* @__PURE__ */ new Map(),
-        namePointsMap: /* @__PURE__ */ new Map(),
-        scoreString: "",
-        matchEnded: false,
-        totalOvers: 0,
-        source: ""
+    return false;
+  }
+  function resolvePlayerPoints(player, pointsMap, namePointsMap) {
+    if (player.externalId && pointsMap.has(player.externalId)) {
+      return {
+        fantasyPts: pointsMap.get(player.externalId),
+        matchMethod: "externalId"
       };
-      if (!match.externalId) return empty;
-      try {
-        const { fetchMatchScorecardWithScore: fetchMatchScorecardWithScore2, fetchMatchInfo: fetchMatchInfo2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-        const result = await fetchMatchScorecardWithScore2(match.externalId);
-        const source = result.pointsMap.size > 0 || result.scoreString ? "CricAPI" : "";
-        log(
-          `[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}, overs=${result.totalOvers}`
-        );
-        try {
-          const matchInfo = await fetchMatchInfo2(match.externalId);
-          if (matchInfo && matchInfo.score && Array.isArray(matchInfo.score) && matchInfo.score.length > 0) {
-            const infoScoreArr = matchInfo.score;
-            const infoScoreString = infoScoreArr.map(
-              (s) => `${s?.inning ?? "?"}: ${s?.r ?? 0}/${s?.w ?? 0} (${s?.o ?? 0} ov)`
-            ).join(" | ");
-            const infoTotalOvers = infoScoreArr.reduce(
-              (sum, s) => sum + (s?.o || 0),
-              0
-            );
-            const infoStatus = (matchInfo.name || matchInfo.status || "").toLowerCase();
-            const infoEnded = infoStatus.includes("won") || infoStatus.includes("draw") || infoStatus.includes("tied") || infoStatus.includes("finished") || infoStatus.includes("beat") || infoStatus.includes("defeat") || infoStatus.includes("result") || infoStatus.includes("aban") || matchInfo.matchEnded === true;
-            if (infoTotalOvers > result.totalOvers) {
-              log(
-                `[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info has fresher score ${infoTotalOvers} ov vs scorecard ${result.totalOvers} ov`
-              );
-              const statusText = matchInfo.name || matchInfo.status || "";
-              result.scoreString = statusText ? `${infoScoreString} \u2014 ${statusText}` : infoScoreString;
-              result.totalOvers = infoTotalOvers;
-            }
-            if (infoEnded && !result.matchEnded) {
-              log(
-                `[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info says ended`
-              );
-              result.matchEnded = true;
-            }
-          }
-        } catch (infoErr) {
-          log(
-            `[Heartbeat:LiveScore] match_info fallback failed for ${match.team1Short} vs ${match.team2Short}: ${infoErr}`
-          );
+    }
+    if (namePointsMap.size > 0) {
+      if (player.apiName) {
+        const normApiName = player.apiName.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+        if (namePointsMap.has(normApiName)) {
+          return {
+            fantasyPts: namePointsMap.get(normApiName),
+            matchMethod: `apiName(${player.apiName})`
+          };
         }
-        return { ...result, source };
+      }
+      if (player.name) {
+        const normName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+        if (namePointsMap.has(normName)) {
+          return {
+            fantasyPts: namePointsMap.get(normName),
+            matchMethod: "exactName"
+          };
+        }
+        for (const [apiName, apiPts] of namePointsMap) {
+          if (fuzzyNameMatch(apiName, normName)) {
+            return { fantasyPts: apiPts, matchMethod: `fuzzy(${apiName})` };
+          }
+        }
+      }
+    }
+    return { fantasyPts: void 0, matchMethod: "none" };
+  }
+  async function updateLiveScore(match) {
+    const empty = {
+      pointsMap: /* @__PURE__ */ new Map(),
+      namePointsMap: /* @__PURE__ */ new Map(),
+      scoreString: "",
+      matchEnded: false,
+      totalOvers: 0,
+      source: ""
+    };
+    if (!match.externalId) return empty;
+    try {
+      const { fetchMatchScorecardWithScore: fetchMatchScorecardWithScore2, fetchMatchInfo: fetchMatchInfo2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+      const result = await fetchMatchScorecardWithScore2(match.externalId);
+      const source = result.pointsMap.size > 0 || result.scoreString ? "CricAPI" : "";
+      log(
+        `[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}, overs=${result.totalOvers}`
+      );
+      try {
+        const matchInfo = await fetchMatchInfo2(match.externalId);
+        if (matchInfo && matchInfo.score && Array.isArray(matchInfo.score) && matchInfo.score.length > 0) {
+          const infoScoreArr = matchInfo.score;
+          const infoScoreString = infoScoreArr.map(
+            (s) => `${s?.inning ?? "?"}: ${s?.r ?? 0}/${s?.w ?? 0} (${s?.o ?? 0} ov)`
+          ).join(" | ");
+          const infoTotalOvers = infoScoreArr.reduce(
+            (sum, s) => sum + (s?.o || 0),
+            0
+          );
+          const infoStatus = (matchInfo.name || matchInfo.status || "").toLowerCase();
+          const infoEnded = infoStatus.includes("won") || infoStatus.includes("draw") || infoStatus.includes("tied") || infoStatus.includes("finished") || infoStatus.includes("beat") || infoStatus.includes("defeat") || infoStatus.includes("result") || infoStatus.includes("aban") || matchInfo.matchEnded === true;
+          if (infoTotalOvers > result.totalOvers) {
+            log(
+              `[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info has fresher score ${infoTotalOvers} ov vs scorecard ${result.totalOvers} ov`
+            );
+            const statusText = matchInfo.name || matchInfo.status || "";
+            result.scoreString = statusText ? `${infoScoreString} \u2014 ${statusText}` : infoScoreString;
+            result.totalOvers = infoTotalOvers;
+          }
+          if (infoEnded && !result.matchEnded) {
+            log(
+              `[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info says ended`
+            );
+            result.matchEnded = true;
+          }
+        }
+      } catch (infoErr) {
+        log(
+          `[Heartbeat:LiveScore] match_info fallback failed for ${match.team1Short} vs ${match.team2Short}: ${infoErr}`
+        );
+      }
+      return { ...result, source };
+    } catch (err) {
+      console.error(
+        `[Heartbeat:Score] FAILED for ${match.team1Short} vs ${match.team2Short}:`,
+        err
+      );
+      return empty;
+    }
+  }
+  async function updateFantasyPoints(matchId, matchLabel, pointsMap, namePointsMap) {
+    const matchPlayers = await storage.getPlayersForMatch(matchId);
+    const playerUpdates = [];
+    let mapped = 0;
+    let unmapped = 0;
+    let skippedProtected = 0;
+    for (const player of matchPlayers) {
+      try {
+        let resolveResult;
+        try {
+          resolveResult = resolvePlayerPoints(
+            player,
+            pointsMap,
+            namePointsMap
+          );
+        } catch (resolveErr) {
+          console.error(
+            `[Heartbeat:Points] resolvePlayerPoints THREW for "${player.name}" (${player.id}):`,
+            resolveErr
+          );
+          continue;
+        }
+        const { fantasyPts, matchMethod } = resolveResult;
+        const existingPts = player.points || 0;
+        const appearedOnScorecard = fantasyPts !== void 0 && fantasyPts !== null;
+        const xiBase = player.isPlayingXI || appearedOnScorecard ? 4 : 0;
+        let finalPts;
+        if (appearedOnScorecard) {
+          finalPts = fantasyPts + xiBase;
+          mapped++;
+          if (finalPts < existingPts) {
+            log(
+              `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} \u2014 keeping existing`
+            );
+            skippedProtected++;
+            continue;
+          }
+          if (matchMethod.startsWith("fuzzy") || matchMethod.startsWith("apiName")) {
+            log(
+              `[Heartbeat:Points] Match: "${player.name}" -> ${matchMethod} = ${fantasyPts} scorecard + ${xiBase} XI base = ${finalPts}`
+            );
+          }
+        } else if (player.isPlayingXI) {
+          finalPts = Math.max(xiBase, existingPts);
+          unmapped++;
+          if (finalPts <= existingPts) {
+            continue;
+          }
+        } else {
+          continue;
+        }
+        if (finalPts !== existingPts) {
+          playerUpdates.push({
+            id: player.id,
+            name: player.name,
+            oldPoints: existingPts,
+            newPoints: finalPts,
+            method: matchMethod
+          });
+        }
       } catch (err) {
         console.error(
-          `[Heartbeat:Score] FAILED for ${match.team1Short} vs ${match.team2Short}:`,
+          `[Heartbeat:Points] OUTER CATCH for player "${player.name}" (${player.id}):`,
           err
         );
-        return empty;
+        continue;
       }
     }
-    async function updateFantasyPoints(matchId, matchLabel, pointsMap, namePointsMap) {
-      const matchPlayers = await storage.getPlayersForMatch(matchId);
-      const playerUpdates = [];
-      let mapped = 0;
-      let unmapped = 0;
-      let skippedProtected = 0;
-      for (const player of matchPlayers) {
+    if (playerUpdates.length > 0) {
+      for (const upd of playerUpdates) {
         try {
-          let resolveResult;
+          await storage.updatePlayer(upd.id, { points: upd.newPoints });
+        } catch (dbErr) {
+          console.error(
+            `[Heartbeat:Points] DB WRITE FAILED for "${upd.name}" (${upd.id}):`,
+            dbErr
+          );
+        }
+      }
+      log(
+        `[Heartbeat:Points] ${matchLabel}: ${playerUpdates.length} players updated (${mapped} mapped, ${unmapped} unmapped/XI-only, ${skippedProtected} protected from crash)`
+      );
+      if (playerUpdates.length <= 10) {
+        for (const u of playerUpdates) {
+          log(
+            `  -> ${u.name}: ${u.oldPoints} -> ${u.newPoints} (${u.method})`
+          );
+        }
+      }
+    }
+    return playerUpdates.length;
+  }
+  async function recalculateTeamTotals(matchId, matchLabel) {
+    const match = await storage.getMatch(matchId);
+    if (!match) return;
+    if (match.isVoid) {
+      const allTeams2 = await storage.getAllTeamsForMatch(matchId);
+      for (const team of allTeams2) {
+        if ((team.totalPoints || 0) !== 0) {
+          await storage.updateUserTeamPoints(team.id, 0);
+        }
+      }
+      log(`[Heartbeat:Teams] ${matchLabel}: Match is VOID \u2014 all points zeroed`);
+      return;
+    }
+    const updatedPlayers = await storage.getPlayersForMatch(matchId);
+    const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
+    const playerByExtId = new Map(
+      updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p])
+    );
+    const allTeams = await storage.getAllTeamsForMatch(matchId);
+    const impactEnabled = match.impactFeaturesEnabled === true;
+    const teamUpdates = [];
+    for (const team of allTeams) {
+      try {
+        const teamPlayerIds = team.playerIds;
+        let totalPoints = 0;
+        for (const pid of teamPlayerIds) {
           try {
-            resolveResult = resolvePlayerPoints(
-              player,
+            const p = playerById.get(pid) || playerByExtId.get(pid);
+            if (!p) continue;
+            let basePts = p.points || 0;
+            let multiplier = 1;
+            if (pid === team.captainId && (!team.captainType || team.captainType === "player")) {
+              multiplier = 2;
+            } else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) {
+              multiplier = 1.5;
+            }
+            const finalPts = Math.round(basePts * multiplier);
+            totalPoints += finalPts;
+          } catch (playerErr) {
+            console.error(
+              `[Heartbeat:Teams] FAILED resolving player ${pid} in team ${team.id}:`,
+              playerErr
+            );
+            continue;
+          }
+        }
+        if (impactEnabled) {
+          try {
+            const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
+            if (resolved.activePlayerId) {
+              const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
+              if (impactPlayer) {
+                let impactPts = (impactPlayer.points || 0) + 4;
+                let impactMultiplier = 1;
+                if (team.captainType === "impact_slot") impactMultiplier = 2;
+                else if (team.vcType === "impact_slot") impactMultiplier = 1.5;
+                totalPoints += Math.round(impactPts * impactMultiplier);
+              }
+            }
+          } catch (impactErr) {
+            console.error(`[Heartbeat:Teams] Impact slot error for team ${team.id}:`, impactErr);
+          }
+        }
+        if (match.officialWinner) {
+          try {
+            const prediction = await storage.getUserPredictionForMatch(team.userId, matchId);
+            if (prediction && prediction.predictedWinner === match.officialWinner) {
+              totalPoints += 50;
+            }
+          } catch (predErr) {
+            console.error(`[Heartbeat:Teams] Prediction bonus error for team ${team.id}:`, predErr);
+          }
+        }
+        if (totalPoints !== (team.totalPoints || 0)) {
+          teamUpdates.push({
+            teamId: team.id,
+            teamName: team.name || "unnamed",
+            oldTotal: team.totalPoints || 0,
+            newTotal: totalPoints
+          });
+        }
+      } catch (err) {
+        console.error(
+          `[Heartbeat:Teams] OUTER CATCH for team ${team.id}:`,
+          err
+        );
+        continue;
+      }
+    }
+    if (teamUpdates.length > 0) {
+      for (const upd of teamUpdates) {
+        try {
+          await storage.updateUserTeamPoints(upd.teamId, upd.newTotal);
+        } catch (dbErr) {
+          console.error(
+            `[Heartbeat:Teams] DB WRITE FAILED for team ${upd.teamId}:`,
+            dbErr
+          );
+        }
+      }
+      log(
+        `[Heartbeat:Teams] ${matchLabel}: ${teamUpdates.length} teams recalculated \u2014 ${teamUpdates.map((t) => `${t.teamName}: ${t.oldTotal}->${t.newTotal}`).join(", ")}`
+      );
+    }
+  }
+  function extractTotalOversFromScoreString(scoreStr) {
+    if (!scoreStr) return 0;
+    const matches2 = scoreStr.match(/\((\d+(?:\.\d+)?)\s*ov\)/g);
+    if (!matches2) return 0;
+    return matches2.reduce((sum, m) => {
+      const num = parseFloat(m.replace(/[^0-9.]/g, ""));
+      return sum + (isNaN(num) ? 0 : num);
+    }, 0);
+  }
+  async function matchHeartbeat(forcedMatchId) {
+    if (heartbeatSyncing && !forcedMatchId) {
+      const lockAge = Date.now() - heartbeatLockTime;
+      if (lockAge < 6e4) {
+        log("[Heartbeat] SKIPPED: previous sync still in progress");
+        return;
+      }
+      log(
+        `[Heartbeat] FORCE UNLOCK: lock held for ${Math.round(lockAge / 1e3)}s \u2014 resetting stale lock`
+      );
+      heartbeatSyncing = false;
+    }
+    heartbeatSyncing = true;
+    heartbeatLockTime = Date.now();
+    try {
+      const allMatches = await storage.getAllMatches();
+      const now = Date.now();
+      const liveMatches = allMatches.filter(
+        (m) => m.status === "live" || m.status === "delayed" || m.startTime && new Date(m.startTime).getTime() < now && m.status !== "completed"
+      );
+      log(`[Heartbeat] polling ${liveMatches.length} active matches (${allMatches.length} total in DB)`);
+      for (const match of allMatches) {
+        if (forcedMatchId && match.id !== forcedMatchId) continue;
+        const startMs = match.startTime ? new Date(match.startTime).getTime() : 0;
+        const revisedMs = match.revisedStartTime ? new Date(match.revisedStartTime).getTime() : 0;
+        const effectiveStartMs = revisedMs > 0 ? revisedMs : startMs;
+        const isStarted = effectiveStartMs > 0 && now > effectiveStartMs && match.status !== "completed";
+        const isLive = match.status === "live" || match.status === "delayed";
+        if (isStarted && !isLive) {
+          log(
+            `[Heartbeat] LOCKOUT: ${match.team1Short} vs ${match.team2Short} -> status=live (was ${match.status}, started ${Math.round((now - startMs) / 6e4)}m ago)`
+          );
+          await storage.updateMatch(match.id, { status: "live" });
+          try {
+            const matchPlayers = await storage.getPlayersForMatch(match.id);
+            const xiPlayers = matchPlayers.filter(
+              (p) => p.isPlayingXI && (!p.points || p.points < 4)
+            );
+            if (xiPlayers.length > 0) {
+              for (const p of xiPlayers) {
+                await storage.updatePlayer(p.id, { points: 4 });
+              }
+              log(
+                `[Heartbeat] LIVE BASE POINTS: Awarded +4 base to ${xiPlayers.length} Playing XI players for ${match.team1Short} vs ${match.team2Short}`
+              );
+              await recalculateTeamTotals(
+                match.id,
+                `${match.team1Short} vs ${match.team2Short}`
+              );
+            }
+          } catch (baseErr) {
+            console.error(
+              `[Heartbeat] Failed to award base XI points on live transition:`,
+              baseErr
+            );
+          }
+        }
+        if (!isLive && !isStarted && !forcedMatchId) continue;
+        const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+        if (!forcedMatchId) {
+          const joinedTeams = await storage.getAllTeamsForMatch(match.id);
+          if (joinedTeams.length === 0) {
+            log(`[Heartbeat] SKIP ${matchLabel} \u2014 0 users joined, no API calls needed`);
+            continue;
+          }
+        }
+        try {
+          const {
+            pointsMap,
+            namePointsMap,
+            scoreString,
+            matchEnded,
+            totalOvers,
+            source
+          } = await updateLiveScore(match);
+          const existingScoreStr = match.scoreString || "";
+          const existingOvers = extractTotalOversFromScoreString(existingScoreStr);
+          const existingInningsCount = (existingScoreStr.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length;
+          const incomingInningsCount = scoreString ? (scoreString.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length : 0;
+          const isStaleScore = totalOvers > 0 && totalOvers < existingOvers && incomingInningsCount <= existingInningsCount;
+          if (isStaleScore) {
+            log(
+              `[Heartbeat] STALE SCORE skipped for ${matchLabel}: incoming ${totalOvers} ov < existing ${existingOvers} ov \u2014 points still processed`
+            );
+          }
+          if (!isStaleScore && scoreString && scoreString !== match.scoreString) {
+            await storage.updateMatch(match.id, {
+              scoreString,
+              lastSyncAt: /* @__PURE__ */ new Date()
+            });
+          }
+          if (matchEnded && match.status !== "completed") {
+            log(`[Heartbeat] COMPLETED: ${matchLabel}`);
+            await storage.updateMatch(match.id, { status: "completed" });
+            try {
+              const distribute = globalThis.__distributeMatchReward;
+              if (distribute) await distribute(match.id);
+            } catch (rewardErr) {
+              console.error(
+                `[Heartbeat] Reward distribution failed for ${matchLabel}:`,
+                rewardErr
+              );
+            }
+          }
+          if (pointsMap.size > 0 && !match.firstScorecardAt) {
+            try {
+              await storage.updateMatch(match.id, { firstScorecardAt: /* @__PURE__ */ new Date() });
+              log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
+            } catch (fse) {
+              console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
+            }
+          }
+          if (pointsMap.size > 0) {
+            const updatedCount = await updateFantasyPoints(
+              match.id,
+              matchLabel,
               pointsMap,
               namePointsMap
             );
-          } catch (resolveErr) {
-            console.error(
-              `[Heartbeat:Points] resolvePlayerPoints THREW for "${player.name}" (${player.id}):`,
-              resolveErr
-            );
-            continue;
-          }
-          const { fantasyPts, matchMethod } = resolveResult;
-          const existingPts = player.points || 0;
-          const appearedOnScorecard = fantasyPts !== void 0 && fantasyPts !== null;
-          const xiBase = player.isPlayingXI || appearedOnScorecard ? 4 : 0;
-          let finalPts;
-          if (appearedOnScorecard) {
-            finalPts = fantasyPts + xiBase;
-            mapped++;
-            if (finalPts < existingPts) {
-              log(
-                `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} \u2014 keeping existing`
-              );
-              skippedProtected++;
-              continue;
-            }
-            if (matchMethod.startsWith("fuzzy") || matchMethod.startsWith("apiName")) {
-              log(
-                `[Heartbeat:Points] Match: "${player.name}" -> ${matchMethod} = ${fantasyPts} scorecard + ${xiBase} XI base = ${finalPts}`
-              );
-            }
-          } else if (player.isPlayingXI) {
-            finalPts = Math.max(xiBase, existingPts);
-            unmapped++;
-            if (finalPts <= existingPts) {
-              continue;
+            if (updatedCount > 0) {
+              await recalculateTeamTotals(match.id, matchLabel);
             }
           } else {
-            continue;
-          }
-          if (finalPts !== existingPts) {
-            playerUpdates.push({
-              id: player.id,
-              name: player.name,
-              oldPoints: existingPts,
-              newPoints: finalPts,
-              method: matchMethod
-            });
-          }
-        } catch (err) {
-          console.error(
-            `[Heartbeat:Points] OUTER CATCH for player "${player.name}" (${player.id}):`,
-            err
-          );
-          continue;
-        }
-      }
-      if (playerUpdates.length > 0) {
-        for (const upd of playerUpdates) {
-          try {
-            await storage.updatePlayer(upd.id, { points: upd.newPoints });
-          } catch (dbErr) {
-            console.error(
-              `[Heartbeat:Points] DB WRITE FAILED for "${upd.name}" (${upd.id}):`,
-              dbErr
+            const matchPlayers = await storage.getPlayersForMatch(match.id);
+            const xiPlayersWithZero = matchPlayers.filter(
+              (p) => p.isPlayingXI && (p.points === 0 || p.points === null)
             );
-          }
-        }
-        log(
-          `[Heartbeat:Points] ${matchLabel}: ${playerUpdates.length} players updated (${mapped} mapped, ${unmapped} unmapped/XI-only, ${skippedProtected} protected from crash)`
-        );
-        if (playerUpdates.length <= 10) {
-          for (const u of playerUpdates) {
-            log(
-              `  -> ${u.name}: ${u.oldPoints} -> ${u.newPoints} (${u.method})`
-            );
-          }
-        }
-      }
-      return playerUpdates.length;
-    }
-    async function recalculateTeamTotals(matchId, matchLabel) {
-      const match = await storage.getMatch(matchId);
-      if (!match) return;
-      if (match.isVoid) {
-        const allTeams2 = await storage.getAllTeamsForMatch(matchId);
-        for (const team of allTeams2) {
-          if ((team.totalPoints || 0) !== 0) {
-            await storage.updateUserTeamPoints(team.id, 0);
-          }
-        }
-        log(`[Heartbeat:Teams] ${matchLabel}: Match is VOID \u2014 all points zeroed`);
-        return;
-      }
-      const updatedPlayers = await storage.getPlayersForMatch(matchId);
-      const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
-      const playerByExtId = new Map(
-        updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p])
-      );
-      const allTeams = await storage.getAllTeamsForMatch(matchId);
-      const impactEnabled = match.impactFeaturesEnabled === true;
-      const teamUpdates = [];
-      for (const team of allTeams) {
-        try {
-          const teamPlayerIds = team.playerIds;
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            try {
-              const p = playerById.get(pid) || playerByExtId.get(pid);
-              if (!p) continue;
-              let basePts = p.points || 0;
-              let multiplier = 1;
-              if (pid === team.captainId && (!team.captainType || team.captainType === "player")) {
-                multiplier = 2;
-              } else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) {
-                multiplier = 1.5;
-              }
-              const finalPts = Math.round(basePts * multiplier);
-              totalPoints += finalPts;
-            } catch (playerErr) {
-              console.error(
-                `[Heartbeat:Teams] FAILED resolving player ${pid} in team ${team.id}:`,
-                playerErr
+            if (xiPlayersWithZero.length > 0) {
+              log(
+                `[Heartbeat:Points] ${matchLabel}: No scorecard data yet, applying +4 XI base to ${xiPlayersWithZero.length} players`
               );
-              continue;
-            }
-          }
-          if (impactEnabled) {
-            try {
-              const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
-              if (resolved.activePlayerId) {
-                const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
-                if (impactPlayer) {
-                  let impactPts = (impactPlayer.points || 0) + 4;
-                  let impactMultiplier = 1;
-                  if (team.captainType === "impact_slot") impactMultiplier = 2;
-                  else if (team.vcType === "impact_slot") impactMultiplier = 1.5;
-                  totalPoints += Math.round(impactPts * impactMultiplier);
-                }
+              for (const p of xiPlayersWithZero) {
+                await storage.updatePlayer(p.id, { points: 4 });
               }
-            } catch (impactErr) {
-              console.error(`[Heartbeat:Teams] Impact slot error for team ${team.id}:`, impactErr);
+              await recalculateTeamTotals(match.id, matchLabel);
             }
           }
-          if (match.officialWinner) {
-            try {
-              const prediction = await storage.getUserPredictionForMatch(team.userId, matchId);
-              if (prediction && prediction.predictedWinner === match.officialWinner) {
-                totalPoints += 50;
-              }
-            } catch (predErr) {
-              console.error(`[Heartbeat:Teams] Prediction bonus error for team ${team.id}:`, predErr);
-            }
-          }
-          if (totalPoints !== (team.totalPoints || 0)) {
-            teamUpdates.push({
-              teamId: team.id,
-              teamName: team.name || "unnamed",
-              oldTotal: team.totalPoints || 0,
-              newTotal: totalPoints
-            });
-          }
-        } catch (err) {
-          console.error(
-            `[Heartbeat:Teams] OUTER CATCH for team ${team.id}:`,
-            err
-          );
-          continue;
-        }
-      }
-      if (teamUpdates.length > 0) {
-        for (const upd of teamUpdates) {
-          try {
-            await storage.updateUserTeamPoints(upd.teamId, upd.newTotal);
-          } catch (dbErr) {
-            console.error(
-              `[Heartbeat:Teams] DB WRITE FAILED for team ${upd.teamId}:`,
-              dbErr
+          if (source) {
+            log(
+              `[Heartbeat] ${matchLabel} synced via ${source}${scoreString ? ` \u2014 ${scoreString.substring(0, 80)}` : ""}`
             );
           }
+        } catch (err) {
+          console.error(`[Heartbeat] sync FAILED for ${matchLabel}:`, err);
         }
-        log(
-          `[Heartbeat:Teams] ${matchLabel}: ${teamUpdates.length} teams recalculated \u2014 ${teamUpdates.map((t) => `${t.teamName}: ${t.oldTotal}->${t.newTotal}`).join(", ")}`
-        );
       }
-    }
-    function extractTotalOversFromScoreString(scoreStr) {
-      if (!scoreStr) return 0;
-      const matches2 = scoreStr.match(/\((\d+(?:\.\d+)?)\s*ov\)/g);
-      if (!matches2) return 0;
-      return matches2.reduce((sum, m) => {
-        const num = parseFloat(m.replace(/[^0-9.]/g, ""));
-        return sum + (isNaN(num) ? 0 : num);
-      }, 0);
-    }
-    async function matchHeartbeat(forcedMatchId) {
-      if (heartbeatSyncing && !forcedMatchId) {
-        const lockAge = Date.now() - heartbeatLockTime;
-        if (lockAge < 6e4) {
-          log("[Heartbeat] SKIPPED: previous sync still in progress");
-          return;
-        }
-        log(
-          `[Heartbeat] FORCE UNLOCK: lock held for ${Math.round(lockAge / 1e3)}s \u2014 resetting stale lock`
-        );
-        heartbeatSyncing = false;
-      }
-      heartbeatSyncing = true;
-      heartbeatLockTime = Date.now();
       try {
-        const allMatches = await storage.getAllMatches();
-        const now = Date.now();
-        const liveMatches = allMatches.filter(
-          (m) => m.status === "live" || m.status === "delayed" || m.startTime && new Date(m.startTime).getTime() < now && m.status !== "completed"
+        const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+        const squadCandidates = allMatches.filter(
+          (m) => m.externalId && m.status === "upcoming" && m.startTime
         );
-        log(`[Heartbeat] polling ${liveMatches.length} active matches (${allMatches.length} total in DB)`);
-        for (const match of allMatches) {
-          if (forcedMatchId && match.id !== forcedMatchId) continue;
-          const startMs = match.startTime ? new Date(match.startTime).getTime() : 0;
-          const revisedMs = match.revisedStartTime ? new Date(match.revisedStartTime).getTime() : 0;
-          const effectiveStartMs = revisedMs > 0 ? revisedMs : startMs;
-          const isStarted = effectiveStartMs > 0 && now > effectiveStartMs && match.status !== "completed";
-          const isLive = match.status === "live" || match.status === "delayed";
-          if (isStarted && !isLive) {
-            log(
-              `[Heartbeat] LOCKOUT: ${match.team1Short} vs ${match.team2Short} -> status=live (was ${match.status}, started ${Math.round((now - startMs) / 6e4)}m ago)`
-            );
-            await storage.updateMatch(match.id, { status: "live" });
-            try {
-              const matchPlayers = await storage.getPlayersForMatch(match.id);
-              const xiPlayers = matchPlayers.filter(
-                (p) => p.isPlayingXI && (!p.points || p.points < 4)
-              );
-              if (xiPlayers.length > 0) {
-                for (const p of xiPlayers) {
-                  await storage.updatePlayer(p.id, { points: 4 });
-                }
-                log(
-                  `[Heartbeat] LIVE BASE POINTS: Awarded +4 base to ${xiPlayers.length} Playing XI players for ${match.team1Short} vs ${match.team2Short}`
-                );
-                await recalculateTeamTotals(
-                  match.id,
-                  `${match.team1Short} vs ${match.team2Short}`
-                );
-              }
-            } catch (baseErr) {
-              console.error(
-                `[Heartbeat] Failed to award base XI points on live transition:`,
-                baseErr
-              );
-            }
-          }
-          if (!isLive && !isStarted && !forcedMatchId) continue;
-          const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
-          if (!forcedMatchId) {
-            const joinedTeams = await storage.getAllTeamsForMatch(match.id);
-            if (joinedTeams.length === 0) {
-              log(`[Heartbeat] SKIP ${matchLabel} \u2014 0 users joined, no API calls needed`);
-              continue;
-            }
-          }
+        for (const match of squadCandidates) {
+          const startMs = new Date(match.startTime).getTime();
+          const minsToStart = (startMs - now) / 6e4;
+          if (minsToStart > 48 * 60) continue;
+          const existingPlayers = await storage.getPlayersForMatch(match.id);
+          if (existingPlayers.length >= SQUAD_MIN_PLAYERS) continue;
+          const pollInterval = minsToStart > 60 ? SQUAD_POLL_FAR : SQUAD_POLL_CLOSE;
+          const lastAttempt = lastSquadFetchAttempt.get(match.id) ?? 0;
+          if (now - lastAttempt < pollInterval) continue;
+          lastSquadFetchAttempt.set(match.id, now);
+          const label = `${match.team1Short} vs ${match.team2Short}`;
+          const windowTag = minsToStart > 60 ? "48h\u201360min window" : "final 60min window";
+          log(`[Heartbeat:Squad] Fetching squad for ${label} (${Math.round(minsToStart)}min to start, ${windowTag})`);
           try {
-            const {
-              pointsMap,
-              namePointsMap,
-              scoreString,
-              matchEnded,
-              totalOvers,
-              source
-            } = await updateLiveScore(match);
-            const existingScoreStr = match.scoreString || "";
-            const existingOvers = extractTotalOversFromScoreString(existingScoreStr);
-            const existingInningsCount = (existingScoreStr.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length;
-            const incomingInningsCount = scoreString ? (scoreString.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length : 0;
-            const isStaleScore = totalOvers > 0 && totalOvers < existingOvers && incomingInningsCount <= existingInningsCount;
-            if (isStaleScore) {
-              log(
-                `[Heartbeat] STALE SCORE skipped for ${matchLabel}: incoming ${totalOvers} ov < existing ${existingOvers} ov \u2014 points still processed`
-              );
-            }
-            if (!isStaleScore && scoreString && scoreString !== match.scoreString) {
-              await storage.updateMatch(match.id, {
-                scoreString,
-                lastSyncAt: /* @__PURE__ */ new Date()
+            let squad = await fetchMatchSquad2(match.externalId);
+            let squadSource = "match_squad";
+            if (squad.length === 0 && match.seriesId) {
+              const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
+              const t1 = match.team1.toLowerCase();
+              const t2 = match.team2.toLowerCase();
+              const t1s = (match.team1Short || "").toLowerCase();
+              const t2s = (match.team2Short || "").toLowerCase();
+              squad = seriesPlayers.filter((p) => {
+                const pTeam = p.team.toLowerCase();
+                const pShort = p.teamShort.toLowerCase();
+                return pTeam === t1 || pTeam === t2 || pTeam.includes(t1) || t1.includes(pTeam) || pTeam.includes(t2) || t2.includes(pTeam) || pShort === t1s || pShort === t2s;
               });
+              squadSource = "series_squad";
             }
-            if (matchEnded && match.status !== "completed") {
-              log(`[Heartbeat] COMPLETED: ${matchLabel}`);
-              await storage.updateMatch(match.id, { status: "completed" });
-              try {
-                const distribute = globalThis.__distributeMatchReward;
-                if (distribute) await distribute(match.id);
-              } catch (rewardErr) {
-                console.error(
-                  `[Heartbeat] Reward distribution failed for ${matchLabel}:`,
-                  rewardErr
-                );
-              }
-            }
-            if (pointsMap.size > 0 && !match.firstScorecardAt) {
-              try {
-                await storage.updateMatch(match.id, { firstScorecardAt: /* @__PURE__ */ new Date() });
-                log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
-              } catch (fse) {
-                console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
-              }
-            }
-            if (pointsMap.size > 0) {
-              const updatedCount = await updateFantasyPoints(
+            if (squad.length > 0) {
+              await storage.upsertPlayersForMatch(
                 match.id,
-                matchLabel,
-                pointsMap,
-                namePointsMap
+                squad.map((p) => ({
+                  matchId: match.id,
+                  externalId: p.externalId,
+                  name: p.name,
+                  team: p.team,
+                  teamShort: p.teamShort,
+                  role: p.role,
+                  credits: p.credits
+                }))
               );
-              if (updatedCount > 0) {
-                await recalculateTeamTotals(match.id, matchLabel);
-              }
+              log(`[Heartbeat:Squad] Loaded ${squad.length} players for ${label} via ${squadSource}`);
             } else {
-              const matchPlayers = await storage.getPlayersForMatch(match.id);
-              const xiPlayersWithZero = matchPlayers.filter(
-                (p) => p.isPlayingXI && (p.points === 0 || p.points === null)
-              );
-              if (xiPlayersWithZero.length > 0) {
-                log(
-                  `[Heartbeat:Points] ${matchLabel}: No scorecard data yet, applying +4 XI base to ${xiPlayersWithZero.length} players`
-                );
-                for (const p of xiPlayersWithZero) {
-                  await storage.updatePlayer(p.id, { points: 4 });
-                }
-                await recalculateTeamTotals(match.id, matchLabel);
-              }
+              log(`[Heartbeat:Squad] No squad yet for ${label} \u2014 will retry in ${minsToStart > 60 ? "20min" : "5min"}`);
             }
-            if (source) {
-              log(
-                `[Heartbeat] ${matchLabel} synced via ${source}${scoreString ? ` \u2014 ${scoreString.substring(0, 80)}` : ""}`
-              );
-            }
-          } catch (err) {
-            console.error(`[Heartbeat] sync FAILED for ${matchLabel}:`, err);
+          } catch (squadErr) {
           }
         }
-        try {
-          const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-          const squadCandidates = allMatches.filter(
-            (m) => m.externalId && m.status === "upcoming" && m.startTime
-          );
-          for (const match of squadCandidates) {
-            const startMs = new Date(match.startTime).getTime();
-            const minsToStart = (startMs - now) / 6e4;
-            if (minsToStart > 48 * 60) continue;
-            const existingPlayers = await storage.getPlayersForMatch(match.id);
-            if (existingPlayers.length >= SQUAD_MIN_PLAYERS) continue;
-            const pollInterval = minsToStart > 60 ? SQUAD_POLL_FAR : SQUAD_POLL_CLOSE;
-            const lastAttempt = lastSquadFetchAttempt.get(match.id) ?? 0;
-            if (now - lastAttempt < pollInterval) continue;
-            lastSquadFetchAttempt.set(match.id, now);
-            const label = `${match.team1Short} vs ${match.team2Short}`;
-            const windowTag = minsToStart > 60 ? "48h\u201360min window" : "final 60min window";
-            log(`[Heartbeat:Squad] Fetching squad for ${label} (${Math.round(minsToStart)}min to start, ${windowTag})`);
-            try {
-              let squad = await fetchMatchSquad2(match.externalId);
-              let squadSource = "match_squad";
-              if (squad.length === 0 && match.seriesId) {
-                const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
-                const t1 = match.team1.toLowerCase();
-                const t2 = match.team2.toLowerCase();
-                const t1s = (match.team1Short || "").toLowerCase();
-                const t2s = (match.team2Short || "").toLowerCase();
-                squad = seriesPlayers.filter((p) => {
-                  const pTeam = p.team.toLowerCase();
-                  const pShort = p.teamShort.toLowerCase();
-                  return pTeam === t1 || pTeam === t2 || pTeam.includes(t1) || t1.includes(pTeam) || pTeam.includes(t2) || t2.includes(pTeam) || pShort === t1s || pShort === t2s;
-                });
-                squadSource = "series_squad";
-              }
-              if (squad.length > 0) {
-                await storage.upsertPlayersForMatch(
-                  match.id,
-                  squad.map((p) => ({
-                    matchId: match.id,
-                    externalId: p.externalId,
-                    name: p.name,
-                    team: p.team,
-                    teamShort: p.teamShort,
-                    role: p.role,
-                    credits: p.credits
-                  }))
-                );
-                log(`[Heartbeat:Squad] Loaded ${squad.length} players for ${label} via ${squadSource}`);
-              } else {
-                log(`[Heartbeat:Squad] No squad yet for ${label} \u2014 will retry in ${minsToStart > 60 ? "20min" : "5min"}`);
-              }
-            } catch (squadErr) {
-            }
-          }
-        } catch (squadErr) {
-        }
-      } catch (err) {
-        console.error("[Heartbeat] scheduler error:", err);
-      } finally {
-        heartbeatSyncing = false;
+      } catch (squadErr) {
       }
+    } catch (err) {
+      console.error("[Heartbeat] scheduler error:", err);
+    } finally {
+      heartbeatSyncing = false;
     }
-    globalThis.__matchHeartbeat = matchHeartbeat;
-    globalThis.__recalculateTeamTotals = recalculateTeamTotals;
-    setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
-    log(
-      "Match Heartbeat started (every 60s \u2014 score sync, points, lockout, stale-data rejection)"
-    );
-  });
+  }
+  globalThis.__matchHeartbeat = matchHeartbeat;
+  globalThis.__recalculateTeamTotals = recalculateTeamTotals;
+  setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
+  log(
+    "Match Heartbeat started (every 60s \u2014 score sync, points, lockout, stale-data rejection)"
+  );
 })();
