@@ -126,15 +126,10 @@ export default function AdminScreen() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
-  const [editTimeMatchId, setEditTimeMatchId] = useState<string | null>(null);
-  const [editTimeInput, setEditTimeInput] = useState('');
-  const [editTimeSaving, setEditTimeSaving] = useState(false);
-  const [editTimeResult, setEditTimeResult] = useState('');
-
-  const [revisedTimeMatchId, setRevisedTimeMatchId] = useState<string | null>(null);
-  const [revisedTimeInput, setRevisedTimeInput] = useState('');
-  const [revisedTimeSaving, setRevisedTimeSaving] = useState(false);
-  const [revisedTimeResult, setRevisedTimeResult] = useState('');
+  const [deadlineMatchId, setDeadlineMatchId] = useState<string | null>(null);
+  const [deadlineInput, setDeadlineInput] = useState('');
+  const [deadlineSaving, setDeadlineSaving] = useState(false);
+  const [deadlineResult, setDeadlineResult] = useState('');
   const [lockTogglingId, setLockTogglingId] = useState<string | null>(null);
   const [markingCompleteId, setMarkingCompleteId] = useState<string | null>(null);
   const [matchActionResult, setMatchActionResult] = useState<Record<string, string>>({});
@@ -214,7 +209,11 @@ export default function AdminScreen() {
           setVoiding(true);
           setVoidResult('');
           try {
-            await apiRequest('POST', `/api/admin/matches/${matchId}/void`);
+            const vRes = await apiRequest('POST', `/api/admin/matches/${matchId}/void`, { isVoid: true });
+            if (!vRes.ok) {
+              const vData = await vRes.json().catch(() => ({}));
+              throw new Error(vData.message || `Server error ${vRes.status}`);
+            }
             setVoidResult('Match voided successfully');
             setMatchResult(matchId, '✔ Match voided');
             await loadMatches();
@@ -377,36 +376,13 @@ export default function AdminScreen() {
     }
   };
 
-  const openEditTime = (m: MatchInfo) => {
-    const d = new Date(m.startTime);
+  const openDeadline = (m: MatchInfo) => {
+    const d = m.revisedStartTime ? new Date(m.revisedStartTime) : new Date(m.startTime);
     const pad = (n: number) => String(n).padStart(2, '0');
     const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    setEditTimeInput(local);
-    setEditTimeResult('');
-    setEditTimeMatchId(m.id);
-  };
-
-  const saveEditTime = async () => {
-    if (!editTimeMatchId || !editTimeInput) return;
-    const parsed = new Date(editTimeInput);
-    if (isNaN(parsed.getTime())) {
-      setEditTimeResult('Invalid date/time format');
-      return;
-    }
-    setEditTimeSaving(true);
-    setEditTimeResult('');
-    try {
-      await apiRequest('PATCH', `/api/admin/matches/${editTimeMatchId}`, { startTime: parsed.toISOString() });
-      await loadMatches();
-      setEditTimeResult('Start time updated');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => setEditTimeMatchId(null), 800);
-    } catch (e) {
-      setEditTimeResult('Failed to update start time');
-      console.error('Edit time failed:', e);
-    } finally {
-      setEditTimeSaving(false);
-    }
+    setDeadlineInput(local);
+    setDeadlineResult('');
+    setDeadlineMatchId(m.id);
   };
 
   const toggleAdminUnlock = async (matchId: string, unlock: boolean) => {
@@ -430,53 +406,46 @@ export default function AdminScreen() {
     }
   };
 
-  const openRevisedTime = (m: MatchInfo) => {
-    const d = m.revisedStartTime ? new Date(m.revisedStartTime) : new Date(m.startTime);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    setRevisedTimeInput(local);
-    setRevisedTimeResult('');
-    setRevisedTimeMatchId(m.id);
-  };
-
-  const saveRevisedTime = async () => {
-    if (!revisedTimeMatchId || !revisedTimeInput) return;
-    const parsed = new Date(revisedTimeInput);
+  const saveDeadline = async () => {
+    if (!deadlineMatchId || !deadlineInput) return;
+    const parsed = new Date(deadlineInput);
     if (isNaN(parsed.getTime())) {
-      setRevisedTimeResult('Invalid date/time format');
+      setDeadlineResult('Invalid format — use YYYY-MM-DDTHH:mm');
       return;
     }
-    setRevisedTimeSaving(true);
-    setRevisedTimeResult('');
+    setDeadlineSaving(true);
+    setDeadlineResult('');
     try {
-      const res = await apiRequest('POST', `/api/admin/matches/${revisedTimeMatchId}/revised-start-time`, { revisedStartTime: parsed.toISOString() });
+      const res = await apiRequest('POST', `/api/admin/matches/${deadlineMatchId}/revised-start-time`, { revisedStartTime: parsed.toISOString() });
       const data = await res.json();
       if (!res.ok) {
-        setRevisedTimeResult(data.message || 'Failed');
+        setDeadlineResult(data.message || 'Failed to save');
       } else {
         await loadMatches();
-        setRevisedTimeResult('Revised time saved');
+        setDeadlineResult('✔ Entry deadline saved');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setTimeout(() => setRevisedTimeMatchId(null), 800);
+        setTimeout(() => setDeadlineMatchId(null), 900);
       }
     } catch (e) {
-      setRevisedTimeResult('Failed to save revised time');
+      setDeadlineResult('❌ Failed to save deadline');
+      console.error('Save deadline failed:', e);
     } finally {
-      setRevisedTimeSaving(false);
+      setDeadlineSaving(false);
     }
   };
 
-  const clearRevisedTime = async (matchId: string) => {
-    setRevisedTimeSaving(true);
+  const clearDeadline = async (matchId: string) => {
+    setDeadlineSaving(true);
     try {
       await apiRequest('POST', `/api/admin/matches/${matchId}/revised-start-time`, { revisedStartTime: null });
       await loadMatches();
-      setRevisedTimeResult('Revised time cleared');
-      setTimeout(() => setRevisedTimeMatchId(null), 600);
+      setDeadlineResult('✔ Entry deadline cleared');
+      setTimeout(() => setDeadlineMatchId(null), 600);
     } catch (e) {
-      setRevisedTimeResult('Failed to clear');
+      setDeadlineResult('❌ Failed to clear');
+      console.error('Clear deadline failed:', e);
     } finally {
-      setRevisedTimeSaving(false);
+      setDeadlineSaving(false);
     }
   };
 
@@ -1222,7 +1191,8 @@ export default function AdminScreen() {
                     <Pressable
                       onPress={() => toggleAdminUnlock(m.id, !m.adminUnlockOverride)}
                       disabled={lockTogglingId === m.id}
-                      style={{ padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }}
+                      accessibilityLabel={m.adminUnlockOverride ? 'Lock Entry' : 'Unlock Entry'}
+                      style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.adminUnlockOverride ? '#10B98120' : colors.surfaceElevated, borderWidth: 1, borderColor: m.adminUnlockOverride ? '#10B981' : colors.border }}
                     >
                       {lockTogglingId === m.id
                         ? <ActivityIndicator size="small" color={colors.textTertiary} />
@@ -1232,34 +1202,34 @@ export default function AdminScreen() {
                             color={m.adminUnlockOverride ? '#10B981' : colors.textTertiary}
                           />
                       }
+                      <Text style={{ color: m.adminUnlockOverride ? '#10B981' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>
+                        {m.adminUnlockOverride ? 'Unlocked' : 'Lock'}
+                      </Text>
                     </Pressable>
                   )}
 
-                  {/* 🧮 Recalculate */}
+                  {/* 🔄 Recalculate Scores */}
                   <Pressable
                     onPress={() => recalculateMatch(m.id)}
                     disabled={recalculating}
-                    style={{ padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: recalculating ? 0.5 : 1 }}
+                    accessibilityLabel="Recalculate Scores"
+                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: recalculating ? 0.5 : 1 }}
                   >
-                    <MaterialCommunityIcons name="calculator" size={16} color={colors.primary} />
+                    {recalculating
+                      ? <ActivityIndicator size="small" color={colors.primary} />
+                      : <Ionicons name="refresh-circle-outline" size={18} color={colors.primary} />
+                    }
+                    <Text style={{ color: colors.primary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Recalc</Text>
                   </Pressable>
 
-                  {/* ⏱ Edit Start Time — non-completed only */}
-                  {m.status !== 'completed' && (
-                    <Pressable
-                      onPress={() => openEditTime(m)}
-                      style={{ padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }}
-                    >
-                      <Ionicons name="time-outline" size={16} color={colors.accent} />
-                    </Pressable>
-                  )}
-
-                  {/* ⏰ Revised Time — always */}
+                  {/* ⏳ Entry Deadline Override — always */}
                   <Pressable
-                    onPress={() => openRevisedTime(m)}
-                    style={{ padding: 8, borderRadius: 8, backgroundColor: m.revisedStartTime ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.revisedStartTime ? '#F59E0B' : colors.border }}
+                    onPress={() => openDeadline(m)}
+                    accessibilityLabel="Entry Deadline Override"
+                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.revisedStartTime ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.revisedStartTime ? '#F59E0B' : colors.border }}
                   >
-                    <Ionicons name="alarm-outline" size={16} color={m.revisedStartTime ? '#F59E0B' : colors.textTertiary} />
+                    <Ionicons name="hourglass-outline" size={16} color={m.revisedStartTime ? '#F59E0B' : colors.textTertiary} />
+                    <Text style={{ color: m.revisedStartTime ? '#F59E0B' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Deadline</Text>
                   </Pressable>
 
                   {/* 🚫 Void — only when not already voided */}
@@ -1267,31 +1237,37 @@ export default function AdminScreen() {
                     <Pressable
                       onPress={() => voidMatch(m.id)}
                       disabled={voiding}
-                      style={{ padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: voiding ? 0.5 : 1 }}
+                      accessibilityLabel="Void Match"
+                      style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: voiding ? 0.5 : 1 }}
                     >
                       <Ionicons name="ban" size={16} color={colors.error} />
+                      <Text style={{ color: colors.error, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Void</Text>
                     </Pressable>
                   )}
 
-                  {/* 🏆 Set Winner — always */}
+                  {/* 🏆 Settle Match — always */}
                   <Pressable
                     onPress={() => promptSetWinner(m)}
                     disabled={settingWinnerId === m.id}
-                    style={{ padding: 8, borderRadius: 8, backgroundColor: m.officialWinner ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.officialWinner ? '#F59E0B' : colors.border, opacity: settingWinnerId === m.id ? 0.5 : 1 }}
+                    accessibilityLabel="Settle Match"
+                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.officialWinner ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.officialWinner ? '#F59E0B' : colors.border, opacity: settingWinnerId === m.id ? 0.5 : 1 }}
                   >
                     <Ionicons name="trophy-outline" size={16} color={m.officialWinner ? '#F59E0B' : colors.textTertiary} />
+                    <Text style={{ color: m.officialWinner ? '#F59E0B' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Settle</Text>
                   </Pressable>
 
-                  {/* 👥 Player Status — always */}
+                  {/* 👥 View Entries — always */}
                   <Pressable
                     onPress={() => togglePlayerStatusExpand(m.id)}
-                    style={{ padding: 8, borderRadius: 8, backgroundColor: playerStatusExpandedId === m.id ? colors.primary + '20' : colors.surfaceElevated, borderWidth: 1, borderColor: playerStatusExpandedId === m.id ? colors.primary : colors.border }}
+                    accessibilityLabel="View Participants"
+                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: playerStatusExpandedId === m.id ? colors.primary + '20' : colors.surfaceElevated, borderWidth: 1, borderColor: playerStatusExpandedId === m.id ? colors.primary : colors.border }}
                   >
                     <Ionicons
                       name={playerStatusExpandedId === m.id ? 'people' : 'people-outline'}
                       size={16}
                       color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary}
                     />
+                    <Text style={{ color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Entries</Text>
                   </Pressable>
                 </View>
 
@@ -2474,112 +2450,16 @@ export default function AdminScreen() {
           </View>
       </ScrollView>
 
-      {/* Edit Match Start Time Modal */}
+      {/* Entry Deadline Override Modal */}
       <Modal
-        visible={editTimeMatchId !== null}
+        visible={deadlineMatchId !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setEditTimeMatchId(null)}
+        onRequestClose={() => setDeadlineMatchId(null)}
       >
         <Pressable
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
-          onPress={() => setEditTimeMatchId(null)}
-        >
-          <Pressable
-            style={{
-              width: 320,
-              backgroundColor: colors.card,
-              borderRadius: 20,
-              padding: 24,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-            onPress={() => {}}
-          >
-            <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18, marginBottom: 6 }}>
-              Edit Start Time
-            </Text>
-            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 13, marginBottom: 16 }}>
-              Enter date and time in local format:{'\n'}YYYY-MM-DDTHH:mm (e.g. 2025-04-15T19:30)
-            </Text>
-            <TextInput
-              value={editTimeInput}
-              onChangeText={setEditTimeInput}
-              placeholder="2025-04-15T19:30"
-              placeholderTextColor={colors.textTertiary}
-              style={{
-                height: 46,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.background,
-                color: colors.text,
-                fontFamily: 'Inter_500Medium',
-                fontSize: 15,
-                paddingHorizontal: 14,
-                marginBottom: 8,
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {editTimeResult !== '' && (
-              <Text style={{
-                color: editTimeResult.includes('updated') ? colors.success : colors.error,
-                fontFamily: 'Inter_500Medium',
-                fontSize: 13,
-                marginBottom: 8,
-              }}>
-                {editTimeResult}
-              </Text>
-            )}
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-              <Pressable
-                onPress={() => setEditTimeMatchId(null)}
-                style={{
-                  flex: 1,
-                  height: 44,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 15 }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={saveEditTime}
-                disabled={editTimeSaving}
-                style={{
-                  flex: 1,
-                  height: 44,
-                  borderRadius: 12,
-                  backgroundColor: colors.primary,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  opacity: editTimeSaving ? 0.6 : 1,
-                }}
-              >
-                {editTimeSaving
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>Save</Text>
-                }
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* Revised Start Time Modal */}
-      <Modal
-        visible={revisedTimeMatchId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRevisedTimeMatchId(null)}
-      >
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
-          onPress={() => setRevisedTimeMatchId(null)}
+          onPress={() => setDeadlineMatchId(null)}
         >
           <Pressable
             style={{
@@ -2592,15 +2472,18 @@ export default function AdminScreen() {
             }}
             onPress={() => {}}
           >
-            <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18, marginBottom: 4 }}>
-              Delay / Revised Time
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="hourglass-outline" size={20} color="#F59E0B" />
+              <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18 }}>
+                Entry Deadline Override
+              </Text>
+            </View>
             <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 16 }}>
-              Sets a new entry-deadline for this match without changing the official start time.{'\n'}Format: YYYY-MM-DDTHH:mm
+              Override the fantasy entry deadline for this match. Teams cannot be changed after this time. Does not affect the official API start time.{'\n\n'}Format: YYYY-MM-DDTHH:mm{'\n'}e.g. 2025-04-15T21:00
             </Text>
             <TextInput
-              value={revisedTimeInput}
-              onChangeText={setRevisedTimeInput}
+              value={deadlineInput}
+              onChangeText={setDeadlineInput}
               placeholder="2025-04-15T21:00"
               placeholderTextColor={colors.textTertiary}
               style={{
@@ -2618,20 +2501,20 @@ export default function AdminScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {revisedTimeResult !== '' && (
+            {deadlineResult !== '' && (
               <Text style={{
-                color: revisedTimeResult.includes('saved') || revisedTimeResult.includes('cleared') ? colors.success : colors.error,
+                color: deadlineResult.startsWith('✔') ? colors.success : colors.error,
                 fontFamily: 'Inter_500Medium',
                 fontSize: 13,
                 marginBottom: 8,
               }}>
-                {revisedTimeResult}
+                {deadlineResult}
               </Text>
             )}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
               <Pressable
-                onPress={() => revisedTimeMatchId && clearRevisedTime(revisedTimeMatchId)}
-                disabled={revisedTimeSaving}
+                onPress={() => deadlineMatchId && clearDeadline(deadlineMatchId)}
+                disabled={deadlineSaving}
                 style={{
                   flex: 1,
                   height: 44,
@@ -2640,13 +2523,13 @@ export default function AdminScreen() {
                   borderColor: colors.error + '60',
                   justifyContent: 'center',
                   alignItems: 'center',
-                  opacity: revisedTimeSaving ? 0.5 : 1,
+                  opacity: deadlineSaving ? 0.5 : 1,
                 }}
               >
                 <Text style={{ color: colors.error, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Clear</Text>
               </Pressable>
               <Pressable
-                onPress={() => setRevisedTimeMatchId(null)}
+                onPress={() => setDeadlineMatchId(null)}
                 style={{
                   flex: 1,
                   height: 44,
@@ -2660,8 +2543,8 @@ export default function AdminScreen() {
                 <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
               </Pressable>
               <Pressable
-                onPress={saveRevisedTime}
-                disabled={revisedTimeSaving}
+                onPress={saveDeadline}
+                disabled={deadlineSaving}
                 style={{
                   flex: 1,
                   height: 44,
@@ -2669,10 +2552,10 @@ export default function AdminScreen() {
                   backgroundColor: '#F59E0B',
                   justifyContent: 'center',
                   alignItems: 'center',
-                  opacity: revisedTimeSaving ? 0.6 : 1,
+                  opacity: deadlineSaving ? 0.6 : 1,
                 }}
               >
-                {revisedTimeSaving
+                {deadlineSaving
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Save</Text>
                 }

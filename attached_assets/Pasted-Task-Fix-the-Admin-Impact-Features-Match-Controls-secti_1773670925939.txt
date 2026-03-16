@@ -1,0 +1,269 @@
+Task: Fix the Admin > Impact Features & Match Controls section with NO ambiguity and NO extra changes outside this scope.
+
+This is a product-correctness fix, a UX clarity fix, and a broken-button fix.
+
+====================================
+1. CORE PRODUCT RULE — TIME CONTROL
+====================================
+
+Official match start time already comes from the API/feed.
+Admin should NOT manually edit official start time in the normal workflow.
+
+Therefore:
+- Remove the current "Edit Start Time" action/button/modal from the match controls row.
+- Remove its handler, modal trigger, and any visible UI related to manual official start time editing in this section.
+- Keep official start time as system-driven and read-only.
+
+Admin only needs ONE time-related control:
+- "Entry Deadline Override" (or "Revised Deadline")
+This is used only when there is a toss delay, weather delay, or any exceptional situation where the fantasy entry deadline must be revised without changing the official API start time.
+
+Important distinction:
+- Official Start Time = from API, read-only
+- Entry Deadline Override = admin-controlled override for fantasy lock/deadline only
+
+The override must NOT mutate, overwrite, or replace the official match start time from the API.
+
+====================================
+2. REQUIRED MATCH CONTROL BUTTONS
+====================================
+
+Each match card must have only these actions, in this order unless there is a strong technical reason otherwise:
+
+1. Impact Toggle
+   Purpose:
+   - Enable/disable impact picks for this match
+
+2. Lock / Unlock
+   Purpose:
+   - Manually lock or unlock entries/team edits for this match
+
+3. Recalculate Scores
+   Purpose:
+   - Re-run fantasy scoring for this match
+   Requirement:
+   - Must use a refresh/reload/recalculate style icon
+   - Must NOT use a clock icon
+   - Must visibly work and provide success/error feedback
+
+4. Entry Deadline Override
+   Purpose:
+   - Set revised fantasy entry deadline without changing official API match start time
+   Requirement:
+   - This is the ONLY time-edit control in the row
+   - Must NOT use the same icon style as the removed start-time action
+   - Use an icon like hourglass / stopwatch / delay / alert, but NOT a generic clock that looks like “edit official start time”
+
+5. Void / Cancel Match
+   Purpose:
+   - Void/cancel the match if needed
+   Requirement:
+   - This is currently broken/non-responsive in production
+   - Must be fully fixed end-to-end
+
+6. Settle Match / Winners
+   Purpose:
+   - Finalize winner/pot/result logic for completed matches
+
+7. View Participants / Entries
+   Purpose:
+   - View users / teams / entries associated with the match
+
+If any extra action currently exists that is not listed above, remove it from this control row unless it is absolutely required and you can justify it.
+
+====================================
+3. REMOVE THE CLOCK CONFUSION
+====================================
+
+Current problem:
+There are two similar time-related actions:
+- one opens "Edit Start Time"
+- one opens "Delay / Revised Time"
+
+This is confusing and incorrect for this product.
+
+Required fix:
+- Completely remove the "Edit Start Time" button/action/modal from the match controls
+- Keep only ONE time modal:
+  Title: "Entry Deadline Override"
+  Helper text:
+  "Set a revised fantasy entry deadline for this match without changing the official start time from the API."
+
+Do not use wording like:
+- Edit Start Time
+- Revised Start Time
+- Delay / Revised Time (if it is vague)
+
+Use one clean naming convention everywhere:
+- Button label: Deadline
+- Tooltip: Entry Deadline Override
+- Modal title: Entry Deadline Override
+
+====================================
+4. ENTRY DEADLINE OVERRIDE BEHAVIOR
+====================================
+
+Functional requirements:
+- Admin can open the Entry Deadline Override modal for a match
+- Admin can set a revised entry deadline in local datetime format
+- Saving this value updates ONLY the fantasy entry deadline override field
+- It must NOT change the official API start time field
+- Clearing this value removes the override and returns the entry deadline behavior to default/system logic
+
+Recommended modal copy:
+Title:
+Entry Deadline Override
+
+Description:
+Set a revised fantasy entry deadline for this match without changing the official API start time.
+
+Input placeholder / format help:
+YYYY-MM-DDTHH:mm
+
+Buttons:
+- Clear
+- Cancel
+- Save
+
+Validation requirements:
+- Show clear validation if format is invalid
+- Show success toast/message on save
+- Show success toast/message on clear
+- Refresh the match card after save/clear so the new state is visible immediately
+
+====================================
+5. VOID / CANCEL MATCH MUST BE FIXED
+====================================
+
+Current issue:
+The Void/Cancel Match action is not responding in production.
+
+This must be fixed completely.
+
+Required behavior:
+- Clicking the Void button must always trigger the click handler
+- A confirmation modal must open
+- Confirm action must call the correct backend/API route
+- User must see loading state while request is in progress
+- On success:
+  - show success toast/message
+  - refresh the match card / list
+  - reflect updated match state visually
+- On failure:
+  - show clear error toast/message
+  - log the actual error in console for debugging
+
+Confirmation modal copy:
+Title:
+Void Match
+
+Description:
+Are you sure you want to void/cancel this match? This action will exclude the match from normal fantasy result flow unless restored through admin tools.
+
+Buttons:
+- Cancel
+- Confirm Void
+
+No silent failure is acceptable.
+
+====================================
+6. RECALCULATE BUTTON REQUIREMENT
+====================================
+
+There must be a visible Recalculate Scores action.
+
+Requirements:
+- Use a refresh/reload/recalculate icon
+- Not a clock
+- Tooltip: Recalculate Scores
+- On click, it must call the scoring recalculation logic
+- Show loading state
+- Show success/error feedback
+- Refresh UI after completion
+
+If there is currently no refresh icon and recalculation is mapped to some unclear icon, fix that mapping now.
+
+====================================
+7. TOOLTIPS + LABELS ARE MANDATORY
+====================================
+
+Do not leave icon-only controls ambiguous.
+
+Every match-control button must have:
+1. Tooltip on hover
+2. Accessible label / aria-label
+3. Short visible text label either:
+   - under the icon, or
+   - beside the icon, or
+   - inside a compact pill button if that is already the design system
+
+Minimum tooltip text mapping:
+- Impact Toggle
+- Lock / Unlock
+- Recalculate Scores
+- Entry Deadline Override
+- Void Match
+- Settle Match
+- View Participants
+
+The goal is that a non-technical admin can understand the controls without guessing.
+
+====================================
+8. PRODUCTION SAFETY / SCOPE CONTROL
+====================================
+
+Important:
+Do NOT redesign the whole admin page.
+Do NOT change unrelated modules.
+Do NOT alter APIs that are not needed for this task.
+Do NOT make cosmetic-only changes while leaving logic broken.
+
+Only fix:
+- match control action mapping
+- duplicate/incorrect time control
+- recalculate action icon/clarity
+- void/cancel action broken flow
+- labels/tooltips/accessibility
+- necessary state refresh after actions
+
+====================================
+9. DELIVERABLES REQUIRED FROM YOU
+====================================
+
+After implementation, provide ALL of the following in your reply:
+
+1. Exact files changed
+2. Exact button-to-handler mapping after the fix
+3. Which button was removed
+4. Which icon is now used for Recalculate
+5. Which icon is now used for Entry Deadline Override
+6. Exact modal title and helper text for Entry Deadline Override
+7. Exact API/backend route/function used for Void Match
+8. Confirmation that Void Match was tested end-to-end
+9. Confirmation that production build was rebuilt and redeployed
+10. A concise test checklist showing:
+   - Entry Deadline Override opens
+   - save works
+   - clear works
+   - Recalculate works
+   - Void modal opens
+   - Void confirm works
+   - Tooltips exist on all controls
+
+====================================
+10. FINAL ACCEPTANCE CRITERIA
+====================================
+
+This task is complete only if ALL conditions below are true:
+
+- There is NO "Edit Start Time" action in the match controls
+- There is only ONE time-related admin control
+- That control is "Entry Deadline Override"
+- Official match start time remains API-driven and not manually editable here
+- Recalculate has a true refresh/recalculate icon
+- Void Match is clickable and fully functional
+- Every control has clear tooltip text
+- No duplicate-looking time controls remain
+- Production reflects the fix, not just source code
+
+Do not stop at code changes only. Ensure the live deployed admin page reflects this exact behavior.

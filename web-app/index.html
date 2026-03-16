@@ -3,93 +3,35 @@
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <title>CDO Cricket</title>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
-      html {
-        height: 100%;
-        height: -webkit-fill-available;
-      }
+      /* These styles make the body full-height */
+      html,
       body {
         height: 100%;
-        min-height: 100vh;
-        min-height: -webkit-fill-available;
-        overflow: hidden;
-        margin: 0;
-        padding: 0;
       }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
       #root {
         display: flex;
         height: 100%;
-        min-height: 100vh;
-        min-height: -webkit-fill-available;
         flex: 1;
-        flex-direction: column;
       }
     </style>
-    <style id="app-fonts">
-      @font-face { font-family: 'ionicons'; src: url('/fonts/Ionicons.ttf') format('truetype'); font-display: swap; }
-      @font-face { font-family: 'material-community'; src: url('/fonts/MaterialCommunityIcons.ttf') format('truetype'); font-display: swap; }
-      @font-face { font-family: 'feather'; src: url('/fonts/Feather.ttf') format('truetype'); font-display: swap; }
-      @font-face { font-family: 'material'; src: url('/fonts/MaterialIcons.ttf') format('truetype'); font-display: swap; }
-      @font-face { font-family: 'FontAwesome'; src: url('/fonts/FontAwesome.ttf') format('truetype'); font-display: swap; }
-      @font-face { font-family: 'Inter_400Regular'; src: url('/fonts/Inter_400Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
-      @font-face { font-family: 'Inter_500Medium'; src: url('/fonts/Inter_500Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
-      @font-face { font-family: 'Inter_600SemiBold'; src: url('/fonts/Inter_600SemiBold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
-      @font-face { font-family: 'Inter_700Bold'; src: url('/fonts/Inter_700Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
-      @font-face { font-family: 'Inter'; src: url('/fonts/Inter_400Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-      @font-face { font-family: 'Inter'; src: url('/fonts/Inter_500Medium.ttf') format('truetype'); font-weight: 500; font-display: swap; }
-      @font-face { font-family: 'Inter'; src: url('/fonts/Inter_600SemiBold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
-      @font-face { font-family: 'Inter'; src: url('/fonts/Inter_700Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-    </style>
-    <script>
-      (function(){
-        var ICON_FONTS = ['ionicons','material-community','feather','material','FontAwesome','MaterialCommunityIcons','MaterialIcons','Ionicons','Feather'];
-        var INTER = '"Inter","Inter_400Regular",sans-serif';
-        var mo = new MutationObserver(function(muts){
-          muts.forEach(function(m){
-            m.addedNodes.forEach(function(n){
-              if(n.nodeType===1) fixNode(n);
-            });
-          });
-        });
-        function fixNode(el){
-          if(!el.querySelectorAll) return;
-          var texts = el.querySelectorAll('[dir="auto"]');
-          for(var i=0;i<texts.length;i++){
-            var s = texts[i].style;
-            var ff = s.fontFamily||'';
-            var isIcon = false;
-            for(var j=0;j<ICON_FONTS.length;j++){
-              if(ff.indexOf(ICON_FONTS[j])!==-1){isIcon=true;break;}
-            }
-            if(!isIcon && ff.indexOf('Inter')===-1){
-              s.fontFamily = INTER;
-            }
-          }
-        }
-        document.addEventListener('DOMContentLoaded',function(){
-          var root = document.getElementById('root');
-          if(root){
-            fixNode(root);
-            mo.observe(root,{childList:true,subtree:true});
-          }
-        });
-      })();
-    </script>
   <link rel="preload" href="/_expo/static/css/native-tabs.module-78b0f59737571f455720970791a36bdd.css" as="style"><link rel="stylesheet" href="/_expo/static/css/native-tabs.module-78b0f59737571f455720970791a36bdd.css"><link rel="icon" href="/favicon.ico" /></head>
 
   <body>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
     <noscript>
       You need to enable JavaScript to run this app.
     </noscript>
-    <div id="root">
-      <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#060918;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;pointer-events:none;">
-        <div style="width:60px;height:60px;border:3px solid #FFD700;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-        <p style="color:#FFD700;margin-top:20px;font-size:16px;letter-spacing:2px;margin-bottom:0;">CDO CRICKET</p>
-        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-      </div>
-    </div>
-  <script src="/_expo/static/js/web/entry-d79ffc304c77499405c1a295d93c8728.js" defer></script>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+  <script src="/_expo/static/js/web/entry-0ec4cb317f2e4e9c165fdbbbdc831c64.js" defer></script>
 </body>
 </html>
