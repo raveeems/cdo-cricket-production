@@ -136,6 +136,7 @@ export default function AdminScreen() {
   const [revisedTimeSaving, setRevisedTimeSaving] = useState(false);
   const [revisedTimeResult, setRevisedTimeResult] = useState('');
   const [lockTogglingId, setLockTogglingId] = useState<string | null>(null);
+  const [markingCompleteId, setMarkingCompleteId] = useState<string | null>(null);
 
   const [playerStatusExpandedId, setPlayerStatusExpandedId] = useState<string | null>(null);
   const [playerStatusData, setPlayerStatusData] = useState<Record<string, { players: any[]; statuses: Map<string, any> }>>({});
@@ -1220,7 +1221,7 @@ export default function AdminScreen() {
                     >
                       <MaterialCommunityIcons name="calculator" size={18} color={colors.primary} />
                     </Pressable>
-                    {(m.status === 'upcoming' || m.status === 'delayed') && (
+                    {m.status !== 'completed' && (
                       <Pressable
                         onPress={() => openEditTime(m)}
                         style={{ padding: 6 }}
@@ -2097,21 +2098,45 @@ export default function AdminScreen() {
                         )}
                         {(m.status === 'live' || m.status === 'delayed') && (
                           <Pressable
-                            onPress={async () => {
-                              try {
-                                const res = await apiRequest('POST', `/api/admin/matches/${m.id}/mark-completed`);
-                                const data = await res.json();
-                                setForceSyncResult(data.message || 'Marked as completed');
-                                loadMatchDebug();
-                              } catch (e: any) {
-                                setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
-                              }
+                            onPress={() => {
+                              Alert.alert(
+                                'Force Complete Match',
+                                `Are you sure you want to force complete ${m.team1Short} vs ${m.team2Short}? This will mark the match as completed and trigger reward distribution.`,
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Confirm',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                      setMarkingCompleteId(m.id);
+                                      setForceSyncResult('Processing match completion...');
+                                      try {
+                                        const res = await apiRequest('POST', `/api/admin/matches/${m.id}/mark-completed`);
+                                        const data = await res.json();
+                                        setForceSyncResult('✔ Match forced to completion. ' + (data.message || 'Scores recalculated.'));
+                                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                        await loadMatches();
+                                        loadMatchDebug();
+                                      } catch (e: any) {
+                                        setForceSyncResult('❌ Failed to force completion: ' + (e.message || 'Unknown error'));
+                                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                      } finally {
+                                        setMarkingCompleteId(null);
+                                      }
+                                    },
+                                  },
+                                ]
+                              );
                             }}
-                            style={[styles.debugBtn, { backgroundColor: '#EF444415' }]}
+                            disabled={markingCompleteId === m.id}
+                            style={[styles.debugBtn, { backgroundColor: '#EF444415', opacity: markingCompleteId === m.id ? 0.5 : 1 }]}
                           >
-                            <Ionicons name="flag" size={14} color="#EF4444" />
+                            {markingCompleteId === m.id
+                              ? <ActivityIndicator size="small" color="#EF4444" />
+                              : <Ionicons name="flag" size={14} color="#EF4444" />
+                            }
                             <Text style={[{ color: '#EF4444', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                              Mark Completed
+                              {markingCompleteId === m.id ? 'Processing...' : 'Mark Completed'}
                             </Text>
                           </Pressable>
                         )}
