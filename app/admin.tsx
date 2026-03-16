@@ -2797,6 +2797,7 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    cursor: 'pointer' as any,
   },
   pageTitle: {
     fontSize: 20,
@@ -2819,6 +2820,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     marginBottom: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFD700',
+    paddingLeft: 10,
   },
   sectionDesc: {
     fontSize: 13,
@@ -2851,6 +2855,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    cursor: 'pointer' as any,
   },
   addBtn: {
     borderRadius: 12,
@@ -2912,6 +2917,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     marginBottom: 12,
+    cursor: 'pointer' as any,
   },
   syncBtnGradient: {
     height: 52,
@@ -2961,6 +2967,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
+    cursor: 'pointer' as any,
   },
   xiEmptyCard: {
     padding: 16,
@@ -2999,6 +3006,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
+    cursor: 'pointer' as any,
   },
   xiChipGrid: {
     flexDirection: 'row' as const,
@@ -3012,11 +3020,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1.5,
     alignItems: 'center' as const,
+    cursor: 'pointer' as any,
   },
   xiSaveBtn: {
     borderRadius: 14,
     overflow: 'hidden' as const,
     marginTop: 16,
+    cursor: 'pointer' as any,
   },
   xiSaveBtnInner: {
     height: 50,
@@ -3032,6 +3042,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
+    cursor: 'pointer' as any,
   },
   debugDataCard: {
     borderRadius: 12,
@@ -3060,5 +3071,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
+    cursor: 'pointer' as any,
   },
 });

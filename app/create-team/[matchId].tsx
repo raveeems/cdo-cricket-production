@@ -79,10 +79,10 @@ function PlayerItem({
       style={[
         styles.playerItem,
         {
-          backgroundColor: isSelected ? colors.primary + '15' : colors.card,
-          borderColor: isSelected ? colors.primary + '40' : colors.cardBorder,
-          borderLeftWidth: showPlayingXI ? 3 : 1,
-          borderLeftColor: showPlayingXI ? xiIndicatorColor : (isSelected ? colors.primary + '40' : colors.cardBorder),
+          backgroundColor: isSelected ? colors.accent + '10' : colors.card,
+          borderColor: isSelected ? colors.accent + '50' : colors.cardBorder,
+          borderLeftWidth: showPlayingXI ? 3 : (isSelected ? 2 : 1),
+          borderLeftColor: showPlayingXI ? xiIndicatorColor : (isSelected ? colors.accent : colors.cardBorder),
           opacity: (isDisabled && !isSelected) ? 0.4 : 1,
         },
       ]}
@@ -134,8 +134,8 @@ function PlayerItem({
           ))}
         </View>
       </View>
-      <View style={[styles.checkCircle, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' }]}>
-        {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+      <View style={[styles.checkCircle, { borderColor: isSelected ? colors.accent : colors.border, backgroundColor: isSelected ? colors.accent : 'transparent' }]}>
+        {isSelected && <Ionicons name="checkmark" size={14} color="#000" />}
       </View>
     </Pressable>
   );
@@ -171,8 +171,8 @@ function CompactPlayerItem({
       style={[
         styles.compactCard,
         {
-          backgroundColor: isSelected ? colors.primary + '15' : colors.card,
-          borderColor: isSelected ? colors.primary + '40' : colors.cardBorder,
+          backgroundColor: isSelected ? colors.accent + '10' : colors.card,
+          borderColor: isSelected ? colors.accent + '50' : colors.cardBorder,
           opacity: (isDisabled && !isSelected) ? 0.4 : 1,
         },
         showPlayingXI && {
@@ -187,8 +187,8 @@ function CompactPlayerItem({
             {player.role}
           </Text>
         </View>
-        <View style={[styles.compactCheck, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' }]}>
-          {isSelected && <Ionicons name="checkmark" size={10} color="#FFF" />}
+        <View style={[styles.compactCheck, { borderColor: isSelected ? colors.accent : colors.border, backgroundColor: isSelected ? colors.accent : 'transparent' }]}>
+          {isSelected && <Ionicons name="checkmark" size={10} color="#000" />}
         </View>
       </View>
       <View style={{ marginTop: 4, flex: 1 }}>
@@ -1875,12 +1875,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
+    maxWidth: 700,
+    width: '100%',
+    alignSelf: 'center' as const,
   },
   headerBtn: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    cursor: 'pointer' as any,
   },
   headerTitle: {
     fontSize: 18,
@@ -1890,6 +1894,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     justifyContent: 'space-around',
+    maxWidth: 700,
+    width: '100%',
+    alignSelf: 'center' as const,
   },
   statusItem: {
     alignItems: 'center',
@@ -1923,6 +1930,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
+    cursor: 'pointer' as any,
   },
   filterText: {
     fontSize: 12,
@@ -1934,6 +1942,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 8,
+    cursor: 'pointer' as any,
   },
   playerItemLeft: {
     flexDirection: 'row',
@@ -2004,6 +2013,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingHorizontal: 16,
     paddingTop: 12,
+    maxWidth: 700,
+    width: '100%',
+    alignSelf: 'center' as const,
   },
   validationErrorText: {
     fontSize: 12,
@@ -2013,6 +2025,7 @@ const styles = StyleSheet.create({
   nextBtn: {
     borderRadius: 14,
     overflow: 'hidden',
+    cursor: 'pointer' as any,
   },
   nextBtnGradient: {
     height: 52,
@@ -2082,6 +2095,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
+    cursor: 'pointer' as any,
   },
   captainBtnText: {
     fontSize: 15,
@@ -2097,10 +2111,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    cursor: 'pointer' as any,
   },
   saveBtn: {
     borderRadius: 14,
     overflow: 'hidden',
+    cursor: 'pointer' as any,
   },
   saveBtnGradient: {
     height: 52,
@@ -2272,6 +2288,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 8,
     minHeight: 64,
+    cursor: 'pointer' as any,
   },
   compactRolePill: {
     paddingHorizontal: 6,

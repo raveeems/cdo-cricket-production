@@ -1684,6 +1684,7 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    cursor: 'pointer' as any,
   },
   heroLeague: {
     fontSize: 14,
@@ -1782,6 +1783,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
+    cursor: 'pointer' as any,
   },
   tabLabel: {
     fontSize: 13,
@@ -1805,6 +1807,9 @@ const styles = StyleSheet.create({
   contentSection: {
     paddingHorizontal: 16,
     paddingTop: 20,
+    maxWidth: 700,
+    width: '100%',
+    alignSelf: 'center' as const,
   },
   contestRow: {
     marginBottom: 20,
@@ -1845,6 +1850,9 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFD700',
+    paddingLeft: 10,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1865,6 +1873,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 10,
     overflow: 'hidden',
+    cursor: 'pointer' as any,
   },
   teamCardHeader: {
     flexDirection: 'row',
@@ -1914,6 +1923,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     marginBottom: 24,
+    cursor: 'pointer' as any,
   },
   createTeamGradient: {
     height: 52,
@@ -2023,6 +2033,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
+    cursor: 'pointer' as any,
   },
   inningsTabText: {
     fontSize: 12,
@@ -2086,6 +2097,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
     overflow: 'hidden',
+    cursor: 'pointer' as any,
   },
   participantHeader: {
     flexDirection: 'row',
@@ -2199,6 +2211,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 6,
+    cursor: 'pointer' as any,
   },
   adminSection: {
     marginTop: 20,
@@ -2236,6 +2249,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 10,
     borderWidth: 1,
+    cursor: 'pointer' as any,
   },
   verifyBtnText: {
     fontSize: 14,
@@ -2348,6 +2362,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     marginBottom: 16,
+    cursor: 'pointer' as any,
   },
   copiedToast: {
     flexDirection: 'row',
