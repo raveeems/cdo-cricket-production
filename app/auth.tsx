@@ -69,6 +69,7 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     setError('');
@@ -121,7 +122,7 @@ export default function AuthScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={isDark ? ['#0A0E1A', '#0D1530', '#0A0E1A'] : ['#F0F2F7', '#E8EBF5', '#F0F2F7']}
+        colors={colors.heroGradient as any}
         style={StyleSheet.absoluteFill}
       />
 
@@ -171,6 +172,7 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.cardWrapper}>
           <Animated.View
             entering={Platform.OS !== 'web' ? FadeInUp.duration(800).delay(200) : undefined}
             style={styles.headerSection}
@@ -193,11 +195,12 @@ export default function AuthScreen() {
           <Animated.View
             entering={Platform.OS !== 'web' ? FadeInDown.duration(600).delay(400) : undefined}
           >
-            <View style={[styles.formCard, { backgroundColor: isDark ? 'rgba(19, 24, 41, 0.9)' : 'rgba(255, 255, 255, 0.92)', borderColor: colors.border }]}>
+            <View style={[styles.formCard, { backgroundColor: isDark ? 'rgba(19, 24, 41, 0.9)' : 'rgba(255, 255, 255, 0.95)', borderColor: colors.accent + '25' }]}>
               <View style={styles.tabRow}>
                 <Pressable
                   style={[
                     styles.tab,
+                    { cursor: 'pointer' as any },
                     isLogin && { backgroundColor: isDark ? 'rgba(255, 215, 0, 0.12)' : 'rgba(0, 85, 165, 0.1)', borderRadius: 10 },
                   ]}
                   onPress={() => { setIsLogin(true); setError(''); }}
@@ -217,6 +220,7 @@ export default function AuthScreen() {
                 <Pressable
                   style={[
                     styles.tab,
+                    { cursor: 'pointer' as any },
                     !isLogin && { backgroundColor: isDark ? 'rgba(255, 215, 0, 0.12)' : 'rgba(0, 85, 165, 0.1)', borderRadius: 10 },
                   ]}
                   onPress={() => { setIsLogin(false); setError(''); }}
@@ -237,8 +241,8 @@ export default function AuthScreen() {
 
               <View style={styles.formSection}>
                 {!isLogin && (
-                  <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: colors.border }]}>
-                    <Ionicons name="person-outline" size={20} color={colors.textTertiary} />
+                  <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: focusedField === 'username' ? colors.accent : colors.border }]}>
+                    <Ionicons name="person-outline" size={20} color={focusedField === 'username' ? colors.accent : colors.textTertiary} />
                     <TextInput
                       style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
                       placeholder="Username"
@@ -246,12 +250,14 @@ export default function AuthScreen() {
                       value={username}
                       onChangeText={setUsername}
                       autoCapitalize="none"
+                      onFocus={() => setFocusedField('username')}
+                      onBlur={() => setFocusedField(null)}
                     />
                   </View>
                 )}
 
-                <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="call-outline" size={20} color={colors.textTertiary} />
+                <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: focusedField === 'phone' ? colors.accent : colors.border }]}>
+                  <Ionicons name="call-outline" size={20} color={focusedField === 'phone' ? colors.accent : colors.textTertiary} />
                   <TextInput
                     style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
                     placeholder="Phone Number"
@@ -259,12 +265,14 @@ export default function AuthScreen() {
                     value={phone}
                     onChangeText={setPhone}
                     keyboardType="phone-pad"
+                    onFocus={() => setFocusedField('phone')}
+                    onBlur={() => setFocusedField(null)}
                   />
                 </View>
 
                 {!isLogin && (
-                  <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: colors.border }]}>
-                    <Ionicons name="mail-outline" size={20} color={colors.textTertiary} />
+                  <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: focusedField === 'email' ? colors.accent : colors.border }]}>
+                    <Ionicons name="mail-outline" size={20} color={focusedField === 'email' ? colors.accent : colors.textTertiary} />
                     <TextInput
                       style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
                       placeholder="Email (optional)"
@@ -273,12 +281,14 @@ export default function AuthScreen() {
                       onChangeText={setEmail}
                       keyboardType="email-address"
                       autoCapitalize="none"
+                      onFocus={() => setFocusedField('email')}
+                      onBlur={() => setFocusedField(null)}
                     />
                   </View>
                 )}
 
-                <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} />
+                <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: focusedField === 'password' ? colors.accent : colors.border }]}>
+                  <Ionicons name="lock-closed-outline" size={20} color={focusedField === 'password' ? colors.accent : colors.textTertiary} />
                   <TextInput
                     style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
                     placeholder="Password"
@@ -286,8 +296,10 @@ export default function AuthScreen() {
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
+                    onFocus={() => setFocusedField('password')}
+                    onBlur={() => setFocusedField(null)}
                   />
-                  <Pressable onPress={() => setShowPassword(!showPassword)}>
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={{ cursor: 'pointer' as any }}>
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={20}
@@ -310,7 +322,7 @@ export default function AuthScreen() {
                   disabled={loading}
                   style={({ pressed }) => [
                     styles.submitButton,
-                    { opacity: pressed || loading ? 0.8 : 1 },
+                    { opacity: pressed || loading ? 0.8 : 1, cursor: 'pointer' as any },
                   ]}
                 >
                   <LinearGradient
@@ -336,10 +348,13 @@ export default function AuthScreen() {
             entering={Platform.OS !== 'web' ? FadeInUp.duration(500).delay(700) : undefined}
             style={styles.footer}
           >
-            <Text style={[styles.footerText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-              Private league - Invite only
-            </Text>
+            <View style={[styles.footerPill, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '30' }]}>
+              <Text style={[styles.footerText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+                Private league · Invite only
+              </Text>
+            </View>
           </Animated.View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -369,6 +384,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
+    alignItems: 'center' as const,
+  },
+  cardWrapper: {
+    width: '100%',
+    maxWidth: 480,
   },
   headerSection: {
     alignItems: 'center',
@@ -465,9 +485,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 24,
   },
+  footerPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
   footerText: {
-    fontSize: 12,
-    letterSpacing: 1,
+    fontSize: 11,
+    letterSpacing: 0.8,
     textTransform: 'uppercase' as const,
   },
 });

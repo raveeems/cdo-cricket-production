@@ -134,7 +134,7 @@ export default function HowToPlayScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + webTopInset + 8 }]}>
-        <Pressable onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Pressable onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.cardBorder, cursor: 'pointer' as any }]}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
@@ -147,9 +147,9 @@ export default function HowToPlayScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ paddingHorizontal: 16 }}>
+        <View style={{ paddingHorizontal: 16, maxWidth: 700, width: '100%', alignSelf: 'center' as const }}>
           <LinearGradient
-            colors={[colors.primary, '#1E40AF']}
+            colors={colors.heroGradient as any}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroBanner}
@@ -163,7 +163,7 @@ export default function HowToPlayScreen() {
             </Text>
           </LinearGradient>
 
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
             Getting Started
           </Text>
           {steps.map((step, i) => (
@@ -187,7 +187,7 @@ export default function HowToPlayScreen() {
             </View>
           ))}
 
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
             Team Rules
           </Text>
           <View style={[styles.rulesCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -242,7 +242,7 @@ export default function HowToPlayScreen() {
             </View>
           </View>
 
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
             Points System (T20)
           </Text>
           <View style={[{ backgroundColor: colors.primary + '10', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: colors.primary + '20' }]}>
@@ -258,7 +258,7 @@ export default function HowToPlayScreen() {
           {renderPointsTable('Captain / Vice Captain', otherPoints, 'star-four-points', '#F59E0B')}
 
           {/* Impact Picks */}
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
             Impact Picks
           </Text>
           <View style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -287,7 +287,7 @@ export default function HowToPlayScreen() {
           </View>
 
           {/* Winner Prediction */}
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
             Winner Prediction
           </Text>
           <View style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -315,7 +315,7 @@ export default function HowToPlayScreen() {
           </View>
 
           {/* Invisible Mode */}
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
             Invisible Mode
           </Text>
           <View style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -343,7 +343,7 @@ export default function HowToPlayScreen() {
           </View>
 
           {/* Weekly Restrictions */}
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
             Weekly Limits
           </Text>
           <View style={[styles.featureCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -370,7 +370,7 @@ export default function HowToPlayScreen() {
             </View>
           </View>
 
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
             Entry Deadline
           </Text>
           <View style={[styles.deadlineCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -439,7 +439,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     marginBottom: 12,
-    paddingHorizontal: 4,
+    borderLeftWidth: 3,
+    paddingLeft: 10,
   },
   stepCard: {
     flexDirection: 'row',
