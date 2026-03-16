@@ -93,6 +93,9 @@ var init_schema = __esm({
       officialWinner: varchar("official_winner", { length: 10 }),
       isVoid: boolean("is_void").notNull().default(false),
       impactFeaturesEnabled: boolean("impact_features_enabled").notNull().default(false),
+      revisedStartTime: timestamp("revised_start_time"),
+      adminUnlockOverride: boolean("admin_unlock_override").notNull().default(false),
+      firstScorecardAt: timestamp("first_scorecard_at"),
       createdAt: timestamp("created_at").notNull().defaultNow()
     });
     players = pgTable("players", {
@@ -229,7 +232,53 @@ var init_schema = __esm({
 // server/db.ts
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-var pool, db;
+function markServerReady() {
+  serverReady = true;
+}
+async function runMigrations() {
+  const client = await pool.connect();
+  try {
+    console.log("[DB] Running idempotent schema migrations...");
+    await client.query(`
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS revised_start_time TIMESTAMP;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS admin_unlock_override BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_scorecard_at TIMESTAMP;
+    `);
+    console.log("[DB] Migrations complete.");
+  } catch (err) {
+    console.error("[DB] Migration error:", err.message);
+  } finally {
+    client.release();
+  }
+}
+async function connectWithRetry(maxAttempts = 10, delayMs = 3e3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(
+        `[DB] Connecting to database... (attempt ${attempt}/${maxAttempts})`
+      );
+      const client = await pool.connect();
+      await client.query("SELECT 1");
+      client.release();
+      dbConnected = true;
+      console.log("[DB] Connected successfully");
+      await runMigrations();
+      return;
+    } catch (err) {
+      console.error(
+        `[DB] Connection failed (attempt ${attempt}/${maxAttempts}): ${err.message}`
+      );
+      if (attempt < maxAttempts) {
+        console.log(`[DB] Retrying in ${delayMs / 1e3}s...`);
+        await new Promise((resolve2) => setTimeout(resolve2, delayMs));
+      }
+    }
+  }
+  console.error(
+    "[DB] All connection attempts failed. Server will start but DB calls may fail."
+  );
+}
+var isRailway, pool, dbConnected, serverReady, db;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -237,10 +286,24 @@ var init_db = __esm({
     if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL is not set");
     }
+    isRailway = process.env.DATABASE_URL?.includes("railway") || process.env.DATABASE_URL?.includes("rlwy");
     pool = new pg.Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL?.includes("railway") || process.env.DATABASE_URL?.includes("rlwy") ? { rejectUnauthorized: false } : void 0
+      ssl: isRailway ? { rejectUnauthorized: false } : void 0,
+      max: 10,
+      idleTimeoutMillis: 3e4,
+      connectionTimeoutMillis: 2e3
     });
+    pool.on("error", (err) => {
+      console.error("[DB] Unexpected pool error:", err.message);
+    });
+    pool.on("connect", (client) => {
+      client.query("SET statement_timeout = 5000").catch((err) => {
+        console.error("[DB] Failed to set statement_timeout:", err.message);
+      });
+    });
+    dbConnected = false;
+    serverReady = false;
     db = drizzle(pool, { schema: schema_exports });
   }
 });
@@ -330,6 +393,16 @@ var init_storage = __esm({
       }
       async deleteMatch(id) {
         await db.delete(matches).where(eq(matches.id, id));
+      }
+      async deleteMatchCascade(id) {
+        await db.delete(matchPlayerStatus).where(eq(matchPlayerStatus.matchId, id));
+        await db.delete(matchPredictions).where(eq(matchPredictions.matchId, id));
+        await db.delete(players).where(eq(players.matchId, id));
+        await db.delete(adminAuditLog).where(eq(adminAuditLog.matchId, id));
+        await db.delete(matches).where(eq(matches.id, id));
+      }
+      async deleteTeam(id) {
+        await db.delete(userTeams).where(eq(userTeams.id, id));
       }
       // Players
       async getPlayersForMatch(matchId) {
@@ -1051,34 +1124,95 @@ async function upsertMatches(apiMatches, existingMatches) {
   }
   return { created, updated };
 }
-async function syncMatchesFromApi(retryCount = 0) {
+async function syncMatchesFromApi() {
   const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
-  console.log("Auto-syncing matches (ICC T20 WC only \u2014 1 API call)...");
+  const apiKey = getActiveApiKey();
+  if (!apiKey) {
+    console.log("No CricAPI key available, skipping auto-sync");
+    return;
+  }
+  console.log("Auto-syncing matches (IPL only)...");
   try {
     const existing = await storage2.getAllMatches();
-    let totalCreated = 0;
-    let totalUpdated = 0;
-    for (const series of TRACKED_SERIES) {
+    const allApiRaw = [];
+    const seenIds = /* @__PURE__ */ new Set();
+    for (const url of [
+      `${CRICKET_API_BASE}/currentMatches?apikey=${apiKey}&offset=0`,
+      `${CRICKET_API_BASE}/matches?apikey=${apiKey}&offset=0`
+    ]) {
       try {
-        const seriesMatches = await fetchSeriesMatches(series.id, series.name);
-        if (seriesMatches.length > 0) {
-          const result = await upsertMatches(seriesMatches, existing);
-          totalCreated += result.created;
-          totalUpdated += result.updated;
-          console.log(`${series.name}: ${result.created} new, ${result.updated} updated (${seriesMatches.length} matches total)`);
-        } else if (retryCount < 2) {
-          const delayMin = retryCount === 0 ? 5 : 15;
-          console.log(`No T20 WC matches returned - will retry in ${delayMin} minute(s) (attempt ${retryCount + 1}/2)`);
-          setTimeout(() => syncMatchesFromApi(retryCount + 1), delayMin * 60 * 1e3);
-          return;
+        const res = await trackedFetch(url);
+        if (!res.ok) continue;
+        const json = await res.json();
+        if (json.status !== "success" || !json.data) {
+          const reason = json.reason || "";
+          if (reason.toLowerCase().includes("limit") || reason.toLowerCase().includes("blocked")) {
+            markTier1Blocked();
+            break;
+          }
+          continue;
         }
-      } catch (err) {
-        console.error(`Series sync error for ${series.name}:`, err);
+        const label = url.includes("currentMatches") ? "currentMatches" : "matches";
+        console.log(`Auto-sync: ${json.data.length} matches from ${label}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
+        for (const m of json.data) {
+          if (!seenIds.has(m.id)) {
+            seenIds.add(m.id);
+            allApiRaw.push(m);
+          }
+        }
+      } catch (e) {
+        console.error("Auto-sync endpoint error:", e);
       }
     }
-    if (totalCreated === 0 && totalUpdated === 0) {
-      console.log("T20 WC sync: no changes");
+    if (allApiRaw.length === 0) {
+      console.log("Auto-sync: no matches returned from API");
+      return;
     }
+    const isIPL = (m) => {
+      const name = (m.name || "").toLowerCase();
+      const series = (m.series_id || "").toLowerCase();
+      return name.includes("indian premier league") || name.includes(" ipl") || series.includes("ipl");
+    };
+    const apiMatches = allApiRaw.filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20" && isIPL(m)).map((m) => {
+      const team1 = m.teams[0];
+      const team2 = m.teams[1];
+      const team1Info = m.teamInfo?.find((t) => t.name === team1);
+      const team2Info = m.teamInfo?.find((t) => t.name === team2);
+      const team1Short = team1Info?.shortname || getTeamShort(team1);
+      const team2Short = team2Info?.shortname || getTeamShort(team2);
+      const hasScoreData = !!(m.score && m.score.length > 0 && m.score.some((s) => s.r > 0 || s.w > 0 || s.o > 0));
+      const { status, statusNote } = determineMatchStatus(
+        m.matchStarted,
+        m.matchEnded,
+        m.status,
+        hasScoreData
+      );
+      const nameParts = m.name?.split(",").map((s) => s.trim()) || [];
+      let league = nameParts[nameParts.length - 1] || nameParts[0] || "";
+      if (nameParts.length >= 3) league = nameParts.slice(2).join(", ");
+      else if (nameParts.length === 2) league = nameParts[1];
+      return {
+        externalId: m.id,
+        seriesId: m.series_id || "",
+        team1,
+        team1Short,
+        team1Color: getTeamColor(team1Short),
+        team2,
+        team2Short,
+        team2Color: getTeamColor(team2Short),
+        venue: m.venue || "",
+        startTime: new Date(m.dateTimeGMT),
+        status,
+        statusNote,
+        league
+      };
+    });
+    if (apiMatches.length === 0) {
+      console.log("Auto-sync: no T20 matches to sync");
+      return;
+    }
+    const result = await upsertMatches(apiMatches, existing);
+    console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} IPL matches from API)`);
   } catch (err) {
     console.error("Auto-sync failed:", err);
   }
@@ -1340,7 +1474,38 @@ async function fetchMatchSquad(externalMatchId) {
         });
       }
     }
-    return allPlayers;
+    if (allPlayers.length > 0) return allPlayers;
+    console.log(`[fetchMatchSquad] match_squad returned 0 for ${externalMatchId}, trying match_info fallback...`);
+    const infoApiKey = getActiveApiKey();
+    if (!infoApiKey) return [];
+    const infoUrl = `${CRICKET_API_BASE}/match_info?apikey=${infoApiKey}&id=${externalMatchId}`;
+    const infoRes = await trackedFetch(infoUrl);
+    if (!infoRes.ok) return [];
+    const infoJson = await infoRes.json();
+    if (infoJson.status !== "success" || !infoJson.data) return [];
+    const infoPlayers = [];
+    const teamInfo = infoJson.data.teamInfo || [];
+    for (const team of teamInfo) {
+      const teamName = team.name || "";
+      const teamShort = team.shortname || getTeamShort(teamName);
+      const teamPlayers = team.players || [];
+      for (const p of teamPlayers) {
+        if (!p.id || !p.name) continue;
+        const role = mapCricApiRole(p.role || "");
+        infoPlayers.push({
+          externalId: p.id,
+          name: p.name,
+          team: teamName,
+          teamShort,
+          role,
+          credits: assignCredits(role)
+        });
+      }
+    }
+    if (infoPlayers.length > 0) {
+      console.log(`[fetchMatchSquad] match_info fallback: found ${infoPlayers.length} players for ${externalMatchId}`);
+    }
+    return infoPlayers;
   } catch (err) {
     console.error("Squad API error:", err);
     return [];
@@ -1742,7 +1907,7 @@ async function fetchLiveScorecard(externalMatchId) {
     return null;
   }
 }
-var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, TRACKED_SERIES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
+var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
     "use strict";
@@ -1791,9 +1956,6 @@ var init_cricket_api = __esm({
       LSG: "#3FD5F3",
       GT: "#1B2133"
     };
-    TRACKED_SERIES = [
-      { id: "0cdf6736-ad9b-4e95-a647-5ee3a99c5510", name: "ICC Men's T20 World Cup 2026" }
-    ];
     lastStatusRefresh = 0;
     STATUS_REFRESH_INTERVAL = 5 * 60 * 1e3;
   }
@@ -1808,7 +1970,7 @@ init_db();
 init_schema();
 init_cricket_api();
 import { createServer } from "node:http";
-import { eq as eq2 } from "drizzle-orm";
+import { eq as eq2, and as and2, sql as sql3 } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { createHmac } from "crypto";
@@ -1830,6 +1992,27 @@ function verifyAuthToken(token) {
   const expected = hmac.digest("hex");
   if (sig !== expected) return null;
   return userId;
+}
+function getEffectiveLockMs(match) {
+  const effectiveStart = match.revisedStartTime ?? match.startTime;
+  return new Date(effectiveStart).getTime() - 1e3;
+}
+function checkUnlockEligibility(match) {
+  if (!match.firstScorecardAt) return { allowed: true };
+  const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 6e4;
+  if (Date.now() < cutoff) return { allowed: true };
+  return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 5 minutes" };
+}
+function isEntryOpen(match, nowMs) {
+  const lockMs = getEffectiveLockMs(match);
+  if (match.adminUnlockOverride === true && nowMs < lockMs) {
+    if (match.firstScorecardAt) {
+      const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 6e4;
+      if (nowMs >= cutoff) return false;
+    }
+    return true;
+  }
+  return nowMs < lockMs;
 }
 function isAuthenticated(req, res, next) {
   if (req.session.userId) {
@@ -1859,13 +2042,27 @@ async function isAdmin(req, res, next) {
   }
   next();
 }
+var LIVE_CACHE_TTL_MS = 45e3;
+var liveScorecardCache = /* @__PURE__ */ new Map();
+var liveScoreCache = /* @__PURE__ */ new Map();
 async function registerRoutes(app2) {
   const PgStore = connectPgSimple(session);
   const dbUrl = process.env.DATABASE_URL || "";
   const needsSsl = dbUrl.includes("railway") || dbUrl.includes("rlwy");
   const sessionPool = new pg2.Pool({
     connectionString: dbUrl,
-    ssl: needsSsl ? { rejectUnauthorized: false } : void 0
+    ssl: needsSsl ? { rejectUnauthorized: false } : void 0,
+    max: 10,
+    idleTimeoutMillis: 3e4,
+    connectionTimeoutMillis: 2e3
+  });
+  sessionPool.on("error", (err) => {
+    console.error("[DB:session] Unexpected pool error:", err.message);
+  });
+  sessionPool.on("connect", (client) => {
+    client.query("SET statement_timeout = 5000").catch((err) => {
+      console.error("[DB:session] Failed to set statement_timeout:", err.message);
+    });
   });
   app2.use(
     session({
@@ -1886,6 +2083,41 @@ async function registerRoutes(app2) {
       }
     })
   );
+  app2.get("/health", async (_req, res) => {
+    let dbStatus = "disconnected";
+    try {
+      const client = await sessionPool.connect();
+      await client.query("SELECT 1");
+      client.release();
+      dbStatus = "connected";
+    } catch {
+      dbStatus = "disconnected";
+    }
+    res.status(dbStatus === "connected" ? 200 : 503).json({
+      server: "running",
+      database: dbStatus
+    });
+  });
+  app2.get("/ready", async (_req, res) => {
+    const checks = {
+      database: false,
+      api: serverReady,
+      routes: true
+    };
+    try {
+      const client = await sessionPool.connect();
+      await client.query("SELECT 1");
+      client.release();
+      checks.database = true;
+    } catch {
+      checks.database = false;
+    }
+    const allReady = checks.database && checks.api && checks.routes;
+    res.status(allReady ? 200 : 503).json({
+      ready: allReady,
+      checks
+    });
+  });
   app2.post("/api/auth/signup", async (req, res) => {
     try {
       const { username, email, phone, password } = req.body;
@@ -2130,33 +2362,21 @@ async function registerRoutes(app2) {
     } catch (e) {
       console.error("Status refresh error:", e);
     }
-    const allMatchesRaw = await storage.getAllMatches();
-    const T20_WC_SERIES_ID = "0cdf6736-ad9b-4e95-a647-5ee3a99c5510";
-    const allMatches = allMatchesRaw.filter((m) => m.seriesId === T20_WC_SERIES_ID || m.tournamentName && m.tournamentName.includes("T20") || m.league && m.league.includes("T20 World Cup"));
+    const allMatches = await storage.getAllMatches();
     const nowMs = Date.now();
-    const MS_48H = 48 * 60 * 60 * 1e3;
+    const MS_7D = 7 * 24 * 60 * 60 * 1e3;
     const MS_3H = 3 * 60 * 60 * 1e3;
-    console.log(`[MatchFeed] Server time: ${new Date(nowMs).toISOString()} | 48h window: now \u2192 ${new Date(nowMs + MS_48H).toISOString()} | T20 WC matches: ${allMatches.length}`);
     const matchesWithParticipants = [];
     for (const m of allMatches) {
       const startMs = new Date(m.startTime).getTime();
-      const hoursUntilStart = (startMs - nowMs) / 36e5;
       const teams = await storage.getAllTeamsForMatch(m.id);
       const uniqueUsers = new Set(teams.map((t) => t.userId));
       const participantCount = uniqueUsers.size;
       const isUpcomingOrDelayed = m.status === "upcoming" || m.status === "delayed";
-      const startsWithin48h = startMs <= nowMs + MS_48H;
-      const notTooOld = startMs >= nowMs - MS_3H;
-      const isUpcoming = isUpcomingOrDelayed && startsWithin48h && notTooOld;
+      const startsWithin7d = startMs <= nowMs + MS_7D;
+      const isUpcoming = isUpcomingOrDelayed && startsWithin7d;
       const isLive = m.status === "live";
-      const isDelayed = m.status === "delayed";
-      const isRecentlyCompleted = m.status === "completed" && nowMs - startMs <= MS_3H;
-      const isCompleted = m.status === "completed";
-      const hasParticipants = participantCount > 0;
-      const included = hasParticipants || isUpcoming || isLive || isDelayed || isRecentlyCompleted || isCompleted;
-      if (isUpcomingOrDelayed) {
-        console.log(`[MatchFeed] ${m.team1Short} vs ${m.team2Short} | status=${m.status} | start=${m.startTime} | ${hoursUntilStart.toFixed(1)}h away | within48h=${startsWithin48h} | notTooOld=${notTooOld} | included=${included}`);
-      }
+      const included = isUpcoming || isLive || m.status === "delayed";
       if (included) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
@@ -2236,7 +2456,92 @@ async function registerRoutes(app2) {
           }
         }
       }
-      return res.json({ players: matchPlayers });
+      let lastMatchXI = {};
+      try {
+        const matchForXI = await storage.getMatch(matchId);
+        if (matchForXI) {
+          for (const teamShort of [matchForXI.team1Short, matchForXI.team2Short]) {
+            const [prevMatch] = await db.select({ id: matches.id }).from(matches).where(
+              and2(
+                sql3`(${matches.team1Short} = ${teamShort} OR ${matches.team2Short} = ${teamShort})`,
+                eq2(matches.status, "completed"),
+                sql3`${matches.id} != ${matchId}`
+              )
+            ).orderBy(sql3`${matches.startTime} DESC`).limit(1);
+            if (prevMatch) {
+              const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
+              const teamPrev = prevPlayers.filter((p) => p.teamShort === teamShort);
+              const xi = teamPrev.filter((p) => p.isPlayingXI).sort((a, b) => b.credits - a.credits).map((p) => p.name);
+              const impactPlayer = teamPrev.find(
+                (p) => p.isImpactPlayer && !p.isPlayingXI
+              );
+              lastMatchXI[teamShort] = {
+                xi,
+                impact: impactPlayer?.name ?? null
+              };
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[lastMatchXI] fetch error:", err);
+        lastMatchXI = {};
+      }
+      const playerPointsMap = {};
+      try {
+        const matchForPts = await storage.getMatch(matchId);
+        if (matchForPts && matchPlayers.length > 0) {
+          const prevPointsLookup = {};
+          for (const teamShort of [matchForPts.team1Short, matchForPts.team2Short]) {
+            const [prevMatch] = await db.select({ id: matches.id }).from(matches).where(
+              and2(
+                sql3`(${matches.team1Short} = ${teamShort} OR ${matches.team2Short} = ${teamShort})`,
+                eq2(matches.status, "completed"),
+                sql3`${matches.id} != ${matchId}`
+              )
+            ).orderBy(sql3`${matches.startTime} DESC`).limit(1);
+            if (prevMatch) {
+              const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
+              for (const p of prevPlayers) {
+                if (p.teamShort === teamShort && p.points > 0) {
+                  prevPointsLookup[`${p.name}|${p.teamShort}`] = p.points;
+                }
+              }
+            }
+          }
+          const tournamentTotalsLookup = {};
+          if (matchForPts.tournamentName) {
+            const rows = await db.select({
+              name: players.name,
+              teamShort: players.teamShort,
+              total: sql3`CAST(SUM(${players.points}) AS INTEGER)`
+            }).from(players).innerJoin(matches, eq2(players.matchId, matches.id)).where(
+              and2(
+                eq2(matches.tournamentName, matchForPts.tournamentName),
+                eq2(matches.status, "completed"),
+                sql3`${players.points} > 0`
+              )
+            ).groupBy(players.name, players.teamShort);
+            for (const row of rows) {
+              tournamentTotalsLookup[`${row.name}|${row.teamShort}`] = row.total;
+            }
+          }
+          for (const p of matchPlayers) {
+            const key = `${p.name}|${p.teamShort}`;
+            playerPointsMap[p.id] = {
+              lastMatchPoints: prevPointsLookup[key] ?? null,
+              tournamentPoints: tournamentTotalsLookup[key] ?? null
+            };
+          }
+        }
+      } catch (err) {
+        console.error("[playerPoints] fetch error:", err);
+      }
+      const augmentedPlayers = matchPlayers.map((p) => ({
+        ...p,
+        lastMatchPoints: playerPointsMap[p.id]?.lastMatchPoints ?? null,
+        tournamentPoints: playerPointsMap[p.id]?.tournamentPoints ?? null
+      }));
+      return res.json({ players: augmentedPlayers, lastMatchXI });
     }
   );
   app2.post(
@@ -2292,23 +2597,9 @@ async function registerRoutes(app2) {
             updated++;
           }
         }
-        const updatedMatchPlayers = await storage.getPlayersForMatch(matchId);
-        const playerById = new Map(updatedMatchPlayers.map((p) => [p.id, p]));
-        const playerByExtId = new Map(updatedMatchPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
-        const allTeams = await storage.getAllTeamsForMatch(matchId);
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds;
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (pid === team.captainId) pts *= 2;
-              else if (pid === team.viceCaptainId) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-          await storage.updateUserTeamPoints(team.id, totalPoints);
+        const recalcAfterScorecard = globalThis.__recalculateTeamTotals;
+        if (recalcAfterScorecard) {
+          await recalcAfterScorecard(matchId, `${match.team1Short} vs ${match.team2Short}`);
         }
         return res.json({ message: `Updated ${updated} player scores`, updated });
       } catch (err) {
@@ -2323,24 +2614,30 @@ async function registerRoutes(app2) {
     async (req, res) => {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
-      res.set("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.set("Pragma", "no-cache");
       try {
+        if (!match.externalId) {
+          return res.json({ scorecard: null, message: "No external match ID" });
+        }
+        const cacheKey = match.externalId;
+        const cached = liveScorecardCache.get(cacheKey);
+        const now = Date.now();
+        if (cached && now - cached.fetchedAt < LIVE_CACHE_TTL_MS) {
+          console.log(`[LiveScorecard] cache HIT for ${cacheKey} (age ${Math.round((now - cached.fetchedAt) / 1e3)}s)`);
+          return res.json(cached.data);
+        }
+        console.log(`[LiveScorecard] cache MISS for ${cacheKey} \u2014 fetching from CricAPI`);
         let scorecard = null;
         let source = "none";
-        if (match.externalId) {
-          try {
-            const { fetchLiveScorecard: fetchLiveScorecard2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
-            scorecard = await fetchLiveScorecard2(match.externalId);
-            if (scorecard) source = "CricAPI";
-          } catch (apiErr) {
-            console.error(`[LiveScorecard] Failed to fetch for ${match.externalId}:`, apiErr?.message || apiErr);
-          }
+        try {
+          const { fetchLiveScorecard: fetchLiveScorecard2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+          scorecard = await fetchLiveScorecard2(cacheKey);
+          if (scorecard) source = "CricAPI";
+        } catch (apiErr) {
+          console.error(`[LiveScorecard] fetch failed for ${cacheKey}:`, apiErr?.message || apiErr);
         }
-        if (!scorecard) {
-          return res.json({ scorecard: null, message: "No scorecard data available yet" });
-        }
-        return res.json({ scorecard, source });
+        const payload = scorecard ? { scorecard, source } : { scorecard: null, message: "No scorecard data available yet" };
+        liveScorecardCache.set(cacheKey, { data: payload, fetchedAt: now });
+        return res.json(payload);
       } catch (err) {
         console.error("Live scorecard route error:", err?.message || err);
         return res.json({ scorecard: null, error: err?.message || "Failed to fetch scorecard" });
@@ -2354,21 +2651,29 @@ async function registerRoutes(app2) {
       const match = await storage.getMatch(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
       try {
-        let scoreData = null;
-        if (match.externalId) {
-          const info = await fetchMatchInfo(match.externalId);
-          if (info) {
-            scoreData = {
-              score: info.score || [],
-              status: info.status,
-              matchStarted: info.matchStarted,
-              matchEnded: info.matchEnded,
-              source: "CricAPI"
-            };
-          }
+        if (!match.externalId) return res.json({ score: null });
+        const cacheKey = match.externalId;
+        const cached = liveScoreCache.get(cacheKey);
+        const now = Date.now();
+        if (cached && now - cached.fetchedAt < LIVE_CACHE_TTL_MS) {
+          console.log(`[LiveScore] cache HIT for ${cacheKey} (age ${Math.round((now - cached.fetchedAt) / 1e3)}s)`);
+          return res.json(cached.data);
         }
-        if (!scoreData) return res.json({ score: null });
-        return res.json(scoreData);
+        console.log(`[LiveScore] cache MISS for ${cacheKey} \u2014 fetching from CricAPI`);
+        let scoreData = null;
+        const info = await fetchMatchInfo(cacheKey);
+        if (info) {
+          scoreData = {
+            score: info.score || [],
+            status: info.status,
+            matchStarted: info.matchStarted,
+            matchEnded: info.matchEnded,
+            source: "CricAPI"
+          };
+        }
+        const payload = scoreData ?? { score: null };
+        liveScoreCache.set(cacheKey, { data: payload, fetchedAt: now });
+        return res.json(payload);
       } catch (err) {
         console.error("Live score error:", err);
         return res.status(500).json({ message: "Failed to fetch live score" });
@@ -2565,8 +2870,7 @@ async function registerRoutes(app2) {
           return res.status(404).json({ message: "Match not found" });
         }
         const now = /* @__PURE__ */ new Date();
-        const matchStart = new Date(match.startTime);
-        if (now.getTime() >= matchStart.getTime() - 1e3) {
+        if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
         }
         if (match.status === "live" || match.status === "completed") {
@@ -2737,8 +3041,7 @@ async function registerRoutes(app2) {
           return res.status(404).json({ message: "Match not found" });
         }
         const now = /* @__PURE__ */ new Date();
-        const matchStart = new Date(match.startTime);
-        if (now.getTime() >= matchStart.getTime() - 1e3) {
+        if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
         }
         if (match.status === "live" || match.status === "completed") {
@@ -2883,12 +3186,10 @@ async function registerRoutes(app2) {
         const match = await storage.getMatch(team.matchId);
         if (match) {
           const now = /* @__PURE__ */ new Date();
-          const matchStart = new Date(match.startTime);
-          const isDelayed = match.status === "delayed";
           if (match.status === "live" || match.status === "completed") {
             return res.status(400).json({ message: "Cannot delete team after match has started" });
           }
-          if (!isDelayed && now.getTime() >= matchStart.getTime() - 1e3) {
+          if (!isEntryOpen(match, now.getTime())) {
             return res.status(400).json({ message: "Cannot delete team after deadline has passed" });
           }
         }
@@ -2914,8 +3215,7 @@ async function registerRoutes(app2) {
           return res.status(404).json({ message: "Match not found" });
         }
         const now = /* @__PURE__ */ new Date();
-        const matchStart = new Date(match.startTime);
-        if (now.getTime() >= matchStart.getTime() - 1e3) {
+        if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Prediction deadline has passed" });
         }
         if (match.status === "live" || match.status === "completed") {
@@ -3059,6 +3359,111 @@ async function registerRoutes(app2) {
       }
     }
   );
+  app2.get(
+    "/api/admin/browse-api-matches",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const [apiMatches, existingMatches] = await Promise.all([
+          fetchUpcomingMatches(),
+          storage.getAllMatches()
+        ]);
+        const existingIds = new Set(existingMatches.map((m) => m.externalId).filter(Boolean));
+        const isIPL = (name, league) => {
+          const n = (name + " " + league).toLowerCase();
+          return n.includes("indian premier league") || n.includes(" ipl") || n.includes("ipl ");
+        };
+        const now = Date.now();
+        const ms7d = 7 * 24 * 60 * 60 * 1e3;
+        const filtered = apiMatches.filter((m) => {
+          if (existingIds.has(m.externalId)) return false;
+          if (isIPL(m.team1 + " " + m.team2, m.league)) return false;
+          if (m.status === "completed") return false;
+          const t = new Date(m.startTime).getTime();
+          return t >= now - 864e5 && t <= now + ms7d;
+        });
+        return res.json({ matches: filtered });
+      } catch (err) {
+        console.error("Browse API matches error:", err);
+        return res.status(500).json({ message: "Failed to fetch API matches" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/import-api-match",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { externalId, seriesId, team1, team1Short, team1Color, team2, team2Short, team2Color, venue, startTime, league } = req.body;
+        if (!team1 || !team2 || !startTime) {
+          return res.status(400).json({ message: "team1, team2, and startTime are required" });
+        }
+        const existing = await storage.getAllMatches();
+        if (externalId && existing.some((m) => m.externalId === externalId)) {
+          return res.status(409).json({ message: "Match already exists in database" });
+        }
+        const match = await storage.createMatch({
+          externalId: externalId || null,
+          seriesId: seriesId || null,
+          team1,
+          team1Short: team1Short || team1.substring(0, 3).toUpperCase(),
+          team1Color: team1Color || "#333",
+          team2,
+          team2Short: team2Short || team2.substring(0, 3).toUpperCase(),
+          team2Color: team2Color || "#666",
+          venue: venue || "",
+          startTime: new Date(startTime),
+          status: "upcoming",
+          league: league || "",
+          totalPrize: "0",
+          entryFee: 0,
+          spotsTotal: 100,
+          spotsFilled: 0
+        });
+        let playersLoaded = 0;
+        let squadMessage = "No squad data found yet \u2014 use 'Fetch Squad' in Match Controls.";
+        if (externalId) {
+          try {
+            const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+            let squad = await fetchMatchSquad2(externalId);
+            if (squad.length === 0 && seriesId) {
+              const seriesPlayers = await fetchSeriesSquad2(seriesId);
+              const t1 = team1.toLowerCase();
+              const t2 = team2.toLowerCase();
+              const t1s = (team1Short || "").toLowerCase();
+              const t2s = (team2Short || "").toLowerCase();
+              squad = seriesPlayers.filter((p) => {
+                const pTeam = p.team.toLowerCase();
+                const pShort = p.teamShort.toLowerCase();
+                return pTeam === t1 || pTeam === t2 || pTeam.includes(t1) || t1.includes(pTeam) || pTeam.includes(t2) || t2.includes(pTeam) || pShort === t1s || pShort === t2s;
+              });
+            }
+            if (squad.length > 0) {
+              await storage.upsertPlayersForMatch(match.id, squad.map((p) => ({
+                matchId: match.id,
+                externalId: p.externalId,
+                name: p.name,
+                team: p.team,
+                teamShort: p.teamShort,
+                role: p.role,
+                credits: p.credits
+              })));
+              playersLoaded = squad.length;
+              squadMessage = `${playersLoaded} players loaded automatically.`;
+            }
+          } catch (e) {
+            console.error("Auto squad fetch failed:", e);
+          }
+        }
+        return res.json({ match, playersLoaded, squadMessage });
+      } catch (err) {
+        console.error("Import API match error:", err);
+        return res.status(500).json({ message: "Failed to import match" });
+      }
+    }
+  );
   app2.patch(
     "/api/admin/matches/:id",
     isAuthenticated,
@@ -3083,12 +3488,26 @@ async function registerRoutes(app2) {
     async (req, res) => {
       try {
         const matchId = req.params.id;
+        const forceDelete = req.query.force === "true";
         const teams = await storage.getAllTeamsForMatch(matchId);
-        if (teams.length > 0) {
-          return res.status(400).json({ message: "Cannot delete match with existing teams" });
+        if (teams.length > 0 && !forceDelete) {
+          return res.status(400).json({ message: `Cannot delete match with ${teams.length} existing teams. Use force=true to override.` });
         }
-        await storage.deleteMatch(matchId);
-        return res.json({ message: "Match deleted" });
+        if (teams.length > 0 && forceDelete) {
+          for (const team of teams) {
+            await storage.deleteTeam(team.id);
+          }
+        }
+        await storage.deleteMatchCascade(matchId);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "delete_match",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ forced: forceDelete, teamsRemoved: teams.length })
+        });
+        return res.json({ message: "Match permanently deleted" });
       } catch (err) {
         console.error("Delete match error:", err);
         return res.status(500).json({ message: "Failed to delete match" });
@@ -3103,6 +3522,7 @@ async function registerRoutes(app2) {
       const matchId = req.params.id;
       const match = await storage.getMatch(matchId);
       if (!match) return res.status(404).json({ message: "Match not found" });
+      if (!match.externalId) return res.status(400).json({ message: "This match has no external API ID \u2014 squad cannot be fetched automatically." });
       try {
         const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
         let squad = await fetchMatchSquad2(match.externalId);
@@ -3221,24 +3641,8 @@ async function registerRoutes(app2) {
           return res.json({ message: "No Playing XI data available yet - match may not have started", count: 0 });
         }
         await storage.markPlayingXI(matchId, playingIds);
-        const updatedPlayers = await storage.getPlayersForMatch(matchId);
-        const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
-        const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
-        const allTeams = await storage.getAllTeamsForMatch(matchId);
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds;
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (pid === team.captainId) pts *= 2;
-              else if (pid === team.viceCaptainId) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-          await storage.updateUserTeamPoints(team.id, totalPoints);
-        }
+        const recalcAfterXI = globalThis.__recalculateTeamTotals;
+        if (recalcAfterXI) await recalcAfterXI(matchId, `${match.team1Short} vs ${match.team2Short}`);
         return res.json({ message: `Playing XI updated: ${playingIds.length} players marked, team points recalculated`, count: playingIds.length, source });
       } catch (err) {
         console.error("Refresh Playing XI error:", err);
@@ -3264,24 +3668,8 @@ async function registerRoutes(app2) {
         }
         const updated = await storage.markPlayingXIByIds(matchId, playerIds);
         await storage.updateMatch(matchId, { playingXIManual: true });
-        const updatedPlayers = await storage.getPlayersForMatch(matchId);
-        const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
-        const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
-        const allTeams = await storage.getAllTeamsForMatch(matchId);
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds;
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (pid === team.captainId) pts *= 2;
-              else if (pid === team.viceCaptainId) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-          await storage.updateUserTeamPoints(team.id, totalPoints);
-        }
+        const recalcAfterManualXI = globalThis.__recalculateTeamTotals;
+        if (recalcAfterManualXI) await recalcAfterManualXI(matchId, `${match.team1Short} vs ${match.team2Short}`);
         return res.json({
           message: `Playing XI manually set: ${updated} players marked, team points recalculated`,
           count: updated,
@@ -3632,6 +4020,11 @@ async function registerRoutes(app2) {
           const startMs = new Date(m.startTime).getTime();
           return now - startMs <= THIRTY_SIX_HOURS;
         });
+        const playerCountRows = await db.select({ matchId: players.matchId, cnt: sql3`count(*)::int` }).from(players).groupBy(players.matchId);
+        const playerCountMap = /* @__PURE__ */ new Map();
+        for (const row of playerCountRows) {
+          if (row.matchId) playerCountMap.set(row.matchId, row.cnt);
+        }
         const matchStatuses = filteredMatches.map((m) => {
           const startMs = new Date(m.startTime).getTime();
           return {
@@ -3643,7 +4036,9 @@ async function registerRoutes(app2) {
             startTime: m.startTime,
             hasExternalId: !!m.externalId,
             isLocked: now >= startMs,
-            minutesUntilStart: Math.round((startMs - now) / 6e4)
+            minutesUntilStart: Math.round((startMs - now) / 6e4),
+            playerCount: playerCountMap.get(m.id) ?? 0,
+            impactFeaturesEnabled: m.impactFeaturesEnabled
           };
         });
         return res.json({ matches: matchStatuses, serverTime: (/* @__PURE__ */ new Date()).toISOString() });
@@ -4327,6 +4722,86 @@ async function registerRoutes(app2) {
     }
   );
   app2.post(
+    "/api/admin/matches/:id/admin-unlock",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const { unlock } = req.body;
+        if (typeof unlock !== "boolean") {
+          return res.status(400).json({ message: "unlock (boolean) required" });
+        }
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (unlock) {
+          const eligibility = checkUnlockEligibility(match);
+          if (!eligibility.allowed) {
+            return res.status(409).json({ message: eligibility.reason });
+          }
+        }
+        await storage.updateMatch(matchId, { adminUnlockOverride: unlock });
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: unlock ? "admin_unlock_match" : "admin_lock_match",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ unlock })
+        });
+        return res.json({ message: unlock ? "Match entry window unlocked" : "Match entry window locked" });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/matches/:id/revised-start-time",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const { revisedStartTime } = req.body;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (revisedStartTime !== null && revisedStartTime !== void 0) {
+          const eligibility = checkUnlockEligibility(match);
+          if (!eligibility.allowed) {
+            return res.status(409).json({ message: eligibility.reason });
+          }
+          const parsed = new Date(revisedStartTime);
+          if (isNaN(parsed.getTime())) {
+            return res.status(400).json({ message: "Invalid date format" });
+          }
+          await storage.updateMatch(matchId, { revisedStartTime: parsed });
+          await storage.createAuditLog({
+            adminUserId: req.session.userId,
+            actionType: "set_revised_start_time",
+            entityType: "match",
+            entityId: matchId,
+            matchId,
+            metadata: JSON.stringify({ revisedStartTime: parsed.toISOString() })
+          });
+          return res.json({ message: `Revised start time set to ${parsed.toISOString()}` });
+        } else {
+          await storage.updateMatch(matchId, { revisedStartTime: null });
+          await storage.createAuditLog({
+            adminUserId: req.session.userId,
+            actionType: "clear_revised_start_time",
+            entityType: "match",
+            entityId: matchId,
+            matchId,
+            metadata: JSON.stringify({ cleared: true })
+          });
+          return res.json({ message: "Revised start time cleared" });
+        }
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
     "/api/admin/matches/:id/set-winner",
     isAuthenticated,
     isAdmin,
@@ -4460,6 +4935,7 @@ async function registerRoutes(app2) {
 // server/index.ts
 init_cricket_api();
 init_storage();
+init_db();
 import * as fs from "fs";
 import * as path from "path";
 var app = express();
@@ -4482,9 +4958,9 @@ function setupCors(app2) {
     }
     const origin = req.header("origin");
     const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
-    const isRailway = !!railwayDomain && origin === `https://${railwayDomain}`;
+    const isRailway2 = !!railwayDomain && origin === `https://${railwayDomain}`;
     const isLocalhost = origin?.startsWith("http://localhost:") || origin?.startsWith("http://127.0.0.1:");
-    if (origin && (origins.has(origin) || isLocalhost || isRailway)) {
+    if (origin && (origins.has(origin) || isLocalhost || isRailway2)) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
@@ -4688,9 +5164,49 @@ function configureExpoAndLanding(app2) {
   });
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
+var DB_ERROR_CODES = /* @__PURE__ */ new Set([
+  "ETIMEDOUT",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "ECONNRESET",
+  "57P01",
+  // admin_shutdown
+  "57014",
+  // query_canceled (statement_timeout fired)
+  "08006",
+  // connection_failure
+  "08001"
+  // sqlclient_unable_to_establish_sqlconnection
+]);
+function setupRequestTimeout(app2) {
+  app2.use((req, res, next) => {
+    if (!req.path.startsWith("/api")) return next();
+    const timer = setTimeout(() => {
+      if (!res.headersSent) {
+        console.error(`[TIMEOUT] ${req.method} ${req.path} exceeded 6000ms`);
+        res.status(504).json({ error: "Request timed out. Please try again." });
+      }
+    }, 6e3);
+    res.on("finish", () => clearTimeout(timer));
+    res.on("close", () => clearTimeout(timer));
+    next();
+  });
+}
+function isDbError(err) {
+  const e = err;
+  if (!e) return false;
+  if (e.code && DB_ERROR_CODES.has(e.code)) return true;
+  const msg = e.message || "";
+  return msg.includes("ETIMEDOUT") || msg.includes("ECONNREFUSED") || msg.includes("connection") || msg.includes("database");
+}
 function setupErrorHandler(app2) {
   app2.use((err, _req, res, next) => {
     const error = err;
+    if (isDbError(err)) {
+      console.error("[DB] Runtime DB error on request:", err.message);
+      if (res.headersSent) return next(err);
+      return res.status(503).json({ error: "Database temporarily unavailable. Please try again." });
+    }
     const status = error.status || error.statusCode || 500;
     const message = error.message || "Internal Server Error";
     console.error("Internal Server Error:", err);
@@ -4704,6 +5220,7 @@ function setupErrorHandler(app2) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
+  setupRequestTimeout(app);
   const server = await registerRoutes(app);
   configureExpoAndLanding(app);
   setupErrorHandler(app);
@@ -4722,8 +5239,10 @@ function setupErrorHandler(app2) {
       console.error("Failed to seed reference codes:", err);
     }
   }
+  await connectWithRetry(10, 3e3);
   const port = Number(process.env.PORT) || 3e3;
   server.listen(port, "0.0.0.0", () => {
+    markServerReady();
     log(`express server serving on port ${port}`);
     const ADMIN_PHONES2 = ["9840872462", "9884334973", "7406020777"];
     (async () => {
@@ -4754,6 +5273,10 @@ function setupErrorHandler(app2) {
     const HEARTBEAT_INTERVAL = 60 * 1e3;
     let heartbeatSyncing = false;
     let heartbeatLockTime = 0;
+    const lastSquadFetchAttempt = /* @__PURE__ */ new Map();
+    const SQUAD_POLL_FAR = 20 * 60 * 1e3;
+    const SQUAD_POLL_CLOSE = 5 * 60 * 1e3;
+    const SQUAD_MIN_PLAYERS = 22;
     function fuzzyNameMatch(name1, name2) {
       if (name1 === name2) return true;
       if (name1.includes(name2) || name2.includes(name1)) return true;
@@ -5032,7 +5555,7 @@ function setupErrorHandler(app2) {
               if (resolved.activePlayerId) {
                 const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
                 if (impactPlayer) {
-                  let impactPts = impactPlayer.points || 0;
+                  let impactPts = (impactPlayer.points || 0) + 4;
                   let impactMultiplier = 1;
                   if (team.captainType === "impact_slot") impactMultiplier = 2;
                   else if (team.vcType === "impact_slot") impactMultiplier = 1.5;
@@ -5111,10 +5634,16 @@ function setupErrorHandler(app2) {
       try {
         const allMatches = await storage.getAllMatches();
         const now = Date.now();
+        const liveMatches = allMatches.filter(
+          (m) => m.status === "live" || m.status === "delayed" || m.startTime && new Date(m.startTime).getTime() < now && m.status !== "completed"
+        );
+        log(`[Heartbeat] polling ${liveMatches.length} active matches (${allMatches.length} total in DB)`);
         for (const match of allMatches) {
           if (forcedMatchId && match.id !== forcedMatchId) continue;
           const startMs = match.startTime ? new Date(match.startTime).getTime() : 0;
-          const isStarted = startMs > 0 && now > startMs && match.status !== "completed";
+          const revisedMs = match.revisedStartTime ? new Date(match.revisedStartTime).getTime() : 0;
+          const effectiveStartMs = revisedMs > 0 ? revisedMs : startMs;
+          const isStarted = effectiveStartMs > 0 && now > effectiveStartMs && match.status !== "completed";
           const isLive = match.status === "live" || match.status === "delayed";
           if (isStarted && !isLive) {
             log(
@@ -5147,6 +5676,13 @@ function setupErrorHandler(app2) {
           }
           if (!isLive && !isStarted && !forcedMatchId) continue;
           const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+          if (!forcedMatchId) {
+            const joinedTeams = await storage.getAllTeamsForMatch(match.id);
+            if (joinedTeams.length === 0) {
+              log(`[Heartbeat] SKIP ${matchLabel} \u2014 0 users joined, no API calls needed`);
+              continue;
+            }
+          }
           try {
             const {
               pointsMap,
@@ -5185,6 +5721,14 @@ function setupErrorHandler(app2) {
                 );
               }
             }
+            if (pointsMap.size > 0 && !match.firstScorecardAt) {
+              try {
+                await storage.updateMatch(match.id, { firstScorecardAt: /* @__PURE__ */ new Date() });
+                log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
+              } catch (fse) {
+                console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
+              }
+            }
             if (pointsMap.size > 0) {
               const updatedCount = await updateFantasyPoints(
                 match.id,
@@ -5218,6 +5762,62 @@ function setupErrorHandler(app2) {
           } catch (err) {
             console.error(`[Heartbeat] sync FAILED for ${matchLabel}:`, err);
           }
+        }
+        try {
+          const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+          const squadCandidates = allMatches.filter(
+            (m) => m.externalId && m.status === "upcoming" && m.startTime
+          );
+          for (const match of squadCandidates) {
+            const startMs = new Date(match.startTime).getTime();
+            const minsToStart = (startMs - now) / 6e4;
+            if (minsToStart > 48 * 60) continue;
+            const existingPlayers = await storage.getPlayersForMatch(match.id);
+            if (existingPlayers.length >= SQUAD_MIN_PLAYERS) continue;
+            const pollInterval = minsToStart > 60 ? SQUAD_POLL_FAR : SQUAD_POLL_CLOSE;
+            const lastAttempt = lastSquadFetchAttempt.get(match.id) ?? 0;
+            if (now - lastAttempt < pollInterval) continue;
+            lastSquadFetchAttempt.set(match.id, now);
+            const label = `${match.team1Short} vs ${match.team2Short}`;
+            const windowTag = minsToStart > 60 ? "48h\u201360min window" : "final 60min window";
+            log(`[Heartbeat:Squad] Fetching squad for ${label} (${Math.round(minsToStart)}min to start, ${windowTag})`);
+            try {
+              let squad = await fetchMatchSquad2(match.externalId);
+              let squadSource = "match_squad";
+              if (squad.length === 0 && match.seriesId) {
+                const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
+                const t1 = match.team1.toLowerCase();
+                const t2 = match.team2.toLowerCase();
+                const t1s = (match.team1Short || "").toLowerCase();
+                const t2s = (match.team2Short || "").toLowerCase();
+                squad = seriesPlayers.filter((p) => {
+                  const pTeam = p.team.toLowerCase();
+                  const pShort = p.teamShort.toLowerCase();
+                  return pTeam === t1 || pTeam === t2 || pTeam.includes(t1) || t1.includes(pTeam) || pTeam.includes(t2) || t2.includes(pTeam) || pShort === t1s || pShort === t2s;
+                });
+                squadSource = "series_squad";
+              }
+              if (squad.length > 0) {
+                await storage.upsertPlayersForMatch(
+                  match.id,
+                  squad.map((p) => ({
+                    matchId: match.id,
+                    externalId: p.externalId,
+                    name: p.name,
+                    team: p.team,
+                    teamShort: p.teamShort,
+                    role: p.role,
+                    credits: p.credits
+                  }))
+                );
+                log(`[Heartbeat:Squad] Loaded ${squad.length} players for ${label} via ${squadSource}`);
+              } else {
+                log(`[Heartbeat:Squad] No squad yet for ${label} \u2014 will retry in ${minsToStart > 60 ? "20min" : "5min"}`);
+              }
+            } catch (squadErr) {
+            }
+          }
+        } catch (squadErr) {
         }
       } catch (err) {
         console.error("[Heartbeat] scheduler error:", err);
