@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -190,6 +190,18 @@ export default function AdminScreen() {
   const [importingExternalId, setImportingExternalId] = useState<string | null>(null);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const checkedAtRef = useRef<Date>(new Date());
+
+  const relativeTime = (iso: string): string => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    return `${d}d ago`;
+  };
 
   const selectedMatch = useMemo(() => matches.find(m => m.id === selectedMatchId), [matches, selectedMatchId]);
 
@@ -976,6 +988,81 @@ export default function AdminScreen() {
             </Text>
           </LinearGradient>
 
+          {/* ── Overview Stats Bar ── */}
+          {(() => {
+            const liveCount = matches.filter(m => m.status === 'live').length;
+            const pendingCount = pendingUsers.length;
+            const unprocessedCount = potUnprocessedMatches.length;
+            const vaultCount = rewardsAvailable.length;
+            const callsToday = apiCallData?.today ?? null;
+            const callsLimit = apiCallData?.dailyLimit ?? 2000;
+            const callsColor = callsToday === null ? colors.textTertiary : callsToday > 1500 ? colors.error : callsToday > 1000 ? '#F59E0B' : colors.success;
+
+            const tiles: { label: string; value: string; accent: string }[] = [
+              {
+                label: 'PENDING',
+                value: String(pendingCount),
+                accent: pendingCount > 0 ? '#F59E0B' : colors.textTertiary,
+              },
+              {
+                label: 'LIVE',
+                value: String(liveCount),
+                accent: liveCount > 0 ? colors.success : colors.textTertiary,
+              },
+              {
+                label: 'UNPROCESSED',
+                value: String(unprocessedCount),
+                accent: unprocessedCount > 0 ? '#F59E0B' : colors.success,
+              },
+              {
+                label: 'VAULT',
+                value: String(vaultCount),
+                accent: colors.accent,
+              },
+              {
+                label: 'API CALLS',
+                value: callsToday === null ? '—' : `${callsToday}/${callsLimit}`,
+                accent: callsColor,
+              },
+            ];
+
+            return (
+              <View style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 8,
+                marginTop: 4,
+              }}>
+                {tiles.map(tile => (
+                  <View
+                    key={tile.label}
+                    style={{
+                      flex: 1,
+                      minWidth: 80,
+                      backgroundColor: colors.card,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.cardBorder,
+                      borderTopWidth: 2,
+                      borderTopColor: tile.accent,
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: tile.accent, fontFamily: 'Inter_700Bold', fontSize: 18, lineHeight: 22 }}>
+                      {tile.value}
+                    </Text>
+                    <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_700Bold', fontSize: 8, letterSpacing: 0.5, marginTop: 2 }}>
+                      {tile.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })()}
+
           <View style={styles.section}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0, borderLeftColor: colors.accent }]}>
@@ -1032,25 +1119,37 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
-                User Approvals
-              </Text>
-              {pendingUsers.length > 0 && (
-                <View style={{ backgroundColor: '#EF4444', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
-                  <Text style={{ color: '#FFF', fontSize: 12, fontFamily: 'Inter_700Bold' }}>{pendingUsers.length}</Text>
-                </View>
-              )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0, borderLeftColor: colors.accent }]}>
+                  User Approvals
+                </Text>
+                {pendingUsers.length > 0 && (
+                  <View style={{ backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1 }}>
+                    <Text style={{ color: '#FFF', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{pendingUsers.length}</Text>
+                  </View>
+                )}
+              </View>
+              <Pressable
+                onPress={() => { checkedAtRef.current = new Date(); loadPendingUsers(); }}
+                style={{ padding: 6, borderRadius: 8, backgroundColor: colors.surfaceElevated }}
+                hitSlop={8}
+              >
+                <Ionicons name="refresh" size={16} color={colors.textSecondary} />
+              </Pressable>
             </View>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
               Approve or reject new user signups.
             </Text>
 
             {pendingUsers.length === 0 ? (
-              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, alignItems: 'center', paddingVertical: 20 }]}>
-                <Ionicons name="checkmark-circle" size={28} color={colors.success} />
-                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 8 }}>
+              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 10 }]}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_400Regular' }}>
                   No pending signups
+                </Text>
+                <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular', marginLeft: 'auto' as any }}>
+                  checked {checkedAtRef.current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
             ) : (
@@ -1058,48 +1157,44 @@ export default function AdminScreen() {
                 {pendingUsers.map((pu) => (
                   <View
                     key={pu.id}
-                    style={[styles.codeItem, { backgroundColor: colors.card, borderColor: colors.cardBorder, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}
+                    style={[styles.codeItem, { backgroundColor: colors.card, borderColor: colors.cardBorder, flexDirection: 'row', alignItems: 'center', gap: 0, paddingVertical: 10, paddingHorizontal: 12 }]}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.text, fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>
-                          {pu.username}
-                        </Text>
-                        <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
-                          {pu.phone}{pu.email ? ` · ${pu.email}` : ''}
-                        </Text>
-                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
-                          Signed up {new Date(pu.joinedAt).toLocaleDateString()}
-                        </Text>
-                      </View>
-                      <View style={[styles.activeBadge, { backgroundColor: '#F59E0B15' }]}>
-                        <View style={[styles.activeDot, { backgroundColor: '#F59E0B' }]} />
-                        <Text style={[styles.activeText, { color: '#F59E0B', fontFamily: 'Inter_500Medium' }]}>
-                          Pending
-                        </Text>
-                      </View>
+                    {/* Avatar initial */}
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10, flexShrink: 0 }}>
+                      <Text style={{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 15 }}>
+                        {pu.username.charAt(0).toUpperCase()}
+                      </Text>
                     </View>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {/* User info */}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' }} numberOfLines={1}>
+                        {pu.username}
+                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 }} numberOfLines={1}>
+                        {pu.phone}{pu.email ? ` · ${pu.email}` : ''}
+                      </Text>
+                      <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 1 }}>
+                        {relativeTime(pu.joinedAt)}
+                      </Text>
+                    </View>
+                    {/* Action buttons */}
+                    <View style={{ flexDirection: 'row', gap: 6, marginLeft: 8, flexShrink: 0 }}>
                       <Pressable
                         onPress={() => approveUser(pu.id)}
                         disabled={approvingUserId === pu.id}
-                        style={{ flex: 1, borderRadius: 10, overflow: 'hidden', opacity: approvingUserId === pu.id ? 0.5 : 1 }}
+                        style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#22C55E20', alignItems: 'center', justifyContent: 'center', opacity: approvingUserId === pu.id ? 0.4 : 1 }}
                       >
-                        <LinearGradient
-                          colors={['#22C55E', '#16A34A']}
-                          style={{ paddingVertical: 10, alignItems: 'center', borderRadius: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 }}
-                        >
-                          <Ionicons name="checkmark" size={18} color="#FFF" />
-                          <Text style={{ color: '#FFF', fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Approve</Text>
-                        </LinearGradient>
+                        {approvingUserId === pu.id
+                          ? <ActivityIndicator size="small" color="#22C55E" />
+                          : <Ionicons name="checkmark" size={20} color="#22C55E" />
+                        }
                       </Pressable>
                       <Pressable
                         onPress={() => rejectUser(pu.id, pu.username)}
                         disabled={approvingUserId === pu.id}
-                        style={{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: colors.error + '40', paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, opacity: approvingUserId === pu.id ? 0.5 : 1 }}
+                        style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: colors.error + '15', alignItems: 'center', justifyContent: 'center', opacity: approvingUserId === pu.id ? 0.4 : 1 }}
                       >
-                        <Ionicons name="close" size={18} color={colors.error} />
-                        <Text style={{ color: colors.error, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Reject</Text>
+                        <Ionicons name="close" size={20} color={colors.error} />
                       </Pressable>
                     </View>
                   </View>
@@ -1520,17 +1615,22 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
-              Tournament Pot Management
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0, borderLeftColor: colors.accent }]}>
+                Tournament Pot Management
+              </Text>
+              {potUnprocessedMatches.length > 0 && (
+                <View style={{ backgroundColor: '#F59E0B20', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1, borderWidth: 1, borderColor: '#F59E0B40' }}>
+                  <Text style={{ color: '#F59E0B', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{potUnprocessedMatches.length}</Text>
+                </View>
+              )}
+            </View>
             <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
               Process zero-sum pot distribution for completed matches.
             </Text>
 
             <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6 }}>
-                Tournament / Series
-              </Text>
+              <Text style={[styles.formFieldLabel, { color: colors.textTertiary, marginBottom: 6 }]}>TOURNAMENT / SERIES</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   {potTournamentNames.map(name => (
@@ -1587,7 +1687,7 @@ export default function AdminScreen() {
 
               {potShowNewInput && (
                 <TextInput
-                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
+                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium', marginBottom: 8 }]}
                   value={potNewTournament}
                   onChangeText={setPotNewTournament}
                   placeholder="e.g. T20 World Cup"
@@ -1595,14 +1695,13 @@ export default function AdminScreen() {
                 />
               )}
 
-              <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6, marginTop: 8 }}>
-                Select Match
-              </Text>
+              <Text style={[styles.formFieldLabel, { color: colors.textTertiary, marginBottom: 6, marginTop: 4 }]}>SELECT MATCH</Text>
               {potLoadingMatches ? (
                 <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
               ) : potUnprocessedMatches.length === 0 ? (
-                <View style={{ paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.surfaceElevated, borderRadius: 10, marginBottom: 8 }}>
-                  <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 13, textAlign: 'center' }}>
+                <View style={{ paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.surfaceElevated, borderRadius: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                  <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 13 }}>
                     All completed matches have been processed
                   </Text>
                 </View>
@@ -1613,6 +1712,8 @@ export default function AdminScreen() {
                       const isSelected = m.id === potSelectedMatchId;
                       const matchDate = new Date(m.startTime);
                       const formatted = matchDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                      const fullMatch = matches.find(fm => fm.id === m.id);
+                      const stake = fullMatch?.entryStake;
                       return (
                         <Pressable
                           key={m.id}
@@ -1640,7 +1741,7 @@ export default function AdminScreen() {
                             fontSize: 11,
                             marginTop: 2,
                           }}>
-                            {formatted}
+                            {formatted}{stake ? ` · ₹${stake}` : ''}
                           </Text>
                         </Pressable>
                       );
@@ -1649,9 +1750,7 @@ export default function AdminScreen() {
                 </ScrollView>
               )}
 
-              <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6, marginTop: 8 }}>
-                Entry Stake
-              </Text>
+              <Text style={[styles.formFieldLabel, { color: colors.textTertiary, marginBottom: 6, marginTop: 4 }]}>ENTRY STAKE (₹)</Text>
               <TextInput
                 style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
                 value={potStake}
@@ -1665,14 +1764,14 @@ export default function AdminScreen() {
                 onPress={handleProcessAndDistribute}
                 disabled={potProcessing || (!potSelectedTournament && !potNewTournament.trim()) || !potSelectedMatchId}
                 style={{
-                  height: 48,
+                  height: 44,
                   borderRadius: 12,
                   backgroundColor: '#F59E0B',
                   justifyContent: 'center',
                   alignItems: 'center',
                   flexDirection: 'row',
                   gap: 8,
-                  marginTop: 4,
+                  marginTop: 8,
                   opacity: (potProcessing || (!potSelectedTournament && !potNewTournament.trim()) || !potSelectedMatchId) ? 0.5 : 1,
                 }}
               >
@@ -1681,11 +1780,24 @@ export default function AdminScreen() {
                 ) : (
                   <>
                     <Ionicons name="trophy" size={18} color="#FFF" />
-                    <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 15 }}>Process & Distribute Pot</Text>
+                    <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Process & Distribute Pot</Text>
                   </>
                 )}
               </Pressable>
             </View>
+
+            {(() => {
+              const processedCount = matches.filter(m => m.potProcessed).length;
+              if (processedCount === 0) return null;
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingHorizontal: 2 }}>
+                  <Ionicons name="checkmark-circle-outline" size={13} color={colors.success} />
+                  <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 12 }}>
+                    {processedCount} {processedCount === 1 ? 'match' : 'matches'} already processed
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
 
           <View style={styles.section}>
