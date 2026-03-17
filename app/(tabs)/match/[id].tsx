@@ -25,6 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/query-client';
 import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
+import SkeletonBox from '@/components/SkeletonBox';
 
 type TabKey = 'overview' | 'scorecard' | 'players' | 'participants' | 'standings';
 
@@ -228,8 +229,38 @@ export default function MatchDetailScreen() {
 
   if (matchLoading || playersLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16, paddingBottom: 28, backgroundColor: colors.primary + 'CC' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+            <SkeletonBox width={40} height={40} borderRadius={20} colors={colors} />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <View style={{ alignItems: 'center', flex: 1, gap: 8 }}>
+              <SkeletonBox width={56} height={56} borderRadius={28} colors={colors} />
+              <SkeletonBox width={48} height={16} borderRadius={4} colors={colors} />
+            </View>
+            <SkeletonBox width={36} height={20} borderRadius={4} colors={colors} />
+            <View style={{ alignItems: 'center', flex: 1, gap: 8 }}>
+              <SkeletonBox width={56} height={56} borderRadius={28} colors={colors} />
+              <SkeletonBox width={48} height={16} borderRadius={4} colors={colors} />
+            </View>
+          </View>
+          <View style={{ alignItems: 'center' }}>
+            <SkeletonBox width={160} height={14} borderRadius={4} colors={colors} />
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          {[1, 2, 3].map(i => (
+            <View key={i} style={{ flex: 1, alignItems: 'center', paddingVertical: 14 }}>
+              <SkeletonBox width={60} height={14} borderRadius={4} colors={colors} />
+            </View>
+          ))}
+        </View>
+        <View style={{ paddingHorizontal: 16, paddingTop: 20, maxWidth: 700, width: '100%', alignSelf: 'center' as const, gap: 12 }}>
+          <SkeletonBox width="100%" height={110} borderRadius={14} colors={colors} />
+          <SkeletonBox width="100%" height={80} borderRadius={14} colors={colors} />
+          <SkeletonBox width="100%" height={56} borderRadius={14} colors={colors} />
+        </View>
       </View>
     );
   }
@@ -611,11 +642,28 @@ export default function MatchDetailScreen() {
 
     if (scorecardLoading) {
       return (
-        <View style={[styles.contentSection, { alignItems: 'center', paddingTop: 40 }]}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.noTeamsText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular', marginTop: 12 }]}>
-            Loading scorecard...
-          </Text>
+        <View style={[styles.contentSection, { gap: 0 }]}>
+          <SkeletonBox width="100%" height={48} borderRadius={10} colors={colors} style={{ marginBottom: 12 }} />
+          <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8, marginBottom: 4, flexDirection: 'row', gap: 8 }}>
+            <SkeletonBox width="40%" height={14} borderRadius={4} colors={colors} />
+            {[1,2,3,4].map(i => <SkeletonBox key={i} width={28} height={14} borderRadius={4} colors={colors} />)}
+          </View>
+          {[1,2,3,4,5,6].map(i => (
+            <View key={i} style={{ flexDirection: 'row', gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border + '40', alignItems: 'center' }}>
+              <SkeletonBox width="38%" height={13} borderRadius={4} colors={colors} />
+              {[1,2,3,4,5].map(j => <SkeletonBox key={j} width={28} height={13} borderRadius={4} colors={colors} />)}
+            </View>
+          ))}
+          <View style={{ marginTop: 20, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8, marginBottom: 4, flexDirection: 'row', gap: 8 }}>
+            <SkeletonBox width="40%" height={14} borderRadius={4} colors={colors} />
+            {[1,2,3,4].map(i => <SkeletonBox key={i} width={28} height={14} borderRadius={4} colors={colors} />)}
+          </View>
+          {[1,2,3,4].map(i => (
+            <View key={i} style={{ flexDirection: 'row', gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border + '40', alignItems: 'center' }}>
+              <SkeletonBox width="38%" height={13} borderRadius={4} colors={colors} />
+              {[1,2,3,4,5].map(j => <SkeletonBox key={j} width={28} height={13} borderRadius={4} colors={colors} />)}
+            </View>
+          ))}
         </View>
       );
     }

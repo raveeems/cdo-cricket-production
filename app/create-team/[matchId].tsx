@@ -31,6 +31,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
+import SkeletonBox from '@/components/SkeletonBox';
 
 type Step = 'select' | 'impact' | 'captain' | 'preview' | 'success';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
@@ -778,8 +779,30 @@ export default function CreateTeamScreen() {
 
   if (matchLoading || playersLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { paddingTop: insets.top + webTopInset + 4, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <SkeletonBox width={40} height={24} borderRadius={6} colors={colors} />
+          <SkeletonBox width={140} height={20} borderRadius={6} colors={colors} />
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, gap: 4 }}>
+          {[1,2,3].map(i => <View key={i} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.border }} />)}
+        </View>
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, gap: 8, backgroundColor: colors.surfaceElevated }}>
+          {[1,2,3,4,5].map(i => <SkeletonBox key={i} width={56} height={30} borderRadius={8} colors={colors} />)}
+        </View>
+        <View style={{ paddingHorizontal: 12, paddingTop: 12, gap: 10 }}>
+          {[1,2,3,4,5,6,7].map(i => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 12 }}>
+              <SkeletonBox width={36} height={36} borderRadius={8} colors={colors} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <SkeletonBox width="65%" height={13} borderRadius={4} colors={colors} />
+                <SkeletonBox width="40%" height={11} borderRadius={4} colors={colors} />
+              </View>
+              <SkeletonBox width={40} height={32} borderRadius={8} colors={colors} />
+            </View>
+          ))}
+        </View>
       </View>
     );
   }
@@ -1239,6 +1262,41 @@ export default function CreateTeamScreen() {
               </Text>
             </View>
           </View>
+
+          {(captainId || vcId) && (
+            <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: captainId ? colors.accent + '12' : colors.surfaceElevated, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: captainId ? colors.accent + '40' : colors.border }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: captainId ? colors.accent : colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: '#000', fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>C</Text>
+                </View>
+                <Text style={{ color: captainId ? colors.text : colors.textTertiary, fontSize: 12, fontFamily: captainId ? 'Inter_600SemiBold' as const : 'Inter_400Regular' as const, flex: 1 }} numberOfLines={1}>
+                  {(() => {
+                    if (captainType === 'impact_slot') {
+                      const p = allPlayers.find(pl => pl.id === primaryImpactId);
+                      return p ? p.name : 'Impact Slot';
+                    }
+                    const p = selectedPlayers.find(pl => pl.id === captainId);
+                    return p ? p.name : 'Pick Captain';
+                  })()}
+                </Text>
+              </View>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: vcId ? colors.primary + '12' : colors.surfaceElevated, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: vcId ? colors.primary + '40' : colors.border }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: vcId ? colors.primary : colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: '#FFF', fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>VC</Text>
+                </View>
+                <Text style={{ color: vcId ? colors.text : colors.textTertiary, fontSize: 12, fontFamily: vcId ? 'Inter_600SemiBold' as const : 'Inter_400Regular' as const, flex: 1 }} numberOfLines={1}>
+                  {(() => {
+                    if (vcType === 'impact_slot') {
+                      const p = allPlayers.find(pl => pl.id === primaryImpactId);
+                      return p ? p.name : 'Impact Slot';
+                    }
+                    const p = selectedPlayers.find(pl => pl.id === vcId);
+                    return p ? p.name : 'Pick Vice-Captain';
+                  })()}
+                </Text>
+              </View>
+            </View>
+          )}
 
           <ScrollView
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}

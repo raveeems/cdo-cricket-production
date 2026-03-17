@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/contexts/TeamContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import SkeletonBox from '@/components/SkeletonBox';
+import type { Match } from '@/lib/mock-data';
 
 const isWeb = Platform.OS === 'web';
 
@@ -43,8 +45,37 @@ export default function ProfileScreen() {
   });
   const myRewards = myRewardsData?.rewards || [];
 
+  const { data: allMatchesData, isLoading: matchesLoading } = useQuery<{ matches: Match[] }>({
+    queryKey: ['/api/matches'],
+    staleTime: 60000,
+  });
+  const allMatches = allMatchesData?.matches || [];
+
   const matchesJoined = new Set(teams.map((t) => t.matchId)).size;
   const totalTeams = teams.length;
+
+  const tournamentHistory = useMemo(() => {
+    const grouped: Record<string, { matchId: string; label: string; teamCount: number; bestPoints: number; status: string }> = {};
+    for (const t of teams) {
+      const matchInfo = allMatches.find(m => m.id === t.matchId);
+      if (!grouped[t.matchId]) {
+        grouped[t.matchId] = {
+          matchId: t.matchId,
+          label: matchInfo ? `${matchInfo.team1Short} vs ${matchInfo.team2Short}` : `Match`,
+          teamCount: 0,
+          bestPoints: 0,
+          status: matchInfo?.status || 'upcoming',
+        };
+      }
+      grouped[t.matchId].teamCount++;
+      const pts = t.totalPoints || 0;
+      if (pts > grouped[t.matchId].bestPoints) grouped[t.matchId].bestPoints = pts;
+    }
+    return Object.values(grouped).sort((a, b) => {
+      const order = ['live', 'completed', 'upcoming', 'delayed'];
+      return order.indexOf(a.status) - order.indexOf(b.status);
+    });
+  }, [teams, allMatches]);
 
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -82,9 +113,12 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.innerContainer, { paddingTop: insets.top + webTopInset + 8 }]}>
-          <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-            Profile
-          </Text>
+          <View style={styles.pageTitleRow}>
+            <View style={[styles.pageTitleAccent, { backgroundColor: colors.accent }]} />
+            <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Profile
+            </Text>
+          </View>
 
           <LinearGradient
             colors={colors.profileGradient as [string, string, string]}
@@ -204,6 +238,55 @@ export default function ProfileScreen() {
               </View>
             ))}
           </View>
+
+          {tournamentHistory.length > 0 && (
+            <View style={{ marginBottom: 20 }}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.sectionAccent, { backgroundColor: colors.accent }]} />
+                <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                  My Matches
+                </Text>
+              </View>
+              {matchesLoading ? (
+                <>
+                  <SkeletonBox width="100%" height={56} borderRadius={12} style={{ marginBottom: 8 }} colors={colors} />
+                  <SkeletonBox width="100%" height={56} borderRadius={12} style={{ marginBottom: 8 }} colors={colors} />
+                </>
+              ) : (
+                tournamentHistory.map((entry) => {
+                  const statusColor = entry.status === 'live' ? '#22C55E' : entry.status === 'completed' ? colors.textTertiary : colors.primary;
+                  const statusLabel = entry.status === 'live' ? 'LIVE' : entry.status === 'completed' ? 'DONE' : entry.status === 'delayed' ? 'DELAYED' : 'SOON';
+                  return (
+                    <Pressable
+                      key={entry.matchId}
+                      onPress={() => router.push({ pathname: '/(tabs)/match/[id]', params: { id: entry.matchId } })}
+                      style={[styles.historyRow, {
+                        backgroundColor: colors.card,
+                        borderColor: colors.cardBorder,
+                        ...(isWeb ? { cursor: 'pointer' as any } : {}),
+                      }]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>
+                          {entry.label}
+                        </Text>
+                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const, marginTop: 2 }}>
+                          {entry.teamCount} {entry.teamCount === 1 ? 'team' : 'teams'}
+                          {entry.bestPoints > 0 ? ` · ${entry.bestPoints} pts best` : ''}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                        <View style={{ backgroundColor: statusColor + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                          <Text style={{ color: statusColor, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>{statusLabel}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
+            </View>
+          )}
 
           {myRewards.length > 0 && (
             <View style={{ marginBottom: 16 }}>
@@ -378,10 +461,29 @@ const styles = StyleSheet.create({
     maxWidth: 700,
     alignSelf: 'center' as const,
   },
-  pageTitle: {
-    fontSize: 24,
+  pageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 20,
     paddingHorizontal: 4,
+  },
+  pageTitleAccent: {
+    width: 3,
+    height: 24,
+    borderRadius: 2,
+  },
+  pageTitle: {
+    fontSize: 24,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+    gap: 12,
   },
   profileCard: {
     borderRadius: 18,
