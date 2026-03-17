@@ -1747,63 +1747,36 @@ export default function AdminScreen() {
 
             {selectedMatchId && !loadingPlayers && matchPlayers.length > 0 && selectedMatch && (
               <View style={{ marginTop: 8 }}>
-                <View style={[styles.xiSummaryBar, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Ionicons name="people" size={16} color={colors.primary} />
-                    <Text style={[{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 15 }]}>
-                      {xiCount}
-                    </Text>
-                    <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_400Regular' as const, fontSize: 12 }]}>
-                      selected
-                    </Text>
-                  </View>
-                  <View style={[styles.xiValidBadge, {
-                    backgroundColor: xiCount >= 22 ? '#22C55E20' : xiCount >= 11 ? '#F59E0B20' : '#EF444420',
-                  }]}>
-                    <Text style={[{
-                      color: xiCount >= 22 ? '#22C55E' : xiCount >= 11 ? '#F59E0B' : '#EF4444',
-                      fontFamily: 'Inter_700Bold' as const,
-                      fontSize: 11,
-                    }]}>
-                      {xiCount >= 22 ? 'READY' : xiCount >= 11 ? `NEED ${22 - xiCount} MORE` : `NEED ${22 - xiCount} MORE`}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 4 }}>
-                  <Pressable
-                    onPress={() => loadPreviousXI(selectedMatch.team1Short)}
-                    disabled={loadingPrevXI}
-                    style={[styles.xiQuickBtn, { backgroundColor: colors.primary + '15', flex: 1, paddingVertical: 8, justifyContent: 'center' }]}
-                  >
-                    {loadingPrevXI ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <>
-                        <Ionicons name="clipboard-outline" size={14} color={colors.primary} />
-                        <Text style={{ color: colors.primary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, marginLeft: 4 }}>
-                          Copy {selectedMatch.team1Short} Last XI
+                {(() => {
+                  const t1Count = team1Players.filter(p => xiPlayerIds.has(p.id)).length;
+                  const t2Count = team2Players.filter(p => xiPlayerIds.has(p.id)).length;
+                  return (
+                    <View style={[styles.xiSummaryBar, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Ionicons name="people" size={15} color={colors.primary} />
+                          <Text style={[{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 14 }]}>
+                            {xiCount} selected
+                          </Text>
+                        </View>
+                        <Text style={[{ color: colors.textTertiary, fontFamily: 'Inter_400Regular' as const, fontSize: 11, marginTop: 2 }]}>
+                          {selectedMatch.team1Short}: {t1Count} · {selectedMatch.team2Short}: {t2Count}
                         </Text>
-                      </>
-                    )}
-                  </Pressable>
-                  <Pressable
-                    onPress={() => loadPreviousXI(selectedMatch.team2Short)}
-                    disabled={loadingPrevXI}
-                    style={[styles.xiQuickBtn, { backgroundColor: colors.primary + '15', flex: 1, paddingVertical: 8, justifyContent: 'center' }]}
-                  >
-                    {loadingPrevXI ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <>
-                        <Ionicons name="clipboard-outline" size={14} color={colors.primary} />
-                        <Text style={{ color: colors.primary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, marginLeft: 4 }}>
-                          Copy {selectedMatch.team2Short} Last XI
+                      </View>
+                      <View style={[styles.xiValidBadge, {
+                        backgroundColor: xiCount >= 22 ? '#22C55E20' : xiCount >= 11 ? '#F59E0B20' : '#EF444420',
+                      }]}>
+                        <Text style={[{
+                          color: xiCount >= 22 ? '#22C55E' : xiCount >= 11 ? '#F59E0B' : '#EF4444',
+                          fontFamily: 'Inter_700Bold' as const,
+                          fontSize: 11,
+                        }]}>
+                          {xiCount >= 22 ? 'READY' : `NEED ${22 - xiCount} MORE`}
                         </Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
+                      </View>
+                    </View>
+                  );
+                })()}
 
                 {[
                   { label: selectedMatch.team1Short, players: team1Players, teamNum: 1 },
@@ -1825,7 +1798,18 @@ export default function AdminScreen() {
                             </Text>
                           </View>
                         </View>
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <Pressable
+                            onPress={() => loadPreviousXI(label)}
+                            disabled={loadingPrevXI}
+                            style={[styles.xiQuickBtn, { backgroundColor: colors.primary + '15' }]}
+                          >
+                            {loadingPrevXI
+                              ? <ActivityIndicator size="small" color={colors.primary} />
+                              : <Ionicons name="clipboard-outline" size={13} color={colors.primary} />
+                            }
+                            <Text style={{ color: colors.primary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>Copy Last XI</Text>
+                          </Pressable>
                           <Pressable
                             onPress={() => {
                               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1837,8 +1821,8 @@ export default function AdminScreen() {
                             }}
                             style={[styles.xiQuickBtn, { backgroundColor: '#EF444415' }]}
                           >
-                            <Ionicons name="close-circle" size={14} color="#EF4444" />
-                            <Text style={{ color: '#EF4444', fontSize: 11, fontFamily: 'Inter_600SemiBold' as const }}>Clear</Text>
+                            <Ionicons name="close-circle" size={13} color="#EF4444" />
+                            <Text style={{ color: '#EF4444', fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>Clear</Text>
                           </Pressable>
                           <Pressable
                             onPress={() => {
@@ -1851,8 +1835,8 @@ export default function AdminScreen() {
                             }}
                             style={[styles.xiQuickBtn, { backgroundColor: '#22C55E15' }]}
                           >
-                            <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
-                            <Text style={{ color: '#22C55E', fontSize: 11, fontFamily: 'Inter_600SemiBold' as const }}>All</Text>
+                            <Ionicons name="checkmark-circle" size={13} color="#22C55E" />
+                            <Text style={{ color: '#22C55E', fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>All</Text>
                           </Pressable>
                         </View>
                       </View>
@@ -1860,8 +1844,9 @@ export default function AdminScreen() {
                       <View style={styles.xiChipGrid}>
                         {teamPlayers.map(p => {
                           const isIn = xiPlayerIds.has(p.id);
+                          const chipWidth = Platform.OS === 'web' ? '23%' : '31%';
                           return (
-                            <View key={p.id} style={{ position: 'relative', width: '31%' }}>
+                            <View key={p.id} style={{ position: 'relative', width: chipWidth }}>
                               <Pressable
                                 onPress={() => toggleXIPlayer(p.id)}
                                 style={[
@@ -1873,9 +1858,10 @@ export default function AdminScreen() {
                                 ]}
                               >
                                 <Text style={[{
-                                  color: isIn ? '#FFF' : colors.textSecondary,
+                                  color: isIn ? '#FFFFFFCC' : colors.textSecondary,
                                   fontSize: 9,
                                   fontFamily: 'Inter_700Bold' as const,
+                                  letterSpacing: 0.3,
                                 }]}>
                                   {p.role}
                                 </Text>
@@ -1887,7 +1873,7 @@ export default function AdminScreen() {
                                   {p.name.split(' ').pop()}
                                 </Text>
                                 <Text style={[{
-                                  color: isIn ? '#FFFFFFAA' : colors.textTertiary,
+                                  color: isIn ? '#FFFFFF80' : colors.textTertiary,
                                   fontSize: 9,
                                   fontFamily: 'Inter_400Regular' as const,
                                 }]} numberOfLines={1}>
@@ -1911,7 +1897,7 @@ export default function AdminScreen() {
                 <Pressable
                   onPress={savePlayingXI}
                   disabled={savingXI || xiCount < 11 || xiCount > 22}
-                  style={[styles.xiSaveBtn, { opacity: (savingXI || xiCount < 11 || xiCount > 22) ? 0.4 : 1 }]}
+                  style={[styles.xiSaveBtn, { opacity: (savingXI || xiCount < 11 || xiCount > 22) ? 0.45 : 1 }]}
                 >
                   <LinearGradient
                     colors={['#22C55E', '#16A34A']}
@@ -1929,6 +1915,12 @@ export default function AdminScreen() {
                     </Text>
                   </LinearGradient>
                 </Pressable>
+
+                {(xiCount < 11 || xiCount > 22) && !savingXI && (
+                  <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center', marginTop: 6 }}>
+                    {xiCount > 22 ? `${xiCount - 22} too many — max 22` : `Select at least ${11 - xiCount} more player${11 - xiCount === 1 ? '' : 's'}`}
+                  </Text>
+                )}
 
                 {xiMessage !== '' && (
                   <View style={[styles.feedbackPill, {
@@ -1960,53 +1952,56 @@ export default function AdminScreen() {
               </Text>
 
               <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>DISPLAY NAME</Text>
                 <TextInput
                   style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
                   value={addPlayerName}
                   onChangeText={setAddPlayerName}
-                  placeholder="Player Name (display)"
+                  placeholder="e.g. Virat Kohli"
                   placeholderTextColor={colors.textTertiary}
                 />
+                <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>API NAME <Text style={{ fontWeight: '400', textTransform: 'none' as const }}>· optional, for scorecard matching</Text></Text>
                 <TextInput
                   style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
                   value={addPlayerApiName}
                   onChangeText={setAddPlayerApiName}
-                  placeholder="API Name (optional, for scorecard match)"
+                  placeholder="e.g. V Kohli"
                   placeholderTextColor={colors.textTertiary}
                 />
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
-                    {selectedMatch && [
-                      { label: selectedMatch.team1Short, value: selectedMatch.team1 },
-                      { label: selectedMatch.team2Short, value: selectedMatch.team2 },
-                    ].map(opt => (
-                      <Pressable
-                        key={opt.value}
-                        onPress={() => setAddPlayerTeam(opt.value)}
-                        style={{
-                          flex: 1,
-                          paddingVertical: 10,
-                          borderRadius: 8,
-                          borderWidth: 1,
-                          alignItems: 'center',
-                          backgroundColor: addPlayerTeam === opt.value ? colors.primary : colors.surfaceElevated,
-                          borderColor: addPlayerTeam === opt.value ? colors.primary : colors.border,
-                        }}
-                      >
-                        <Text style={{ color: addPlayerTeam === opt.value ? '#FFF' : colors.text, fontFamily: 'Inter_700Bold', fontSize: 13 }}>{opt.label}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                  <TextInput
-                    style={[styles.addPlayerInput, { width: 60, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium', textAlign: 'center' }]}
-                    value={addPlayerCredits}
-                    onChangeText={setAddPlayerCredits}
-                    placeholder="Cr"
-                    placeholderTextColor={colors.textTertiary}
-                    keyboardType="numeric"
-                  />
+                <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>TEAM</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                  {selectedMatch && [
+                    { label: selectedMatch.team1Short, value: selectedMatch.team1 },
+                    { label: selectedMatch.team2Short, value: selectedMatch.team2 },
+                  ].map(opt => (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => setAddPlayerTeam(opt.value)}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        alignItems: 'center',
+                        backgroundColor: addPlayerTeam === opt.value ? colors.primary : colors.surfaceElevated,
+                        borderColor: addPlayerTeam === opt.value ? colors.primary : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: addPlayerTeam === opt.value ? '#FFF' : colors.text, fontFamily: 'Inter_700Bold', fontSize: 13 }}>{opt.label}</Text>
+                    </Pressable>
+                  ))}
                 </View>
-                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>CREDITS</Text>
+                <TextInput
+                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
+                  value={addPlayerCredits}
+                  onChangeText={setAddPlayerCredits}
+                  placeholder="e.g. 9.5"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>ROLE</Text>
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                   {['WK', 'BAT', 'AR', 'BOWL'].map(r => (
                     <Pressable
                       key={r}
@@ -2025,14 +2020,14 @@ export default function AdminScreen() {
                 <Pressable
                   onPress={handleAddPlayer}
                   disabled={addingPlayer}
-                  style={{ height: 44, borderRadius: 12, backgroundColor: colors.primary + '20', justifyContent: 'center', alignItems: 'center', flexDirection: 'row' }}
+                  style={{ height: 44, borderRadius: 12, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', opacity: addingPlayer ? 0.6 : 1 }}
                 >
                   {addingPlayer ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator size="small" color="#FFF" />
                   ) : (
                     <>
-                      <Ionicons name="person-add" size={18} color={colors.primary} />
-                      <Text style={{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 14, marginLeft: 8 }}>Add Player</Text>
+                      <Ionicons name="person-add" size={18} color="#FFF" />
+                      <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 14, marginLeft: 8 }}>Add Player</Text>
                     </>
                   )}
                 </Pressable>
@@ -2188,120 +2183,147 @@ export default function AdminScreen() {
                       <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 11, marginTop: 2 }, { color: m.playerCount > 0 ? colors.success : '#EF4444' }]}>
                         Players: {m.playerCount ?? 0} {m.playerCount > 0 ? '✓' : '— squad not loaded'}
                       </Text>
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                        {m.hasExternalId && (
-                          <Pressable
-                            onPress={async () => {
-                              setForceSyncing(true);
-                              setForceSyncResult('');
-                              try {
-                                const res = await apiRequest('POST', `/api/admin/matches/${m.id}/fetch-squad`);
-                                const data = await res.json();
-                                setForceSyncResult(data.message || 'Done');
-                                if (Platform.OS !== 'web') Haptics.notificationAsync(data.totalPlayers > 0 ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning);
-                                loadMatchDebug();
-                              } catch (e: any) {
-                                setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
-                              } finally {
-                                setForceSyncing(false);
-                              }
-                            }}
-                            disabled={forceSyncing}
-                            style={[styles.debugBtn, { backgroundColor: colors.primary + '15' }]}
-                          >
-                            <Ionicons name="download" size={14} color={colors.primary} />
-                            <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                              Fetch Squad
-                            </Text>
-                          </Pressable>
-                        )}
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        {/* Data ops group */}
+                        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                          {m.hasExternalId && (
+                            <Pressable
+                              onPress={async () => {
+                                setForceSyncing(true);
+                                setForceSyncResult('');
+                                try {
+                                  const res = await apiRequest('POST', `/api/admin/matches/${m.id}/fetch-squad`);
+                                  const data = await res.json();
+                                  setForceSyncResult(data.message || 'Done');
+                                  if (Platform.OS !== 'web') Haptics.notificationAsync(data.totalPlayers > 0 ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning);
+                                  loadMatchDebug();
+                                } catch (e: any) {
+                                  setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
+                                } finally {
+                                  setForceSyncing(false);
+                                }
+                              }}
+                              disabled={forceSyncing}
+                              style={[styles.debugBtn, { backgroundColor: colors.primary + '15' }]}
+                            >
+                              <Ionicons name="download" size={14} color={colors.primary} />
+                              <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                                Fetch Squad
+                              </Text>
+                            </Pressable>
+                          )}
+                          {(m.status === 'live' || m.status === 'delayed') && (
+                            <Pressable
+                              onPress={async () => {
+                                setForceSyncing(true);
+                                setForceSyncResult('');
+                                try {
+                                  const res = await apiRequest('POST', '/api/debug/force-sync', { matchId: m.id });
+                                  const data = await res.json();
+                                  setForceSyncResult(data.message || 'Sync complete');
+                                  loadMatchDebug();
+                                } catch (e: any) {
+                                  setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
+                                } finally {
+                                  setForceSyncing(false);
+                                }
+                              }}
+                              disabled={forceSyncing}
+                              style={[styles.debugBtn, { backgroundColor: colors.warning + '15' }]}
+                            >
+                              <Ionicons name="flash" size={14} color={colors.warning} />
+                              <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                                Force Sync
+                              </Text>
+                            </Pressable>
+                          )}
+                        </View>
+
+                        {/* Destructive ops group — subtle border-left separator */}
                         {(m.status === 'live' || m.status === 'delayed') && (
-                          <Pressable
-                            onPress={async () => {
-                              setForceSyncing(true);
-                              setForceSyncResult('');
-                              try {
-                                const res = await apiRequest('POST', '/api/debug/force-sync', { matchId: m.id });
-                                const data = await res.json();
-                                setForceSyncResult(data.message || 'Sync complete');
-                                loadMatchDebug();
-                              } catch (e: any) {
-                                setForceSyncResult('Failed: ' + (e.message || 'Unknown error'));
-                              } finally {
-                                setForceSyncing(false);
-                              }
-                            }}
-                            disabled={forceSyncing}
-                            style={[styles.debugBtn, { backgroundColor: colors.warning + '15' }]}
-                          >
-                            <Ionicons name="flash" size={14} color={colors.warning} />
-                            <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                              Force Sync
-                            </Text>
-                          </Pressable>
-                        )}
-                        {(m.status === 'live' || m.status === 'delayed') && (
-                          <Pressable
-                            onPress={() => {
-                              Alert.alert(
-                                'Force Complete Match',
-                                `Are you sure you want to force complete ${m.team1Short} vs ${m.team2Short}? This will mark the match as completed and trigger reward distribution.`,
-                                [
-                                  { text: 'Cancel', style: 'cancel' },
-                                  {
-                                    text: 'Confirm',
-                                    style: 'destructive',
-                                    onPress: async () => {
-                                      setMarkingCompleteId(m.id);
-                                      setForceSyncResult('Processing match completion...');
-                                      try {
-                                        const res = await apiRequest('POST', `/api/admin/matches/${m.id}/mark-completed`);
-                                        const data = await res.json();
-                                        setForceSyncResult('✔ Match forced to completion. ' + (data.message || 'Scores recalculated.'));
-                                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                                        await loadMatches();
-                                        loadMatchDebug();
-                                      } catch (e: any) {
-                                        setForceSyncResult('❌ Failed to force completion: ' + (e.message || 'Unknown error'));
-                                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                                      } finally {
-                                        setMarkingCompleteId(null);
-                                      }
+                          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: colors.border }}>
+                            <Pressable
+                              onPress={() => {
+                                Alert.alert(
+                                  'Force Complete Match',
+                                  `Are you sure you want to force complete ${m.team1Short} vs ${m.team2Short}? This will mark the match as completed and trigger reward distribution.`,
+                                  [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    {
+                                      text: 'Confirm',
+                                      style: 'destructive',
+                                      onPress: async () => {
+                                        setMarkingCompleteId(m.id);
+                                        setForceSyncResult('Processing match completion...');
+                                        try {
+                                          const res = await apiRequest('POST', `/api/admin/matches/${m.id}/mark-completed`);
+                                          const data = await res.json();
+                                          setForceSyncResult('✔ Match forced to completion. ' + (data.message || 'Scores recalculated.'));
+                                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                          await loadMatches();
+                                          loadMatchDebug();
+                                        } catch (e: any) {
+                                          setForceSyncResult('❌ Failed to force completion: ' + (e.message || 'Unknown error'));
+                                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                        } finally {
+                                          setMarkingCompleteId(null);
+                                        }
+                                      },
                                     },
-                                  },
-                                ]
-                              );
+                                  ]
+                                );
+                              }}
+                              disabled={markingCompleteId === m.id}
+                              style={[styles.debugBtn, { backgroundColor: '#F59E0B12', opacity: markingCompleteId === m.id ? 0.5 : 1 }]}
+                            >
+                              {markingCompleteId === m.id
+                                ? <ActivityIndicator size="small" color="#F59E0B" />
+                                : <Ionicons name="flag" size={14} color="#F59E0B" />
+                              }
+                              <Text style={[{ color: '#F59E0B', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                                {markingCompleteId === m.id ? 'Processing...' : 'Mark Completed'}
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={async () => {
+                                try {
+                                  const res = await apiRequest('POST', `/api/admin/matches/${m.id}/purge-points`);
+                                  const data = await res.json();
+                                  setForceSyncResult(data.message || 'Points purged');
+                                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                                } catch (e: any) {
+                                  setForceSyncResult('Purge failed: ' + (e.message || 'Unknown error'));
+                                }
+                              }}
+                              style={[styles.debugBtn, { backgroundColor: colors.error + '10' }]}
+                            >
+                              <Ionicons name="trash-outline" size={14} color={colors.error} />
+                              <Text style={[{ color: colors.error, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                                Purge Points
+                              </Text>
+                            </Pressable>
+                          </View>
+                        )}
+                        {m.status !== 'live' && m.status !== 'delayed' && (
+                          <Pressable
+                            onPress={async () => {
+                              try {
+                                const res = await apiRequest('POST', `/api/admin/matches/${m.id}/purge-points`);
+                                const data = await res.json();
+                                setForceSyncResult(data.message || 'Points purged');
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                              } catch (e: any) {
+                                setForceSyncResult('Purge failed: ' + (e.message || 'Unknown error'));
+                              }
                             }}
-                            disabled={markingCompleteId === m.id}
-                            style={[styles.debugBtn, { backgroundColor: '#EF444415', opacity: markingCompleteId === m.id ? 0.5 : 1 }]}
+                            style={[styles.debugBtn, { backgroundColor: colors.error + '10' }]}
                           >
-                            {markingCompleteId === m.id
-                              ? <ActivityIndicator size="small" color="#EF4444" />
-                              : <Ionicons name="flag" size={14} color="#EF4444" />
-                            }
-                            <Text style={[{ color: '#EF4444', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                              {markingCompleteId === m.id ? 'Processing...' : 'Mark Completed'}
+                            <Ionicons name="trash-outline" size={14} color={colors.error} />
+                            <Text style={[{ color: colors.error, fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
+                              Purge Points
                             </Text>
                           </Pressable>
                         )}
-                        <Pressable
-                          onPress={async () => {
-                            try {
-                              const res = await apiRequest('POST', `/api/admin/matches/${m.id}/purge-points`);
-                              const data = await res.json();
-                              setForceSyncResult(data.message || 'Points purged');
-                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                            } catch (e: any) {
-                              setForceSyncResult('Purge failed: ' + (e.message || 'Unknown error'));
-                            }
-                          }}
-                          style={[styles.debugBtn, { backgroundColor: '#F59E0B15' }]}
-                        >
-                          <Ionicons name="trash-outline" size={14} color="#F59E0B" />
-                          <Text style={[{ color: '#F59E0B', fontFamily: 'Inter_600SemiBold', fontSize: 11, marginLeft: 4 }]}>
-                            Purge Points
-                          </Text>
-                        </Pressable>
                       </View>
                     </View>
                   ))
@@ -2360,9 +2382,14 @@ export default function AdminScreen() {
 
             {playerMapData && (
               <View style={[{ backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, padding: 14 }]}>
-                <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginBottom: 10 }]}>
-                  DB Players (0 pts = possibly unmatched)
-                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>
+                    Playing XI players
+                  </Text>
+                  <Text style={[{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 10 }]}>
+                    sorted by pts ↑ · 0 pts = unmatched
+                  </Text>
+                </View>
                 {playerMapData.dbPlayers
                   .filter(p => p.isPlayingXI)
                   .sort((a: any, b: any) => (a.points || 0) - (b.points || 0))
@@ -2391,7 +2418,7 @@ export default function AdminScreen() {
                         {p.name}
                       </Text>
                       <Text style={[{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 10 }]}>
-                        {p.role} | {p.teamShort} | pts: {p.points || 0}{p.apiName ? ` | API: ${p.apiName}` : ''}
+                        {p.role} · {p.teamShort} · {p.points || 0} pts{p.apiName ? ` · API: ${p.apiName}` : ''}
                       </Text>
                     </View>
                     {selectedDbPlayer === p.id && (
@@ -2401,10 +2428,19 @@ export default function AdminScreen() {
                 ))}
 
                 {selectedDbPlayer && (
-                  <View style={{ marginTop: 14, gap: 8 }}>
-                    <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12 }]}>
-                      Rename to match scorecard:
+                  <View style={{
+                    marginTop: 12,
+                    gap: 8,
+                    padding: 12,
+                    borderRadius: 10,
+                    backgroundColor: colors.surface,
+                    borderTopWidth: 1,
+                    borderTopColor: colors.border + '50',
+                  }}>
+                    <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 12, marginBottom: 2 }]}>
+                      Rename to match scorecard
                     </Text>
+                    <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>DISPLAY NAME</Text>
                     <TextInput
                       value={playerMapNewName}
                       onChangeText={setPlayerMapNewName}
@@ -2412,27 +2448,28 @@ export default function AdminScreen() {
                       placeholderTextColor={colors.textTertiary}
                       style={[styles.addPlayerInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
                     />
+                    <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>API NAME <Text style={{ fontWeight: '400', textTransform: 'none' as const }}>· scorecard override</Text></Text>
                     <TextInput
                       value={playerMapApiName}
                       onChangeText={setPlayerMapApiName}
-                      placeholder="API Name (scorecard match override)"
+                      placeholder="API Name"
                       placeholderTextColor={colors.textTertiary}
                       style={[styles.addPlayerInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
                     />
 
                     {playerMapData.scorecardNames.length > 0 && (
                       <View>
-                        <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 11, marginBottom: 4 }]}>
-                          Scorecard names (tap to use):
+                        <Text style={[{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 11, marginBottom: 6 }]}>
+                          Tap a scorecard name to use it:
                         </Text>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                           {playerMapData.scorecardNames.map((n: string) => (
                             <Pressable
                               key={n}
                               onPress={() => setPlayerMapNewName(n)}
-                              style={[{ backgroundColor: colors.primary + '15', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }]}
+                              style={[{ backgroundColor: colors.primary + '15', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: colors.primary + '30' }]}
                             >
-                              <Text style={[{ color: colors.primary, fontFamily: 'Inter_500Medium', fontSize: 11 }]}>
+                              <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontSize: 12 }]}>
                                 {n}
                               </Text>
                             </Pressable>
@@ -2461,10 +2498,10 @@ export default function AdminScreen() {
                           setPlayerMapMsg('Failed: ' + (e.message || ''));
                         }
                       }}
-                      style={[styles.debugBtn, { backgroundColor: colors.success + '15', alignSelf: 'flex-start' }]}
+                      style={{ height: 44, borderRadius: 10, backgroundColor: colors.success, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8 }}
                     >
-                      <Ionicons name="link" size={14} color={colors.success} />
-                      <Text style={[{ color: colors.success, fontFamily: 'Inter_600SemiBold', fontSize: 12, marginLeft: 4 }]}>
+                      <Ionicons name="link" size={16} color="#FFF" />
+                      <Text style={[{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 14 }]}>
                         Map Player
                       </Text>
                     </Pressable>
@@ -2483,31 +2520,35 @@ export default function AdminScreen() {
               Add reward codes that auto-distribute to match winners (Rank 1 player per match).
             </Text>
 
-            <View style={{ gap: 8, marginTop: 12 }}>
+            <View style={{ gap: 4, marginTop: 12 }}>
+              <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>BRAND</Text>
               <TextInput
-                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
-                placeholder="Brand (e.g. Zomato)"
+                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card, marginBottom: 8 }]}
+                placeholder="e.g. Zomato"
                 placeholderTextColor={colors.textSecondary}
                 value={rewardBrand}
                 onChangeText={setRewardBrand}
               />
+              <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>REWARD TITLE</Text>
               <TextInput
-                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
-                placeholder="Reward Title (e.g. ₹100 Off)"
+                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card, marginBottom: 8 }]}
+                placeholder="e.g. ₹100 Off"
                 placeholderTextColor={colors.textSecondary}
                 value={rewardTitle}
                 onChangeText={setRewardTitle}
               />
+              <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>COUPON CODE</Text>
               <TextInput
-                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
-                placeholder="Coupon Code"
+                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card, marginBottom: 8 }]}
+                placeholder="e.g. CRICKET100"
                 placeholderTextColor={colors.textSecondary}
                 value={rewardCode}
                 onChangeText={setRewardCode}
               />
+              <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>TERMS <Text style={{ fontWeight: '400', textTransform: 'none' as const }}>· optional</Text></Text>
               <TextInput
-                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]}
-                placeholder="Terms (optional)"
+                style={[styles.addPlayerInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card, marginBottom: 8 }]}
+                placeholder="e.g. Valid till 30 April"
                 placeholderTextColor={colors.textSecondary}
                 value={rewardTerms}
                 onChangeText={setRewardTerms}
@@ -2521,7 +2562,7 @@ export default function AdminScreen() {
                   colors={['#FFD700', '#FFA500']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={[styles.syncBtnGradient, { height: 46 }]}
+                  style={[styles.syncBtnGradient, { height: 44 }]}
                 >
                   {addingReward ? (
                     <ActivityIndicator color="#000" size="small" />
@@ -3159,6 +3200,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     cursor: 'pointer' as any,
+  },
+  formFieldLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold' as const,
+    letterSpacing: 0.6,
+    marginBottom: 4,
+    textTransform: 'uppercase' as const,
   },
   matchCard: {
     borderRadius: 14,
