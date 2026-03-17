@@ -227,6 +227,8 @@ export default function MatchDetailScreen() {
     ? new Date(match.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : null;
 
+  const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
   if (matchLoading || playersLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -287,7 +289,6 @@ export default function MatchDetailScreen() {
   const canEdit = canEditTeam(match.startTime, match.status, match.revisedStartTime, match.adminUnlockOverride);
   const canCreateMore = userTeams.length < 3;
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
-  const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const handleRepairTeams = async () => {
     if (!match) return;
