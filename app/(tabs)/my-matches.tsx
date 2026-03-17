@@ -19,6 +19,9 @@ import { getTimeUntilMatch, Match } from '@/lib/mock-data';
 import { getQueryFn } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SkeletonBox } from '@/components/SkeletonBox';
+import Colors from '@/constants/colors';
+
+type AppColors = typeof Colors.dark;
 
 const isWeb = Platform.OS === 'web';
 
@@ -33,7 +36,7 @@ interface TeamData {
   createdAt: string;
 }
 
-function MatchCardSkeleton({ colors }: { colors: any }) {
+function MatchCardSkeleton({ colors }: { colors: AppColors }) {
   return (
     <View style={{
       borderRadius: 16,

@@ -16,6 +16,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/query-client';
 import { SkeletonBox } from '@/components/SkeletonBox';
+import Colors from '@/constants/colors';
+
+type AppColors = typeof Colors.dark;
 
 const isWeb = Platform.OS === 'web';
 
@@ -26,7 +29,7 @@ interface StandingEntry {
   matchCount: number;
 }
 
-function TopThreeCard({ entry, position, isCurrentUser, colors }: { entry: StandingEntry; position: number; isCurrentUser: boolean; colors: any }) {
+function TopThreeCard({ entry, position, isCurrentUser, colors }: { entry: StandingEntry; position: number; isCurrentUser: boolean; colors: AppColors }) {
   const medalColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
   const medalIcons: ('medal' | 'medal' | 'medal-outline')[] = ['medal', 'medal', 'medal-outline'];
   const sizes = [64, 52, 52];
@@ -54,7 +57,7 @@ function TopThreeCard({ entry, position, isCurrentUser, colors }: { entry: Stand
   );
 }
 
-function LeaderboardRowSkeleton({ colors }: { colors: any }) {
+function LeaderboardRowSkeleton({ colors }: { colors: AppColors }) {
   return (
     <View style={{
       flexDirection: 'row',
@@ -79,7 +82,7 @@ function LeaderboardRowSkeleton({ colors }: { colors: any }) {
   );
 }
 
-function PodiumSkeleton({ colors }: { colors: any }) {
+function PodiumSkeleton({ colors }: { colors: AppColors }) {
   return (
     <View style={{
       flexDirection: 'row',

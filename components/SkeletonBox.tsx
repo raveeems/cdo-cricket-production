@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated } from 'react-native';
+import { Animated, ViewStyle } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export function SkeletonBox({
@@ -11,7 +11,7 @@ export function SkeletonBox({
   width?: number | string;
   height: number;
   borderRadius?: number;
-  style?: any;
+  style?: ViewStyle;
 }) {
   const { colors } = useTheme();
   const opacity = useRef(new Animated.Value(0.25)).current;

@@ -23,6 +23,9 @@ import { useTeams } from '@/contexts/TeamContext';
 import { getTimeUntilMatch, Match } from '@/lib/mock-data';
 import { queryClient } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
+import Colors from '@/constants/colors';
+
+type AppColors = typeof Colors.dark;
 
 interface MatchWithParticipants extends Match {
   participantCount?: number;
@@ -30,7 +33,7 @@ interface MatchWithParticipants extends Match {
 
 const isWeb = Platform.OS === 'web';
 
-function CompactCardSkeleton({ colors }: { colors: any }) {
+function CompactCardSkeleton({ colors }: { colors: AppColors }) {
   return (
     <View style={{
       borderRadius: 14,
