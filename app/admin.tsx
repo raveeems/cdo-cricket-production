@@ -921,9 +921,12 @@ export default function AdminScreen() {
             }} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </Pressable>
-            <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-              Admin Panel
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 3, height: 22, borderRadius: 2, backgroundColor: colors.accent }} />
+              <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+                Admin Panel
+              </Text>
+            </View>
             <View style={{ width: 40 }} />
           </View>
 
@@ -984,6 +987,12 @@ export default function AdminScreen() {
                 <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular' }}>No data</Text>
               )}
             </View>
+          </View>
+
+          <View style={styles.groupDivider}>
+            <View style={[styles.groupDividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.groupDividerText, { color: colors.textTertiary }]}>USER MANAGEMENT</Text>
+            <View style={[styles.groupDividerLine, { backgroundColor: colors.border }]} />
           </View>
 
           <View style={styles.section}>
@@ -1061,6 +1070,12 @@ export default function AdminScreen() {
                 ))}
               </View>
             )}
+          </View>
+
+          <View style={styles.groupDivider}>
+            <View style={[styles.groupDividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.groupDividerText, { color: colors.textTertiary }]}>MATCH OPERATIONS</Text>
+            <View style={[styles.groupDividerLine, { backgroundColor: colors.border }]} />
           </View>
 
           <View style={styles.section}>
@@ -1176,152 +1191,176 @@ export default function AdminScreen() {
               Toggle Impact Picks per match, recalculate scores, or void matches.
             </Text>
 
-            {matches.map(m => (
-              <View key={m.id} style={[styles.generateCard, { backgroundColor: colors.card, borderColor: m.isVoid ? colors.error + '40' : colors.cardBorder, marginBottom: 8 }]}>
-                {/* Row 1: match info */}
-                <View style={{ marginBottom: 10 }}>
-                  <Text style={{ color: m.isVoid ? colors.error : colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>
+            {matches.map(m => {
+              const matchStatusLabel = m.status === 'live' ? 'LIVE' : m.status === 'completed' ? 'DONE' : 'UPCOMING';
+              const matchStatusColor = m.status === 'live' ? '#FF6B2C' : m.status === 'completed' ? '#5A6380' : '#22C55E';
+              return (
+              <View key={m.id} style={[styles.matchCard, { backgroundColor: colors.card, borderColor: m.isVoid ? colors.error + '50' : colors.cardBorder }]}>
+
+                {/* Card header: title + status chips */}
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 5 }}>
+                  <Text style={{ flex: 1, color: colors.text, fontSize: 15, fontFamily: 'Inter_700Bold' as const }}>
                     {m.team1Short} vs {m.team2Short}
-                    {m.isVoid ? <Text style={{ color: colors.error }}> (VOID)</Text> : null}
-                    {m.officialWinner ? <Text style={{ color: '#F59E0B', fontSize: 11 }}> · 🏆 {m.officialWinner}</Text> : null}
                   </Text>
-                  <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
-                    {m.status}{m.revisedStartTime
-                      ? ` · ⏰ ${new Date(m.revisedStartTime).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-                      : ` · ${new Date(m.startTime).toLocaleDateString()}`}
-                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 4, flexShrink: 0, flexWrap: 'nowrap' }}>
+                    <View style={[styles.statusChip, { backgroundColor: matchStatusColor + '20', borderColor: matchStatusColor + '60' }]}>
+                      <Text style={[styles.statusChipText, { color: matchStatusColor }]}>{matchStatusLabel}</Text>
+                    </View>
+                    {m.isVoid && (
+                      <View style={[styles.statusChip, { backgroundColor: colors.error + '20', borderColor: colors.error + '60' }]}>
+                        <Text style={[styles.statusChipText, { color: colors.error }]}>VOID</Text>
+                      </View>
+                    )}
+                    <View style={[styles.statusChip, {
+                      backgroundColor: m.impactFeaturesEnabled ? '#F59E0B20' : colors.surfaceElevated,
+                      borderColor: m.impactFeaturesEnabled ? '#F59E0B60' : colors.border,
+                    }]}>
+                      <Text style={[styles.statusChipText, { color: m.impactFeaturesEnabled ? '#F59E0B' : colors.textTertiary }]}>
+                        ⚡{m.impactFeaturesEnabled ? 'ON' : 'OFF'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
 
-                {/* Row 2: action buttons — flex wrap so all are visible on mobile */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-                  {/* ⚡ Impact toggle */}
-                  <Pressable
-                    onPress={() => toggleImpactFeatures(m.id, !m.impactFeaturesEnabled)}
-                    disabled={impactTogglingId === m.id}
-                    accessibilityLabel="Toggle Impact Picks"
-                    accessibilityHint="Enable or disable Impact Player picks for this match"
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 8,
-                      borderRadius: 8,
-                      backgroundColor: m.impactFeaturesEnabled ? '#F59E0B20' : colors.surfaceElevated,
-                      borderWidth: 1,
-                      borderColor: m.impactFeaturesEnabled ? '#F59E0B' : colors.border,
-                    }}
-                  >
-                    <Text style={{ color: m.impactFeaturesEnabled ? '#F59E0B' : colors.textTertiary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>
-                      {impactTogglingId === m.id ? '...' : m.impactFeaturesEnabled ? '⚡ ON' : '⚡ OFF'}
-                    </Text>
-                  </Pressable>
-
-                  {/* 🔒 Lock/Unlock — all non-completed */}
-                  {m.status !== 'completed' && (
-                    <Pressable
-                      onPress={() => toggleAdminUnlock(m.id, !m.adminUnlockOverride)}
-                      disabled={lockTogglingId === m.id}
-                      accessibilityLabel={m.adminUnlockOverride ? 'Lock Entry' : 'Unlock Entry'}
-                      accessibilityHint="Force-lock or unlock team entry for this match regardless of deadline"
-                      style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.adminUnlockOverride ? '#10B98120' : colors.surfaceElevated, borderWidth: 1, borderColor: m.adminUnlockOverride ? '#10B981' : colors.border }}
-                    >
-                      {lockTogglingId === m.id
-                        ? <ActivityIndicator size="small" color={colors.textTertiary} />
-                        : <Ionicons
-                            name={m.adminUnlockOverride ? 'lock-open-outline' : 'lock-closed-outline'}
-                            size={16}
-                            color={m.adminUnlockOverride ? '#10B981' : colors.textTertiary}
-                          />
-                      }
-                      <Text style={{ color: m.adminUnlockOverride ? '#10B981' : colors.textTertiary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>
-                        {m.adminUnlockOverride ? 'Unlocked' : 'Lock'}
-                      </Text>
-                    </Pressable>
+                {/* Meta row */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+                  <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                    {m.revisedStartTime
+                      ? `⏰ ${new Date(m.revisedStartTime).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} (override)`
+                      : new Date(m.startTime).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </Text>
+                  {m.adminUnlockOverride && (
+                    <Text style={{ color: '#10B981', fontSize: 11, fontFamily: 'Inter_500Medium' as const }}>🔓 Unlocked</Text>
                   )}
+                  {m.officialWinner && (
+                    <Text style={{ color: '#F59E0B', fontSize: 11, fontFamily: 'Inter_500Medium' as const }}>🏆 {m.officialWinner}</Text>
+                  )}
+                </View>
 
-                  {/* 🔄 Recalculate Scores */}
+                {/* Primary actions row */}
+                <View style={{ flexDirection: 'row', gap: 7, marginBottom: 7 }}>
                   <Pressable
                     onPress={() => recalculateMatch(m.id)}
                     disabled={recalculating}
                     accessibilityLabel="Recalculate Scores"
-                    accessibilityHint="Recalculate all team and prediction scores for this match"
-                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: recalculating ? 0.5 : 1 }}
+                    style={[styles.actionBtn, { flex: 1, borderColor: colors.primary + '60', opacity: recalculating ? 0.5 : 1 }]}
                   >
                     {recalculating
                       ? <ActivityIndicator size="small" color={colors.primary} />
-                      : <Ionicons name="sync-outline" size={18} color={colors.primary} />
-                    }
-                    <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Recalc</Text>
+                      : <Ionicons name="sync-outline" size={13} color={colors.primary} />}
+                    <Text style={[styles.actionBtnText, { color: colors.primary }]}>Recalc</Text>
                   </Pressable>
 
-                  {/* ⏳ Entry Deadline Override — only time-related action */}
                   <Pressable
                     onPress={() => openDeadline(m)}
                     accessibilityLabel="Entry Deadline Override"
-                    accessibilityHint="Override the fantasy entry cutoff time. Does not change the official API start time."
-                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.revisedStartTime ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.revisedStartTime ? '#F59E0B' : colors.border }}
+                    style={[styles.actionBtn, { flex: 1, borderColor: m.revisedStartTime ? '#F59E0B70' : colors.border, backgroundColor: m.revisedStartTime ? '#F59E0B0D' : undefined }]}
                   >
-                    <Ionicons name="hourglass-outline" size={16} color={m.revisedStartTime ? '#F59E0B' : colors.textTertiary} />
-                    <Text style={{ color: m.revisedStartTime ? '#F59E0B' : colors.textTertiary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Deadline</Text>
+                    <Ionicons name="hourglass-outline" size={13} color={m.revisedStartTime ? '#F59E0B' : colors.textSecondary} />
+                    <Text style={[styles.actionBtnText, { color: m.revisedStartTime ? '#F59E0B' : colors.textSecondary }]}>Deadline</Text>
                   </Pressable>
 
-                  {/* 🚫 Void/Cancel — only when not already voided */}
-                  {!m.isVoid && (
-                    <Pressable
-                      onPress={() => { console.log('[Admin] Void button pressed for match:', m.id); setVoidResult(''); setVoidConfirmMatchId(m.id); }}
-                      disabled={voiding}
-                      accessibilityLabel="Void/Cancel Match"
-                      accessibilityHint="Void this match and exclude it from all scoring calculations"
-                      style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border, opacity: voiding ? 0.5 : 1 }}
-                    >
-                      <Ionicons name="close-circle-outline" size={16} color={colors.error} />
-                      <Text style={{ color: colors.error, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Void/Cancel</Text>
-                    </Pressable>
-                  )}
-
-                  {/* 🏆 Settle Match — always */}
                   <Pressable
                     onPress={() => promptSetWinner(m)}
                     disabled={settingWinnerId === m.id}
                     accessibilityLabel="Settle Match"
-                    accessibilityHint="Set the official match winner to finalize scoring"
-                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: m.officialWinner ? '#F59E0B20' : colors.surfaceElevated, borderWidth: 1, borderColor: m.officialWinner ? '#F59E0B' : colors.border, opacity: settingWinnerId === m.id ? 0.5 : 1 }}
+                    style={[styles.actionBtn, { flex: 1, borderColor: m.officialWinner ? '#F59E0B70' : colors.border, backgroundColor: m.officialWinner ? '#F59E0B0D' : undefined, opacity: settingWinnerId === m.id ? 0.5 : 1 }]}
                   >
-                    <Ionicons name="trophy-outline" size={16} color={m.officialWinner ? '#F59E0B' : colors.textTertiary} />
-                    <Text style={{ color: m.officialWinner ? '#F59E0B' : colors.textTertiary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Settle</Text>
+                    {settingWinnerId === m.id
+                      ? <ActivityIndicator size="small" color={colors.textTertiary} />
+                      : <Ionicons name="trophy-outline" size={13} color={m.officialWinner ? '#F59E0B' : colors.textSecondary} />}
+                    <Text style={[styles.actionBtnText, { color: m.officialWinner ? '#F59E0B' : colors.textSecondary }]}>Settle</Text>
+                  </Pressable>
+                </View>
+
+                {/* Secondary actions row */}
+                <View style={{ flexDirection: 'row', gap: 7, marginBottom: 12 }}>
+                  <Pressable
+                    onPress={() => toggleImpactFeatures(m.id, !m.impactFeaturesEnabled)}
+                    disabled={impactTogglingId === m.id}
+                    accessibilityLabel="Toggle Impact Picks"
+                    style={[styles.actionBtn, { flex: 1, backgroundColor: m.impactFeaturesEnabled ? '#F59E0B0D' : undefined, borderColor: m.impactFeaturesEnabled ? '#F59E0B60' : colors.border }]}
+                  >
+                    {impactTogglingId === m.id
+                      ? <ActivityIndicator size="small" color={colors.textTertiary} />
+                      : <Text style={{ fontSize: 12 }}>⚡</Text>}
+                    <Text style={[styles.actionBtnText, { color: m.impactFeaturesEnabled ? '#F59E0B' : colors.textSecondary }]}>
+                      Impact {m.impactFeaturesEnabled ? 'ON' : 'OFF'}
+                    </Text>
                   </Pressable>
 
-                  {/* 👥 View Entries — always */}
+                  {m.status !== 'completed' ? (
+                    <Pressable
+                      onPress={() => toggleAdminUnlock(m.id, !m.adminUnlockOverride)}
+                      disabled={lockTogglingId === m.id}
+                      accessibilityLabel={m.adminUnlockOverride ? 'Lock Entry' : 'Unlock Entry'}
+                      style={[styles.actionBtn, { flex: 1, backgroundColor: m.adminUnlockOverride ? '#10B9810D' : undefined, borderColor: m.adminUnlockOverride ? '#10B98160' : colors.border }]}
+                    >
+                      {lockTogglingId === m.id
+                        ? <ActivityIndicator size="small" color={colors.textTertiary} />
+                        : <Ionicons name={m.adminUnlockOverride ? 'lock-open-outline' : 'lock-closed-outline'} size={13} color={m.adminUnlockOverride ? '#10B981' : colors.textSecondary} />}
+                      <Text style={[styles.actionBtnText, { color: m.adminUnlockOverride ? '#10B981' : colors.textSecondary }]}>
+                        {m.adminUnlockOverride ? 'Unlocked' : 'Lock'}
+                      </Text>
+                    </Pressable>
+                  ) : <View style={{ flex: 1 }} />}
+
                   <Pressable
                     onPress={() => togglePlayerStatusExpand(m.id)}
                     accessibilityLabel="View Participants"
-                    accessibilityHint="Expand to view and manage player statuses for this match"
-                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: playerStatusExpandedId === m.id ? colors.primary + '20' : colors.surfaceElevated, borderWidth: 1, borderColor: playerStatusExpandedId === m.id ? colors.primary : colors.border }}
+                    style={[styles.actionBtn, { flex: 1, backgroundColor: playerStatusExpandedId === m.id ? colors.primary + '0D' : undefined, borderColor: playerStatusExpandedId === m.id ? colors.primary + '60' : colors.border }]}
                   >
-                    <Ionicons
-                      name={playerStatusExpandedId === m.id ? 'people' : 'people-outline'}
-                      size={16}
-                      color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary}
-                    />
-                    <Text style={{ color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Entries</Text>
+                    <Ionicons name={playerStatusExpandedId === m.id ? 'people' : 'people-outline'} size={13} color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary} />
+                    <Text style={[styles.actionBtnText, { color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary }]}>Entries</Text>
                   </Pressable>
+                </View>
 
-                  {/* 🗑️ Delete Match — permanent removal */}
+                {/* Destructive separator */}
+                <View style={{ height: 1, backgroundColor: colors.error + '22', marginBottom: 9 }} />
+
+                {/* Destructive actions row */}
+                <View style={{ flexDirection: 'row', gap: 7 }}>
+                  {!m.isVoid ? (
+                    <Pressable
+                      onPress={() => { setVoidResult(''); setVoidConfirmMatchId(m.id); }}
+                      disabled={voiding}
+                      accessibilityLabel="Void Match"
+                      style={[styles.destructiveBtn, { flex: 1, opacity: voiding ? 0.5 : 1, borderColor: colors.error + '50' }]}
+                    >
+                      <Ionicons name="close-circle-outline" size={13} color={colors.error} />
+                      <Text style={[styles.destructiveBtnText, { color: colors.error }]}>Void</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={{ flex: 1 }} />
+                  )}
                   <Pressable
                     onPress={() => { setDeleteResult(''); setDeleteConfirmMatchId(m.id); }}
                     disabled={deleting}
                     accessibilityLabel="Delete Match"
-                    accessibilityHint="Permanently remove this match and all related data from the system"
-                    style={{ alignItems: 'center', padding: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.error + '40', opacity: deleting ? 0.5 : 1 }}
+                    style={[styles.destructiveBtn, { flex: 1, opacity: deleting ? 0.5 : 1, borderColor: colors.error + '50' }]}
                   >
-                    <Ionicons name="trash-outline" size={16} color={colors.error} />
-                    <Text style={{ color: colors.error, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>Delete</Text>
+                    <Ionicons name="trash-outline" size={13} color={colors.error} />
+                    <Text style={[styles.destructiveBtnText, { color: colors.error }]}>Delete Forever</Text>
                   </Pressable>
                 </View>
 
-                {/* Per-match feedback */}
+                {/* Per-match feedback pill */}
                 {matchActionResult[m.id] ? (
-                  <Text style={{ color: matchActionResult[m.id].startsWith('✔') ? '#10B981' : colors.error, fontSize: 11, fontFamily: 'Inter_500Medium' as const, marginTop: 6 }}>
-                    {matchActionResult[m.id]}
-                  </Text>
+                  <View style={[styles.feedbackPill, {
+                    backgroundColor: matchActionResult[m.id].startsWith('✔') ? '#22C55E15' : colors.error + '15',
+                    borderColor: matchActionResult[m.id].startsWith('✔') ? '#22C55E40' : colors.error + '40',
+                  }]}>
+                    <Ionicons
+                      name={matchActionResult[m.id].startsWith('✔') ? 'checkmark-circle' : 'alert-circle'}
+                      size={12}
+                      color={matchActionResult[m.id].startsWith('✔') ? '#22C55E' : colors.error}
+                    />
+                    <Text style={[styles.feedbackPillText, {
+                      color: matchActionResult[m.id].startsWith('✔') ? '#22C55E' : colors.error,
+                    }]}>
+                      {matchActionResult[m.id]}
+                    </Text>
+                  </View>
                 ) : null}
                 {playerStatusExpandedId === m.id && (
                   <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
@@ -1399,20 +1438,14 @@ export default function AdminScreen() {
                   </View>
                 )}
               </View>
-            ))}
+            );
+            })}
+          </View>
 
-            {recalcResult !== '' && (
-              <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="information-circle" size={18} color={colors.primary} />
-                <Text style={[styles.syncResultText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>{recalcResult}</Text>
-              </View>
-            )}
-            {voidResult !== '' && (
-              <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="information-circle" size={18} color={colors.error} />
-                <Text style={[styles.syncResultText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>{voidResult}</Text>
-              </View>
-            )}
+          <View style={styles.groupDivider}>
+            <View style={[styles.groupDividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.groupDividerText, { color: colors.textTertiary }]}>RECORDS & TOOLS</Text>
+            <View style={[styles.groupDividerLine, { backgroundColor: colors.border }]} />
           </View>
 
           <View style={styles.section}>
@@ -3071,5 +3104,83 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     cursor: 'pointer' as any,
+  },
+  matchCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  statusChip: {
+    borderRadius: 5,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  statusChipText: {
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold' as const,
+    letterSpacing: 0.4,
+  },
+  actionBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    cursor: 'pointer' as any,
+  },
+  actionBtnText: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold' as const,
+  },
+  destructiveBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    cursor: 'pointer' as any,
+  },
+  destructiveBtnText: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold' as const,
+  },
+  feedbackPill: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 9,
+  },
+  feedbackPillText: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium' as const,
+    flex: 1,
+  },
+  groupDivider: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  groupDividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  groupDividerText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold' as const,
+    letterSpacing: 1.5,
   },
 });
