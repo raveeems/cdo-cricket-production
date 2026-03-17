@@ -142,6 +142,17 @@ export default function AdminScreen() {
     setTimeout(() => setMatchActionResult(prev => { const n = { ...prev }; delete n[matchId]; return n; }), 5000);
   };
 
+  const [playerStatusExpandedId, setPlayerStatusExpandedId] = useState<string | null>(null);
+  const [playerStatusData, setPlayerStatusData] = useState<Record<string, { players: any[]; statuses: Map<string, any> }>>({});
+  const [loadingPlayerStatus, setLoadingPlayerStatus] = useState<string | null>(null);
+  const [updatingPlayerId, setUpdatingPlayerId] = useState<string | null>(null);
+  const [settingWinnerId, setSettingWinnerId] = useState<string | null>(null);
+
+  const [apiMatchesBrowse, setApiMatchesBrowse] = useState<any[]>([]);
+  const [browsingApiMatches, setBrowsingApiMatches] = useState(false);
+  const [browseError, setBrowseError] = useState('');
+  const [importingExternalId, setImportingExternalId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!syncMessage) return;
     const t = setTimeout(() => setSyncMessage(''), syncMessage.startsWith('✔') ? 6000 : 10000);
@@ -177,17 +188,6 @@ export default function AdminScreen() {
     const t = setTimeout(() => setBrowseError(''), 10000);
     return () => clearTimeout(t);
   }, [browseError]);
-
-  const [playerStatusExpandedId, setPlayerStatusExpandedId] = useState<string | null>(null);
-  const [playerStatusData, setPlayerStatusData] = useState<Record<string, { players: any[]; statuses: Map<string, any> }>>({});
-  const [loadingPlayerStatus, setLoadingPlayerStatus] = useState<string | null>(null);
-  const [updatingPlayerId, setUpdatingPlayerId] = useState<string | null>(null);
-  const [settingWinnerId, setSettingWinnerId] = useState<string | null>(null);
-
-  const [apiMatchesBrowse, setApiMatchesBrowse] = useState<any[]>([]);
-  const [browsingApiMatches, setBrowsingApiMatches] = useState(false);
-  const [browseError, setBrowseError] = useState('');
-  const [importingExternalId, setImportingExternalId] = useState<string | null>(null);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const checkedAtRef = useRef<Date>(new Date());
