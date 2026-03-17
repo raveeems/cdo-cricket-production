@@ -48,7 +48,7 @@ function TopThreeCard({ entry, position, isCurrentUser, colors }: { entry: Stand
         {entry.userName}
       </Text>
       <Text style={[styles.topPoints, { color: pointsColor, fontFamily: 'Inter_700Bold' }]}>
-        {entry.totalPoints < 0 ? '' : ''}{entry.totalPoints.toLocaleString()}
+        {entry.totalPoints.toLocaleString()}
       </Text>
       <Text style={[styles.topLabel, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
         {entry.matchCount} {entry.matchCount === 1 ? 'match' : 'matches'}
