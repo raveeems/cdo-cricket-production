@@ -1,0 +1,68 @@
+Proceed with Phase 4A.
+
+This phase is about ADMIN UX refinement and operational polish for the WEBAPP.
+
+Primary goal:
+Make the admin screen feel like a clear premium control console, not just a collection of working controls.
+
+Scope:
+Focus mainly on app/admin.tsx.
+Only add a shared helper/component if it clearly improves reuse and consistency.
+
+Priority improvements:
+1. Better admin section hierarchy
+2. Better grouping of controls
+3. Clearer match-card operational summaries
+4. Stronger distinction between normal actions and destructive actions
+5. Better action feedback and status visibility
+6. Better desktop-web readability and spacing
+
+Please improve the admin experience in these ways:
+
+A. PAGE / SECTION HIERARCHY
+- stronger grouping between admin sections
+- cleaner card spacing
+- clearer section headers/subheaders
+- better scanability on desktop web
+
+B. MATCH CARDS
+- make each match card easier to scan operationally
+- add small status chips / summary pills where useful, such as:
+  - Impact ON/OFF
+  - Lock state
+  - Deadline override status
+  - Match status
+  - Void status if relevant
+- improve the layout so the controls feel associated with the match state, not just floating buttons
+
+C. BUTTON / ACTION HIERARCHY
+- clearly differentiate:
+  - primary actions
+  - secondary actions
+  - destructive actions
+- keep the controls compact but more understandable
+- preserve desktop usability and readability
+
+D. FEEDBACK CONSISTENCY
+- reduce “did anything happen?” moments
+- make loading / success / failure states clearer
+- keep feedback visually consistent
+
+E. DESTRUCTIVE ACTIONS
+- Void/Delete must feel clearly destructive
+- confirmation patterns should be visually consistent
+- destructive actions should not visually compete equally with normal actions
+
+Constraints:
+- WEBAPP-first only
+- no backend/server/database changes unless absolutely necessary
+- source-file changes only
+- GitHub push handoff required
+- clear separation of dev vs published status
+
+Before implementation, give me:
+1. exact files to be changed
+2. exact visible changes per file
+3. desktop web improvements
+4. what is included in Phase 4A vs left for 4B
+5. whether any shared components will be introduced
