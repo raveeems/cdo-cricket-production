@@ -25,7 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/query-client';
 import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
-import SkeletonBox from '@/components/SkeletonBox';
+import { SkeletonBox } from '@/components/SkeletonBox';
 
 type TabKey = 'overview' | 'scorecard' | 'players' | 'participants' | 'standings';
 

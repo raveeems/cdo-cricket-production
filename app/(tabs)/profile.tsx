@@ -21,7 +21,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/contexts/TeamContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import SkeletonBox from '@/components/SkeletonBox';
+import { SkeletonBox } from '@/components/SkeletonBox';
 import type { Match } from '@/lib/mock-data';
 
 const isWeb = Platform.OS === 'web';

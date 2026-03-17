@@ -31,7 +31,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
-import SkeletonBox from '@/components/SkeletonBox';
+import { SkeletonBox } from '@/components/SkeletonBox';
 
 type Step = 'select' | 'impact' | 'captain' | 'preview' | 'success';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
