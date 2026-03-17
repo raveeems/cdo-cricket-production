@@ -139,8 +139,44 @@ export default function AdminScreen() {
   const [matchActionResult, setMatchActionResult] = useState<Record<string, string>>({});
   const setMatchResult = (matchId: string, msg: string) => {
     setMatchActionResult(prev => ({ ...prev, [matchId]: msg }));
-    setTimeout(() => setMatchActionResult(prev => { const n = { ...prev }; delete n[matchId]; return n; }), 4000);
+    setTimeout(() => setMatchActionResult(prev => { const n = { ...prev }; delete n[matchId]; return n; }), 5000);
   };
+
+  useEffect(() => {
+    if (!syncMessage) return;
+    const t = setTimeout(() => setSyncMessage(''), syncMessage.startsWith('✔') ? 6000 : 10000);
+    return () => clearTimeout(t);
+  }, [syncMessage]);
+
+  useEffect(() => {
+    if (!xiMessage) return;
+    const t = setTimeout(() => setXiMessage(''), xiMessage.startsWith('✔') || xiMessage.startsWith('Loaded') ? 6000 : 10000);
+    return () => clearTimeout(t);
+  }, [xiMessage]);
+
+  useEffect(() => {
+    if (!addPlayerMsg) return;
+    const t = setTimeout(() => setAddPlayerMsg(''), addPlayerMsg.startsWith('Failed') ? 10000 : 6000);
+    return () => clearTimeout(t);
+  }, [addPlayerMsg]);
+
+  useEffect(() => {
+    if (!playerMapMsg) return;
+    const t = setTimeout(() => setPlayerMapMsg(''), playerMapMsg.startsWith('Failed') ? 10000 : 6000);
+    return () => clearTimeout(t);
+  }, [playerMapMsg]);
+
+  useEffect(() => {
+    if (!forceSyncResult) return;
+    const t = setTimeout(() => setForceSyncResult(''), forceSyncResult.startsWith('✔') || forceSyncResult.startsWith('Sync') || forceSyncResult.startsWith('Done') ? 6000 : 10000);
+    return () => clearTimeout(t);
+  }, [forceSyncResult]);
+
+  useEffect(() => {
+    if (!browseError) return;
+    const t = setTimeout(() => setBrowseError(''), 10000);
+    return () => clearTimeout(t);
+  }, [browseError]);
 
   const [playerStatusExpandedId, setPlayerStatusExpandedId] = useState<string | null>(null);
   const [playerStatusData, setPlayerStatusData] = useState<Record<string, { players: any[]; statuses: Map<string, any> }>>({});
@@ -1109,11 +1145,13 @@ export default function AdminScreen() {
             </Pressable>
 
             {syncMessage !== '' && (
-              <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="information-circle" size={18} color={colors.primary} />
-                <Text style={[styles.syncResultText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
-                  {syncMessage}
-                </Text>
+              <View style={[styles.feedbackPill, {
+                backgroundColor: syncMessage.startsWith('✔') ? '#22C55E15' : colors.primary + '15',
+                borderColor: syncMessage.startsWith('✔') ? '#22C55E40' : colors.primary + '40',
+                marginTop: 4,
+              }]}>
+                <Ionicons name={syncMessage.startsWith('✔') ? 'checkmark-circle' : 'information-circle'} size={13} color={syncMessage.startsWith('✔') ? '#22C55E' : colors.primary} />
+                <Text style={[styles.feedbackPillText, { color: syncMessage.startsWith('✔') ? '#22C55E' : colors.primary }]}>{syncMessage}</Text>
               </View>
             )}
           </View>
@@ -1147,9 +1185,10 @@ export default function AdminScreen() {
               </LinearGradient>
             </Pressable>
             {browseError !== '' && (
-              <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
-                {browseError}
-              </Text>
+              <View style={[styles.feedbackPill, { backgroundColor: colors.error + '12', borderColor: colors.error + '40', marginBottom: 4 }]}>
+                <Ionicons name="alert-circle" size={13} color={colors.error} />
+                <Text style={[styles.feedbackPillText, { color: colors.error }]}>{browseError}</Text>
+              </View>
             )}
             {apiMatchesBrowse.map((m) => {
               const d = new Date(m.startTime);
@@ -1892,9 +1931,17 @@ export default function AdminScreen() {
                 </Pressable>
 
                 {xiMessage !== '' && (
-                  <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 8 }]}>
-                    <Ionicons name="information-circle" size={18} color={colors.primary} />
-                    <Text style={[styles.syncResultText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                  <View style={[styles.feedbackPill, {
+                    backgroundColor: xiMessage.startsWith('✔') ? '#22C55E15' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? colors.error + '12' : colors.primary + '15',
+                    borderColor: xiMessage.startsWith('✔') ? '#22C55E40' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? colors.error + '40' : colors.primary + '40',
+                    marginTop: 8,
+                  }]}>
+                    <Ionicons
+                      name={xiMessage.startsWith('✔') ? 'checkmark-circle' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? 'alert-circle' : 'information-circle'}
+                      size={13}
+                      color={xiMessage.startsWith('✔') ? '#22C55E' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? colors.error : colors.primary}
+                    />
+                    <Text style={[styles.feedbackPillText, { color: xiMessage.startsWith('✔') ? '#22C55E' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? colors.error : colors.primary }]}>
                       {xiMessage}
                     </Text>
                   </View>
@@ -1990,9 +2037,14 @@ export default function AdminScreen() {
                   )}
                 </Pressable>
                 {addPlayerMsg !== '' && (
-                  <Text style={{ color: addPlayerMsg.startsWith('Failed') ? colors.error : colors.success, fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 6 }}>
-                    {addPlayerMsg}
-                  </Text>
+                  <View style={[styles.feedbackPill, {
+                    backgroundColor: addPlayerMsg.startsWith('Failed') || addPlayerMsg.startsWith('❌') ? colors.error + '12' : '#22C55E15',
+                    borderColor: addPlayerMsg.startsWith('Failed') || addPlayerMsg.startsWith('❌') ? colors.error + '40' : '#22C55E40',
+                    marginTop: 8,
+                  }]}>
+                    <Ionicons name={addPlayerMsg.startsWith('Failed') || addPlayerMsg.startsWith('❌') ? 'alert-circle' : 'checkmark-circle'} size={13} color={addPlayerMsg.startsWith('Failed') || addPlayerMsg.startsWith('❌') ? colors.error : '#22C55E'} />
+                    <Text style={[styles.feedbackPillText, { color: addPlayerMsg.startsWith('Failed') || addPlayerMsg.startsWith('❌') ? colors.error : '#22C55E' }]}>{addPlayerMsg}</Text>
+                  </View>
                 )}
               </View>
             </View>
@@ -2084,9 +2136,17 @@ export default function AdminScreen() {
             </View>
 
             {forceSyncResult !== '' && (
-              <View style={[styles.syncResult, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 8 }]}>
-                <Ionicons name="flash" size={16} color={colors.warning} />
-                <Text style={[{ color: colors.text, fontFamily: 'Inter_500Medium', fontSize: 12, marginLeft: 6, flex: 1 }]}>
+              <View style={[styles.feedbackPill, {
+                backgroundColor: forceSyncResult.startsWith('✔') ? '#22C55E15' : forceSyncResult.startsWith('Failed') || forceSyncResult.startsWith('❌') ? colors.error + '12' : colors.warning + '15',
+                borderColor: forceSyncResult.startsWith('✔') ? '#22C55E40' : forceSyncResult.startsWith('Failed') || forceSyncResult.startsWith('❌') ? colors.error + '40' : colors.warning + '40',
+                marginBottom: 8,
+              }]}>
+                <Ionicons
+                  name={forceSyncResult.startsWith('✔') ? 'checkmark-circle' : forceSyncResult.startsWith('Failed') || forceSyncResult.startsWith('❌') ? 'alert-circle' : 'flash'}
+                  size={13}
+                  color={forceSyncResult.startsWith('✔') ? '#22C55E' : forceSyncResult.startsWith('Failed') || forceSyncResult.startsWith('❌') ? colors.error : colors.warning}
+                />
+                <Text style={[styles.feedbackPillText, { color: forceSyncResult.startsWith('✔') ? '#22C55E' : forceSyncResult.startsWith('Failed') || forceSyncResult.startsWith('❌') ? colors.error : colors.warning }]}>
                   {forceSyncResult}
                 </Text>
               </View>
@@ -2288,9 +2348,14 @@ export default function AdminScreen() {
 
             {loadingPlayerMap && <ActivityIndicator size="small" color={colors.primary} />}
             {playerMapMsg !== '' && (
-              <Text style={[{ color: colors.accent, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 8 }]}>
-                {playerMapMsg}
-              </Text>
+              <View style={[styles.feedbackPill, {
+                backgroundColor: playerMapMsg.startsWith('Failed') ? colors.error + '12' : '#22C55E15',
+                borderColor: playerMapMsg.startsWith('Failed') ? colors.error + '40' : '#22C55E40',
+                marginBottom: 8,
+              }]}>
+                <Ionicons name={playerMapMsg.startsWith('Failed') ? 'alert-circle' : 'checkmark-circle'} size={13} color={playerMapMsg.startsWith('Failed') ? colors.error : '#22C55E'} />
+                <Text style={[styles.feedbackPillText, { color: playerMapMsg.startsWith('Failed') ? colors.error : '#22C55E' }]}>{playerMapMsg}</Text>
+              </View>
             )}
 
             {playerMapData && (
@@ -2529,173 +2594,175 @@ export default function AdminScreen() {
           </View>
       </ScrollView>
 
-      {/* Void/Cancel Confirmation Overlay — uses absolute positioning instead of Modal for reliable web rendering */}
-      {voidConfirmMatchId !== null && (
-        <Pressable
-          onPress={() => { setVoidConfirmMatchId(null); setVoidResult(''); }}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 9999,
-          }}
-        >
-          <Pressable
-            style={{
-              width: 320,
-              backgroundColor: colors.card,
-              borderRadius: 20,
-              padding: 24,
-              borderWidth: 1,
-              borderColor: colors.error + '40',
-            }}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <Ionicons name="close-circle-outline" size={20} color={colors.error} />
-              <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18 }}>
-                Void/Cancel Match
-              </Text>
-            </View>
-            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 16 }}>
-              Are you sure you want to void this match? This will mark the match as void and exclude it from all scoring calculations. This action cannot be undone.
-            </Text>
-            {voidResult !== '' && (
-              <Text style={{
-                color: voidResult.startsWith('✔') ? '#10B981' : colors.error,
-                fontFamily: 'Inter_500Medium',
-                fontSize: 13,
-                marginBottom: 8,
-              }}>
-                {voidResult}
-              </Text>
-            )}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+      {/* Void/Cancel Confirmation Modal */}
+      <Modal
+        visible={voidConfirmMatchId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setVoidConfirmMatchId(null); setVoidResult(''); }}
+      >
+        {(() => {
+          const voidMatch = matches.find(m => m.id === voidConfirmMatchId);
+          const matchLabel = voidMatch ? `${voidMatch.team1Short} vs ${voidMatch.team2Short}` : 'this match';
+          return (
+            <Pressable
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center' }}
+              onPress={() => { setVoidConfirmMatchId(null); setVoidResult(''); }}
+            >
               <Pressable
-                onPress={() => { setVoidConfirmMatchId(null); setVoidResult(''); }}
                 style={{
-                  flex: 1,
-                  height: 44,
-                  borderRadius: 12,
+                  width: 320,
+                  backgroundColor: colors.card,
+                  borderRadius: 20,
+                  padding: 24,
                   borderWidth: 1,
-                  borderColor: colors.border,
-                  justifyContent: 'center',
-                  alignItems: 'center',
+                  borderColor: colors.error + '35',
                 }}
+                onPress={() => {}}
               >
-                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Ionicons name="close-circle-outline" size={20} color={colors.error} />
+                  <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 17, flex: 1 }}>
+                    Void {matchLabel}?
+                  </Text>
+                </View>
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, marginBottom: 14 }}>
+                  This match will be marked void and excluded from all scoring and leaderboards. This cannot be undone.
+                </Text>
+                {voidResult !== '' && (
+                  <View style={[styles.feedbackPill, {
+                    backgroundColor: voidResult.startsWith('✔') ? '#22C55E15' : colors.error + '12',
+                    borderColor: voidResult.startsWith('✔') ? '#22C55E40' : colors.error + '40',
+                    marginBottom: 10,
+                  }]}>
+                    <Ionicons name={voidResult.startsWith('✔') ? 'checkmark-circle' : 'alert-circle'} size={13} color={voidResult.startsWith('✔') ? '#22C55E' : colors.error} />
+                    <Text style={[styles.feedbackPillText, { color: voidResult.startsWith('✔') ? '#22C55E' : colors.error }]}>{voidResult}</Text>
+                  </View>
+                )}
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    onPress={() => { setVoidConfirmMatchId(null); setVoidResult(''); }}
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={confirmVoidMatch}
+                    disabled={voiding}
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderRadius: 12,
+                      backgroundColor: colors.error,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      opacity: voiding ? 0.55 : 1,
+                    }}
+                  >
+                    {voiding
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Confirm Void</Text>
+                    }
+                  </Pressable>
+                </View>
               </Pressable>
-              <Pressable
-                onPress={confirmVoidMatch}
-                disabled={voiding}
-                style={{
-                  flex: 1,
-                  height: 44,
-                  borderRadius: 12,
-                  backgroundColor: colors.error,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  opacity: voiding ? 0.6 : 1,
-                }}
-              >
-                {voiding
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Confirm Void</Text>
-                }
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      )}
+            </Pressable>
+          );
+        })()}
+      </Modal>
 
-      {/* Delete Match Confirmation Overlay */}
-      {deleteConfirmMatchId !== null && (
-        <Pressable
-          onPress={() => { setDeleteConfirmMatchId(null); setDeleteResult(''); }}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 9999,
-          }}
-        >
-          <Pressable
-            style={{
-              width: 320,
-              backgroundColor: colors.card,
-              borderRadius: 20,
-              padding: 24,
-              borderWidth: 1,
-              borderColor: colors.error + '40',
-            }}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <Ionicons name="trash-outline" size={20} color={colors.error} />
-              <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18 }}>
-                Delete Match Permanently
-              </Text>
-            </View>
-            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 16 }}>
-              This will permanently remove this match and all associated data (players, predictions, statuses) from the system. This cannot be undone.
-            </Text>
-            {deleteResult !== '' && (
-              <Text style={{
-                color: deleteResult.startsWith('✔') ? '#10B981' : colors.error,
-                fontFamily: 'Inter_500Medium',
-                fontSize: 13,
-                marginBottom: 8,
-              }}>
-                {deleteResult}
-              </Text>
-            )}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+      {/* Delete Match Confirmation Modal */}
+      <Modal
+        visible={deleteConfirmMatchId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setDeleteConfirmMatchId(null); setDeleteResult(''); }}
+      >
+        {(() => {
+          const deleteMatch = matches.find(m => m.id === deleteConfirmMatchId);
+          const matchLabel = deleteMatch ? `${deleteMatch.team1Short} vs ${deleteMatch.team2Short}` : 'this match';
+          return (
+            <Pressable
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center' }}
+              onPress={() => { setDeleteConfirmMatchId(null); setDeleteResult(''); }}
+            >
               <Pressable
-                onPress={() => { setDeleteConfirmMatchId(null); setDeleteResult(''); }}
                 style={{
-                  flex: 1,
-                  height: 44,
-                  borderRadius: 12,
+                  width: 320,
+                  backgroundColor: colors.card,
+                  borderRadius: 20,
+                  padding: 24,
                   borderWidth: 1,
-                  borderColor: colors.border,
-                  justifyContent: 'center',
-                  alignItems: 'center',
+                  borderColor: colors.error + '35',
                 }}
+                onPress={() => {}}
               >
-                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Ionicons name="trash-outline" size={20} color={colors.error} />
+                  <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 17, flex: 1 }}>
+                    Delete {matchLabel}?
+                  </Text>
+                </View>
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, marginBottom: 14 }}>
+                  All match data — players, predictions, and statuses — will be permanently erased. This cannot be undone.
+                </Text>
+                {deleteResult !== '' && (
+                  <View style={[styles.feedbackPill, {
+                    backgroundColor: deleteResult.startsWith('✔') ? '#22C55E15' : colors.error + '12',
+                    borderColor: deleteResult.startsWith('✔') ? '#22C55E40' : colors.error + '40',
+                    marginBottom: 10,
+                  }]}>
+                    <Ionicons name={deleteResult.startsWith('✔') ? 'checkmark-circle' : 'alert-circle'} size={13} color={deleteResult.startsWith('✔') ? '#22C55E' : colors.error} />
+                    <Text style={[styles.feedbackPillText, { color: deleteResult.startsWith('✔') ? '#22C55E' : colors.error }]}>{deleteResult}</Text>
+                  </View>
+                )}
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    onPress={() => { setDeleteConfirmMatchId(null); setDeleteResult(''); }}
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={confirmDeleteMatch}
+                    disabled={deleting}
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderRadius: 12,
+                      backgroundColor: colors.error,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      opacity: deleting ? 0.55 : 1,
+                    }}
+                  >
+                    {deleting
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Delete Forever</Text>
+                    }
+                  </Pressable>
+                </View>
               </Pressable>
-              <Pressable
-                onPress={confirmDeleteMatch}
-                disabled={deleting}
-                style={{
-                  flex: 1,
-                  height: 44,
-                  borderRadius: 12,
-                  backgroundColor: colors.error,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  opacity: deleting ? 0.6 : 1,
-                }}
-              >
-                {deleting
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Delete Forever</Text>
-                }
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      )}
+            </Pressable>
+          );
+        })()}
+      </Modal>
 
       {/* Entry Deadline Override Modal */}
       <Modal
@@ -2749,14 +2816,14 @@ export default function AdminScreen() {
               autoCorrect={false}
             />
             {deadlineResult !== '' && (
-              <Text style={{
-                color: deadlineResult.startsWith('✔') ? colors.success : colors.error,
-                fontFamily: 'Inter_500Medium',
-                fontSize: 13,
+              <View style={[styles.feedbackPill, {
+                backgroundColor: deadlineResult.startsWith('✔') ? '#22C55E15' : colors.error + '12',
+                borderColor: deadlineResult.startsWith('✔') ? '#22C55E40' : colors.error + '40',
                 marginBottom: 8,
-              }}>
-                {deadlineResult}
-              </Text>
+              }]}>
+                <Ionicons name={deadlineResult.startsWith('✔') ? 'checkmark-circle' : 'alert-circle'} size={13} color={deadlineResult.startsWith('✔') ? '#22C55E' : colors.error} />
+                <Text style={[styles.feedbackPillText, { color: deadlineResult.startsWith('✔') ? '#22C55E' : colors.error }]}>{deadlineResult}</Text>
+              </View>
             )}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
               <Pressable
@@ -2962,18 +3029,6 @@ const styles = StyleSheet.create({
   syncBtnText: {
     fontSize: 16,
     color: '#FFF',
-  },
-  syncResult: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  syncResultText: {
-    fontSize: 13,
-    flex: 1,
   },
   scoringTable: {
     borderRadius: 14,
