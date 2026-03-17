@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
-  ActivityIndicator,
   Pressable,
   Modal,
 } from 'react-native';
@@ -16,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/query-client';
+import { SkeletonBox } from '@/components/SkeletonBox';
 
 const isWeb = Platform.OS === 'web';
 
@@ -35,7 +35,7 @@ function TopThreeCard({ entry, position, isCurrentUser, colors }: { entry: Stand
 
   return (
     <View style={[styles.topCard, position === 0 && styles.topCardFirst, isCurrentUser && { borderWidth: 2, borderColor: colors.primary, borderRadius: 14, padding: 6 }]}>
-      <View style={[styles.topAvatar, { width: sizes[position], height: sizes[position], backgroundColor: medalColors[position] + '30' }]}>
+      <View style={[styles.topAvatar, { width: sizes[position], height: sizes[position], backgroundColor: medalColors[position] + '30', ...(position === 0 ? { borderWidth: 2, borderColor: medalColors[0] } : {}) }]}>
         <Text style={[styles.topInitial, { fontSize: fontSizes[position], color: medalColors[position], fontFamily: 'Inter_700Bold' }]}>
           {entry.userName[0]?.toUpperCase() || '?'}
         </Text>
@@ -50,6 +50,65 @@ function TopThreeCard({ entry, position, isCurrentUser, colors }: { entry: Stand
       <Text style={[styles.topLabel, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
         {entry.matchCount} {entry.matchCount === 1 ? 'match' : 'matches'}
       </Text>
+    </View>
+  );
+}
+
+function LeaderboardRowSkeleton({ colors }: { colors: any }) {
+  return (
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.card,
+      marginBottom: 8,
+    }}>
+      <SkeletonBox width={30} height={30} borderRadius={8} />
+      <SkeletonBox width={38} height={38} borderRadius={19} />
+      <View style={{ flex: 1, gap: 6 }}>
+        <SkeletonBox height={14} width="60%" borderRadius={6} />
+        <SkeletonBox height={10} width="35%" borderRadius={6} />
+      </View>
+      <SkeletonBox width={50} height={20} borderRadius={6} />
+    </View>
+  );
+}
+
+function PodiumSkeleton({ colors }: { colors: any }) {
+  return (
+    <View style={{
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'flex-end',
+      gap: 20,
+      paddingVertical: 24,
+      paddingHorizontal: 16,
+      borderRadius: 20,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginBottom: 20,
+    }}>
+      <View style={{ alignItems: 'center', gap: 8 }}>
+        <SkeletonBox width={52} height={52} borderRadius={26} />
+        <SkeletonBox width={60} height={11} borderRadius={5} />
+        <SkeletonBox width={40} height={15} borderRadius={5} />
+      </View>
+      <View style={{ alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <SkeletonBox width={64} height={64} borderRadius={32} />
+        <SkeletonBox width={70} height={11} borderRadius={5} />
+        <SkeletonBox width={50} height={17} borderRadius={5} />
+      </View>
+      <View style={{ alignItems: 'center', gap: 8 }}>
+        <SkeletonBox width={52} height={52} borderRadius={26} />
+        <SkeletonBox width={60} height={11} borderRadius={5} />
+        <SkeletonBox width={40} height={15} borderRadius={5} />
+      </View>
     </View>
   );
 }
@@ -108,21 +167,31 @@ export default function LeaderboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.innerContainer, { paddingTop: insets.top + webTopInset + 8 }]}>
-          <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-            Tournament Standings
-          </Text>
+          <View style={styles.pageTitleRow}>
+            <View style={[styles.pageTitleAccent, { backgroundColor: colors.accent }]} />
+            <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              Tournament Standings
+            </Text>
+          </View>
 
           {namesLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
+            <>
+              <SkeletonBox height={46} borderRadius={12} style={{ marginBottom: 16 }} />
+              <PodiumSkeleton colors={colors} />
+              {[0, 1, 2, 3].map((i) => <LeaderboardRowSkeleton key={i} colors={colors} />)}
+            </>
           ) : tournamentNames.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="trophy-outline" size={48} color={colors.textTertiary} />
+            <LinearGradient
+              colors={[colors.primary + '10', colors.background]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={[styles.emptyContainer, { borderWidth: 1, borderColor: colors.border }]}
+            >
+              <Ionicons name="trophy-outline" size={48} color={colors.primary + '80'} />
               <Text style={[styles.emptyText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
                 No tournament data yet
               </Text>
-            </View>
+            </LinearGradient>
           ) : (
             <>
               <View style={{ marginBottom: 16 }}>
@@ -184,16 +253,21 @@ export default function LeaderboardScreen() {
               </Modal>
 
               {standingsLoading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={colors.primary} />
-                </View>
+                <>
+                  {[0, 1, 2, 3, 4].map((i) => <LeaderboardRowSkeleton key={i} colors={colors} />)}
+                </>
               ) : standings.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="stats-chart-outline" size={48} color={colors.textTertiary} />
+                <LinearGradient
+                  colors={[colors.primary + '10', colors.background]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={[styles.emptyContainer, { borderWidth: 1, borderColor: colors.border }]}
+                >
+                  <Ionicons name="stats-chart-outline" size={48} color={colors.primary + '80'} />
                   <Text style={[styles.emptyText, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
                     No standings for this tournament yet
                   </Text>
-                </View>
+                </LinearGradient>
               ) : (
                 <>
                   <LinearGradient
@@ -239,10 +313,16 @@ export default function LeaderboardScreen() {
                               </Text>
                             </View>
                             <View style={styles.listInfo}>
-                              <Text style={[styles.listName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
-                                {entry.userName}
-                                {isCurrentUser ? ' (You)' : ''}
-                              </Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={[styles.listName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
+                                  {entry.userName}
+                                </Text>
+                                {isCurrentUser && (
+                                  <View style={{ backgroundColor: colors.primary + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                    <Text style={{ color: colors.primary, fontSize: 10, fontFamily: 'Inter_700Bold' }}>YOU</Text>
+                                  </View>
+                                )}
+                              </View>
                               <Text style={[styles.listMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
                                 {entry.matchCount} {entry.matchCount === 1 ? 'match' : 'matches'}
                               </Text>
@@ -280,10 +360,20 @@ const styles = StyleSheet.create({
     maxWidth: 700,
     alignSelf: 'center' as const,
   },
-  pageTitle: {
-    fontSize: 24,
+  pageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 20,
     paddingHorizontal: 4,
+  },
+  pageTitleAccent: {
+    width: 3,
+    height: 24,
+    borderRadius: 2,
+  },
+  pageTitle: {
+    fontSize: 24,
   },
   loadingContainer: {
     paddingVertical: 60,

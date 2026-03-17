@@ -7,9 +7,9 @@ import {
   ScrollView,
   Platform,
   RefreshControl,
-  ActivityIndicator,
   Image,
 } from 'react-native';
+import { SkeletonBox } from '@/components/SkeletonBox';
 import { getTeamLogo } from '@/utils/teamLogo';
 import { getMatchBanter } from '@/utils/getMatchBanter';
 import { router } from 'expo-router';
@@ -29,6 +29,40 @@ interface MatchWithParticipants extends Match {
 }
 
 const isWeb = Platform.OS === 'web';
+
+function CompactCardSkeleton({ colors }: { colors: any }) {
+  return (
+    <View style={{
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.card,
+      marginBottom: 12,
+      overflow: 'hidden',
+      padding: 14,
+    }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <SkeletonBox width="30%" height={10} borderRadius={5} />
+        <SkeletonBox width={60} height={20} borderRadius={6} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 }}>
+        <View style={{ alignItems: 'center', gap: 6, flex: 1 }}>
+          <SkeletonBox width={44} height={44} borderRadius={22} />
+          <SkeletonBox width={40} height={12} borderRadius={5} />
+        </View>
+        <SkeletonBox width={36} height={36} borderRadius={18} />
+        <View style={{ alignItems: 'center', gap: 6, flex: 1 }}>
+          <SkeletonBox width={44} height={44} borderRadius={22} />
+          <SkeletonBox width={40} height={12} borderRadius={5} />
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.cardBorder }}>
+        <SkeletonBox width="40%" height={16} borderRadius={6} />
+        <SkeletonBox width={50} height={22} borderRadius={6} />
+      </View>
+    </View>
+  );
+}
 
 function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants; teamsCount: number }) {
   const { colors, isDark } = useTheme();
@@ -202,12 +236,12 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
         )}
         {participants === 0 && teamsCount === 0 && (
           <Text style={[styles.noParticipants, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-            No entries yet
+            Be first to join
           </Text>
         )}
         <View style={{ flex: 1 }} />
-        <View style={[styles.viewCta, { backgroundColor: colors.primary + '18' }]}>
-          <Text style={{ color: colors.primary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const }}>View</Text>
+        <View style={[styles.viewCta, { backgroundColor: colors.primary + '28', borderColor: colors.primary + '40', borderWidth: 1 }]}>
+          <Text style={{ color: colors.primary, fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>View</Text>
           <Ionicons name="chevron-forward" size={12} color={colors.primary} />
         </View>
       </View>
@@ -338,9 +372,10 @@ export default function HomeScreen() {
           </View>
 
           {isLoading ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
+            <>
+              <CompactCardSkeleton colors={colors} />
+              <CompactCardSkeleton colors={colors} />
+            </>
           ) : isError ? (
             <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
               <Ionicons name="cloud-offline-outline" size={48} color={colors.error} />
@@ -367,13 +402,33 @@ export default function HomeScreen() {
             </View>
           ) : visibleMatches.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-              <Ionicons name="calendar-outline" size={48} color={colors.textTertiary} />
+              <Ionicons name="calendar-outline" size={40} color={colors.textTertiary} />
               <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
                 No matches right now
               </Text>
               <Text style={[styles.emptyDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                Matches appear when contests are entered or close to start time
+                New contests go live before each match — check back soon
               </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/how-to-play');
+                }}
+                style={({ pressed }) => ({
+                  marginTop: 6,
+                  paddingHorizontal: 18,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                  ...(isWeb ? { cursor: 'pointer' as any } : {}),
+                })}
+              >
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_500Medium' as const }}>
+                  How to Play
+                </Text>
+              </Pressable>
             </View>
           ) : (
             visibleMatches.map((match) => (

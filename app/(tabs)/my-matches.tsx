@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +17,8 @@ import { useTeams } from '@/contexts/TeamContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTimeUntilMatch, Match } from '@/lib/mock-data';
 import { getQueryFn } from '@/lib/query-client';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SkeletonBox } from '@/components/SkeletonBox';
 
 const isWeb = Platform.OS === 'web';
 
@@ -30,6 +31,28 @@ interface TeamData {
   viceCaptainId: string;
   totalPoints: number;
   createdAt: string;
+}
+
+function MatchCardSkeleton({ colors }: { colors: any }) {
+  return (
+    <View style={{
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.card,
+      marginBottom: 12,
+      overflow: 'hidden',
+    }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
+        <SkeletonBox width="45%" height={16} borderRadius={6} />
+        <SkeletonBox width={70} height={24} borderRadius={6} />
+      </View>
+      <View style={{ borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
+        <SkeletonBox height={28} borderRadius={6} />
+        <SkeletonBox height={28} borderRadius={6} />
+      </View>
+    </View>
+  );
 }
 
 export default function MyMatchesScreen() {
@@ -89,35 +112,51 @@ export default function MyMatchesScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.innerContainer, { paddingTop: insets.top + webTopInset + 8 }]}>
-          <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-            My Matches
-          </Text>
+          <View style={styles.pageTitleRow}>
+            <View style={[styles.pageTitleAccent, { backgroundColor: colors.accent }]} />
+            <Text style={[styles.pageTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
+              My Matches
+            </Text>
+          </View>
 
           {isLoading ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
+            <>
+              <MatchCardSkeleton colors={colors} />
+              <MatchCardSkeleton colors={colors} />
+            </>
           ) : userTeamsByMatch.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-              <MaterialCommunityIcons name="cricket" size={48} color={colors.textTertiary} />
+            <LinearGradient
+              colors={[colors.primary + '10', colors.background]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={[styles.emptyState, { borderColor: colors.border, borderWidth: 1 }]}
+            >
+              <MaterialCommunityIcons name="cricket" size={48} color={colors.primary + '80'} />
               <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>
                 No teams yet
               </Text>
               <Text style={[styles.emptyDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                Create your first team from upcoming matches
+                Create your first team from an upcoming match
               </Text>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push('/(tabs)');
                 }}
-                style={[styles.emptyButton, { backgroundColor: colors.primary, ...(isWeb ? { cursor: 'pointer' as any } : {}) }]}
+                style={[styles.emptyButton, { overflow: 'hidden', ...(isWeb ? { cursor: 'pointer' as any } : {}) }]}
               >
-                <Text style={[styles.emptyButtonText, { fontFamily: 'Inter_600SemiBold' }]}>
-                  View Matches
-                </Text>
+                <LinearGradient
+                  colors={[colors.accent, colors.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.emptyButtonGradient}
+                >
+                  <Text style={[styles.emptyButtonText, { fontFamily: 'Inter_700Bold', color: '#000' }]}>
+                    View Matches
+                  </Text>
+                </LinearGradient>
               </Pressable>
-            </View>
+            </LinearGradient>
           ) : (
             userTeamsByMatch.map(({ match, teams: matchTeams }) => (
               <Pressable
@@ -220,9 +259,15 @@ export default function MyMatchesScreen() {
                           {team.name}
                         </Text>
                       </View>
-                      <Text style={[styles.teamPoints, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-                        {team.playerIds.length} players
-                      </Text>
+                      {team.totalPoints > 0 ? (
+                        <Text style={[styles.teamPoints, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
+                          {team.totalPoints.toLocaleString()} pts
+                        </Text>
+                      ) : (
+                        <Text style={[styles.teamPoints, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                          {team.playerIds.length} players
+                        </Text>
+                      )}
                     </View>
                   ))}
                 </View>
@@ -245,10 +290,20 @@ const styles = StyleSheet.create({
     maxWidth: 700,
     alignSelf: 'center' as const,
   },
-  pageTitle: {
-    fontSize: 24,
+  pageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 20,
     paddingHorizontal: 4,
+  },
+  pageTitleAccent: {
+    width: 3,
+    height: 24,
+    borderRadius: 2,
+  },
+  pageTitle: {
+    fontSize: 24,
   },
   emptyState: {
     borderRadius: 16,
@@ -266,12 +321,15 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     marginTop: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
     borderRadius: 10,
   },
+  emptyButtonGradient: {
+    paddingHorizontal: 28,
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
   emptyButtonText: {
-    color: '#FFF',
     fontSize: 14,
   },
   matchItem: {
