@@ -192,8 +192,10 @@ export default function AdminScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const checkedAtRef = useRef<Date>(new Date());
 
-  const relativeTime = (iso: string): string => {
+  const relativeTime = (iso: string | null | undefined): string => {
+    if (!iso) return '—';
     const diff = Date.now() - new Date(iso).getTime();
+    if (!Number.isFinite(diff)) return '—';
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'just now';
     if (m < 60) return `${m}m ago`;
@@ -1042,10 +1044,14 @@ export default function AdminScreen() {
                       minWidth: 80,
                       backgroundColor: colors.card,
                       borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: colors.cardBorder,
                       borderTopWidth: 2,
                       borderTopColor: tile.accent,
+                      borderRightWidth: 1,
+                      borderRightColor: colors.cardBorder,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.cardBorder,
+                      borderLeftWidth: 1,
+                      borderLeftColor: colors.cardBorder,
                       paddingVertical: 8,
                       paddingHorizontal: 10,
                       alignItems: 'center',
@@ -1133,7 +1139,7 @@ export default function AdminScreen() {
               <Pressable
                 onPress={() => { checkedAtRef.current = new Date(); loadPendingUsers(); }}
                 style={{ padding: 6, borderRadius: 8, backgroundColor: colors.surfaceElevated }}
-                hitSlop={8}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons name="refresh" size={16} color={colors.textSecondary} />
               </Pressable>
@@ -1143,13 +1149,15 @@ export default function AdminScreen() {
             </Text>
 
             {pendingUsers.length === 0 ? (
-              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 10 }]}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_400Regular' }}>
-                  No pending signups
-                </Text>
-                <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular', marginLeft: 'auto' as any }}>
-                  checked {checkedAtRef.current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_400Regular' }}>
+                    No pending signups
+                  </Text>
+                </View>
+                <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' }}>
+                  checked {checkedAtRef.current.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
             ) : (
@@ -1162,7 +1170,7 @@ export default function AdminScreen() {
                     {/* Avatar initial */}
                     <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10, flexShrink: 0 }}>
                       <Text style={{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 15 }}>
-                        {pu.username.charAt(0).toUpperCase()}
+                        {(pu.username || '?').charAt(0).toUpperCase()}
                       </Text>
                     </View>
                     {/* User info */}
