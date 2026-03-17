@@ -167,6 +167,7 @@ export default function LeaderboardScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
+        contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.innerContainer, { paddingTop: insets.top + webTopInset + 8 }]}>
@@ -200,6 +201,8 @@ export default function LeaderboardScreen() {
               <View style={{ marginBottom: 16 }}>
                 <Pressable
                   onPress={() => setDropdownOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Selected tournament: ${selectedTournament || 'none'}. Tap to change.`}
                   style={[
                     styles.dropdown,
                     {
@@ -236,6 +239,9 @@ export default function LeaderboardScreen() {
                             setSelectedTournament(name);
                             setDropdownOpen(false);
                           }}
+                          accessibilityRole="button"
+                          accessibilityLabel={name}
+                          accessibilityState={{ selected: selectedTournament === name }}
                           style={[
                             styles.modalOption,
                             { borderBottomColor: colors.cardBorder, ...(isWeb ? { cursor: 'pointer' as any } : {}) },

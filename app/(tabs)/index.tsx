@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Platform,
   RefreshControl,
   Image,
+  Animated,
 } from 'react-native';
 import { SkeletonBox } from '@/components/SkeletonBox';
 import { getTeamLogo } from '@/utils/teamLogo';
@@ -32,6 +33,46 @@ interface MatchWithParticipants extends Match {
 }
 
 const isWeb = Platform.OS === 'web';
+
+function LivePulseDot({ color }: { color: string }) {
+  const pulseScale = useRef(new Animated.Value(1)).current;
+  const pulseOpacity = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(pulseScale, { toValue: 1.9, duration: 1400, useNativeDriver: true }),
+          Animated.timing(pulseOpacity, { toValue: 0, duration: 1400, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(pulseScale, { toValue: 1, duration: 0, useNativeDriver: true }),
+          Animated.timing(pulseOpacity, { toValue: 0.6, duration: 0, useNativeDriver: true }),
+        ]),
+        Animated.delay(400),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  return (
+    <View style={{ width: 8, height: 8 }}>
+      <Animated.View
+        style={{
+          position: 'absolute',
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: color,
+          transform: [{ scale: pulseScale }],
+          opacity: pulseOpacity,
+        }}
+      />
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+    </View>
+  );
+}
 
 function CompactCardSkeleton({ colors }: { colors: AppColors }) {
   return (
@@ -318,6 +359,8 @@ export default function HomeScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push('/admin');
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Admin settings"
                 style={({ pressed }) => [
                   styles.adminBtn,
                   {
@@ -370,7 +413,7 @@ export default function HomeScreen() {
               const started = new Date(m.startTime).getTime() <= Date.now();
               return m.status === 'live' || ((m.status === 'delayed' || m.status === 'upcoming') && started);
             }) && (
-              <View style={[styles.livePulse, { backgroundColor: colors.live }]} />
+              <LivePulseDot color={colors.live} />
             )}
           </View>
 
@@ -628,7 +671,6 @@ const styles = StyleSheet.create({
   },
   banterText: {
     fontSize: 11,
-    fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 2,
     marginBottom: 4,

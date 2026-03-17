@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -70,6 +70,11 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  const usernameRef = useRef<any>(null);
+  const phoneRef = useRef<any>(null);
+  const emailRef = useRef<any>(null);
+  const passwordRef = useRef<any>(null);
 
   const handleSubmit = async () => {
     setError('');
@@ -244,12 +249,16 @@ export default function AuthScreen() {
                   <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: focusedField === 'username' ? colors.accent : colors.border }]}>
                     <Ionicons name="person-outline" size={20} color={focusedField === 'username' ? colors.accent : colors.textTertiary} />
                     <TextInput
+                      ref={usernameRef}
                       style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
                       placeholder="Username"
                       placeholderTextColor={colors.textTertiary}
                       value={username}
                       onChangeText={setUsername}
                       autoCapitalize="none"
+                      accessibilityLabel="Username"
+                      returnKeyType="next"
+                      onSubmitEditing={() => phoneRef.current?.focus()}
                       onFocus={() => setFocusedField('username')}
                       onBlur={() => setFocusedField(null)}
                     />
@@ -259,12 +268,16 @@ export default function AuthScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: focusedField === 'phone' ? colors.accent : colors.border }]}>
                   <Ionicons name="call-outline" size={20} color={focusedField === 'phone' ? colors.accent : colors.textTertiary} />
                   <TextInput
+                    ref={phoneRef}
                     style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
                     placeholder="Phone Number"
                     placeholderTextColor={colors.textTertiary}
                     value={phone}
                     onChangeText={setPhone}
                     keyboardType="phone-pad"
+                    accessibilityLabel="Phone number"
+                    returnKeyType="next"
+                    onSubmitEditing={() => isLogin ? passwordRef.current?.focus() : emailRef.current?.focus()}
                     onFocus={() => setFocusedField('phone')}
                     onBlur={() => setFocusedField(null)}
                   />
@@ -274,6 +287,7 @@ export default function AuthScreen() {
                   <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: focusedField === 'email' ? colors.accent : colors.border }]}>
                     <Ionicons name="mail-outline" size={20} color={focusedField === 'email' ? colors.accent : colors.textTertiary} />
                     <TextInput
+                      ref={emailRef}
                       style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
                       placeholder="Email (optional)"
                       placeholderTextColor={colors.textTertiary}
@@ -281,6 +295,9 @@ export default function AuthScreen() {
                       onChangeText={setEmail}
                       keyboardType="email-address"
                       autoCapitalize="none"
+                      accessibilityLabel="Email address"
+                      returnKeyType="next"
+                      onSubmitEditing={() => passwordRef.current?.focus()}
                       onFocus={() => setFocusedField('email')}
                       onBlur={() => setFocusedField(null)}
                     />
@@ -290,16 +307,20 @@ export default function AuthScreen() {
                 <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(10, 14, 26, 0.6)' : colors.background, borderColor: focusedField === 'password' ? colors.accent : colors.border }]}>
                   <Ionicons name="lock-closed-outline" size={20} color={focusedField === 'password' ? colors.accent : colors.textTertiary} />
                   <TextInput
+                    ref={passwordRef}
                     style={[styles.input, { color: colors.text, fontFamily: 'Inter_400Regular' }]}
                     placeholder="Password"
                     placeholderTextColor={colors.textTertiary}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
+                    accessibilityLabel="Password"
+                    returnKeyType="go"
+                    onSubmitEditing={handleSubmit}
                     onFocus={() => setFocusedField('password')}
                     onBlur={() => setFocusedField(null)}
                   />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={{ cursor: 'pointer' as any }}>
+                  <Pressable onPress={() => setShowPassword(!showPassword)} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} style={{ cursor: 'pointer' as any }}>
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={20}

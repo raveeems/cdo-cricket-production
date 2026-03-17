@@ -168,11 +168,12 @@ export default function MyMatchesScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push({ pathname: '/(tabs)/match/[id]', params: { id: match.id } });
                 }}
-                style={[
+                style={({ pressed }) => [
                   styles.matchItem,
                   {
                     backgroundColor: hoveredCard === match.id ? colors.cardHover : colors.card,
                     borderColor: hoveredCard === match.id ? colors.accent + '30' : colors.cardBorder,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
                     ...(isWeb ? { cursor: 'pointer' as any, transition: 'all 0.2s ease' as any } : {}),
                   },
                 ]}
@@ -336,7 +337,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   matchItem: {
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     marginBottom: 12,
     overflow: 'hidden',

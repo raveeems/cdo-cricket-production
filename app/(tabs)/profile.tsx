@@ -249,8 +249,8 @@ export default function ProfileScreen() {
               </View>
               {matchesLoading ? (
                 <>
-                  <SkeletonBox width="100%" height={56} borderRadius={12} style={{ marginBottom: 8 }} colors={colors} />
-                  <SkeletonBox width="100%" height={56} borderRadius={12} style={{ marginBottom: 8 }} colors={colors} />
+                  <SkeletonBox width="100%" height={56} borderRadius={12} style={{ marginBottom: 8 }} />
+                  <SkeletonBox width="100%" height={56} borderRadius={12} style={{ marginBottom: 8 }} />
                 </>
               ) : (
                 tournamentHistory.map((entry) => {
@@ -372,6 +372,8 @@ export default function ProfileScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   toggleTheme();
                 }}
+                accessibilityLabel="Toggle dark mode"
+                accessibilityRole="switch"
                 trackColor={{ false: '#767577', true: colors.primary }}
                 thumbColor="#fff"
               />
@@ -430,6 +432,8 @@ export default function ProfileScreen() {
 
           <Pressable
             onPress={handleLogout}
+            accessibilityRole="button"
+            accessibilityLabel="Log out"
             style={({ pressed }) => [
               styles.logoutButton,
               {
