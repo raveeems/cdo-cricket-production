@@ -239,8 +239,108 @@ export default function ProfileScreen() {
             ))}
           </View>
 
+          <View style={[styles.settingsSection, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.settingRow,
+                hoveredRow === 'darkMode' && isWeb ? { backgroundColor: colors.cardHover } : {},
+              ]}
+              {...webHover('darkMode')}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.accent + '20' }]}>
+                  <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={colors.accent} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                  Dark Mode
+                </Text>
+              </View>
+              <Switch
+                value={isDark}
+                onValueChange={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  toggleTheme();
+                }}
+                accessibilityLabel="Toggle dark mode"
+                accessibilityRole="switch"
+                trackColor={{ false: '#767577', true: colors.primary }}
+                thumbColor="#fff"
+              />
+            </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <Pressable
+              style={[
+                styles.settingRow,
+                hoveredRow === 'howToPlay' && isWeb ? { backgroundColor: colors.cardHover } : {},
+                isWeb ? { cursor: 'pointer' as any } : {},
+              ]}
+              onPress={() => router.push('/how-to-play')}
+              {...webHover('howToPlay')}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
+                  <Feather name="help-circle" size={18} color={colors.success} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                  How to Play
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            {isAdmin && (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Pressable
+                  style={[
+                    styles.settingRow,
+                    hoveredRow === 'admin' && isWeb ? { backgroundColor: colors.cardHover } : {},
+                    isWeb ? { cursor: 'pointer' as any } : {},
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/admin');
+                  }}
+                  {...webHover('admin')}
+                >
+                  <View style={styles.settingLeft}>
+                    <View style={[styles.settingIcon, { backgroundColor: colors.error + '20' }]}>
+                      <Ionicons name="shield" size={18} color={colors.error} />
+                    </View>
+                    <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                      Admin Panel
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+                </Pressable>
+              </>
+            )}
+          </View>
+
+          <Pressable
+            onPress={handleLogout}
+            accessibilityRole="button"
+            accessibilityLabel="Log out"
+            style={({ pressed }) => [
+              styles.logoutButton,
+              {
+                backgroundColor: colors.error + '15',
+                borderColor: colors.error + '30',
+                opacity: pressed ? 0.8 : 1,
+                ...(isWeb ? { cursor: 'pointer' as any } : {}),
+              },
+            ]}
+          >
+            <Ionicons name="log-out-outline" size={20} color={colors.error} />
+            <Text style={[styles.logoutText, { color: colors.error, fontFamily: 'Inter_600SemiBold' }]}>
+              Log Out
+            </Text>
+          </Pressable>
+
           {tournamentHistory.length > 0 && (
-            <View style={{ marginBottom: 20 }}>
+            <View style={{ marginTop: 20, marginBottom: 20 }}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionAccent, { backgroundColor: colors.accent }]} />
                 <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
@@ -349,106 +449,6 @@ export default function ProfileScreen() {
               ))}
             </View>
           )}
-
-          <View style={[styles.settingsSection, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.settingRow,
-                hoveredRow === 'darkMode' && isWeb ? { backgroundColor: colors.cardHover } : {},
-              ]}
-              {...webHover('darkMode')}
-            >
-              <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: colors.accent + '20' }]}>
-                  <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={colors.accent} />
-                </View>
-                <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
-                  Dark Mode
-                </Text>
-              </View>
-              <Switch
-                value={isDark}
-                onValueChange={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  toggleTheme();
-                }}
-                accessibilityLabel="Toggle dark mode"
-                accessibilityRole="switch"
-                trackColor={{ false: '#767577', true: colors.primary }}
-                thumbColor="#fff"
-              />
-            </Pressable>
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-            <Pressable
-              style={[
-                styles.settingRow,
-                hoveredRow === 'howToPlay' && isWeb ? { backgroundColor: colors.cardHover } : {},
-                isWeb ? { cursor: 'pointer' as any } : {},
-              ]}
-              onPress={() => router.push('/how-to-play')}
-              {...webHover('howToPlay')}
-            >
-              <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
-                  <Feather name="help-circle" size={18} color={colors.success} />
-                </View>
-                <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
-                  How to Play
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            {isAdmin && (
-              <>
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <Pressable
-                  style={[
-                    styles.settingRow,
-                    hoveredRow === 'admin' && isWeb ? { backgroundColor: colors.cardHover } : {},
-                    isWeb ? { cursor: 'pointer' as any } : {},
-                  ]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push('/admin');
-                  }}
-                  {...webHover('admin')}
-                >
-                  <View style={styles.settingLeft}>
-                    <View style={[styles.settingIcon, { backgroundColor: colors.error + '20' }]}>
-                      <Ionicons name="shield" size={18} color={colors.error} />
-                    </View>
-                    <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
-                      Admin Panel
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-                </Pressable>
-              </>
-            )}
-          </View>
-
-          <Pressable
-            onPress={handleLogout}
-            accessibilityRole="button"
-            accessibilityLabel="Log out"
-            style={({ pressed }) => [
-              styles.logoutButton,
-              {
-                backgroundColor: colors.error + '15',
-                borderColor: colors.error + '30',
-                opacity: pressed ? 0.8 : 1,
-                ...(isWeb ? { cursor: 'pointer' as any } : {}),
-              },
-            ]}
-          >
-            <Ionicons name="log-out-outline" size={20} color={colors.error} />
-            <Text style={[styles.logoutText, { color: colors.error, fontFamily: 'Inter_600SemiBold' }]}>
-              Log Out
-            </Text>
-          </Pressable>
         </View>
       </ScrollView>
     </View>
