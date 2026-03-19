@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "D0SYwKfrT2yi3jMfaGiWF"
+uri = "file://ipl-players.json"
+type = "unspecified"
+title = "IPL Players List (39 players)"
