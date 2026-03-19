@@ -1,0 +1,246 @@
+Read carefully and follow exactly. Do not start coding until you complete the analysis steps and confirm them.
+
+OBJECTIVE
+Fix only the Impact Player Captain/Vice-Captain lock bug.
+Do NOT change the Team Preview layout in this task.
+Do NOT make any unrelated UI, schema, API, routing, seed, build, or deployment changes.
+
+==================================================
+NON-NEGOTIABLE IMPLEMENTATION RULES
+==================================================
+
+1. SCOPE CONTROL
+- Change only the minimum files required for this bug.
+- Do not refactor unrelated logic.
+- Do not touch admin screens, preview layout, scoring, DB schema, migrations, seed data, match APIs, auth, or deployment config unless absolutely required for this exact bug.
+- If any unrelated issue is discovered, report it separately and do not fix it as part of this task.
+
+2. NO ASSUMPTIONS
+- Do not assume business rules.
+- First inspect the existing code and identify the exact current rule for:
+  a) who is eligible for Captain
+  b) who is eligible for Vice-Captain
+  c) whether Impact Player is intentionally allowed for C/VC
+  d) what condition enables the next-step / preview button
+- If the current code already intends to allow Impact Player as C/VC, then fix the bug without changing the business rule.
+- If the current code explicitly forbids Impact Player as C/VC, stop and report that conflict before coding.
+
+3. ROOT-CAUSE-FIRST
+Before changing code, identify the exact root cause in code with proof.
+You must verify whether the bug is caused by one or more of these:
+- validation only checking main XI
+- impact player stored separately and excluded from eligible selection list
+- canProceed / disabled button logic using stale state
+- captain/vice-captain selection state not recomputed when Impact is selected first
+- step validation relying on selection order
+- UI state mismatch between selected labels and actual internal state
+
+4. PRODUCTION SAFETY
+- No database migration.
+- No schema change.
+- No API contract change unless absolutely required.
+- No mock-data edits.
+- No build-system changes.
+- No package/dependency changes unless absolutely required, and if so explain why before doing it.
+
+5. MOBILE-FIRST SAFETY
+This flow is used on mobile web. Do not break:
+- touch selection
+- button disabled/enabled state
+- navigation to next step
+- back navigation
+- changing C/VC after initial selection
+- switching between main XI and Impact selection flows
+
+6. DO NOT PUBLISH BLINDLY
+Do not publish/deploy immediately after coding.
+First prove the fix through code-level verification and flow testing.
+Publish only after all required validations below pass.
+
+==================================================
+BUG TO FIX
+==================================================
+
+CURRENT ISSUE
+- If I assign Captain or Vice-Captain to the Impact Player first, the next step remains locked.
+- If I first assign C/VC to a main XI player and then switch one of them to the Impact Player, it unlocks.
+
+EXPECTED BEHAVIOR
+- If Impact Player is allowed to be Captain or Vice-Captain by the current business rules, then selecting Impact first must work immediately.
+- The next-step button must enable correctly regardless of selection order.
+- Validation must be order-independent.
+
+IMPORTANT
+- This is not a Team Preview layout task.
+- Do not change field layout.
+- Do not add Impact/Backup visual blocks in this task.
+
+==================================================
+MANDATORY ANALYSIS BEFORE IMPLEMENTATION
+==================================================
+
+Before writing any code, do all of the following and report the answers clearly:
+
+1. Exact files involved
+List the exact files handling:
+- squad selection state
+- impact player state
+- captain/vice-captain assignment
+- next-step button enable/disable logic
+- validation for proceeding to preview/submit
+
+2. Exact current logic
+Show the exact logic or summarized logic for:
+- how selected XI is stored
+- how Impact Player is stored
+- how Captain is stored
+- how Vice-Captain is stored
+- how the app determines whether the step is valid
+
+3. Exact root cause
+State exactly why:
+- Impact-first selection keeps the button locked
+- but main-XI-first then switching to Impact works
+
+4. Exact scope of change
+Tell me exactly:
+- which files will be changed
+- which functions/components/hooks will be changed
+- why those are sufficient
+- what files will NOT be changed
+
+DO NOT IMPLEMENT until this analysis is complete.
+
+==================================================
+IMPLEMENTATION REQUIREMENTS
+==================================================
+
+If analysis confirms Impact Player is intended to be eligible for C/VC, then implement with these rules:
+
+1. SINGLE SOURCE OF TRUTH
+- Ensure validation uses one consistent eligible-player source for C/VC checks.
+- If main XI and Impact are stored separately, create or use a derived combined eligible selection only for validation and C/VC eligibility checks.
+- Do not duplicate conflicting logic in multiple places.
+
+2. ORDER-INDEPENDENT VALIDATION
+- The next-step enable logic must not depend on whether C/VC was chosen from main XI first or Impact first.
+- Recalculation must happen immediately after every C/VC assignment.
+
+3. STATE CONSISTENCY
+- Ensure displayed C/VC badges and internal selected IDs are always aligned.
+- No temporary UI state should show selection while validation still thinks it is invalid.
+
+4. MINIMAL CHANGE
+- Fix only the bug.
+- Do not redesign component structure unless necessary.
+
+5. NO REGRESSION
+Do not break these existing expected flows:
+- C from main XI, VC from main XI
+- C from main XI, VC from Impact
+- C from Impact, VC from main XI
+- changing Captain after Vice-Captain already selected
+- changing Vice-Captain after Captain already selected
+- removing and reassigning C/VC
+- navigating back and returning to the screen
+- preview step opening correctly after valid selection
+
+==================================================
+MANDATORY TEST CASES BEFORE PUBLISHING
+==================================================
+
+You must manually and/or code-verify all of these before publishing:
+
+A. CORE BUG TESTS
+1. Select Captain on Impact first, then Vice-Captain on main XI → next step must unlock
+2. Select Vice-Captain on Impact first, then Captain on main XI → next step must unlock
+3. Select Captain on main XI first, then Vice-Captain on Impact → next step must unlock
+4. Select Vice-Captain on main XI first, then Captain on Impact → next step must unlock
+
+B. SAME-FLOW CHANGE TESTS
+5. Select both from main XI, then switch Captain to Impact → still valid
+6. Select both from main XI, then switch Vice-Captain to Impact → still valid
+7. Select one from Impact, then change back to main XI → still valid
+8. Reassign C and VC multiple times in different order → button state must remain correct
+
+C. NEGATIVE / GUARDRAIL TESTS
+9. Only Captain selected, no Vice-Captain → next step must stay locked
+10. Only Vice-Captain selected, no Captain → next step must stay locked
+11. Same player assigned to both C and VC, if currently disallowed by business rules → must remain blocked
+12. Invalid state recovery: deselect and reselect → state must recover correctly
+
+D. NAVIGATION TESTS
+13. Move to next step after valid selection → must open correctly
+14. Go back and return to C/VC step → prior selections must remain consistent or reset according to current app rules, but no broken state
+15. Mobile tap behavior must work for all options without double tap requirement
+
+E. REGRESSION TESTS
+16. Team creation with no Impact-as-C/VC usage must continue working exactly as before
+17. Preview team flow must continue working
+18. Submit team flow must not break
+19. Existing non-Impact matches/flows must not break
+20. No console/runtime errors in this flow
+
+==================================================
+PRE-PUBLISH VERIFICATION OUTPUT FORMAT
+==================================================
+
+Before publishing, give me a structured report in exactly this format:
+
+1. ROOT CAUSE
+- exact cause
+- exact file(s)
+- exact function/component(s)
+
+2. FILES CHANGED
+- file 1
+- file 2
+- file 3
+Only list files actually changed.
+
+3. EXACT CHANGES MADE
+For each changed file:
+- what was changed
+- why it was changed
+- why no other file was needed
+
+4. FILES EXPLICITLY NOT CHANGED
+List important files you intentionally did not touch.
+
+5. TEST RESULTS
+For each of the 20 required tests above:
+- PASS / FAIL
+- one-line proof/explanation
+
+6. BUILD VERIFICATION
+- confirm app builds successfully
+- confirm no type/runtime errors introduced
+- confirm production bundle includes latest fix and not stale old build
+
+7. PUBLISH READINESS
+- explicitly state whether this is safe to publish
+- if any uncertainty remains, say DO NOT PUBLISH
+
+==================================================
+PUBLISHING RULES
+==================================================
+
+- Do not publish if any required test fails.
+- Do not publish if root cause is not clearly identified.
+- Do not publish if the fix required unrelated risky changes.
+- Do not publish if build output is stale or not guaranteed to include the fix.
+- If production serves a compiled bundle, verify the new fix is actually included in the compiled output being deployed.
+
+==================================================
+FINAL INSTRUCTION
+==================================================
+
+Start with analysis only.
+Do not code yet.
+First return:
+- exact root cause analysis
+- exact files to change
+- exact implementation plan
+- risk assessment
+
+Only after that proceed to implementation.
