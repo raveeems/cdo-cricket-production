@@ -13,6 +13,7 @@ import {
   Image,
 } from 'react-native';
 import { getTeamLogo } from '@/utils/teamLogo';
+import { getMatchBanter } from '@/utils/getMatchBanter';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -647,6 +648,7 @@ export default function CreateTeamScreen() {
   const [hasPredicted, setHasPredicted] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [splashMessage, setSplashMessage] = useState('');
+  const [banterLine, setBanterLine] = useState<string>('');
   const splashOpacity = useRef(new Animated.Value(0)).current;
   const splashScale = useRef(new Animated.Value(0.8)).current;
 
@@ -739,6 +741,7 @@ export default function CreateTeamScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const randomMsg = SPLASH_MESSAGES[Math.floor(Math.random() * SPLASH_MESSAGES.length)];
       setSplashMessage(randomMsg);
+      setBanterLine(getMatchBanter(match?.team1Short ?? '', match?.team2Short ?? '') ?? '');
       setShowSplash(true);
       splashOpacity.setValue(0);
       splashScale.setValue(0.8);
@@ -749,6 +752,7 @@ export default function CreateTeamScreen() {
       setTimeout(() => {
         Animated.timing(splashOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
           setShowSplash(false);
+          setBanterLine('');
           router.replace({ pathname: '/(tabs)/match/[id]', params: { id: matchId } });
         });
       }, 3500);
@@ -1657,6 +1661,11 @@ export default function CreateTeamScreen() {
             <Text style={[splashStyles.subtext, { fontFamily: 'Inter_500Medium' as const }]}>
               Team submitted successfully!
             </Text>
+            {banterLine ? (
+              <Text style={[splashStyles.subtext, { fontFamily: 'Inter_500Medium' as const, color: '#FFFFFFbb' }]}>
+                {banterLine}
+              </Text>
+            ) : null}
           </Animated.View>
         </View>
       </Modal>
