@@ -32,6 +32,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Database (PostgreSQL + Drizzle ORM)
 - **ORM**: Drizzle ORM with `drizzle-kit` for migrations
+- **⚠️ THREE SEPARATE DATABASE INSTANCES — CRITICAL**:
+  - **Dev DB** (`executeSql(environment:"development")`): Replit-managed PostgreSQL at `heliumdb` (PGHOST=helium). Only used locally.
+  - **Replit "production" DB** (`executeSql(environment:"production")`): Neon PostgreSQL (`neondb`, user=`neondb_owner`, IP=`169.254.254.254`). This is a MIRROR of early production data and is **NOT the live Railway app database**. Querying this does NOT reflect what the live app sees.
+  - **Railway production DB** (the REAL live app database): Railway-managed PostgreSQL with `rlwy.net` host. This is what `server/db.ts` connects to on Railway (detected via `DATABASE_URL.includes("railway") || DATABASE_URL.includes("rlwy")`). This is the ONLY database that matters for production users, signups, and approvals. **Cannot be queried via Replit's `executeSql` tool** — must be accessed via Railway dashboard, API calls to the live server, or by adding `RAILWAY_DATABASE_URL` as a separate Replit secret.
+  - The Replit Neon DB and Railway DB both started with the same 11 seed users (ravee, ajay, Ilamcetni, etc.) but have diverged. All new signups (uthra, any user after Feb 23) exist ONLY in Railway's DB.
 - **Connection**: `pg` (node-postgres) pool via `DATABASE_URL`. Pool settings: max 10, idleTimeout 30s, connectionTimeout 2s. `connectWithRetry()` in `server/db.ts` retries up to 10× with 3s delay before server starts accepting requests. Pool error events logged to console. Health check endpoint at `/health` returns `{server, database}` status
 - **Schema** (`shared/schema.ts`):
   - `users` — id (UUID), username, email, phone, password (plain text currently), isVerified, isAdmin, joinedAt
