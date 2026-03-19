@@ -1,0 +1,71 @@
+=================================================================
+                    IPL PLAYER EXPORT REPORT
+=================================================================
+
+EXPORT DATE: $(date)
+DATABASE: Production Players Table
+
+----- SUMMARY -----
+Total Players:         2,824
+Total Teams:           50
+Average Players/Team:  56.5
+
+----- PLAYER BREAKDOWN BY ROLE -----
+All-Rounders (AR):     894 players
+Bowlers (BOWL):        856 players
+Batsmen (BAT):         717 players
+Wicket-Keepers (WK):   357 players
+
+----- TOP 20 TEAMS BY PLAYER COUNT -----
+ 1. |                                   (India) -   0 players
+ 2. |                                   (New) -   0 players
+ 3. |                                   (South) -   0 players
+ 4. |                                   (Zimbabwe) -   0 players
+ 5. |                                   (Pakistan) -   0 players
+ 6. |                                   (England) -   0 players
+ 7. |                                   (West) -   0 players
+ 8. |                                   (Sri) -   0 players
+ 9. |                                   (Namibia) -   0 players
+10. |                                   (Scotland) -   0 players
+11. |                                   (Italy) -   0 players
+12. |                                   (Oman) -   0 players
+13. |                                   (Canada) -   0 players
+14. |                                   (Nepal) -   0 players
+15. |                                   (Netherlands) -   0 players
+16. |                                   (United) -   0 players
+17. |                                   (Afghanistan) -   0 players
+18. |                                   (Ireland) -   0 players
+19. |                                   (United) -   0 players
+20. |                                   (Australia) -   0 players
+ 0.                                     () -   0 players
+
+----- FILES AVAILABLE FOR DOWNLOAD -----
+
+1. players-export-full.csv
+   - Complete table with 2,824 rows
+   - Columns: player_id, player_name, team_name, team_short, role, 
+     credits, points, selected_by, external_id, impact_player, 
+     playing_xi
+   - Use this to map player photos by player_id
+
+2. players-export-summary.txt
+   - This summary report
+   - Overview statistics and team breakdown
+
+----- HOW TO USE -----
+
+For Photo Mapping:
+- Open players-export-full.csv in Excel or your photo mapping tool
+- Match player_id (UUID format) with photo filenames
+- Use player_name and team_short for visual reference
+- Filter by role to organize batsmen, bowlers, all-rounders separately
+
+Data Characteristics:
+- All IDs are UUIDs (real synced data from cricket API)
+- Credits: Standard player price in fantasy cricket
+- Points: Current match points (default 0 for new syncs)
+- Selected By: Number of users who picked this player
+- Impact Player: Boolean - whether eligible for impact substitution
+- Playing XI: Boolean - whether in official playing 11
+
+=================================================================

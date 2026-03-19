@@ -3359,6 +3359,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.get(
+    "/api/admin/players/export",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const allPlayers = await db
+          .select({
+            playerId: playersTable.id,
+            playerName: playersTable.name,
+            teamName: playersTable.team,
+            teamShort: playersTable.teamShort,
+            role: playersTable.role,
+            credits: playersTable.credits,
+            points: playersTable.points,
+            selectedBy: playersTable.selectedBy,
+            externalId: playersTable.externalId,
+            isImpactPlayer: playersTable.isImpactPlayer,
+            isPlayingXI: playersTable.isPlayingXI,
+          })
+          .from(playersTable)
+          .orderBy(playersTable.team, playersTable.name);
+
+        // Group by team for summary
+        const playersByTeam = new Map<string, (typeof allPlayers)>();
+        for (const player of allPlayers) {
+          if (!playersByTeam.has(player.teamName)) {
+            playersByTeam.set(player.teamName, []);
+          }
+          playersByTeam.get(player.teamName)!.push(player);
+        }
+
+        const summary = {
+          totalPlayers: allPlayers.length,
+          totalTeams: playersByTeam.size,
+          teamBreakdown: Array.from(playersByTeam.entries()).map(([team, players]) => ({
+            team,
+            count: players.length,
+          })),
+          players: allPlayers,
+        };
+
+        return res.json(summary);
+      } catch (err: any) {
+        console.error("Player export error:", err);
+        return res.status(500).json({ message: "Failed to export players" });
+      }
+    }
+  );
+
   const httpServer = createServer(app);
   return httpServer;
 }

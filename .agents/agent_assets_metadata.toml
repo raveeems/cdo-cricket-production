@@ -6,3 +6,15 @@ id = "D0SYwKfrT2yi3jMfaGiWF"
 uri = "file://ipl-players.json"
 type = "unspecified"
 title = "IPL Players List (39 players)"
+
+[[outputs]]
+id = "NBIumTaLlZK0sT8UHBEM4"
+uri = "file://players-export-full.csv"
+type = "table"
+title = "Complete Player List (2,824 players - CSV)"
+
+[[outputs]]
+id = "wedU64Pmgxkgr-qr9NJGK"
+uri = "file://PLAYERS_EXPORT_README.txt"
+type = "text"
+title = "Player Export Guide & Documentation"
