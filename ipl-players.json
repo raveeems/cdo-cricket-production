@@ -1,0 +1,275 @@
+[
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p10",
+    "playerName": "MS Dhoni",
+    "role": "WK"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p11",
+    "playerName": "Ruturaj Gaikwad",
+    "role": "BAT"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p12",
+    "playerName": "Devon Conway",
+    "role": "BAT"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p13",
+    "playerName": "Shivam Dube",
+    "role": "AR"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p14",
+    "playerName": "Ravindra Jadeja",
+    "role": "AR"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p15",
+    "playerName": "Moeen Ali",
+    "role": "AR"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p16",
+    "playerName": "Deepak Chahar",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p17",
+    "playerName": "Tushar Deshpande",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p18",
+    "playerName": "Matheesha Pathirana",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p19",
+    "playerName": "Rachin Ravindra",
+    "role": "BAT"
+  },
+  {
+    "teamName": "Chennai Super Kings",
+    "teamShortName": "CSK",
+    "playerId": "p20",
+    "playerName": "Daryl Mitchell",
+    "role": "AR"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p30",
+    "playerName": "Shreyas Iyer",
+    "role": "BAT"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p31",
+    "playerName": "Phil Salt",
+    "role": "WK"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p32",
+    "playerName": "Andre Russell",
+    "role": "AR"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p33",
+    "playerName": "Sunil Narine",
+    "role": "AR"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p34",
+    "playerName": "Rinku Singh",
+    "role": "BAT"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p35",
+    "playerName": "Venkatesh Iyer",
+    "role": "AR"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p36",
+    "playerName": "Mitchell Starc",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p37",
+    "playerName": "Varun Chakravarthy",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p38",
+    "playerName": "Harshit Rana",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "KKR",
+    "teamShortName": "KKR",
+    "playerId": "p39",
+    "playerName": "Ramandeep Singh",
+    "role": "BAT"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p1",
+    "playerName": "Rohit Sharma",
+    "role": "BAT"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p2",
+    "playerName": "Ishan Kishan",
+    "role": "WK"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p3",
+    "playerName": "Suryakumar Yadav",
+    "role": "BAT"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p4",
+    "playerName": "Tilak Varma",
+    "role": "BAT"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p5",
+    "playerName": "Hardik Pandya",
+    "role": "AR"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p6",
+    "playerName": "Tim David",
+    "role": "BAT"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p7",
+    "playerName": "Jasprit Bumrah",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p8",
+    "playerName": "Piyush Chawla",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "Mumbai Indians",
+    "teamShortName": "MI",
+    "playerId": "p9",
+    "playerName": "Gerald Coetzee",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p21",
+    "playerName": "Virat Kohli",
+    "role": "BAT"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p22",
+    "playerName": "Faf du Plessis",
+    "role": "BAT"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p23",
+    "playerName": "Glenn Maxwell",
+    "role": "AR"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p24",
+    "playerName": "Rajat Patidar",
+    "role": "BAT"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p25",
+    "playerName": "Dinesh Karthik",
+    "role": "WK"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p26",
+    "playerName": "Wanindu Hasaranga",
+    "role": "AR"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p27",
+    "playerName": "Mohammed Siraj",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p28",
+    "playerName": "Josh Hazlewood",
+    "role": "BOWL"
+  },
+  {
+    "teamName": "RCB",
+    "teamShortName": "RCB",
+    "playerId": "p29",
+    "playerName": "Karn Sharma",
+    "role": "BOWL"
+  }
+]
