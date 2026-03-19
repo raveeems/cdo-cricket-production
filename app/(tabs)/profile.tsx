@@ -10,9 +10,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  Image,
 } from 'react-native';
-import { getCustomAvatar } from '@/utils/userAvatars';
+import { UserAvatar } from '@/components/UserAvatar';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
@@ -131,15 +130,16 @@ export default function ProfileScreen() {
             <View style={styles.profileCardOverlay}>
               <View style={[styles.profileGlowOrb, { backgroundColor: colors.accent + '10', top: -15, right: -15 }]} />
             </View>
-            <View style={styles.profileAvatar}>
-              {getCustomAvatar(user?.id) ? (
-                <Image source={getCustomAvatar(user?.id)!} style={{ width: 64, height: 64, borderRadius: 32 }} resizeMode="cover" />
-              ) : (
-                <Text style={[styles.profileInitial, { fontFamily: 'Inter_700Bold' }]}>
-                  {(user?.username || 'U')[0].toUpperCase()}
-                </Text>
-              )}
-            </View>
+            <UserAvatar
+              userId={user?.id}
+              userName={user?.username || 'U'}
+              size={64}
+              backgroundColor="rgba(255,255,255,0.2)"
+              textColor="#FFF"
+              fontSize={26}
+              fontFamily="Inter_700Bold"
+              style={{ borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)', zIndex: 1 }}
+            />
             <View style={styles.profileInfo}>
               <Text style={[styles.profileName, { fontFamily: 'Inter_700Bold' }]}>
                 {user?.username || 'Player'}
