@@ -18,3 +18,21 @@ id = "wedU64Pmgxkgr-qr9NJGK"
 uri = "file://PLAYERS_EXPORT_README.txt"
 type = "text"
 title = "Player Export Guide & Documentation"
+
+[[outputs]]
+id = "Z9sJt0uJqXJQ07HdstK2f"
+uri = "file://ipl-2026-complete-squad.csv"
+type = "table"
+title = "IPL 2026 Complete Squad (247 players - CSV)"
+
+[[outputs]]
+id = "wL6nYFKc_7u0QsuieKIbo"
+uri = "file://ipl-2026-complete-squad.json"
+type = "unspecified"
+title = "IPL 2026 Squad Data (JSON format)"
+
+[[outputs]]
+id = "SARh30UaHonYOGbFERHoA"
+uri = "file://IPL-2026-README.txt"
+type = "text"
+title = "IPL 2026 Export Guide"

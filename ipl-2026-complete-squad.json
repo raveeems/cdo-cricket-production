@@ -1,0 +1,2358 @@
+{
+  "exportDate": "2026-03-19T16:30:55.860Z",
+  "totalPlayers": 247,
+  "totalTeams": 10,
+  "teamBreakdown": [
+    {
+      "teamName": "Gujarat Titans",
+      "shortName": "GT",
+      "count": 25,
+      "roles": {
+        "Bowler": 9,
+        "Batting Allrounder": 4,
+        "Bowling Allrounder": 6,
+        "Batsman": 2,
+        "WK-Batsman": 4
+      }
+    },
+    {
+      "teamName": "Royal Challengers Bengaluru",
+      "shortName": "RCBW",
+      "count": 25,
+      "roles": {
+        "Bowler": 9,
+        "Batsman": 6,
+        "Bowling Allrounder": 4,
+        "Batting Allrounder": 3,
+        "WK-Batsman": 3
+      }
+    },
+    {
+      "teamName": "Punjab Kings",
+      "shortName": "PBKS",
+      "count": 25,
+      "roles": {
+        "Batting Allrounder": 6,
+        "Bowler": 8,
+        "WK-Batsman": 2,
+        "Bowling Allrounder": 4,
+        "Batsman": 5
+      }
+    },
+    {
+      "teamName": "Sunrisers Hyderabad",
+      "shortName": "SRH",
+      "count": 25,
+      "roles": {
+        "WK-Batsman": 3,
+        "Bowler": 11,
+        "Batting Allrounder": 5,
+        "Batsman": 4,
+        "Unknown": 1,
+        "Bowling Allrounder": 1
+      }
+    },
+    {
+      "teamName": "Rajasthan Royals",
+      "shortName": "RR",
+      "count": 25,
+      "roles": {
+        "Bowling Allrounder": 2,
+        "--": 1,
+        "Bowler": 11,
+        "Batsman": 4,
+        "Unknown": 2,
+        "Batting Allrounder": 1,
+        "WK-Batsman": 4
+      }
+    },
+    {
+      "teamName": "Lucknow Super Giants",
+      "shortName": "LSG",
+      "count": 25,
+      "roles": {
+        "Batting Allrounder": 4,
+        "WK-Batsman": 5,
+        "Batsman": 3,
+        "Bowler": 10,
+        "Bowling Allrounder": 3
+      }
+    },
+    {
+      "teamName": "Mumbai Indians",
+      "shortName": "MI",
+      "count": 25,
+      "roles": {
+        "Batsman": 4,
+        "Bowling Allrounder": 5,
+        "Bowler": 7,
+        "Batting Allrounder": 5,
+        "Unknown": 1,
+        "WK-Batsman": 3
+      }
+    },
+    {
+      "teamName": "Chennai Super Kings",
+      "shortName": "CSK",
+      "count": 24,
+      "roles": {
+        "Bowling Allrounder": 3,
+        "Bowler": 10,
+        "Batsman": 5,
+        "WK-Batsman": 4,
+        "Batting Allrounder": 2
+      }
+    },
+    {
+      "teamName": "Delhi Capitals",
+      "shortName": "DC",
+      "count": 24,
+      "roles": {
+        "Batsman": 6,
+        "Bowling Allrounder": 4,
+        "Bowler": 8,
+        "WK-Batsman": 3,
+        "Batting Allrounder": 2,
+        "--": 1
+      }
+    },
+    {
+      "teamName": "Kolkata Knight Riders",
+      "shortName": "KKR",
+      "count": 24,
+      "roles": {
+        "Batsman": 8,
+        "Bowler": 8,
+        "WK-Batsman": 2,
+        "Bowling Allrounder": 1,
+        "Batting Allrounder": 4,
+        "Unknown": 1
+      }
+    }
+  ],
+  "players": [
+    {
+      "playerId": "7d053d4e-a735-4c96-bb98-4098dee523df",
+      "playerName": "Akeal Hosein",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "cbe808da-727a-4d9c-b3be-6eb431217483",
+      "playerName": "Anshul Kamboj",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "679f3d10-ac62-4f5b-89b2-7010935b9985",
+      "playerName": "Ayush Mhatre",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "14a56d48-499a-4b03-aa0f-bd3f592e9d94",
+      "playerName": "Dewald Brevis",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "c553c840-d84c-4a9f-a714-406ffe44f1e9",
+      "playerName": "Gurjapneet Singh",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "9d8be8e7-4218-400f-919a-211415490575",
+      "playerName": "Jamie Overton",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "a9897a50-1497-4912-8899-e67898f87f82",
+      "playerName": "Kartik Sharma",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "8df6183b-1c95-46d2-85c0-e185792d03f1",
+      "playerName": "Khaleel Ahmed",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "36e929d1-32f1-4d41-96c2-7df1364d0bab",
+      "playerName": "Matt Henry",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "b55e1386-231c-4d40-9f6a-4d5a9512079c",
+      "playerName": "Matthew Short",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "b6e7aa41-b0bb-4b0f-8f59-59f729283be5",
+      "playerName": "MS Dhoni",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "dc2f7f59-ce15-48aa-b7d9-793314961076",
+      "playerName": "Mukesh Choudhary",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "6731db45-8132-49c6-8fcb-f59258d15082",
+      "playerName": "Nathan Ellis",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "3cbc5a08-62af-4ca5-b709-c7712db6e8b6",
+      "playerName": "Noor Ahmad",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm wrist-spin"
+    },
+    {
+      "playerId": "fb46a43c-3deb-489d-8641-5d1744dfbf81",
+      "playerName": "Prashant Veer",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "d774adaf-78f0-4bf3-965e-8182c05b4517",
+      "playerName": "Rahul Chahar",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "f63eb69e-f17e-4d88-bf2b-d91af645c52c",
+      "playerName": "Ramakrishna Ghosh",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "50b70c71-1535-41c0-87fd-c12883105ede",
+      "playerName": "Ruturaj Gaikwad",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "35ed1b20-38f3-4013-be2e-dc28ffbecfd6",
+      "playerName": "Sanju Samson",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "ec1b806b-de33-4b79-b3ba-8a5ad78df163",
+      "playerName": "Sarfaraz Khan",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "22ee45d8-0538-4e3e-a758-c515f9b86d11",
+      "playerName": "Shivam Dube",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "b65be7fe-33cd-41d1-b601-31f25b4f72a4",
+      "playerName": "Shreyas Gopal",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "34ae4dde-3ec7-48a7-a2c1-d4e55122ff68",
+      "playerName": "Urvil Patel",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "c87a375e-2731-405d-a30e-3b99c06f614e",
+      "playerName": "Zakary Foulkes",
+      "teamName": "Chennai Super Kings",
+      "teamShort": "CSK",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "8199e3da-acb4-4bac-ab02-47d7ca004ed2",
+      "playerName": "Abishek Porel",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "014ba4b1-423c-49d3-a6f5-68e6bb90835e",
+      "playerName": "Ajay Jadav Mandal",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "cd5a9124-db0b-4cf8-b541-4f8830e02c0c",
+      "playerName": "Ashutosh Sharma",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "8fabee3c-244c-4ead-8f96-2ec79540d33f",
+      "playerName": "Auqib Nabi Dar",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "670ae8ac-4fe9-4f0c-84ee-320b13039f34",
+      "playerName": "Axar Patel",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "180036fe-fcb5-4fcf-ba8a-28bb2b750cc6",
+      "playerName": "Ben Duckett",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "2f50df2f-809d-44f9-b5be-ccb846515861",
+      "playerName": "David Miller",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "75fb3972-0436-40ee-bf45-73b1dba7b53e",
+      "playerName": "Dushmantha Chameera",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "367b54a9-80a5-40f6-bed6-086bbcd90899",
+      "playerName": "Karun Nair",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "a034346c-b408-4d29-a0f0-8b12430be28e",
+      "playerName": "KL Rahul",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "1e651cfb-57f1-48da-bf9d-83cbff1733d1",
+      "playerName": "Kuldeep Yadav",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm wrist-spin"
+    },
+    {
+      "playerId": "5673ee27-bf33-44b8-8973-41fd37923fed",
+      "playerName": "Kyle Jamieson",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "a1782393-3479-4caa-9c27-79cb87df9abc",
+      "playerName": "Lungi Ngidi",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "a3f40660-ccd6-4360-81ac-237f7fe09926",
+      "playerName": "Madhav Tiwari",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "bceb7084-1dda-4d76-b691-43c5a29d39a7",
+      "playerName": "Mitchell Starc",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast"
+    },
+    {
+      "playerId": "116e2bfb-6a97-4221-8006-8e7da70b0715",
+      "playerName": "Mukesh Kumar",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "64360dd6-a8db-47ae-8837-638a5bbbaae6",
+      "playerName": "Nitish Rana",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "bbbf3b4e-dbc3-4f2a-986d-1a0227ea5a06",
+      "playerName": "Pathum Nissanka",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "ba18ea55-4d65-4514-b8da-c3cc1fc286ce",
+      "playerName": "Sahil Parakh",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "--",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "3ec5f8da-2054-4ebb-b9be-2668ddc45e66",
+      "playerName": "Sameer Rizvi",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "d8826d0d-ef95-4dce-a47a-b09b97f49f07",
+      "playerName": "T Natarajan",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "c4d4fc79-efb2-4e26-a575-94c6fc419bf9",
+      "playerName": "Tripurana Vijay",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "de19a93e-06df-4597-9186-7a53c1613552",
+      "playerName": "Tristan Stubbs",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "6d4e7d4a-4fae-4958-bc15-a063c09508eb",
+      "playerName": "Vipraj Nigam",
+      "teamName": "Delhi Capitals",
+      "teamShort": "DC",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "863fd5b5-b77f-4168-b514-79a88641c553",
+      "playerName": "Anuj Rawat",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "09ca2fcc-1a5a-4f35-80f4-4ef9bc2b2f64",
+      "playerName": "Arshad Khan",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm medium"
+    },
+    {
+      "playerId": "4b661541-36cf-4dbe-96f0-3d58f971a2a9",
+      "playerName": "Ashok Sharma",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "9e6fa482-3ad3-4831-b05d-4fed2510cdf5",
+      "playerName": "Glenn Phillips",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "48da9a39-30d0-4b7d-9f61-44d221b653fa",
+      "playerName": "Gurnoor Brar",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "0c3d24bb-a517-435f-8cc3-60e945327bb3",
+      "playerName": "Ishant Sharma",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "f8e6accd-6b73-4869-93a6-d45519a361f0",
+      "playerName": "Jason Holder",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "9fc99793-a5b5-4eb2-9f7b-48cc3dc3cf8d",
+      "playerName": "Jayant Yadav",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "7567e305-1b40-4eee-9290-e2fcb8804496",
+      "playerName": "Jos Buttler",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "a81da20a-e420-476a-baf6-204fc219dbdd",
+      "playerName": "Kagiso Rabada",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "8b30fc91-1c7d-4fc9-899c-c795614a42a9",
+      "playerName": "Kumar Kushagra",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "fe5f4f96-c207-4e3f-b0d5-cebc74435448",
+      "playerName": "Luke Wood",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "c57237c9-a432-4ece-a56b-eac190b45919",
+      "playerName": "Manav Suthar",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "2a8d8640-2213-4cf6-ac7e-309d8b733e96",
+      "playerName": "Mohammed Siraj",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "3a51a030-8cac-42c7-8a47-e32fd1bcedd4",
+      "playerName": "Nishant Sindhu",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "99eb6b5c-379f-46da-bab7-dc8fd31ba435",
+      "playerName": "Prasidh Krishna",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "bad40656-82da-4d9f-949a-37b7cbcd8303",
+      "playerName": "Prithvi Raj Yarra",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "085d49b0-d5e5-4fc5-955b-39758a134545",
+      "playerName": "Rahul Tewatia",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "f0687183-ad9a-44f7-9cbf-4f7eb0cbfb5a",
+      "playerName": "Rashid Khan",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "7d6bbd6c-c5bb-4e1c-9374-aaa829e77611",
+      "playerName": "Ravisrinivasan Sai Kishore",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "79f582a1-f5ab-4d30-8f5f-b05d4143608c",
+      "playerName": "Sai Sudharsan",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "d0f69230-16e0-4a79-92aa-f9f7c588d5d3",
+      "playerName": "Shahrukh Khan",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "7263e990-a9e9-4829-8adf-760d18d1315c",
+      "playerName": "Shubman Gill",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "6364e591-1f4b-4fe6-867c-ae61ea21f6f0",
+      "playerName": "Tom Banton",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "309d3ffd-3d06-460d-9427-c559a604d471",
+      "playerName": "Washington Sundar",
+      "teamName": "Gujarat Titans",
+      "teamShort": "GT",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "cdc2646c-1fe7-4bc2-b26e-42453f45a212",
+      "playerName": "Ajinkya Rahane",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "96b0aa6a-d886-4c50-a968-63e5ec31ed0d",
+      "playerName": "Akash Deep",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "3c89df94-f39c-4c51-8e64-441c73c32c78",
+      "playerName": "Angkrish Raghuvanshi",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "2958faf6-f7d1-4150-aa9e-e261a629ba0d",
+      "playerName": "Anukul Roy",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "abe58090-e933-4888-8538-64f4611ee259",
+      "playerName": "Cameron Green",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "9a87c7c6-18de-403b-a7ce-90fb2c35eedd",
+      "playerName": "Daksh Kamra",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Unknown",
+      "battingStyle": "",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "08924d57-b4d3-4ed0-903d-087a8384be12",
+      "playerName": "Finn Allen",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "225ae9ea-dba6-456d-a64b-2dbd7476c8f0",
+      "playerName": "Harshit Rana",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "ff17824f-0e1c-4eb7-acd3-8b5d116934bc",
+      "playerName": "Kartik Tyagi",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "306f6b88-0442-476a-be55-1500b3441051",
+      "playerName": "Manish Pandey",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "d59bfc6b-bf4c-4a23-aa82-954911b0973d",
+      "playerName": "Matheesha Pathirana",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "5d15a50d-3d28-4576-b237-a0029d0933da",
+      "playerName": "Prashant Solanki",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "e6d28951-8524-43ca-95cf-9e73ae68bc12",
+      "playerName": "Rachin Ravindra",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "fb313a9a-0a14-499d-a8d1-7561bccea8cb",
+      "playerName": "Rahul Tripathi",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "3187d301-269d-4823-b895-66d652ddefca",
+      "playerName": "Ramandeep Singh",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "11864f31-b766-4766-9cbc-5026015ace48",
+      "playerName": "Rinku Singh",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "c699ec2b-a5f6-4ee0-a42d-79391b65b293",
+      "playerName": "Rovman Powell",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "df5ab4f7-7d1e-4a34-86bd-799020c283f7",
+      "playerName": "Sarthak Ranjan",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "ef2e9c01-41f2-4349-a945-45d8b11dbd19",
+      "playerName": "Sunil Narine",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "c8108a73-20ef-4bd6-a211-416b8f535693",
+      "playerName": "Tejasvi Dahiya",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "812fc568-a932-4f29-a1c4-b7c929e6a248",
+      "playerName": "Tim Seifert",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "b367db88-a73e-445f-8cdd-3f6335617b07",
+      "playerName": "Umran Malik",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "82de5824-b29b-4737-9e9d-44f5796ef227",
+      "playerName": "Vaibhav Arora",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "702254aa-2764-4fe4-b28e-20336a0ab069",
+      "playerName": "Varun Chakaravarthy",
+      "teamName": "Kolkata Knight Riders",
+      "teamShort": "KKR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "dd665f5d-04e8-436b-b376-8fd2a9b8bf8a",
+      "playerName": "Abdul Samad",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "3fef81b0-c1e9-45eb-954f-519f3b33d640",
+      "playerName": "Aiden Markram",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "bda09245-1e64-454b-97d4-61ee7e43cdde",
+      "playerName": "Akash Maharaj Singh",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "596d5a37-cb81-417c-b367-8dd0a281431c",
+      "playerName": "Akshat Raghuwanshi",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "a8c7ce67-5862-4acb-9297-97eafd0ea3d5",
+      "playerName": "Anrich Nortje",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "6ceed869-d2b7-4707-b6fd-cb84419cda12",
+      "playerName": "Arjun Tendulkar",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "eaea0d44-195d-49c6-b76b-987e8d1af290",
+      "playerName": "Arshin Kulkarni",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "332200ad-d1f8-4035-95c5-b33bd1c9a939",
+      "playerName": "Avesh Khan",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "151d6979-05d3-4c1f-ae30-0e58af0e8613",
+      "playerName": "Ayush Badoni",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "93eaaabd-7529-44cb-a8c7-52acd30ea54e",
+      "playerName": "Digvesh Singh Rathi",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "0528c7f4-51e4-44d9-b723-cc9eac02a955",
+      "playerName": "Himmat Singh",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "c040878f-3995-444c-a0f2-10a456f6c84d",
+      "playerName": "Josh Inglis",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "63075eff-1f66-4bf7-923f-5f92ee123283",
+      "playerName": "Manimaran Siddharth",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "b7f8b3f5-1759-43fe-914f-d9dc7f4269e2",
+      "playerName": "Matthew Breetzke",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "95bbca5a-f097-43dc-9a47-bdb85f02fb1a",
+      "playerName": "Mayank Yadav",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "6eaac800-13e7-4a07-8ee2-14acd04cc53f",
+      "playerName": "Mitchell Marsh",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "11d06633-aa20-469c-8fbb-676a1ae33eed",
+      "playerName": "Mohammed Shami",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "0a4bb087-ec55-4131-89a1-70f14153dbd9",
+      "playerName": "Mohsin Khan",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "5f2406ef-f96e-4f60-8529-71d2987ff4e3",
+      "playerName": "Mukul Choudhary",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "38b89162-6ff2-4a91-841d-b1a43a3694e6",
+      "playerName": "Naman Tiwari",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "4e8ab9cd-c5af-430e-887b-d22bf74ad052",
+      "playerName": "Nicholas Pooran",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "a67a5fef-c1d6-4264-a6a6-c1984489bd36",
+      "playerName": "Prince Yadav",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "a52b2d20-7c98-4238-9ba4-ec78419a5cc2",
+      "playerName": "Rishabh Pant",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "8f4c667c-4bb2-4808-a77b-ebece70f4273",
+      "playerName": "Shahbaz Ahmed",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "ba4ba8aa-3ebb-431a-83a9-a78844a68e26",
+      "playerName": "Wanindu Hasaranga",
+      "teamName": "Lucknow Super Giants",
+      "teamShort": "LSG",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "01966983-b69f-4523-9377-11b5c190715f",
+      "playerName": "AM Ghazanfar",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "af485f9b-d446-41ab-a644-f1a69f0eb600",
+      "playerName": "Ashwani Kumar",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "c9361dbc-8a5b-48e0-a5af-c727ec096eb5",
+      "playerName": "Atharva Ankolekar",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "f1dea685-fa68-4339-b582-ba70839e5ca9",
+      "playerName": "Corbin Bosch",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "0b4a79ad-eeac-4c0f-9682-b20c10d677d1",
+      "playerName": "Danish Malewar",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "237a1ef2-1eae-4877-8b94-d20d84faf635",
+      "playerName": "Deepak Chahar",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "a90b2371-5c53-4c29-a382-9b52d40a7548",
+      "playerName": "Hardik Pandya",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "6602d875-cf56-46a3-866c-de80aaa006bc",
+      "playerName": "Jasprit Bumrah",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "c06c697c-9575-4bb0-b1f0-27a56a2f3898",
+      "playerName": "Mayank Markande",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "3c0410d4-dd88-4964-a176-e43c5d622e58",
+      "playerName": "Mayank Rawat",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "16ec245b-022d-4104-bd8f-ccc780428390",
+      "playerName": "Mitchell Santner",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "e899c36d-dd74-42f1-9c72-743fea2e23cf",
+      "playerName": "Mohammed Salahuddin Izhar",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Unknown",
+      "battingStyle": "",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "71add5ac-55f9-4eb7-9e0c-d51208ae20c0",
+      "playerName": "Naman Dhir",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "000f9f7c-cc24-4a85-8638-b013b0f4760e",
+      "playerName": "Quinton de Kock",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "209404f5-0d11-4118-a9d8-086bedcfba2f",
+      "playerName": "Raghu Sharma",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "b64ccf20-292a-4834-b3d7-9de55187f44a",
+      "playerName": "Raj Bawa",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "21ffa053-b03d-4270-a49f-d3e2db9dfde7",
+      "playerName": "Robin Minz",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "03bda674-3916-4d64-952e-00a6c19c01e1",
+      "playerName": "Rohit Sharma",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "a6686871-5bcd-4aae-8bfc-8298f878b6a9",
+      "playerName": "Ryan Rickelton",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "c1257351-51ca-446f-b7f5-01fe92e75076",
+      "playerName": "Shardul Thakur",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "c978ce48-495b-4773-89c9-8a64d0257896",
+      "playerName": "Sherfane Rutherford",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "8c579447-bfbd-4cf6-a283-db4dc1d5ac33",
+      "playerName": "Suryakumar Yadav",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "aefd9074-da5a-408d-94f1-3be0e79d3b82",
+      "playerName": "Tilak Varma",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "6004fd3f-2264-470d-b39f-340d530b19b3",
+      "playerName": "Trent Boult",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "c510fbe6-8a16-47e4-ab60-0965720241af",
+      "playerName": "Will Jacks",
+      "teamName": "Mumbai Indians",
+      "teamShort": "MI",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "607ff10c-5619-411d-a822-06ba28992230",
+      "playerName": "Arshdeep Singh",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "7c341a4c-d3fa-4054-b95d-f75f94eee00c",
+      "playerName": "Azmatullah Omarzai",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "388b664b-de80-4290-ab82-420873293b91",
+      "playerName": "Ben Dwarshuis",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "615b1dc1-8f64-4e26-90c4-04999321fd52",
+      "playerName": "Cooper Connolly",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "56ec7d07-d0d8-4d25-84df-64b0b3ce963d",
+      "playerName": "Harnoor Singh",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "e3005322-b01a-4c58-9b26-a2ca150ad1d1",
+      "playerName": "Harpreet Brar",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "604d7c88-4f5d-40d9-b08b-330420964d87",
+      "playerName": "Lockie Ferguson",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "d3c53885-7016-4228-8a20-1dd98214489d",
+      "playerName": "Marco Jansen",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm fast"
+    },
+    {
+      "playerId": "11340697-6443-4c3e-ab27-d9d30ba95671",
+      "playerName": "Marcus Stoinis",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "9c777389-34c2-4c49-a2c6-37a2b5082705",
+      "playerName": "Mitchell Owen",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "9d412bea-6a7e-4655-8c8b-68f2d9900d98",
+      "playerName": "Musheer Khan",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "9713a0a1-b885-4221-9812-23b0b73c6657",
+      "playerName": "Nehal Wadhera",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "a15dfada-704c-42c3-9545-91c332ffca73",
+      "playerName": "Prabhsimran Singh",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "11beb0e3-9594-4304-b770-9f65b52a5ff9",
+      "playerName": "Praveen Dubey",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "4ff68cf3-d3a7-489f-bf37-4ac233f41a15",
+      "playerName": "Priyansh Arya",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "0e81bac3-02c3-4219-840a-9b49d937678d",
+      "playerName": "Pyla Avinash",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "9d6cb002-6b9f-4795-a9bf-ea1a6e27ed08",
+      "playerName": "Shashank Singh",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "77791963-6c1b-4979-b07a-f910dee28cd9",
+      "playerName": "Shreyas Iyer",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "c510dc77-7e6b-482c-a96d-73ef9398e969",
+      "playerName": "Suryansh Shedge",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "eff809fc-9841-4825-a89f-381db15ad0a2",
+      "playerName": "Vijaykumar Vyshak",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "40f4e08a-3cf8-43c0-b3d1-f7c85c575a93",
+      "playerName": "Vishal Nishad",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "e08d06c3-c7ef-4f44-9152-07023efb020c",
+      "playerName": "Vishnu Vinod",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "cba19be9-7aec-4083-ba61-26f0aee31721",
+      "playerName": "Xavier Bartlett",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "f291cb07-d04b-4f71-b9a0-ad1043b76c84",
+      "playerName": "Yash Thakur",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "0d704a13-518a-40a7-bb93-0fc0d92af9e2",
+      "playerName": "Yuzvendra Chahal",
+      "teamName": "Punjab Kings",
+      "teamShort": "PBKS",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "f49539fc-c565-4779-83c1-df3dfdaae171",
+      "playerName": "Adam Milne",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "cc8d32c8-98b5-4dd5-8dda-64f2321eaa97",
+      "playerName": "Aman Rao Perala",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Unknown",
+      "battingStyle": "",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "a0093df7-878e-43b7-a073-8db294d9760c",
+      "playerName": "Brijesh Sharma",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Unknown",
+      "battingStyle": "",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "21d693c2-b4dd-4d24-b747-90dfc8357ef5",
+      "playerName": "Dhruv Jurel",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "3f9ced2d-d71a-4478-93db-d7260c7145ee",
+      "playerName": "Donovan Ferreira",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "19758cd7-4cce-47d8-b1fe-5975609de802",
+      "playerName": "Jofra Archer",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "b43c2877-2cb4-41f5-951d-bc006eb4f6c0",
+      "playerName": "Kuldeep Sen",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "fa7d13ce-f737-4c8f-bf2c-e6f7b9968940",
+      "playerName": "Kwena Maphaka",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "6346e651-446e-4233-90a2-ae651cbcd75a",
+      "playerName": "Lhuan-dre Pretorius",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "3545d689-5166-440e-9eaf-1409e554a547",
+      "playerName": "Nandre Burger",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "9a71201c-c377-45aa-a355-1af6d2c4bae3",
+      "playerName": "Ravi Bishnoi",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "4c28bf05-bf2a-4a3e-bed4-c5bdf4fcd01b",
+      "playerName": "Ravi Singh",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "81b446e1-bfea-45a7-a15e-062b8157a323",
+      "playerName": "Ravindra Jadeja",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "b51bb4e5-acdf-423b-abb3-7a1e6694d2c2",
+      "playerName": "Riyan Parag",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "45613012-5c4f-4a7a-a1c4-d9827939b2bf",
+      "playerName": "Sam Curran",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "3f18b02d-0e1a-49be-aec4-c2fc11503505",
+      "playerName": "Sandeep Sharma",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "4269d64c-962d-4cd9-b2d2-1a62f51256b8",
+      "playerName": "Shimron Hetmyer",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "c6442879-0071-438a-a48e-4eb9c549ec13",
+      "playerName": "Shubham Dubey",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "fd2ee2dd-5051-4ced-baac-4c5a14253c6f",
+      "playerName": "Sushant Mishra",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "f3876b65-0643-49df-9255-4a06dd3fa051",
+      "playerName": "Tushar Deshpande",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "0f5502aa-40c8-43c6-a38f-1496000bd5b6",
+      "playerName": "Vaibhav Sooryavanshi",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "0e2b638b-e356-41bf-b986-f0f0f84bad38",
+      "playerName": "Vignesh Puthur",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm wrist-spin"
+    },
+    {
+      "playerId": "cdacd831-24fc-4aa3-94c5-0882bfaec018",
+      "playerName": "Yash Raj Punja",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "--",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "a254feed-0d7c-4f04-a2ab-7bf9ceef156b",
+      "playerName": "Yashasvi Jaiswal",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "2518d07c-55ea-416d-99d8-e847cba97ea2",
+      "playerName": "Yudhvir Singh Charak",
+      "teamName": "Rajasthan Royals",
+      "teamShort": "RR",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "849877f5-7704-4cad-b1ba-9e0b33aed35e",
+      "playerName": "Abhinandan Singh",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "3f3ecf51-8411-4046-9477-18c0fe3da6ac",
+      "playerName": "Bhuvneshwar Kumar",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "74c6584a-45a5-4781-a5e7-c0c9340da954",
+      "playerName": "Devdutt Padikkal",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "d8b0e01b-b754-432b-80a4-551e8c7ec8ca",
+      "playerName": "Jacob Bethell",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "6e05cbea-6a4b-42ef-8e2e-b44e4b434c2f",
+      "playerName": "Jacob Duffy",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "e28de73b-f5df-49eb-bdf6-c50471319404",
+      "playerName": "Jitesh Sharma",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "40ed69da-5d26-45eb-b9f8-72140b81b51a",
+      "playerName": "Jordan Cox",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "2190c28d-1712-4fd2-ae44-9ac54319fc21",
+      "playerName": "Josh Hazlewood",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "2dbbe6b1-b7a7-4609-810a-df536c049ee0",
+      "playerName": "Kanishk Chouhan",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "81c09c1b-1b1d-4e87-9eaa-d7d0a89a6159",
+      "playerName": "Krunal Pandya",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "4c17aaba-7455-4e74-82ac-86e60d480999",
+      "playerName": "Mangesh Yadav",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "eb911b3b-10b3-40f8-9294-e63ba030af83",
+      "playerName": "Nuwan Thushara",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "6db25d60-ff96-4d8d-8d22-dedeeb5ffa29",
+      "playerName": "Philip Salt",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "88215ee9-ca67-48af-a3f0-6b38718bd830",
+      "playerName": "Rajat Patidar",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "a1f7a1f3-f19c-43d2-bcd7-b4bae22f5842",
+      "playerName": "Rasikh Salam Dar",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "7fd4fa20-bc49-4337-ae8a-540b67cb011d",
+      "playerName": "Romario Shepherd",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "3676cc16-9ddf-446f-a4f1-93dbbef6e132",
+      "playerName": "Satvik Deswal",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "2bf2258f-f35e-4831-884e-f88ef46968f5",
+      "playerName": "Suyash Sharma",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "41f91a34-8989-4b88-96b9-9fbbe725776f",
+      "playerName": "Swapnil Singh",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "69718248-2a3a-45d4-9a2a-6f4dfc6942a5",
+      "playerName": "Tim David",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "c3236037-6694-404a-8f01-9ad880564ea9",
+      "playerName": "Venkatesh Iyer",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "b9701b53-3b9e-4eda-93b1-3543809674d4",
+      "playerName": "Vicky Ostwal",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "e5932c98-5c2a-4ade-8238-3b6382b18ef3",
+      "playerName": "Vihaan Malhotra",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "c61d247d-7f77-452c-b495-2813a9cd0ac4",
+      "playerName": "Virat Kohli",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "f061b5fc-cd70-480c-86aa-45c7828e739c",
+      "playerName": "Yash Dayal",
+      "teamName": "Royal Challengers Bengaluru",
+      "teamShort": "RCBW",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "83fe6ab6-d63c-420e-9416-a93d59a9a964",
+      "playerName": "Abhishek Sharma",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "6ed13677-5228-45cf-8cfb-c72c476f8fdb",
+      "playerName": "Amit Kumar",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Unknown",
+      "battingStyle": "",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "196f622e-e1ae-4962-95b5-81324e26c5fe",
+      "playerName": "Aniket Verma",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "d50e7092-dc22-4854-84d3-e08ccba038e9",
+      "playerName": "Brydon Carse",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "7aa19b4a-48ef-4d17-bef7-1e71f7829cb5",
+      "playerName": "Eshan Malinga",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "cc7c9a0b-b6ac-4109-84c8-dd9b1704308f",
+      "playerName": "Harsh Dubey",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowling Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "15bccb4f-8c3c-4da6-acd9-551782278bfd",
+      "playerName": "Harshal Patel",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "7d662361-8f12-4a52-9a4b-01e8734bd31d",
+      "playerName": "Heinrich Klaasen",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "9ae68636-48d9-488f-8adc-e62a19815d85",
+      "playerName": "Ishan Kishan",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "WK-Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "6d751be3-3023-43b9-8415-8259d19689fd",
+      "playerName": "Jack Edwards",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm medium"
+    },
+    {
+      "playerId": "f589d2a9-4e44-464d-9741-e224354a1370",
+      "playerName": "Jaydev Unadkat",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm fast-medium"
+    },
+    {
+      "playerId": "b4cc5506-212f-4d6b-825d-8ec89e1e084a",
+      "playerName": "Kamindu Mendis",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batting Allrounder",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "391537b8-1983-4080-8737-976c7e5bfab7",
+      "playerName": "Krains Fuletra",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "d1c0a448-6ee6-473a-90a2-e6a486698a8a",
+      "playerName": "Liam Livingstone",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    },
+    {
+      "playerId": "5bf98798-b2b0-47d2-b799-5307c0fd4936",
+      "playerName": "Nitish Kumar Reddy",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "0cf24408-c280-406d-8d7a-a78b0c3964ed",
+      "playerName": "Onkar Tukaram Tarmale",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "13b3d56e-0fba-4d31-a174-d211211404e2",
+      "playerName": "Pat Cummins",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast"
+    },
+    {
+      "playerId": "8f631eea-fa55-4296-b7cb-4f51e8ee2c98",
+      "playerName": "Praful Hinge",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "02247315-1e19-4e52-b800-5f39efaf3839",
+      "playerName": "Sakib Hussain",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "80c06194-6b4e-44a3-978f-ddacb33a95bb",
+      "playerName": "Salil Arora",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "WK-Batsman",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": ""
+    },
+    {
+      "playerId": "f00ccdba-6137-4852-a490-ba782044b866",
+      "playerName": "Shivam Mavi",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm fast-medium"
+    },
+    {
+      "playerId": "80c68f84-9ddf-4f6d-9672-9b21d51fd44e",
+      "playerName": "Shivang Kumar",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batting Allrounder",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Left-arm orthodox"
+    },
+    {
+      "playerId": "e3686ffa-fc7e-4cd0-ad49-7c355ab6691d",
+      "playerName": "Smaran Ravichandran",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "d6720897-e81d-4703-bf33-d2b60c973d30",
+      "playerName": "Travis Head",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Batsman",
+      "battingStyle": "Left Handed Bat",
+      "bowlingStyle": "Right-arm offbreak"
+    },
+    {
+      "playerId": "f183c67e-0b7c-44e5-8ab7-fe1e0be672f3",
+      "playerName": "Zeeshan Ansari",
+      "teamName": "Sunrisers Hyderabad",
+      "teamShort": "SRH",
+      "role": "Bowler",
+      "battingStyle": "Right Handed Bat",
+      "bowlingStyle": "Right-arm legbreak"
+    }
+  ]
+}
