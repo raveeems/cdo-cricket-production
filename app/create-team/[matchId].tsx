@@ -519,6 +519,10 @@ export default function CreateTeamScreen() {
     });
   };
 
+  const hasValidCaptain = captainType === 'impact_slot' ? !!primaryImpactId : !!captainId;
+  const hasValidVC = vcType === 'impact_slot' ? !!primaryImpactId : !!vcId;
+  const canProceedFromCaptain = hasValidCaptain && hasValidVC;
+
   const canSelectPlayer = (player: Player) => {
     if (selectedIds.has(player.id)) return true;
     if (selectedIds.size >= 11) return false;
@@ -652,7 +656,7 @@ export default function CreateTeamScreen() {
   });
 
   const handleSubmitPressed = () => {
-    if (!captainId || !vcId || !matchId || isSaving) return;
+    if (!canProceedFromCaptain || !matchId || isSaving) return;
     if (isDuplicateTeam(captainId, vcId)) {
       setDuplicateError('You have already created this exact team. Please change at least one player or the Captain/VC.');
       setStep('captain');
@@ -687,7 +691,7 @@ export default function CreateTeamScreen() {
   };
 
   const handleSaveTeam = async () => {
-    if (!captainId || !vcId || !matchId || isSaving) return;
+    if (!canProceedFromCaptain || !matchId || isSaving) return;
     if (isDuplicateTeam(captainId, vcId)) {
       setDuplicateError('You have already created this exact team. Please change at least one player or the Captain/VC.');
       setStep('captain');
@@ -1325,6 +1329,7 @@ export default function CreateTeamScreen() {
                         if (isCOnSlot) {
                           setCaptainType('player');
                         } else {
+                          setCaptainId(null);
                           setCaptainType('impact_slot');
                           if (isVCOnSlot) setVcType('player');
                         }
@@ -1339,6 +1344,7 @@ export default function CreateTeamScreen() {
                         if (isVCOnSlot) {
                           setVcType('player');
                         } else {
+                          setVcId(null);
                           setVcType('impact_slot');
                           if (isCOnSlot) setCaptainType('player');
                         }
@@ -1391,14 +1397,14 @@ export default function CreateTeamScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
-                  if (captainId && vcId) {
+                  if (canProceedFromCaptain) {
                     setDuplicateError(null);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setStep('preview');
                   }
                 }}
-                disabled={!captainId || !vcId}
-                style={[styles.saveBtn, { flex: 1, opacity: captainId && vcId ? 1 : 0.5 }]}
+                disabled={!canProceedFromCaptain}
+                style={[styles.saveBtn, { flex: 1, opacity: canProceedFromCaptain ? 1 : 0.5 }]}
               >
                 <LinearGradient
                   colors={[colors.accent, colors.accentDark]}
