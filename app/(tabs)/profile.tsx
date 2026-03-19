@@ -10,7 +10,9 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import { getCustomAvatar } from '@/utils/userAvatars';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
@@ -130,9 +132,13 @@ export default function ProfileScreen() {
               <View style={[styles.profileGlowOrb, { backgroundColor: colors.accent + '10', top: -15, right: -15 }]} />
             </View>
             <View style={styles.profileAvatar}>
-              <Text style={[styles.profileInitial, { fontFamily: 'Inter_700Bold' }]}>
-                {(user?.username || 'U')[0].toUpperCase()}
-              </Text>
+              {getCustomAvatar(user?.id) ? (
+                <Image source={getCustomAvatar(user?.id)!} style={{ width: 64, height: 64, borderRadius: 32 }} resizeMode="cover" />
+              ) : (
+                <Text style={[styles.profileInitial, { fontFamily: 'Inter_700Bold' }]}>
+                  {(user?.username || 'U')[0].toUpperCase()}
+                </Text>
+              )}
             </View>
             <View style={styles.profileInfo}>
               <Text style={[styles.profileName, { fontFamily: 'Inter_700Bold' }]}>

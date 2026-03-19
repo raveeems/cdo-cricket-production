@@ -7,7 +7,9 @@ import {
   Platform,
   Pressable,
   Modal,
+  Image,
 } from 'react-native';
+import { getCustomAvatar } from '@/utils/userAvatars';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -38,10 +40,14 @@ function TopThreeCard({ entry, position, isCurrentUser, colors }: { entry: Stand
 
   return (
     <View style={[styles.topCard, position === 0 && styles.topCardFirst, isCurrentUser && { borderWidth: 2, borderColor: colors.primary, borderRadius: 14, padding: 6 }]}>
-      <View style={[styles.topAvatar, { width: sizes[position], height: sizes[position], backgroundColor: medalColors[position] + '30', ...(position === 0 ? { borderWidth: 2, borderColor: medalColors[0] } : {}) }]}>
-        <Text style={[styles.topInitial, { fontSize: fontSizes[position], color: medalColors[position], fontFamily: 'Inter_700Bold' }]}>
-          {entry.userName[0]?.toUpperCase() || '?'}
-        </Text>
+      <View style={[styles.topAvatar, { width: sizes[position], height: sizes[position], backgroundColor: medalColors[position] + '30', ...(position === 0 ? { borderWidth: 2, borderColor: medalColors[0] } : {}), overflow: 'hidden' }]}>
+        {getCustomAvatar(entry.userId) ? (
+          <Image source={getCustomAvatar(entry.userId)!} style={{ width: sizes[position], height: sizes[position] }} resizeMode="cover" />
+        ) : (
+          <Text style={[styles.topInitial, { fontSize: fontSizes[position], color: medalColors[position], fontFamily: 'Inter_700Bold' }]}>
+            {entry.userName[0]?.toUpperCase() || '?'}
+          </Text>
+        )}
       </View>
       <MaterialCommunityIcons name={medalIcons[position]} size={22} color={medalColors[position]} />
       <Text style={[styles.topName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
@@ -316,10 +322,14 @@ export default function LeaderboardScreen() {
                                 {rank}
                               </Text>
                             </View>
-                            <View style={[styles.listAvatar, { backgroundColor: colors.primary + '20' }]}>
-                              <Text style={[styles.listInitial, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-                                {entry.userName[0]?.toUpperCase() || '?'}
-                              </Text>
+                            <View style={[styles.listAvatar, { backgroundColor: colors.primary + '20', overflow: 'hidden' }]}>
+                              {getCustomAvatar(entry.userId) ? (
+                                <Image source={getCustomAvatar(entry.userId)!} style={{ width: 38, height: 38, borderRadius: 19 }} resizeMode="cover" />
+                              ) : (
+                                <Text style={[styles.listInitial, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                                  {entry.userName[0]?.toUpperCase() || '?'}
+                                </Text>
+                              )}
                             </View>
                             <View style={styles.listInfo}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

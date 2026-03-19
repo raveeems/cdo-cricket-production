@@ -11,6 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { getTeamLogo } from '@/utils/teamLogo';
+import { getCustomAvatar } from '@/utils/userAvatars';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -540,10 +541,14 @@ export default function MatchDetailScreen() {
                         { backgroundColor: isCurrentUser ? colors.primary + '10' : colors.surfaceElevated },
                       ]}
                     >
-                      <View style={[styles.predictionAvatar, { backgroundColor: colors.primary + '20' }]}>
-                        <Text style={[styles.predictionInitial, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-                          {displayName[0]?.toUpperCase() || '?'}
-                        </Text>
+                      <View style={[styles.predictionAvatar, { backgroundColor: colors.primary + '20', overflow: 'hidden' }]}>
+                        {getCustomAvatar(pred.userId) ? (
+                          <Image source={getCustomAvatar(pred.userId)!} style={{ width: 32, height: 32, borderRadius: 16 }} resizeMode="cover" />
+                        ) : (
+                          <Text style={[styles.predictionInitial, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                            {displayName[0]?.toUpperCase() || '?'}
+                          </Text>
+                        )}
                       </View>
                       <Text style={[styles.predictionName, { color: colors.text, fontFamily: isCurrentUser ? 'Inter_700Bold' : 'Inter_500Medium' }]} numberOfLines={1}>
                         {isCurrentUser ? `${displayName} (You)` : displayName}
@@ -1217,10 +1222,14 @@ export default function MatchDetailScreen() {
             <View key={userId} style={[styles.participantCard, { backgroundColor: colors.card, borderColor: isCurrentUser ? colors.accent + '60' : colors.cardBorder }]}>
               <View style={styles.participantHeader}>
                 <View style={styles.participantInfo}>
-                  <View style={[styles.participantAvatar, { backgroundColor: isCurrentUser ? colors.accent + '20' : colors.primary + '20' }]}>
-                    <Text style={{ color: isCurrentUser ? colors.accent : colors.primary, fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>
-                      {data.username[0]?.toUpperCase() || '?'}
-                    </Text>
+                  <View style={[styles.participantAvatar, { backgroundColor: isCurrentUser ? colors.accent + '20' : colors.primary + '20', overflow: 'hidden' }]}>
+                    {getCustomAvatar(userId) ? (
+                      <Image source={getCustomAvatar(userId)!} style={{ width: 36, height: 36, borderRadius: 18 }} resizeMode="cover" />
+                    ) : (
+                      <Text style={{ color: isCurrentUser ? colors.accent : colors.primary, fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>
+                        {data.username[0]?.toUpperCase() || '?'}
+                      </Text>
+                    )}
                   </View>
                   <View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
