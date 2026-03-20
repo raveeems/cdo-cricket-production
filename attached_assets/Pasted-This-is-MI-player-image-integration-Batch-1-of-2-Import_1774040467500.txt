@@ -1,0 +1,74 @@
+This is MI player image integration — Batch 1 of 2.
+
+Important rules:
+1. Use only the player IDs as the source of truth for mapping.
+2. Do not map by player name.
+3. Do not use executeSql() in development or production mode for this task.
+4. Do not make assumptions from file names unless they exactly match player IDs.
+5. All uploaded files are saved in .jpeg format. Use the exact .jpeg extension. Do not assume .jpg or .png.
+6. Keep this implementation scalable so later we can add more teams in the same system.
+7. This batch contains only the first 19 MI player image files.
+8. Build on the existing reusable player image system already created for CSK, RCB, and SRH, and map only these uploaded 19 files in this batch.
+9. I will upload the remaining 6 MI player files in Batch 2, so keep the system ready to append those mappings later without refactoring.
+
+Task:
+1. Add all uploaded MI player image files into the existing dedicated player image assets folder.
+2. Use player_id as the only mapping key.
+3. Update the existing reusable player image resolver/helper with these MI player mappings.
+4. If a player image is not available, keep the current default placeholder/fallback behavior exactly as it is.
+5. Do not change any unrelated logic.
+6. Do not change database schema.
+7. Do not build any upload feature.
+8. Do not change any API unless absolutely necessary.
+
+Expected implementation structure:
+- Store images in the same dedicated folder already used for CSK, RCB, and SRH player images
+- Update the same helper such as utils/playerImages.ts or equivalent
+- Use player_id -> image mapping only
+- Keep fallback behavior unchanged for players without images
+- Keep it consistent with the existing CSK, RCB, and SRH implementation
+
+Batch 1 — first 19 MI player IDs to map:
+- 01966983-b69f-4523-9377-11b5c190715f  AM Ghazanfar
+- af485f9b-d446-41ab-a644-f1a69f0eb600  Ashwani Kumar
+- c9361dbc-8a5b-48e0-a5af-c727ec096eb5  Atharva Ankolekar
+- f1dea685-fa68-4339-b582-ba70839e5ca9  Corbin Bosch
+- 0b4a79ad-eeac-4c0f-9682-b20c10d677d1  Danish Malewar
+- 237a1ef2-1eae-4877-8b94-d20d84faf635  Deepak Chahar
+- a90b2371-5c53-4c29-a382-9b52d40a7548  Hardik Pandya
+- 6602d875-cf56-46a3-866c-de80aaa006bc  Jasprit Bumrah
+- c06c697c-9575-4bb0-b1f0-27a56a2f3898  Mayank Markande
+- 3c0410d4-dd88-4964-a176-e43c5d622e58  Mayank Rawat
+- 16ec245b-022d-4104-bd8f-ccc780428390  Mitchell Santner
+- e899c36d-dd74-42f1-9c72-743fea2e23cf  Mohammed Salahuddin
+- 71add5ac-55f9-4eb7-9e0c-d51208ae20c0  Naman Dhir
+- 000f9f7c-cc24-4a85-8638-b013b0f4760e  Quinton de Kock
+- 209404f5-0d11-4118-a9d8-086bedcfba2f  Raghu Sharma
+- b64ccf20-292a-4834-b3d7-9de55187f44a  Raj Bawa
+- 21ffa053-b03d-4270-a49f-d3e2db9dfde7  Robin Minz
+- 03bda674-3916-4d64-952e-00a6c19c01e1  Rohit Sharma
+- a6686871-5bcd-4aae-8bfc-8298f878b6a9  Ryan Rickelton
+
+Before implementing, first return:
+1. Exact uploaded filenames received
+2. Exact folder path where they will be stored
+3. Exact file(s) that will be changed
+4. Whether every uploaded file correctly matches a player_id
+5. Any filename/player_id mismatch or ambiguity you detect
+6. Which app screens/components currently render player placeholders or player visuals, and which of those you plan to update in this task
+
+Implementation scope for this phase:
+Update only the already-approved player-facing surfaces:
+- player selection list
+- team creation / player pick list
+- team preview / created team list
+
+Do not try to update every player surface in the app in this same task unless already safely centralized.
+
+After implementing, return:
+1. Exact files changed
+2. Exact player_id -> image mappings added
+3. Confirmation that fallback remains unchanged for players without images
+4. Exact screens/components updated in this phase
+5. PASS/FAIL verification for the updated screens
+6. Confirmation that the .jpeg files are correctly bundled and resolved in production build
