@@ -1,0 +1,80 @@
+This is RCB player image integration — Batch 1 of 2.
+
+Important rules:
+1. Use only the player IDs as the source of truth for mapping.
+2. Do not map by player name.
+3. Do not use executeSql() in development or production mode for this task.
+4. Do not make assumptions from file names unless they exactly match player IDs.
+5. All uploaded files are saved in .jpeg format. Use the exact .jpeg extension. Do not assume .jpg or .png.
+6. The central server-side normalization fix for RCBW -> RCB is already in place. Use the normalized RCB flow only.
+7. Do not create separate RCB and RCBW duplicate mappings for player images.
+8. Keep this implementation scalable so later we can add more teams in the same system.
+9. This batch contains only the first 19 RCB player image files.
+10. Build on the existing reusable player image system already created for CSK, and map only these uploaded 19 files in this batch.
+11. I will upload the remaining 6 RCB player files in Batch 2, so keep the system ready to append those mappings later without refactoring.
+
+Task:
+1. Add all uploaded RCB player image files into the existing dedicated player image assets folder.
+2. Use player_id as the only mapping key.
+3. Update the existing reusable player image resolver/helper with these RCB player mappings.
+4. If a player image is not available, keep the current default placeholder/fallback behavior exactly as it is.
+5. Do not change any unrelated logic.
+6. Do not change database schema.
+7. Do not build any upload feature.
+8. Do not change any API unless absolutely necessary.
+
+Expected implementation structure:
+- Store images in the same dedicated folder already used for CSK player images
+- Update the same helper such as utils/playerImages.ts or equivalent
+- Use player_id -> image mapping only
+- Keep fallback behavior unchanged for players without images
+- Keep it consistent with the existing CSK implementation
+
+Important:
+- RCB men’s data may still come from the API with shortname RCBW in some places, but the central normalization fix should already resolve that to RCB.
+- This integration must work through the normalized RCB flow only.
+
+Batch 1 — first 19 RCB player IDs to map:
+- 849877f5-7704-4cad-b1ba-9e0b33aed35e  Abhinandan Singh
+- 3f3ecf51-8411-4046-9477-18c0fe3da6ac  Bhuvneshwar Kumar
+- 74c6584a-45a5-4781-a5e7-c0c9340da954  Devdutt Padikkal
+- d8b0e01b-b754-432b-80a4-551e8c7ec8ca  Jacob Bethell
+- 6e05cbea-6a4b-42ef-8e2e-b44e4b434c2f  Jacob Duffy
+- e28de73b-f5df-49eb-bdf6-c50471319404  Jitesh Sharma
+- 40ed69da-5d26-45eb-b9f8-72140b81b51a  Jordan Cox
+- 2190c28d-1712-4fd2-ae44-9ac54319fc21  Josh Hazlewood
+- 2dbeb6b1-b7a7-4609-810a-df536c049ee0  Kanishk Chouhan
+- 81c09c1b-1b1d-4e87-9eaa-d7d0a89a6159  Krunal Pandya
+- 4c17aaba-7455-4e74-82ac-86e60d480999  Mangesh Yadav
+- eb911b3b-10b3-40f8-9294-e63ba030af83  Nuwan Thushara
+- 6db25d60-ff96-4d8d-8d22-dedeeb5ffa29  Philip Salt
+- 88215ee9-ca67-48af-a3f0-6b38718bd830  Rajat Patidar
+- a1f7a1f3-f19c-43d2-bcd7-b4bae22f5842  Rasikh Salam
+- 7fd4fa20-bc49-4337-ae8a-540b67cb011d  Romario Shepherd
+- 3676cc16-9ddf-446f-a4f1-93dbbef6e132  Satvik Deswal
+- 2bf2258f-f35e-4831-884e-f88ef46968f5  Suyash Sharma
+- 41f91a34-8989-4b88-96b9-9fbbe725776f  Swapnil Singh
+
+Before implementing, first return:
+1. Exact uploaded filenames received
+2. Exact folder path where they will be stored
+3. Exact file(s) that will be changed
+4. Whether every uploaded file correctly matches a player_id
+5. Any filename/player_id mismatch or ambiguity you detect
+6. Which app screens/components currently render player placeholders or player visuals, and which of those you plan to update in this task
+
+Implementation scope for this phase:
+Update only the already-approved player-facing surfaces:
+- player selection list
+- team creation / player pick list
+- team preview / created team list
+
+Do not try to update every player surface in the app in this same task unless already safely centralized.
+
+After implementing, return:
+1. Exact files changed
+2. Exact player_id -> image mappings added
+3. Confirmation that fallback remains unchanged for players without images
+4. Exact screens/components updated in this phase
+5. PASS/FAIL verification for the updated screens
+6. Confirmation that the .jpeg files are correctly bundled and resolved in production build

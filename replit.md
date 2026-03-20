@@ -106,9 +106,12 @@ Preferred communication style: Simple, everyday language.
 - **Component**: `components/UserAvatar.tsx` — renders circular user avatar with fallback to initials
 - **Coverage**: All 10 active production users mapped by Railway UUID
 
-### Player Headshot Images (CSK — complete, 24 players)
+### Player Headshot Images (CSK complete + RCB Batch 1 — 41 players total)
 - **Location**: `assets/images/players/{player_id}.jpeg` — keyed by the player's API UUID
 - **Utility**: `utils/playerImages.ts` — `getPlayerImage(playerId)` returns `ImageSourcePropType | null`. Returns `null` for unmapped players (safe fallback).
-- **Coverage**: 24 CSK players — Batch 1 (19): Ruturaj Gaikwad, MS Dhoni, Noor Ahmad, Ayush Mhatre, Khaleel Ahmed, Rahul Chahar, Nathan Ellis, Anshul Kamboj, Akeal Hosein, Dewald Brewis, Sanju Samson, Matt Henry, Jamie Overton, Kartik Sharma, Matthew Short, Gurjapneet Singh, Mukesh Choudhary, Ramakrishna Ghosh, Prashant Veer. Batch 2 (5): Shivam Dube, Urvil Patel, Shreyas Gopal, Zakary Foulkes, Sarfaraz Khan
+- **Coverage**:
+  - CSK (24 players, complete) — Batch 1 (19): Ruturaj Gaikwad, MS Dhoni, Noor Ahmad, Ayush Mhatre, Khaleel Ahmed, Rahul Chahar, Nathan Ellis, Anshul Kamboj, Akeal Hosein, Dewald Brewis, Sanju Samson, Matt Henry, Jamie Overton, Kartik Sharma, Matthew Short, Gurjapneet Singh, Mukesh Choudhary, Ramakrishna Ghosh, Prashant Veer. Batch 2 (5): Shivam Dube, Urvil Patel, Shreyas Gopal, Zakary Foulkes, Sarfaraz Khan
+  - RCB Batch 1 (17 players): Abhinandan Singh, Bhuvneshwar Kumar, Devdutt Padikkal, Jacob Bethell, Jacob Duffy, Jitesh Sharma, Jordan Cox, Josh Hazlewood, Krunal Pandya, Mangesh Yadav, Nuwan Thushara, Philip Salt, Rajat Patidar, Rasikh Salam, Romario Shepherd, Satvik Deswal, Swapnil Singh
+  - RCB Batch 2 pending (2 deferred): Kanishk Chouhan (filename ID mismatch — needs correct file), Suyash Sharma (no file uploaded yet)
 - **UI integration**: `app/create-team/[matchId].tsx` — `PlayerItem`, `CompactPlayerItem`, `CaptainItem` all show circular player photo (40px) with colored role badge overlay when a photo exists. Fallback: existing role pill unchanged (no layout shift for unmapped players).
-- **Extending**: To add more teams, append new entries to `PLAYER_IMAGES` in `utils/playerImages.ts` with the player's API UUID as key and a `require('../assets/images/players/{id}.jpeg')` as value. Add corresponding JPEG to `assets/images/players/`.
+- **Extending**: To add more teams (MI, SRH, DC, etc.), append new entries to `PLAYER_IMAGES` in `utils/playerImages.ts` with the player's API UUID as key and a `require('../assets/images/players/{id}.jpeg')` as value. Add corresponding JPEG to `assets/images/players/`.

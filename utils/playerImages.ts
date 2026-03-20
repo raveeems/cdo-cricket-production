@@ -29,7 +29,25 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   'b65be7fe-33cd-41d1-b601-31f25b4f72a4': require('../assets/images/players/b65be7fe-33cd-41d1-b601-31f25b4f72a4.jpeg'),
   'c87a375e-2731-405d-a30e-3b99c06f614e': require('../assets/images/players/c87a375e-2731-405d-a30e-3b99c06f614e.jpeg'),
   'ec1b806b-de33-4b79-b3ba-8a5ad78df163': require('../assets/images/players/ec1b806b-de33-4b79-b3ba-8a5ad78df163.jpeg'),
-  // Other teams — append here (RCB, MI, etc.)
+  // RCB — Batch 1 (17 players; 2 deferred: Kanishk Chouhan filename mismatch, Suyash Sharma no file)
+  '849877f5-7704-4cad-b1ba-9e0b33aed35e': require('../assets/images/players/849877f5-7704-4cad-b1ba-9e0b33aed35e.jpeg'),
+  '3f3ecf51-8411-4046-9477-18c0fe3da6ac': require('../assets/images/players/3f3ecf51-8411-4046-9477-18c0fe3da6ac.jpeg'),
+  '74c6584a-45a5-4781-a5e7-c0c9340da954': require('../assets/images/players/74c6584a-45a5-4781-a5e7-c0c9340da954.jpeg'),
+  'd8b0e01b-b754-432b-80a4-551e8c7ec8ca': require('../assets/images/players/d8b0e01b-b754-432b-80a4-551e8c7ec8ca.jpeg'),
+  '6e05cbea-6a4b-42ef-8e2e-b44e4b434c2f': require('../assets/images/players/6e05cbea-6a4b-42ef-8e2e-b44e4b434c2f.jpeg'),
+  'e28de73b-f5df-49eb-bdf6-c50471319404': require('../assets/images/players/e28de73b-f5df-49eb-bdf6-c50471319404.jpeg'),
+  '40ed69da-5d26-45eb-b9f8-72140b81b51a': require('../assets/images/players/40ed69da-5d26-45eb-b9f8-72140b81b51a.jpeg'),
+  '2190c28d-1712-4fd2-ae44-9ac54319fc21': require('../assets/images/players/2190c28d-1712-4fd2-ae44-9ac54319fc21.jpeg'),
+  '81c09c1b-1b1d-4e87-9eaa-d7d0a89a6159': require('../assets/images/players/81c09c1b-1b1d-4e87-9eaa-d7d0a89a6159.jpeg'),
+  '4c17aaba-7455-4e74-82ac-86e60d480999': require('../assets/images/players/4c17aaba-7455-4e74-82ac-86e60d480999.jpeg'),
+  'eb911b3b-10b3-40f8-9294-e63ba030af83': require('../assets/images/players/eb911b3b-10b3-40f8-9294-e63ba030af83.jpeg'),
+  '6db25d60-ff96-4d8d-8d22-dedeeb5ffa29': require('../assets/images/players/6db25d60-ff96-4d8d-8d22-dedeeb5ffa29.jpeg'),
+  '88215ee9-ca67-48af-a3f0-6b38718bd830': require('../assets/images/players/88215ee9-ca67-48af-a3f0-6b38718bd830.jpeg'),
+  'a1f7a1f3-f19c-43d2-bcd7-b4bae22f5842': require('../assets/images/players/a1f7a1f3-f19c-43d2-bcd7-b4bae22f5842.jpeg'),
+  '7fd4fa20-bc49-4337-ae8a-540b67cb011d': require('../assets/images/players/7fd4fa20-bc49-4337-ae8a-540b67cb011d.jpeg'),
+  '3676cc16-9ddf-446f-a4f1-93dbbef6e132': require('../assets/images/players/3676cc16-9ddf-446f-a4f1-93dbbef6e132.jpeg'),
+  '41f91a34-8989-4b88-96b9-9fbbe725776f': require('../assets/images/players/41f91a34-8989-4b88-96b9-9fbbe725776f.jpeg'),
+  // Other teams — append here (MI, SRH, DC, etc.)
 };
 
 export function getPlayerImage(playerId?: string | null): ImageSourcePropType | null {
