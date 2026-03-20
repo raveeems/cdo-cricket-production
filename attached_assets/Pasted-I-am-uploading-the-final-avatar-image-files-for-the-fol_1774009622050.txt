@@ -1,0 +1,53 @@
+I am uploading the final avatar image files for the following Railway production users.
+
+Important rule:
+Use only the real Railway production UUIDs for mapping.
+Do not use executeSql() in development or production mode.
+Do not use Replit Neon/dev IDs.
+Use the existing Railway-backed source of truth only.
+
+Task:
+1. Add all uploaded avatar image files into the existing avatar assets location.
+2. Update the avatar mapping so these files are mapped to the correct Railway production UUIDs.
+3. Do not change any other logic.
+4. Keep the existing shared UserAvatar component and fallback initials behavior exactly as it is.
+5. Apply this globally wherever avatars are rendered, using the existing shared avatar system.
+6. After implementation, verify that each mapped user now sees their avatar instead of initials.
+7. Confirm that all non-mapped users still show initials fallback.
+
+Mappings:
+- b118f8f2-ae8e-4444-9f27-16266e7f5ea1 -> ravee-avatar.jpg
+- 166f6421-e1b0-4ded-adb0-c57e49a2e830 -> ajay-avatar.jpg
+- 01c3dbaa-ced6-4788-bd35-85ca28a1e30e -> ilamcetni-avatar.jpg
+- 15513544-9fb1-4b47-a95a-6bbf1c40f50d -> chandru11-avatar.jpg
+- f8615988-ee3e-4f93-84b7-da474be95c6d -> arun-avatar.jpg
+- cf0d4aef-3300-4e26-b69c-45717d9ae3ca -> shanky-avatar.jpg
+- 9d1c5aa1-96f1-4be1-a9ae-5b062d01ac8e -> nagoor-meeran-avatar.jpg
+- e9ef12ca-03bc-47f6-83dd-454e51ebcd10 -> prannit-stefano-avatar.jpg
+
+Expected files uploaded:
+- ravee-avatar.jpg
+- ajay-avatar.jpg
+- ilamcetni-avatar.jpg
+- chandru11-avatar.jpg
+- arun-avatar.jpg
+- shanky-avatar.jpg
+- nagoor-meeran-avatar.jpg
+- prannit-stefano-avatar.jpg
+
+Before implementing, first return:
+1. exact uploaded filenames received
+2. exact folder path where they will be stored
+3. exact file(s) that will be changed
+4. confirmation that mapping will use Railway production UUIDs only
+
+After implementing, return:
+1. exact files changed
+2. exact mappings added
+3. confirmation that fallback initials remain unchanged for unmapped users
+4. PASS/FAIL verification for:
+   - profile avatar
+   - leaderboard podium
+   - leaderboard rows
+   - match predictions
+   - participants / teams tab
