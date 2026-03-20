@@ -1,0 +1,81 @@
+I have completed the CSK player caricature/headshot images and I am uploading them now.
+
+Important rules:
+1. Use only the player IDs as the source of truth for mapping.
+2. Do not map by player name.
+3. Do not use executeSql() in development or production mode for this task.
+4. Do not make assumptions from file names unless they exactly match player IDs.
+5. All uploaded files are saved in .jpeg format. Use the exact .jpeg extension. Do not assume .jpg or .png.
+6. Keep this implementation scalable so later we can add RCB, MI, and other teams in the same system.
+
+Task:
+1. Add all uploaded CSK player image files into a dedicated player image assets folder.
+2. Use player_id as the only mapping key.
+3. Create a reusable player image resolver/helper so the app can fetch a custom image by player_id.
+4. If a player image is not available, keep the current default placeholder/fallback behavior exactly as it is.
+5. Do not change any unrelated logic.
+6. Do not change database schema.
+7. Do not build any upload feature.
+8. Do not change any API unless absolutely necessary.
+
+Expected implementation structure:
+- Store images in a dedicated folder such as assets/images/players/
+- Create or update a helper such as utils/playerImages.ts or equivalent
+- Use player_id -> image mapping only
+- Keep fallback behavior unchanged for players without images
+- Make sure this can scale for all teams later
+
+Important correction:
+There is no Matheesha Pathirana in this CSK image batch.
+The below player ID belongs to Matthew Short only.
+Do not create any ambiguity or alternate mapping for that ID.
+
+CSK player IDs to map:
+- 7d053d4e-a735-4c96-bb98-4098dee523df  Akeal Hosein
+- cbe808da-727a-4d9c-b3be-6eb431217483  Anshul Kamboj
+- 679f3d10-ac62-4f5b-89b2-7010935b9985  Ayush Mhatre
+- 14a56d48-499a-4b03-aa0f-bd3f592e9d94  Dewald Brewis
+- c553c840-d84c-4a9f-a714-406ffe44f1e9  Gurjapneet Singh
+- 9d8be8e7-4218-400f-919a-211415490575  Jamie Overton
+- a9897a50-1497-4912-8899-e67898f87f82  Kartik Sharma
+- 8df6183b-1c95-46d2-85c0-e185792d03f1  Khaleel Ahmed
+- 36e929d1-32f1-4d41-96c2-7df1364d0bab  Matt Henry
+- b55e1386-231c-4d40-9f6a-4d5a9512079c  Matthew Short
+- b6e7aa41-b0bb-4b0f-8f59-59f729283be5  MS Dhoni
+- dc2f7f59-ce15-48aa-b7d9-793314961076  Mukesh Choudhary
+- 6731db45-8132-49c6-8fcb-f59258d15082  Nathan Ellis
+- 3cbc5a08-62af-4ca5-b709-c7712db6e8b6  Noor Ahmad
+- fb46a43c-3deb-489d-8641-5d1744dfbf81  Prashant Veer
+- d774adaf-78f0-4bf3-965e-8182c05b4517  Rahul Chahar
+- f63eb69e-f17e-4d88-bf2b-d91af645c52c  Ramakrishna Ghosh
+- 50b70c71-1535-41c0-87fd-c12883105ede  Ruturaj Gaikwad
+- 35ed1b20-38f3-4013-be2e-dc28ffbecfd6  Sanju Samson
+- ec1b806b-de33-4b79-b3ba-8a5ad78df163  Sarfaraz Khan
+- 22ee45d8-0538-4e3e-a758-c515f9b86d11  Shivam Dube
+- b65be7fe-33cd-41d1-b601-31f25b4f72a4  Shreyas Gopal
+- 34ae4dde-3ec7-48a7-a2c1-d4e55122ff68  Urvil Patel
+- c87a375e-2731-405d-a30e-3b99c06f614e  Zakary Foulkes
+
+Before implementing, first return:
+1. Exact uploaded filenames received
+2. Exact folder path where they will be stored
+3. Exact file(s) that will be changed
+4. Whether every uploaded file correctly matches a player_id
+5. Any filename/player_id mismatch or ambiguity you detect
+6. Which app screens/components currently render player placeholders or player visuals, and which of those you plan to update in this task
+
+Implementation scope for this phase:
+Update only the most important player-facing surfaces first:
+- player selection list
+- team creation / player pick list
+- team preview / created team list
+
+Do not try to update every player surface in the app in this same task unless already safely centralized.
+
+After implementing, return:
+1. Exact files changed
+2. Exact player_id -> image mappings added
+3. Confirmation that fallback remains unchanged for players without images
+4. Exact screens/components updated in this phase
+5. PASS/FAIL verification for the updated screens
+6. Confirmation that the .jpeg files are correctly bundled and resolved in production build
