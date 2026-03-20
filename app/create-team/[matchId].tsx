@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { getTeamLogo } from '@/utils/teamLogo';
 import { getMatchBanter } from '@/utils/getMatchBanter';
+import { getPlayerImage } from '@/utils/playerImages';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -74,6 +75,7 @@ function PlayerItem({
 }) {
   const isInXI = player.isPlayingXI === true;
   const xiIndicatorColor = isInXI ? '#22C55E' : '#EF4444';
+  const playerImg = getPlayerImage(player.id);
 
   return (
     <Pressable
@@ -90,11 +92,22 @@ function PlayerItem({
       ]}
     >
       <View style={styles.playerItemLeft}>
-        <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-          <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
-            {player.role}
-          </Text>
-        </View>
+        {playerImg ? (
+          <View style={{ position: 'relative', width: 40, height: 40, marginRight: 6 }}>
+            <Image source={playerImg} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
+            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' }}>
+              <View style={{ backgroundColor: getRoleColor(player.role, isDark) + 'DD', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 }}>
+                <Text style={{ color: '#fff', fontSize: 7, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+            <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
+              {player.role}
+            </Text>
+          </View>
+        )}
         <View style={styles.playerItemInfo}>
           <View style={styles.playerItemNameRow}>
             <Text style={[styles.playerItemName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
@@ -166,6 +179,7 @@ function CompactPlayerItem({
   const displayName = nameParts.length > 1
     ? `${nameParts[0][0]}. ${nameParts.slice(1).join(' ')}`
     : player.name;
+  const playerImg = getPlayerImage(player.id);
 
   return (
     <Pressable
@@ -183,6 +197,11 @@ function CompactPlayerItem({
         },
       ]}
     >
+      {playerImg && (
+        <View style={{ alignItems: 'center', marginBottom: 4 }}>
+          <Image source={playerImg} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
+        </View>
+      )}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={[styles.compactRolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
           <Text style={{ color: getRoleColor(player.role, isDark), fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>
@@ -243,14 +262,26 @@ function CaptainItem({
   colors: any;
   isDark: boolean;
 }) {
+  const captainPlayerImg = getPlayerImage(player.id);
   return (
     <View style={[styles.captainItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
       <View style={styles.captainLeft}>
-        <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-          <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
-            {player.role}
-          </Text>
-        </View>
+        {captainPlayerImg ? (
+          <View style={{ position: 'relative', width: 40, height: 40, marginRight: 8 }}>
+            <Image source={captainPlayerImg} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
+            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' }}>
+              <View style={{ backgroundColor: getRoleColor(player.role, isDark) + 'DD', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 }}>
+                <Text style={{ color: '#fff', fontSize: 7, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+            <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>
+              {player.role}
+            </Text>
+          </View>
+        )}
         <View>
           <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
             {player.name}
