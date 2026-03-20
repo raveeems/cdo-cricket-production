@@ -1,0 +1,43 @@
+This is RCB player image integration — Batch 2 of 2.
+
+Important rules:
+1. Use only the player IDs as the source of truth for mapping.
+2. Do not map by player name.
+3. Do not use executeSql() in development or production mode for this task.
+4. All uploaded files are saved in .jpeg format. Use the exact .jpeg extension.
+5. The reusable player image system was already created earlier and extended in RCB Batch 1.
+6. The central server-side normalization fix for RCBW -> RCB is already in place. Use the normalized RCB flow only.
+7. In this task, do not refactor anything unnecessarily.
+8. Only append the remaining 6 RCB player mappings and add the corresponding files.
+
+Task:
+1. Add the remaining 6 uploaded RCB player image files into the same player image assets folder used in Batch 1.
+2. Append only these 6 new player_id -> image mappings.
+3. Do not change any other logic.
+4. Keep fallback behavior unchanged for players without images.
+5. Do not change database schema.
+6. Do not change any API.
+7. Do not modify unrelated screens/components.
+8. Do not create separate RCB and RCBW duplicate mappings.
+
+Batch 2 — remaining 6 RCB player IDs to map:
+- 69718248-2a3a-45d4-9a2a-6f4dfc6942a5  Tim David
+- c3236037-6694-404a-8f01-9ad880564ea9  Venkatesh Iyer
+- b9701b53-3b9e-4eda-93b1-3543809674d4  Vicky Ostwal
+- e5932c98-5c2a-4ade-8238-3b6382b18ef3  Vihaan Malhotra
+- c61d247d-7f77-452c-b495-2813a9cd0ac4  Virat Kohli
+- f061b5fc-cd70-480c-86aa-45c7828e739c  Yash Dayal
+
+Before implementing, first return:
+1. Exact uploaded filenames received
+2. Exact folder path where they will be stored
+3. Exact file(s) that will be changed
+4. Whether every uploaded file correctly matches a player_id
+5. Any filename/player_id mismatch or ambiguity you detect
+
+After implementing, return:
+1. Exact files changed
+2. Exact player_id -> image mappings added
+3. Confirmation that fallback remains unchanged for players without images
+4. PASS/FAIL verification for the already updated player-facing screens
+5. Confirmation that the .jpeg files are correctly bundled and resolved in production build
