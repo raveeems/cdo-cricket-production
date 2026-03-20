@@ -229,32 +229,39 @@ function getTeamColor(shortName: string): string {
   return TEAM_COLORS[shortName.toUpperCase()] || "#333333";
 }
 
-function getTeamShort(fullName: string): string {
-  const mapping: Record<string, string> = {
-    "Mumbai Indians": "MI",
-    "Chennai Super Kings": "CSK",
-    "Royal Challengers Bengaluru": "RCB",
-    "Royal Challengers Bangalore": "RCB",
-    "Kolkata Knight Riders": "KKR",
-    "Delhi Capitals": "DC",
-    "Rajasthan Royals": "RR",
-    "Sunrisers Hyderabad": "SRH",
-    "Punjab Kings": "PBKS",
-    "Gujarat Titans": "GT",
-    "Lucknow Super Giants": "LSG",
-    India: "IND",
-    Australia: "AUS",
-    England: "ENG",
-    Pakistan: "PAK",
-    "South Africa": "SA",
-    "New Zealand": "NZ",
-    "West Indies": "WI",
-    "Sri Lanka": "SL",
-    Bangladesh: "BAN",
-    Afghanistan: "AFG",
-  };
+// Authoritative team-name → short-code mapping.
+// These codes are used as the ground truth for all IPL and major international
+// teams. CricAPI occasionally returns wrong or inconsistent shortnames (e.g.
+// "RCBW" for the Royal Challengers Bengaluru men's squad). By keeping this
+// mapping authoritative we ensure logos, colors, player grouping, and display
+// labels are always correct regardless of what the upstream API sends.
+const KNOWN_TEAM_CODES: Record<string, string> = {
+  "Mumbai Indians": "MI",
+  "Chennai Super Kings": "CSK",
+  "Royal Challengers Bengaluru": "RCB",
+  "Royal Challengers Bangalore": "RCB",
+  "Kolkata Knight Riders": "KKR",
+  "Delhi Capitals": "DC",
+  "Rajasthan Royals": "RR",
+  "Sunrisers Hyderabad": "SRH",
+  "Punjab Kings": "PBKS",
+  "Gujarat Titans": "GT",
+  "Lucknow Super Giants": "LSG",
+  India: "IND",
+  Australia: "AUS",
+  England: "ENG",
+  Pakistan: "PAK",
+  "South Africa": "SA",
+  "New Zealand": "NZ",
+  "West Indies": "WI",
+  "Sri Lanka": "SL",
+  Bangladesh: "BAN",
+  Afghanistan: "AFG",
+};
 
-  if (mapping[fullName]) return mapping[fullName];
+// Generates an initials-based fallback code for teams not in KNOWN_TEAM_CODES.
+function getTeamShort(fullName: string): string {
+  if (KNOWN_TEAM_CODES[fullName]) return KNOWN_TEAM_CODES[fullName];
 
   const words = fullName.split(" ");
   if (words.length === 1) return fullName.substring(0, 3).toUpperCase();
@@ -263,6 +270,17 @@ function getTeamShort(fullName: string): string {
     .join("")
     .toUpperCase()
     .substring(0, 4);
+}
+
+// Single normalization point for all team short-code resolution.
+// For teams in KNOWN_TEAM_CODES, our mapping always wins — the API shortname
+// is treated as untrusted (CricAPI has known data quality issues such as
+// returning "RCBW" for the RCB men's squad).
+// For unknown teams (not in KNOWN_TEAM_CODES), the API shortname is used if
+// provided, otherwise we fall back to initials generation.
+function resolveTeamShort(teamName: string, apiShortname?: string): string {
+  if (KNOWN_TEAM_CODES[teamName]) return KNOWN_TEAM_CODES[teamName];
+  return apiShortname || getTeamShort(teamName);
 }
 
 export async function fetchUpcomingMatches(): Promise<
@@ -345,8 +363,8 @@ export async function fetchUpcomingMatches(): Promise<
         const team2 = m.teams[1];
         const team1Info = m.teamInfo?.find((t) => t.name === team1);
         const team2Info = m.teamInfo?.find((t) => t.name === team2);
-        const team1Short = team1Info?.shortname || getTeamShort(team1);
-        const team2Short = team2Info?.shortname || getTeamShort(team2);
+        const team1Short = resolveTeamShort(team1, team1Info?.shortname);
+        const team2Short = resolveTeamShort(team2, team2Info?.shortname);
 
         const hasScoreData = !!(m.score && m.score.length > 0 && m.score.some(s => s.r > 0 || s.w > 0 || s.o > 0));
         const { status, statusNote } = determineMatchStatus(
@@ -447,8 +465,8 @@ export async function fetchSeriesMatches(
         const team2 = m.teams[1];
         const team1Info = m.teamInfo?.find((t) => t.name === team1);
         const team2Info = m.teamInfo?.find((t) => t.name === team2);
-        const team1Short = team1Info?.shortname || getTeamShort(team1);
-        const team2Short = team2Info?.shortname || getTeamShort(team2);
+        const team1Short = resolveTeamShort(team1, team1Info?.shortname);
+        const team2Short = resolveTeamShort(team2, team2Info?.shortname);
 
         const { status, statusNote } = determineMatchStatus(
           m.matchStarted,
@@ -613,8 +631,8 @@ export async function syncMatchesFromApi(): Promise<void> {
         const team2 = m.teams[1];
         const team1Info = m.teamInfo?.find((t) => t.name === team1);
         const team2Info = m.teamInfo?.find((t) => t.name === team2);
-        const team1Short = team1Info?.shortname || getTeamShort(team1);
-        const team2Short = team2Info?.shortname || getTeamShort(team2);
+        const team1Short = resolveTeamShort(team1, team1Info?.shortname);
+        const team2Short = resolveTeamShort(team2, team2Info?.shortname);
 
         const hasScoreData = !!(m.score && m.score.length > 0 && m.score.some(s => s.r > 0 || s.w > 0 || s.o > 0));
         const { status, statusNote } = determineMatchStatus(
@@ -905,7 +923,7 @@ export async function fetchSeriesSquad(
           externalId: p.id,
           name: p.name,
           team: team.teamName,
-          teamShort: team.shortname || getTeamShort(team.teamName),
+          teamShort: resolveTeamShort(team.teamName, team.shortname),
           role,
           credits: assignCredits(role),
         });
@@ -1000,7 +1018,7 @@ export async function fetchMatchSquad(
           externalId: p.id,
           name: p.name,
           team: team.teamName,
-          teamShort: team.shortname || getTeamShort(team.teamName),
+          teamShort: resolveTeamShort(team.teamName, team.shortname),
           role,
           credits: assignCredits(role),
         });
@@ -1024,7 +1042,7 @@ export async function fetchMatchSquad(
     const teamInfo: any[] = infoJson.data.teamInfo || [];
     for (const team of teamInfo) {
       const teamName: string = team.name || "";
-      const teamShort: string = team.shortname || getTeamShort(teamName);
+      const teamShort: string = resolveTeamShort(teamName, team.shortname);
       // teamInfo.players[] if present (full squad from match_info)
       const teamPlayers: any[] = team.players || [];
       for (const p of teamPlayers) {
