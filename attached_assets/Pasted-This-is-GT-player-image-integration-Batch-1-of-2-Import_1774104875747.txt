@@ -1,0 +1,74 @@
+This is GT player image integration — Batch 1 of 2.
+
+Important rules:
+1. Use only the player IDs as the source of truth for mapping.
+2. Do not map by player name.
+3. Do not use executeSql() in development or production mode for this task.
+4. Do not make assumptions from file names unless they exactly match player IDs.
+5. All uploaded files are saved in .jpeg format. Use the exact .jpeg extension. Do not assume .jpg or .png.
+6. Keep this implementation scalable so later we can add more teams in the same system.
+7. This batch contains only the first 19 GT player image files.
+8. Build on the existing reusable player image system already created for the other teams, and map only these uploaded 19 files in this batch.
+9. I will upload the remaining 6 GT player files in Batch 2, so keep the system ready to append those mappings later without refactoring.
+
+Task:
+1. Add all uploaded GT player image files into the existing dedicated player image assets folder.
+2. Use player_id as the only mapping key.
+3. Update the existing reusable player image resolver/helper with these GT player mappings.
+4. If a player image is not available, keep the current default placeholder/fallback behavior exactly as it is.
+5. Do not change any unrelated logic.
+6. Do not change database schema.
+7. Do not build any upload feature.
+8. Do not change any API unless absolutely necessary.
+
+Expected implementation structure:
+- Store images in the same dedicated folder already used for the other team player images
+- Update the same helper such as utils/playerImages.ts or equivalent
+- Use player_id -> image mapping only
+- Keep fallback behavior unchanged for players without images
+- Keep it consistent with the existing team implementations
+
+Batch 1 — first 19 GT player IDs to map:
+- 863fd5b5-b77f-4168-b514-79a88641c553  Anuj Rawat
+- 09ca2fcc-1a5a-4f35-80f4-4ef9bc2b2f64  Arshad Khan
+- 4b661541-36cf-4dbe-96f0-3d58f971a2a9  Ashok Sharma
+- 9e6fa482-3ad3-4831-b05d-4fed2510cdf5  Glenn Phillips
+- 48da9a39-30d0-4b7d-9f61-44d221b653fa  Gurnoor Brar
+- 0c3d24bb-a517-435f-8cc3-60e945327bb3  Ishant Sharma
+- f8e6accd-6b73-4869-93a6-d45519a361f0  Jason Holder
+- 9fc99793-a5b5-4eb2-9f7b-48cc3dc3cf8d  Jayant Yadav
+- 7567e305-1b40-4eee-9290-e2fcb8804496  Jos Buttler
+- a81da20a-e420-476a-baf6-204fc219dbdd  Kagiso Rabada
+- 8b30fc91-1c7d-4fc9-899c-c795614a42a9  Kumar Kushagra
+- fe5f4f96-c207-4e3f-b0d5-cebc74435448  Luke Wood
+- c57237c9-a432-4ece-a56b-eac190b45919  Manav Suthar
+- 2a8d8640-2213-4cf6-ac7e-309d8b733e96  Mohammed Siraj
+- 3a51a030-8cac-42c7-8a47-e32fd1bcedd4  Nishant Sindhu
+- 99e6bb5c-379f-46da-bab7-dc8fd31ba435  Prasidh Krishna
+- bad40656-82da-4d9f-949a-37b7cbcd8303  Prithvi Raj Yarra
+- 085d49b0-d5e5-4fc5-955b-39758a134545  Rahul Tewatia
+- f0687183-ad9a-44f7-9cbf-4f7eb0cbfb5a  Rashid Khan
+
+Before implementing, first return:
+1. Exact uploaded filenames received
+2. Exact folder path where they will be stored
+3. Exact file(s) that will be changed
+4. Whether every uploaded file correctly matches a player_id
+5. Any filename/player_id mismatch or ambiguity you detect
+6. Which app screens/components currently render player placeholders or player visuals, and which of those you plan to update in this task
+
+Implementation scope for this phase:
+Update only the already-approved player-facing surfaces:
+- player selection list
+- team creation / player pick list
+- team preview / created team list
+
+Do not try to update every player surface in the app in this same task unless already safely centralized.
+
+After implementing, return:
+1. Exact files changed
+2. Exact player_id -> image mappings added
+3. Confirmation that fallback remains unchanged for players without images
+4. Exact screens/components updated in this phase
+5. PASS/FAIL verification for the updated screens
+6. Confirmation that the .jpeg files are correctly bundled and resolved in production build

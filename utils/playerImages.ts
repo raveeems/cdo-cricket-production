@@ -216,6 +216,25 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   'b367db88-a73e-445f-8cdd-3f6335617b07': require('../assets/images/players/b367db88-a73e-445f-8cdd-3f6335617b07.jpeg'),
   '82de5824-b29b-4737-9e9d-44f5796ef227': require('../assets/images/players/82de5824-b29b-4737-9e9d-44f5796ef227.jpeg'),
   '702254aa-2764-4fe4-b28e-20336a0ab069': require('../assets/images/players/702254aa-2764-4fe4-b28e-20336a0ab069.jpeg'),
+  // GT — Batch 1 (18 players)
+  '0c3d24bb-a517-435f-8cc3-60e945327bb3': require('../assets/images/players/0c3d24bb-a517-435f-8cc3-60e945327bb3.jpeg'),
+  '2a8d8640-2213-4cf6-ac7e-309d8b733e96': require('../assets/images/players/2a8d8640-2213-4cf6-ac7e-309d8b733e96.jpeg'),
+  '3a51a030-8cac-42c7-8a47-e32fd1bcedd4': require('../assets/images/players/3a51a030-8cac-42c7-8a47-e32fd1bcedd4.jpeg'),
+  '4b661541-36cf-4dbe-96f0-3d58f971a2a9': require('../assets/images/players/4b661541-36cf-4dbe-96f0-3d58f971a2a9.jpeg'),
+  '9fc99793-a5b5-4eb2-9f7b-48cc3dc3cf8d': require('../assets/images/players/9fc99793-a5b5-4eb2-9f7b-48cc3dc3cf8d.jpeg'),
+  '09ca2fcc-1a5a-4f35-80f4-4ef9bc2b2f64': require('../assets/images/players/09ca2fcc-1a5a-4f35-80f4-4ef9bc2b2f64.jpeg'),
+  '48da9a39-30d0-4b7d-9f61-44d221b653fa': require('../assets/images/players/48da9a39-30d0-4b7d-9f61-44d221b653fa.jpeg'),
+  '7567e305-1b40-4eee-9290-e2fcb8804496': require('../assets/images/players/7567e305-1b40-4eee-9290-e2fcb8804496.jpeg'),
+  '8b30fc91-1c7d-4fc9-899c-c795614a42a9': require('../assets/images/players/8b30fc91-1c7d-4fc9-899c-c795614a42a9.jpeg'),
+  '085d49b0-d5e5-4fc5-955b-39758a134545': require('../assets/images/players/085d49b0-d5e5-4fc5-955b-39758a134545.jpeg'),
+  '863fd5b5-b77f-4168-b514-79a88641c553': require('../assets/images/players/863fd5b5-b77f-4168-b514-79a88641c553.jpeg'),
+  '99eb6b5c-379f-46da-bab7-dc8fd31ba435': require('../assets/images/players/99eb6b5c-379f-46da-bab7-dc8fd31ba435.jpeg'),
+  'a81da20a-e420-476a-baf6-204fc219dbdd': require('../assets/images/players/a81da20a-e420-476a-baf6-204fc219dbdd.jpeg'),
+  'bad40656-82da-4d9f-949a-37b7cbcd8303': require('../assets/images/players/bad40656-82da-4d9f-949a-37b7cbcd8303.jpeg'),
+  'c57237c9-a432-4ece-a56b-eac190b45919': require('../assets/images/players/c57237c9-a432-4ece-a56b-eac190b45919.jpeg'),
+  'f0687183-ad9a-44f7-9cbf-4f7eb0cbfb5a': require('../assets/images/players/f0687183-ad9a-44f7-9cbf-4f7eb0cbfb5a.jpeg'),
+  'f8e6accd-6b73-4869-93a6-d45519a361f0': require('../assets/images/players/f8e6accd-6b73-4869-93a6-d45519a361f0.jpeg'),
+  'fe5f4f96-c207-4e3f-b0d5-cebc74435448': require('../assets/images/players/fe5f4f96-c207-4e3f-b0d5-cebc74435448.jpeg'),
   // Other teams — append here (DC, etc.)
 };
 
