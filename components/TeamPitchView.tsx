@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Modal, Pressable, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getPlayerImage } from '@/utils/playerImages';
 
 interface PitchPlayer {
   id: string;
@@ -70,12 +71,17 @@ function PitchPlayerNode({ player, isCaptain, isVC }: { player: PitchPlayer; isC
   else if (isVC) displayPts = Math.round(pts * 1.5);
 
   const jerseyColor = getTeamColor(player.teamShort);
+  const playerImage = getPlayerImage(player.id);
 
   return (
     <View style={pitchStyles.playerNode}>
       <View style={pitchStyles.jerseyContainer}>
         <View style={pitchStyles.jersey}>
-          <Ionicons name="shirt" size={30} color={jerseyColor} />
+          {playerImage ? (
+            <Image source={playerImage} style={pitchStyles.playerPhoto} />
+          ) : (
+            <Ionicons name="shirt" size={30} color={jerseyColor} />
+          )}
         </View>
         {(isCaptain || isVC) && (
           <View style={[pitchStyles.cvBadge, isCaptain ? pitchStyles.captainBadge : pitchStyles.vcBadge]}>
@@ -301,6 +307,13 @@ const pitchStyles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  playerPhoto: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    resizeMode: 'cover',
   },
   cvBadge: {
     position: 'absolute',
