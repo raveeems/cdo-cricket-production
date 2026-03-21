@@ -9,7 +9,6 @@ import {
   RefreshControl,
   Image,
   Animated,
-  Alert,
 } from 'react-native';
 import { SkeletonBox } from '@/components/SkeletonBox';
 import { getTeamLogo } from '@/utils/teamLogo';
@@ -141,8 +140,8 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
     <Pressable
       onPress={() => {
         if (isMockMatch) {
-          Alert.alert('DEV Mock Match', 'This is a dev-only mock match for UI testing. It has no real players or backend data.', [{ text: 'OK' }]);
-          return;
+          console.log('[DEV] Mock match card tapped:', match.id);
+          console.log('[DEV] Navigating to route: /(tabs)/match/[id] with id =', match.id);
         }
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         router.push({ pathname: '/(tabs)/match/[id]', params: { id: match.id } });

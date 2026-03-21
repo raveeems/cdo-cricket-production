@@ -109,6 +109,13 @@ export default function MatchDetailScreen() {
   const isMockId = __DEV__ && typeof id === 'string' && id.startsWith('mock-');
   const mockMatchFromDev = isMockId ? getMockMatchById(id as string) : undefined;
 
+  useEffect(() => {
+    if (isMockId) {
+      console.log('[DEV] MatchDetailScreen mounted with mock ID:', id);
+      console.log('[DEV] Mock match object:', mockMatchFromDev?.team1Short, 'vs', mockMatchFromDev?.team2Short);
+    }
+  }, []);
+
   const { data: matchData, isLoading: matchLoading, isError: matchError, refetch: refetchMatch } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
     enabled: !!id && !isMockId,
