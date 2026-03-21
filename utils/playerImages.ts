@@ -242,7 +242,7 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   '6364e591-1f4b-4fe6-867c-ae61ea21f6f0': require('../assets/images/players/6364e591-1f4b-4fe6-867c-ae61ea21f6f0.jpeg'),
   '7263e990-a9e9-4829-8adf-760d18d1315c': require('../assets/images/players/7263e990-a9e9-4829-8adf-760d18d1315c.jpeg'),
   'd0f69230-16e0-4a79-92aa-f9f7c588d5d3': require('../assets/images/players/d0f69230-16e0-4a79-92aa-f9f7c588d5d3.jpeg'),
-  // DC — Batch 1 (18 players; David Miller image not uploaded — fallback applies)
+  // DC — Batch 1 (18 players) + Batch 2 (6 players)
   '8199e3da-acb4-4bac-ab02-47d7ca004ed2': require('../assets/images/players/8199e3da-acb4-4bac-ab02-47d7ca004ed2.jpeg'),
   '014ba4b1-423c-49d3-a6f5-68e6bb90835e': require('../assets/images/players/014ba4b1-423c-49d3-a6f5-68e6bb90835e.jpeg'),
   'cd5a9124-db0b-4cf8-b541-4f8830e02c0c': require('../assets/images/players/cd5a9124-db0b-4cf8-b541-4f8830e02c0c.jpeg'),
@@ -261,6 +261,13 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   '64360dd6-a8db-47ae-8837-638a5bbbaae6': require('../assets/images/players/64360dd6-a8db-47ae-8837-638a5bbbaae6.jpeg'),
   'bbbf3b4e-dbc3-4f2a-986d-1a0227ea5a06': require('../assets/images/players/bbbf3b4e-dbc3-4f2a-986d-1a0227ea5a06.jpeg'),
   'ba18ea55-4d65-4514-b8da-c3cc1fc286ce': require('../assets/images/players/ba18ea55-4d65-4514-b8da-c3cc1fc286ce.jpeg'),
+  // DC — Batch 2 (5 players + David Miller)
+  '2f50df2f-809d-44f9-b5be-ccb846515861': require('../assets/images/players/2f50df2f-809d-44f9-b5be-ccb846515861.jpeg'),
+  '3ec5f8da-2054-4ebb-b9be-2668ddc45e66': require('../assets/images/players/3ec5f8da-2054-4ebb-b9be-2668ddc45e66.jpeg'),
+  'd8826d0d-ef95-4dce-a47a-b09b97f49f07': require('../assets/images/players/d8826d0d-ef95-4dce-a47a-b09b97f49f07.jpeg'),
+  'c4d4fc79-efb2-4e26-a575-94c6fc419bf9': require('../assets/images/players/c4d4fc79-efb2-4e26-a575-94c6fc419bf9.jpeg'),
+  'de19a93e-06df-4597-9186-7a53c1613552': require('../assets/images/players/de19a93e-06df-4597-9186-7a53c1613552.jpeg'),
+  '6d4e7d4a-4fae-4958-bc15-a063c09508eb': require('../assets/images/players/6d4e7d4a-4fae-4958-bc15-a063c09508eb.jpeg'),
   // Other teams — append here
 };
 
