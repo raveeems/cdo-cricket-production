@@ -1,0 +1,53 @@
+Task: Integrate Delhi Capitals (DC) player images into the fantasy app using the uploaded image files in this chat.
+
+Important:
+- Do NOT fetch any images from the internet
+- Do NOT generate placeholder images
+- Use ONLY the uploaded files provided in this batch
+- Map each uploaded image to the exact player ID given below
+- Keep the existing app structure intact
+- Do not break any existing team/player image mapping for other teams
+- If a player image system already exists, extend it cleanly for DC
+- If image filenames differ, identify them correctly and map them to the right player IDs
+- Store and reference them in the same pattern already used for other teams
+- Ensure the app shows the correct image wherever player image/avatar/photo is used
+- Return a verification report after completing the integration
+
+DC Batch 1 player ID mapping:
+
+1. 8199e3da-acb4-4bac-ab02-47d7ca004ed2 → Abishek Porel
+2. 014ba4b1-423c-49d3-a6f5-68e6bb90835e → Ajay Jadav Mandal
+3. cd5a9124-db0b-4cf8-b541-4f8830e02c0c → Ashutosh Sharma
+4. 8fabee3c-244c-4ead-8f96-2ec79540d33f → Auqib Nabi Dar
+5. 670ae8ac-4fe9-4f0c-84ee-320b13039f34 → Axar Patel
+6. 180036fe-fcb5-4fcf-ba8a-28bb2b750cc6 → Ben Duckett
+7. 2f50df2f-809d-44f9-b5be-ccb846515861 → David Miller
+8. 75fb3972-0436-40ee-bf45-73b1dba7b53e → Dushmantha Chameera
+9. 367b54a9-80a5-40f6-bed6-086bbcd90899 → Karun Nair
+10. a034346c-b408-4d29-a0f0-8b12430be28e → KL Rahul
+11. 1e651cfb-57f1-48da-bf9d-83cbff1733d1 → Kuldeep Yadav
+12. 5673ee27-bf33-44b8-8973-41fd37923fed → Kyle Jamieson
+13. a1782393-3479-4caa-9c27-79cb87df9abc → Lungi Ngidi
+14. a3f40660-ccd6-4360-81ac-237f7fe09926 → Madhav Tiwari
+15. bceb7084-1dda-4d76-b691-43c5a29d39a7 → Mitchell Starc
+16. 116e2bfb-6a97-4221-8006-8e7da70b0715 → Mukesh Kumar
+17. 64360dd6-a8db-47ae-8837-638a5bbbaae6 → Nitish Rana
+18. bbbf3b4e-dbc3-4f2a-986d-1a0227ea5a06 → Pathum Nissanka
+19. ba18ea55-4d65-4514-b8da-c3cc1fc286ce → Sahil Parakh
+
+Requirements:
+1. Save all uploaded images in the proper app asset location
+2. Create or update the DC player image mapping using the exact player IDs above
+3. Ensure no wrong image is assigned to any player
+4. Preserve existing fallbacks for players whose image is unavailable
+5. If caching exists, make sure these new images are picked up correctly
+6. Do not modify unrelated business logic
+7. After implementation, provide:
+   - exact files changed
+   - exact mapping entries added
+   - image file names used for each player
+   - confirmation that all 19 DC players above are now linked correctly
+   - confirmation that no other team/player mappings were changed
+
+Important verification rule:
+Before finishing, cross-check every player ID against the mapped uploaded image one by one and report the final mapping in a clean table.
