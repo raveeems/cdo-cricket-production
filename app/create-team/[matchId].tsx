@@ -368,9 +368,13 @@ export default function CreateTeamScreen() {
   });
 
   // DEV only: fetch real players by team for mock matches
+  // URL must be a single string so the default fetcher (queryKey.join('/')) builds it correctly
+  const devPlayersUrl = isMockId && mockMatchFromDev
+    ? `/api/dev/players?teams=${mockMatchFromDev.team1Short},${mockMatchFromDev.team2Short}`
+    : null;
   const { data: devPlayersRaw } = useQuery<{ players: Player[]; lastMatchXI: Record<string, any> }>({
-    queryKey: ['/api/dev/players', mockMatchFromDev?.team1Short, mockMatchFromDev?.team2Short],
-    enabled: isMockId && !!mockMatchFromDev,
+    queryKey: [devPlayersUrl],
+    enabled: isMockId && !!devPlayersUrl,
   });
   useEffect(() => {
     if (isMockId && devPlayersRaw) {

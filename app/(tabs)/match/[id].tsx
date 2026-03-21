@@ -139,12 +139,17 @@ export default function MatchDetailScreen() {
   });
 
   // DEV only: fetch real players by team for mock matches
+  // URL must be a single string so the default fetcher builds it correctly
+  const devPlayersUrl = isMockId && mockMatchFromDev
+    ? `/api/dev/players?teams=${mockMatchFromDev.team1Short},${mockMatchFromDev.team2Short}`
+    : null;
   const { data: devPlayersData } = useQuery<{ players: Player[]; lastMatchXI: Record<string, any> }>({
-    queryKey: ['/api/dev/players', mockMatchFromDev?.team1Short, mockMatchFromDev?.team2Short],
-    enabled: isMockId && !!mockMatchFromDev,
+    queryKey: [devPlayersUrl],
+    enabled: isMockId && !!devPlayersUrl,
   });
   useEffect(() => {
     if (isMockId && devPlayersData) {
+      console.log('[DEV] devPlayersData received, players count:', devPlayersData.players?.length);
       queryClient.setQueryData(['/api/matches', id, 'players'], { players: devPlayersData.players });
     }
   }, [isMockId, devPlayersData, id]);
@@ -253,6 +258,30 @@ export default function MatchDetailScreen() {
     : null;
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  // ── DIAGNOSTIC BLOCK (mock matches) ───────────────────────────────────────
+  if (isMockId) {
+    console.log('[DEV] match/[id].tsx render reached isMockId block');
+    console.log('[DEV]   id:', id);
+    console.log('[DEV]   matchLoading:', matchLoading, '| playersLoading:', playersLoading);
+    console.log('[DEV]   matchError:', matchError);
+    console.log('[DEV]   match (initialData):', !!match, match?.team1Short, 'vs', match?.team2Short);
+    console.log('[DEV]   devPlayersUrl:', devPlayersUrl);
+    console.log('[DEV]   devPlayersData:', !!devPlayersData, 'count:', devPlayersData?.players?.length);
+  }
+
+  // Minimal render for mock IDs — proves screen mounts before heavy UI runs
+  if (isMockId && !match) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: colors.text, fontSize: 18, fontFamily: 'Inter_600SemiBold' }}>
+          [DEV] Mock screen mounted — no match data
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 8 }}>{id as string}</Text>
+      </View>
+    );
+  }
+  // ── END DIAGNOSTIC BLOCK ──────────────────────────────────────────────────
 
   if (matchLoading || playersLoading) {
     return (
