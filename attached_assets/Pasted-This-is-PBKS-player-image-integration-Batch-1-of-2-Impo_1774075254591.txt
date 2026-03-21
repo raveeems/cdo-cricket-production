@@ -1,0 +1,74 @@
+This is PBKS player image integration — Batch 1 of 2.
+
+Important rules:
+1. Use only the player IDs as the source of truth for mapping.
+2. Do not map by player name.
+3. Do not use executeSql() in development or production mode for this task.
+4. Do not make assumptions from file names unless they exactly match player IDs.
+5. All uploaded files are saved in .jpeg format. Use the exact .jpeg extension. Do not assume .jpg or .png.
+6. Keep this implementation scalable so later we can add more teams in the same system.
+7. This batch contains only the first 19 PBKS player image files.
+8. Build on the existing reusable player image system already created for CSK, RCB, SRH, MI, and RR, and map only these uploaded 19 files in this batch.
+9. I will upload the remaining 6 PBKS player files in Batch 2, so keep the system ready to append those mappings later without refactoring.
+
+Task:
+1. Add all uploaded PBKS player image files into the existing dedicated player image assets folder.
+2. Use player_id as the only mapping key.
+3. Update the existing reusable player image resolver/helper with these PBKS player mappings.
+4. If a player image is not available, keep the current default placeholder/fallback behavior exactly as it is.
+5. Do not change any unrelated logic.
+6. Do not change database schema.
+7. Do not build any upload feature.
+8. Do not change any API unless absolutely necessary.
+
+Expected implementation structure:
+- Store images in the same dedicated folder already used for the other team player images
+- Update the same helper such as utils/playerImages.ts or equivalent
+- Use player_id -> image mapping only
+- Keep fallback behavior unchanged for players without images
+- Keep it consistent with the existing team implementations
+
+Batch 1 — first 19 PBKS player IDs to map:
+- 607ff10c-5619-411d-a822-06ba28992230  Arshdeep Singh
+- 7c341a4c-d3fa-4054-b95d-f75f94eee00c  Azmatullah Omarzai
+- 388b664b-de80-4290-ab82-420873293b91  Ben Dwarshuis
+- 615b1dc1-8f64-4e26-90c4-04999321fd52  Cooper Connolly
+- 56ec7d07-d0d8-4d25-84df-64b0b3ce963d  Harnoor Singh
+- e3005322-b01a-4c58-9b26-a2ca150ad1d1  Harpreet Brar
+- 604d7c88-4f5d-40d9-b08b-330420964d87  Lockie Ferguson
+- d3c53885-7016-4228-8a20-1dd98214489d  Marco Jansen
+- 11340697-6443-4c3e-ab27-d9d30ba95671  Marcus Stoinis
+- 9c777389-34c2-4c49-a2c6-37a2b5082705  Mitchell Owen
+- 9d412bea-6a7e-4655-8c8b-68f2d9900d98  Musheer Khan
+- 9713a0a1-b885-4221-9812-23b0b73c6657  Nehal Wadhera
+- a15dfada-704c-42c3-9545-91c332ffca73  Prabhsimran Singh
+- 11beb0e3-9594-4304-b770-9f65b52a5ff9  Praveen Dubey
+- 4ff68cf3-d3a7-489f-bf37-4ac233f41a15  Priyansh Arya
+- 0e81bac3-02c3-4219-840a-9b49d937678d  Pyla Avinash
+- 9d6cb002-6b9f-4795-a9bf-ea1a6e27ed08  Shashank Singh
+- 77791963-6c1b-4979-b07a-f910dee28cd9  Shreyas Iyer
+- c510dc77-7e6b-482c-a96d-73ef9398e969  Suryansh Shedge
+
+Before implementing, first return:
+1. Exact uploaded filenames received
+2. Exact folder path where they will be stored
+3. Exact file(s) that will be changed
+4. Whether every uploaded file correctly matches a player_id
+5. Any filename/player_id mismatch or ambiguity you detect
+6. Which app screens/components currently render player placeholders or player visuals, and which of those you plan to update in this task
+
+Implementation scope for this phase:
+Update only the already-approved player-facing surfaces:
+- player selection list
+- team creation / player pick list
+- team preview / created team list
+
+Do not try to update every player surface in the app in this same task unless already safely centralized.
+
+After implementing, return:
+1. Exact files changed
+2. Exact player_id -> image mappings added
+3. Confirmation that fallback remains unchanged for players without images
+4. Exact screens/components updated in this phase
+5. PASS/FAIL verification for the updated screens
+6. Confirmation that the .jpeg files are correctly bundled and resolved in production build
