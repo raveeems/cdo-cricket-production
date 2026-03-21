@@ -23,7 +23,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTeams } from '@/contexts/TeamContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiRequest } from '@/lib/query-client';
+import { apiRequest, queryClient } from '@/lib/query-client';
+import { getMockMatchById } from '@/lib/dev-mock-matches';
 import {
   Player,
   Match,
@@ -330,6 +331,10 @@ export default function CreateTeamScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
+  // DEV mock match adapter
+  const isMockId = __DEV__ && typeof matchId === 'string' && matchId.startsWith('mock-');
+  const mockMatchFromDev = isMockId ? getMockMatchById(matchId) : undefined;
+
   const isEditMode = !!editTeamId;
   const editingTeam = isEditMode ? getTeamById(editTeamId!) : undefined;
 
@@ -350,7 +355,8 @@ export default function CreateTeamScreen() {
 
   const { data: matchData, isLoading: matchLoading } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', matchId],
-    enabled: !!matchId,
+    enabled: !!matchId && !isMockId,
+    initialData: (isMockId && mockMatchFromDev) ? { match: mockMatchFromDev } : undefined,
   });
 
   const { data: playersData, isLoading: playersLoading } = useQuery<{
@@ -358,8 +364,22 @@ export default function CreateTeamScreen() {
     lastMatchXI: Record<string, { xi: string[]; impact: string | null }>;
   }>({
     queryKey: ['/api/matches', matchId, 'players'],
-    enabled: !!matchId,
+    enabled: !!matchId && !isMockId,
   });
+
+  // DEV only: fetch real players by team for mock matches
+  const { data: devPlayersRaw } = useQuery<{ players: Player[]; lastMatchXI: Record<string, any> }>({
+    queryKey: ['/api/dev/players', mockMatchFromDev?.team1Short, mockMatchFromDev?.team2Short],
+    enabled: isMockId && !!mockMatchFromDev,
+  });
+  useEffect(() => {
+    if (isMockId && devPlayersRaw) {
+      queryClient.setQueryData(['/api/matches', matchId, 'players'], {
+        players: devPlayersRaw.players,
+        lastMatchXI: devPlayersRaw.lastMatchXI ?? {},
+      });
+    }
+  }, [isMockId, devPlayersRaw, matchId]);
 
   const { data: weeklyUsageData } = useQuery<{
     multiTeamRemaining: number;
@@ -700,6 +720,12 @@ export default function CreateTeamScreen() {
 
   const handlePredictionConfirm = async () => {
     if (!selectedWinner || !matchId) return;
+    // DEV mock: skip prediction API, go straight to save
+    if (isMockId) {
+      setShowPredictionModal(false);
+      handleSaveTeam();
+      return;
+    }
     setPredictionSaving(true);
     try {
       await apiRequest('POST', '/api/predictions', {
@@ -730,6 +756,30 @@ export default function CreateTeamScreen() {
     setDuplicateError(null);
     setSaveError(null);
     try {
+      // DEV mock: skip all backend API calls, jump straight to success animation
+      if (isMockId) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const randomMsg = SPLASH_MESSAGES[Math.floor(Math.random() * SPLASH_MESSAGES.length)];
+        setSplashMessage(randomMsg);
+        setBanterLine(getMatchBanter(match?.team1Short ?? '', match?.team2Short ?? '') ?? '');
+        setShowSplash(true);
+        splashOpacity.setValue(0);
+        splashScale.setValue(0.8);
+        Animated.parallel([
+          Animated.timing(splashOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.spring(splashScale, { toValue: 1, friction: 6, useNativeDriver: true }),
+        ]).start();
+        setTimeout(() => {
+          Animated.timing(splashOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+            setShowSplash(false);
+            setBanterLine('');
+            router.replace({ pathname: '/(tabs)/match/[id]', params: { id: matchId } });
+          });
+        }, 3500);
+        setIsSaving(false);
+        return;
+      }
+
       const safeCaptainType = primaryImpactId ? captainType : 'player';
       const safeVcType = primaryImpactId ? vcType : 'player';
       const impactFields = impactEnabled ? {

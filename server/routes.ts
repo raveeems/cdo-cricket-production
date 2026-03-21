@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { db, dbConnected, serverReady } from "./db";
 import { userTeams, players as playersTable, users, matches as matchesTable, matchPlayerStatus as mpsTable } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, or, desc } from "drizzle-orm";
 import { fetchUpcomingMatches, fetchSeriesMatches, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -301,6 +301,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     req.session.destroy(() => {});
     return res.json({ ok: true });
   });
+
+  // ── DEV ONLY ── players by team short names (supports mock match UI testing)
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/api/dev/players", isAuthenticated, async (req: Request, res: Response) => {
+      const teamsParam = typeof req.query.teams === "string" ? req.query.teams : "";
+      const teams = teamsParam.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 2);
+      if (teams.length < 2) return res.json({ players: [], lastMatchXI: {} });
+      const allPlayers: any[] = [];
+      for (const teamShort of teams) {
+        const [recent] = await db
+          .select({ id: matchesTable.id })
+          .from(matchesTable)
+          .where(or(eq(matchesTable.team1Short, teamShort), eq(matchesTable.team2Short, teamShort)))
+          .orderBy(desc(matchesTable.startTime))
+          .limit(1);
+        if (recent) {
+          const teamPlayers = await storage.getPlayersForMatch(recent.id);
+          allPlayers.push(...teamPlayers.filter((p) => p.teamShort === teamShort));
+        }
+      }
+      return res.json({ players: allPlayers, lastMatchXI: {} });
+    });
+  }
 
   app.get("/api/auth/me", async (req: Request, res: Response) => {
     let userId = req.session.userId;

@@ -1,0 +1,72 @@
+Task: I need DEV mock matches to support the full playable user journey, not just home-screen visibility.
+
+My requirement is very clear:
+
+For DEV mock matches, I want to be able to:
+1. select the match from home
+2. go inside the match
+3. see/select the squad
+4. go to impact player flow
+5. verify the full layout and downstream journey
+
+Current problem:
+- Home screen mock matches are visible
+- Blocking navigation avoids connection errors
+- But that is not enough for my testing
+- I need a proper playable DEV journey for mock matches
+
+Important constraints:
+- DEV ONLY
+- Do NOT affect production behavior
+- Do NOT disturb real match flow
+- Do NOT depend on /api/matches/mock-* existing as real backend records
+- Prefer reusing existing screens and logic instead of building a fake disconnected demo UI
+- Missing players that are not yet available in API/database can be ignored for now; use only players currently available in the system
+
+Goal:
+Implement a DEV-only mock match adapter so that mock matches can open and behave like playable matches using real team players already available in the app/backend.
+
+Preferred architecture:
+1. Keep real matches unchanged
+2. For mock matches:
+   - identify the two teams from the mock match object
+   - fetch players by team identity (team short name / team id / existing team mapping)
+   - construct the minimum match context needed for the existing squad-selection and impact-selection journey
+   - route the user through the normal UI journey as much as possible
+3. Do NOT call APIs that require a real backend match row for mock-* IDs if that causes failure
+4. Instead, create a DEV-only data adapter that supplies:
+   - match metadata
+   - team metadata
+   - available players for both sides
+   - any minimum flags/status needed for squad and impact flow
+
+What I want to test:
+- match selection journey
+- squad screen layout
+- player image rendering
+- team-wise player display
+- impact player selection layout
+- downstream UI flow as close to real as possible
+
+Preferred implementation options (choose the safest one that gives a proper journey):
+Option A:
+- Create DEV-only mock backend endpoints or adapter methods that accept mock match IDs and return team-based player data
+
+Option B:
+- In the frontend, detect mock matches and hydrate the screen using team-based data sources rather than matchId-based APIs
+
+Choose the option that reuses the maximum existing UI and causes the least risk.
+
+Requirements:
+1. exact files changed
+2. exact architecture chosen (frontend adapter vs dev-only endpoints vs hybrid)
+3. exact data source used to load players for each mock match
+4. confirmation that real matches are unchanged
+5. confirmation that production is unaffected
+6. confirmation that I can now go:
+   home → mock match → squad → impact → layout review
+7. explicitly state any limitations, such as players missing from the API/database not appearing yet
+
+Critical:
+Do not give me a dead tap, an alert, or a display-only screen.
+I need a proper playable DEV journey for testing layouts.

@@ -21,6 +21,7 @@ export const DEV_MOCK_MATCHES: Match[] = [
     entryFee: 0,
     spotsTotal: 0,
     spotsFilled: 0,
+    impactFeaturesEnabled: true,
   },
   {
     id: 'mock-mi-kkr',
@@ -39,6 +40,7 @@ export const DEV_MOCK_MATCHES: Match[] = [
     entryFee: 0,
     spotsTotal: 0,
     spotsFilled: 0,
+    impactFeaturesEnabled: true,
   },
   {
     id: 'mock-pbks-gt',
@@ -57,6 +59,7 @@ export const DEV_MOCK_MATCHES: Match[] = [
     entryFee: 0,
     spotsTotal: 0,
     spotsFilled: 0,
+    impactFeaturesEnabled: true,
   },
   {
     id: 'mock-lsg-srh',
@@ -75,6 +78,7 @@ export const DEV_MOCK_MATCHES: Match[] = [
     entryFee: 0,
     spotsTotal: 0,
     spotsFilled: 0,
+    impactFeaturesEnabled: true,
   },
   {
     id: 'mock-dc-rr',
@@ -93,8 +97,13 @@ export const DEV_MOCK_MATCHES: Match[] = [
     entryFee: 0,
     spotsTotal: 0,
     spotsFilled: 0,
+    impactFeaturesEnabled: true,
   },
 ];
+
+export function getMockMatchById(id: string): Match | undefined {
+  return DEV_MOCK_MATCHES.find((m) => m.id === id);
+}
 
 export function injectDevMockMatches(realMatches: Match[]): Match[] {
   if (!__DEV__) return realMatches;
