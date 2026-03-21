@@ -1,0 +1,57 @@
+Task: Create mock IPL matches in DEV MODE ONLY so all teams become visible in the app for testing.
+
+Important:
+- This must be DEV ONLY
+- Do NOT affect production data
+- Do NOT modify live API data
+- Do NOT overwrite real matches
+- Do NOT disturb existing match logic, fantasy logic, or admin logic
+- If a dev/mock flag system already exists, use that
+- If no dev-only mock injection exists, add it in the safest possible way with a clearly isolated mock data path
+
+Goal:
+I want the app in development to show the following matches so all teams are visible for UI/image/testing purposes:
+
+1. CSK vs RCB  — already done and checked, do not break this
+2. MI vs KKR
+3. PBKS vs GT
+4. LSG vs SRH
+5. DC vs RR
+
+Requirements:
+1. These matches must appear only in development / mock mode
+2. Production must remain completely untouched
+3. Existing real match fetch flow must remain intact
+4. Mock matches should be injected only when a clear dev condition is true
+5. Keep the structure identical to real match objects so all downstream screens behave normally
+6. Use correct full team names, short names, and logos/images if already available in the app
+7. Make sure these matches appear in the same places where normal upcoming matches are shown
+8. Do not create duplicate CSK vs RCB if it already exists in dev mode — check first
+9. If mock match IDs are needed, use clearly prefixed IDs like:
+   mock-csk-rcb
+   mock-mi-kkr
+   mock-pbks-gt
+   mock-lsg-srh
+   mock-dc-rr
+10. If match times/dates are required, assign safe mock upcoming timestamps in sequence
+11. Ensure each mock match is usable for:
+   - team visibility
+   - player visibility
+   - player image testing
+   - lineup UI testing
+12. Do not touch backend production tables unless there is already a dev-specific seeding mechanism
+
+Preferred implementation:
+- Frontend-only dev injection is preferred if that is the least risky approach
+- If backend mock seeding already exists, use that only in dev mode
+- Safety is more important than elegance
+
+Verification required:
+After implementation, provide:
+1. exact files changed
+2. exact condition used to ensure DEV ONLY behavior
+3. full mock match objects created
+4. confirmation that production is unaffected
+5. confirmation that CSK vs RCB remains unchanged
+6. confirmation that MI, KKR, PBKS, GT, LSG, SRH, DC, and RR are now visible through these mock matches
+7. clear instructions on how I can toggle mock mode on/off in dev

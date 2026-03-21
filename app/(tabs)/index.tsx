@@ -22,6 +22,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/contexts/TeamContext';
 import { getTimeUntilMatch, Match } from '@/lib/mock-data';
+import { injectDevMockMatches } from '@/lib/dev-mock-matches';
 import { queryClient } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
@@ -315,7 +316,8 @@ export default function HomeScreen() {
 
   const MS_48H = 48 * 60 * 60 * 1000;
   const nowMs = Date.now();
-  const visibleMatches = (data?.matches || []).filter(m => {
+  const allMatches = injectDevMockMatches(data?.matches || []);
+  const visibleMatches = allMatches.filter(m => {
     if (m.status === 'completed') return false;
     if (m.status === 'live' || m.status === 'delayed') return true;
     if (m.status === 'upcoming') return new Date(m.startTime).getTime() <= nowMs + MS_48H;
