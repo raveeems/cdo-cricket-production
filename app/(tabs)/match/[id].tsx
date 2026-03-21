@@ -104,9 +104,12 @@ export default function MatchDetailScreen() {
   const [copiedToast, setCopiedToast] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Layer 2 guard: DEV-only mock match IDs must never reach real API calls
+  const isMockId = __DEV__ && typeof id === 'string' && id.startsWith('mock-');
+
   const { data: matchData, isLoading: matchLoading, isError: matchError, refetch: refetchMatch } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
-    enabled: !!id,
+    enabled: !!id && !isMockId,
     retry: 1,
     staleTime: 5000,
     refetchInterval: (query) => {
@@ -121,7 +124,7 @@ export default function MatchDetailScreen() {
 
   const { data: playersData, isLoading: playersLoading } = useQuery<{ players: Player[] }>({
     queryKey: ['/api/matches', id, 'players'],
-    enabled: !!id,
+    enabled: !!id && !isMockId,
     retry: 1,
   });
 
@@ -133,7 +136,7 @@ export default function MatchDetailScreen() {
 
   const { data: scorecardData, isLoading: scorecardLoading } = useQuery<{ scorecard: LiveScorecard | null }>({
     queryKey: ['/api/matches', id, 'live-scorecard'],
-    enabled: !!id && isLiveOrCompleted,
+    enabled: !!id && !isMockId && isLiveOrCompleted,
     staleTime: isEffectivelyLive ? 30000 : 120000,
     refetchInterval: isEffectivelyLive ? 45000 : false,
     retry: 2,
@@ -141,7 +144,7 @@ export default function MatchDetailScreen() {
 
   const { data: contestData } = useQuery<{ teams: ContestTeam[]; visibility: string; players?: Player[]; impactFeaturesEnabled?: boolean }>({
     queryKey: ['/api/matches', id, 'teams'],
-    enabled: !!id,
+    enabled: !!id && !isMockId,
     staleTime: 30000,
     refetchInterval: isEffectivelyLive ? 45000 : false,
     retry: 1,
@@ -149,7 +152,7 @@ export default function MatchDetailScreen() {
 
   const { data: standingsData } = useQuery<{ standings: StandingEntry[]; isLive: boolean; players?: Player[] }>({
     queryKey: ['/api/matches', id, 'standings'],
-    enabled: !!id && isLiveOrCompleted,
+    enabled: !!id && !isMockId && isLiveOrCompleted,
     staleTime: 30000,
     refetchInterval: isEffectivelyLive ? 45000 : false,
     retry: 1,
@@ -169,7 +172,7 @@ export default function MatchDetailScreen() {
 
   const { data: predictionsData } = useQuery<PredictionData>({
     queryKey: ['/api/predictions', id],
-    enabled: !!id,
+    enabled: !!id && !isMockId,
     staleTime: 30000,
     refetchInterval: isEffectivelyLive ? 45000 : false,
   });
@@ -178,7 +181,7 @@ export default function MatchDetailScreen() {
 
   const { data: myRewardData } = useQuery<{ reward: any | null }>({
     queryKey: ['/api/rewards/match', id],
-    enabled: !!id && isMatchCompleted,
+    enabled: !!id && !isMockId && isMatchCompleted,
     staleTime: 60000,
   });
   const [showRewardModal, setShowRewardModal] = useState(false);
@@ -229,6 +232,32 @@ export default function MatchDetailScreen() {
     : null;
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  // DEV Layer 2: if somehow navigation reached this screen with a mock ID, show a safe placeholder
+  if (isMockId) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', gap: 16, paddingTop: insets.top + webTopInset }]}>
+        <View style={{ backgroundColor: '#F59E0B22', borderRadius: 12, padding: 20, alignItems: 'center', gap: 12, marginHorizontal: 32 }}>
+          <View style={{ backgroundColor: '#F59E0B33', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <Text style={{ color: '#F59E0B', fontFamily: 'Inter_700Bold' as const, fontSize: 11, letterSpacing: 1 }}>DEV ONLY</Text>
+          </View>
+          <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 18, textAlign: 'center' }}>Mock Match</Text>
+          <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular' as const, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+            This is a dev-only mock match used for UI testing. It has no real players, teams, or backend data.
+          </Text>
+          <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular' as const, fontSize: 12, textAlign: 'center' }}>
+            ID: {id}
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => router.back()}
+          style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10 }}
+        >
+          <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold' as const, fontSize: 14 }}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (matchLoading || playersLoading) {
     return (

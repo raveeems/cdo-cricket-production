@@ -1,0 +1,49 @@
+Task: The mock-match tap fix is NOT fully working. I still get the same "Connection error" screen after tapping a DEV mock match.
+
+This means the previous patch is incomplete or applied in the wrong place.
+
+I need an exact root-cause trace, not assumptions.
+
+Required debugging task:
+1. Identify the exact component and exact press handler that fires when I tap a mock match card on the home screen
+2. Confirm whether the intercepted handler is actually the one being executed at runtime
+3. Add temporary console logs at each step of the tap/navigation flow:
+   - when the card renders
+   - when the card is tapped
+   - whether match.id is detected as mock
+   - whether navigation is blocked
+   - whether router.push is still firing anywhere
+   - whether the destination screen is still mounting
+   - whether any API call is being triggered after tap
+4. Identify the exact screen/file that renders the "Connection error" state
+5. Identify which API call/request is failing and with what match ID
+6. Check whether there is another wrapper/onPress/navigation path bypassing the mock guard
+7. Check whether the app is running stale compiled code and not the latest source
+
+Important:
+- Do not just say "fixed"
+- Prove the real runtime path
+- If needed, patch the navigation guard at a higher level than the card
+- If needed, also add a defensive guard on the destination match screen:
+  if matchId starts with "mock-" in DEV, do not fetch backend data and show a DEV-only message instead
+
+Preferred final fix:
+Layer 1:
+- block navigation from mock cards at source
+
+Layer 2:
+- add a second defensive guard in the destination match screen or data-fetch screen so even if navigation somehow happens, mock IDs never trigger backend API calls
+
+Requirements:
+- DEV only
+- no production impact
+- do not touch backend tables
+- keep real matches unchanged
+
+Verification required:
+1. exact files changed
+2. exact runtime path discovered
+3. exact failing screen and failing API call identified
+4. exact logs added
+5. exact final guard added at source and destination
+6. proof that mock matches no longer reach the connection error screen
