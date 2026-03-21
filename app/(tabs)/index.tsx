@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Image,
   Animated,
+  Alert,
 } from 'react-native';
 import { SkeletonBox } from '@/components/SkeletonBox';
 import { getTeamLogo } from '@/utils/teamLogo';
@@ -134,9 +135,15 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
     onMouseLeave: () => setHovered(false),
   } : {};
 
+  const isMockMatch = __DEV__ && match.id.startsWith('mock-');
+
   return (
     <Pressable
       onPress={() => {
+        if (isMockMatch) {
+          Alert.alert('DEV Mock Match', 'This is a dev-only mock match for UI testing. It has no real players or backend data.', [{ text: 'OK' }]);
+          return;
+        }
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         router.push({ pathname: '/(tabs)/match/[id]', params: { id: match.id } });
       }}
@@ -162,9 +169,16 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
       )}
 
       <View style={styles.compactTop}>
-        <Text style={[styles.compactLeague, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
-          {match.league}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+          <Text style={[styles.compactLeague, { color: colors.textSecondary, fontFamily: 'Inter_500Medium', marginRight: 0 }]} numberOfLines={1}>
+            {match.league}
+          </Text>
+          {isMockMatch && (
+            <View style={{ backgroundColor: '#F59E0B22', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+              <Text style={{ color: '#F59E0B', fontSize: 9, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.5 }}>DEV</Text>
+            </View>
+          )}
+        </View>
         {isLive ? (
           <View style={[styles.statusBadge, { backgroundColor: colors.liveSoft }]}>
             <View style={[styles.statusDot, { backgroundColor: colors.live }]} />
