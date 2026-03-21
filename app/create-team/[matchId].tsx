@@ -93,11 +93,11 @@ function PlayerItem({
     >
       <View style={styles.playerItemLeft}>
         {playerImg ? (
-          <View style={{ position: 'relative', width: 40, height: 40, marginRight: 6 }}>
-            <Image source={playerImg} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
+          <View style={{ position: 'relative', width: 34, height: 34, marginRight: 4 }}>
+            <Image source={playerImg} style={{ width: 34, height: 34, borderRadius: 17 }} resizeMode="cover" />
             <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' }}>
-              <View style={{ backgroundColor: getRoleColor(player.role, isDark) + 'DD', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 }}>
-                <Text style={{ color: '#fff', fontSize: 7, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
+              <View style={{ backgroundColor: getRoleColor(player.role, isDark) + 'DD', paddingHorizontal: 3, paddingVertical: 1, borderRadius: 3 }}>
+                <Text style={{ color: '#fff', fontSize: 6, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
               </View>
             </View>
           </View>
@@ -180,6 +180,7 @@ function CompactPlayerItem({
     ? `${nameParts[0][0]}. ${nameParts.slice(1).join(' ')}`
     : player.name;
   const playerImg = getPlayerImage(player.id);
+  const roleColor = getRoleColor(player.role, isDark);
 
   return (
     <Pressable
@@ -197,49 +198,44 @@ function CompactPlayerItem({
         },
       ]}
     >
-      {playerImg && (
-        <View style={{ alignItems: 'center', marginBottom: 4 }}>
-          <Image source={playerImg} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
+      <View style={styles.compactInner}>
+        <View style={styles.compactImageWrap}>
+          {playerImg ? (
+            <>
+              <Image source={playerImg} style={styles.compactPhoto} resizeMode="cover" />
+              <View style={[styles.compactRoleBadge, { backgroundColor: roleColor + 'CC' }]}>
+                <Text style={{ color: '#fff', fontSize: 6, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
+              </View>
+            </>
+          ) : (
+            <View style={[styles.compactRoleCircle, { backgroundColor: roleColor + '25' }]}>
+              <Text style={{ color: roleColor, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
+            </View>
+          )}
         </View>
-      )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={[styles.compactRolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-          <Text style={{ color: getRoleColor(player.role, isDark), fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>
-            {player.role}
+        <View style={styles.compactInfo}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+            <Text style={[styles.compactName, { color: colors.text }]} numberOfLines={1}>
+              {displayName}
+            </Text>
+            {showPlayingXI && (
+              <View style={{ backgroundColor: xiIndicatorColor + '20', paddingHorizontal: 2, paddingVertical: 1, borderRadius: 3 }}>
+                <Text style={{ color: xiIndicatorColor, fontSize: 6, fontFamily: 'Inter_700Bold' as const }}>
+                  {isInXI ? 'IN' : 'OUT'}
+                </Text>
+              </View>
+            )}
+            {player.isImpactPlayer && (
+              <MaterialCommunityIcons name="lightning-bolt" size={8} color={colors.warning} />
+            )}
+          </View>
+          <Text style={[styles.compactMeta, { color: colors.textTertiary }]} numberOfLines={1}>
+            {player.credits}Cr · {player.points ?? 0}pts
           </Text>
         </View>
         <View style={[styles.compactCheck, { borderColor: isSelected ? colors.accent : colors.border, backgroundColor: isSelected ? colors.accent : 'transparent' }]}>
           {isSelected && <Ionicons name="checkmark" size={10} color="#000" />}
         </View>
-      </View>
-      <View style={{ marginTop: 4, flex: 1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-          <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>
-            {displayName}
-          </Text>
-          {showPlayingXI && (
-            <View style={{ backgroundColor: xiIndicatorColor + '20', paddingHorizontal: 3, paddingVertical: 1, borderRadius: 3 }}>
-              <Text style={{ color: xiIndicatorColor, fontSize: 7, fontFamily: 'Inter_700Bold' as const }}>
-                {isInXI ? 'IN' : 'OUT'}
-              </Text>
-            </View>
-          )}
-          {player.isImpactPlayer && (
-            <MaterialCommunityIcons name="lightning-bolt" size={10} color={colors.warning} />
-          )}
-        </View>
-        <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, marginTop: 2 }}>
-          {player.credits} Cr  |  {player.points != null ? player.points : 0} pts
-        </Text>
-        {player.lastMatchPoints != null ? (
-          <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const, marginTop: 1 }}>
-            Last Match: {player.lastMatchPoints} pts
-          </Text>
-        ) : player.tournamentPoints != null ? (
-          <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const, marginTop: 1 }}>
-            Series: {player.tournamentPoints} pts
-          </Text>
-        ) : null}
       </View>
     </Pressable>
   );
@@ -2042,16 +2038,16 @@ const styles = StyleSheet.create({
   playerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    marginBottom: 8,
+    marginBottom: 4,
     cursor: 'pointer' as any,
   },
   playerItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     flex: 1,
   },
   rolePill: {
@@ -2073,33 +2069,33 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   playerItemName: {
-    fontSize: 14,
+    fontSize: 13,
   },
   playerItemTeam: {
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 1,
   },
   playerItemRight: {
     alignItems: 'flex-end',
-    marginRight: 10,
-    gap: 4,
+    marginRight: 8,
+    gap: 3,
   },
   playerCredits: {
-    fontSize: 14,
+    fontSize: 12,
   },
   formRow: {
     flexDirection: 'row',
-    gap: 3,
+    gap: 2,
   },
   formDot: {
-    width: 22,
-    height: 18,
-    borderRadius: 4,
+    width: 18,
+    height: 14,
+    borderRadius: 3,
     justifyContent: 'center',
     alignItems: 'center',
   },
   formDotText: {
-    fontSize: 9,
+    fontSize: 8,
   },
   checkCircle: {
     width: 24,
@@ -2388,17 +2384,57 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   compactCard: {
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
-    padding: 8,
-    minHeight: 64,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
     cursor: 'pointer' as any,
   },
-  compactRolePill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
+  compactInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  compactImageWrap: {
+    position: 'relative',
+    width: 32,
+    height: 32,
+    flexShrink: 0,
+  },
+  compactPhoto: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  compactRoleBadge: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    paddingVertical: 1,
+    alignItems: 'center',
+  },
+  compactRoleCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactInfo: {
+    flex: 1,
+    gap: 1,
+    minWidth: 0,
+  },
+  compactName: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold' as const,
+  },
+  compactMeta: {
+    fontSize: 9,
+    fontFamily: 'Inter_400Regular' as const,
   },
   compactCheck: {
     width: 18,
@@ -2407,5 +2443,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
 });
