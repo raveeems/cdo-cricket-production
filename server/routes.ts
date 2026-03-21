@@ -303,12 +303,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── DEV ONLY ── players by team short names (supports mock match UI testing)
+  // Strategy: try DB first per team; if a team has 0 DB players, fall back to
+  // the IPL 2026 series squad via the cricket API.
+  const IPL_2026_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f";
   if (process.env.NODE_ENV !== "production") {
     app.get("/api/dev/players", isAuthenticated, async (req: Request, res: Response) => {
       const teamsParam = typeof req.query.teams === "string" ? req.query.teams : "";
       const teams = teamsParam.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 2);
       if (teams.length < 2) return res.json({ players: [], lastMatchXI: {} });
+
       const allPlayers: any[] = [];
+      const teamsNeedingApiData: string[] = [];
+
+      // Step 1: try DB for each team
       for (const teamShort of teams) {
         const [recent] = await db
           .select({ id: matchesTable.id })
@@ -318,9 +325,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .limit(1);
         if (recent) {
           const teamPlayers = await storage.getPlayersForMatch(recent.id);
-          allPlayers.push(...teamPlayers.filter((p) => p.teamShort === teamShort));
+          const filtered = teamPlayers.filter((p) => p.teamShort === teamShort);
+          if (filtered.length > 0) {
+            allPlayers.push(...filtered);
+            console.log(`[DEV players] DB: ${filtered.length} players for ${teamShort}`);
+          } else {
+            teamsNeedingApiData.push(teamShort);
+          }
+        } else {
+          teamsNeedingApiData.push(teamShort);
         }
       }
+
+      // Step 2: for teams with no DB data, fetch from IPL 2026 series squad API
+      if (teamsNeedingApiData.length > 0) {
+        console.log(`[DEV players] No DB data for ${teamsNeedingApiData.join(", ")} — fetching from series squad API`);
+        const { fetchSeriesSquad } = await import("./cricket-api");
+        const seriesPlayers = await fetchSeriesSquad(IPL_2026_SERIES_ID);
+        console.log(`[DEV players] Series squad returned ${seriesPlayers.length} total players`);
+
+        for (const teamShort of teamsNeedingApiData) {
+          const apiTeamPlayers = seriesPlayers.filter((p) => p.teamShort === teamShort);
+          console.log(`[DEV players] API: ${apiTeamPlayers.length} players for ${teamShort}`);
+          // Shape into a Player-compatible object (no DB id/matchId — use externalId as id)
+          allPlayers.push(
+            ...apiTeamPlayers.map((p) => ({
+              id: p.externalId,
+              matchId: `mock-dev`,
+              externalId: p.externalId,
+              name: p.name,
+              team: p.team,
+              teamShort: p.teamShort,
+              role: p.role,
+              credits: p.credits,
+              points: 0,
+              selectedBy: 0,
+              recentForm: [],
+              isImpactPlayer: false,
+              isPlayingXI: false,
+              apiName: p.name,
+            }))
+          );
+        }
+      }
+
+      console.log(`[DEV players] Total returned: ${allPlayers.length} players for teams [${teams.join(", ")}]`);
       return res.json({ players: allPlayers, lastMatchXI: {} });
     });
   }

@@ -378,6 +378,20 @@ export default function CreateTeamScreen() {
   });
   useEffect(() => {
     if (isMockId && devPlayersRaw) {
+      console.log('[DEV create-team] devPlayersRaw received');
+      console.log('[DEV create-team]   devPlayersUrl:', devPlayersUrl);
+      console.log('[DEV create-team]   total players in response:', devPlayersRaw.players?.length);
+      const t1Short = mockMatchFromDev?.team1Short;
+      const t2Short = mockMatchFromDev?.team2Short;
+      const t1Count = devPlayersRaw.players?.filter((p: any) => p.teamShort === t1Short).length ?? 0;
+      const t2Count = devPlayersRaw.players?.filter((p: any) => p.teamShort === t2Short).length ?? 0;
+      console.log(`[DEV create-team]   ${t1Short} players: ${t1Count}`);
+      console.log(`[DEV create-team]   ${t2Short} players: ${t2Count}`);
+      const sampleT1 = devPlayersRaw.players?.find((p: any) => p.teamShort === t1Short);
+      const sampleT2 = devPlayersRaw.players?.find((p: any) => p.teamShort === t2Short);
+      console.log('[DEV create-team]   sample', t1Short, 'player:', JSON.stringify(sampleT1));
+      console.log('[DEV create-team]   sample', t2Short, 'player:', JSON.stringify(sampleT2));
+      console.log('[DEV create-team]   teamShort field present in sample:', !!(sampleT1?.teamShort));
       queryClient.setQueryData(['/api/matches', matchId, 'players'], {
         players: devPlayersRaw.players,
         lastMatchXI: devPlayersRaw.lastMatchXI ?? {},
