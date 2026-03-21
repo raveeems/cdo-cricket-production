@@ -307,7 +307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // the IPL 2026 series squad via the cricket API.
   const IPL_2026_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f";
   if (process.env.NODE_ENV !== "production") {
-    app.get("/api/dev/players", isAuthenticated, async (req: Request, res: Response) => {
+    app.get("/api/dev/players", async (req: Request, res: Response) => {
       const teamsParam = typeof req.query.teams === "string" ? req.query.teams : "";
       const teams = teamsParam.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 2);
       if (teams.length < 2) return res.json({ players: [], lastMatchXI: {} });

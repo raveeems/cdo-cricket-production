@@ -375,6 +375,8 @@ export default function CreateTeamScreen() {
   const { data: devPlayersRaw } = useQuery<{ players: Player[]; lastMatchXI: Record<string, any> }>({
     queryKey: [devPlayersUrl],
     enabled: isMockId && !!devPlayersUrl,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
   useEffect(() => {
     if (isMockId && devPlayersRaw) {
@@ -412,6 +414,22 @@ export default function CreateTeamScreen() {
   const lastMatchXIData = playersData?.lastMatchXI || {};
   const existingTeams = matchId ? getTeamsForMatch(matchId) : [];
   const impactEnabled = match?.impactFeaturesEnabled === true;
+
+  // ── DEV RENDER DIAGNOSTICS ─────────────────────────────────────────────────
+  if (isMockId) {
+    const t1 = mockMatchFromDev?.team1Short;
+    const t2 = mockMatchFromDev?.team2Short;
+    const t1Players = allPlayers.filter((p) => (p.teamShort || (p as any).team) === t1);
+    const t2Players = allPlayers.filter((p) => (p.teamShort || (p as any).team) === t2);
+    console.log('[DEV create-team render]');
+    console.log('  isMockId:', isMockId);
+    console.log('  devPlayersUrl:', devPlayersUrl);
+    console.log('  devPlayersRaw present:', !!devPlayersRaw, '| raw count:', devPlayersRaw?.players?.length ?? 0);
+    console.log('  allPlayers (post-setQueryData):', allPlayers.length);
+    console.log(`  ${t1} filtered: ${t1Players.length}`);
+    console.log(`  ${t2} filtered: ${t2Players.length}`);
+  }
+  // ── END DEV RENDER DIAGNOSTICS ─────────────────────────────────────────────
 
   // Groups players for ALL tab: Last Match XI → Impact Player → Rest of Squad
   const allTabSections = useMemo(() => {

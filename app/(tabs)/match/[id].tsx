@@ -146,6 +146,8 @@ export default function MatchDetailScreen() {
   const { data: devPlayersData } = useQuery<{ players: Player[]; lastMatchXI: Record<string, any> }>({
     queryKey: [devPlayersUrl],
     enabled: isMockId && !!devPlayersUrl,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
   useEffect(() => {
     if (isMockId && devPlayersData) {
