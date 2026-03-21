@@ -1603,7 +1603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({ serverTime: new Date().toISOString() });
   });
 
-  // ---- CRICKET API: SYNC (T20 WC only) ----
+  // ---- CRICKET API: SYNC (IPL only) ----
   app.post(
     "/api/admin/sync-matches",
     isAuthenticated,
@@ -1613,7 +1613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await syncMatchesFromApi();
         await refreshStaleMatchStatuses();
         return res.json({
-          message: "T20 World Cup match sync triggered successfully",
+          message: "Match sync triggered successfully",
         });
       } catch (err: any) {
         console.error("Sync error:", err);
