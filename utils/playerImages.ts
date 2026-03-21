@@ -216,7 +216,7 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   'b367db88-a73e-445f-8cdd-3f6335617b07': require('../assets/images/players/b367db88-a73e-445f-8cdd-3f6335617b07.jpeg'),
   '82de5824-b29b-4737-9e9d-44f5796ef227': require('../assets/images/players/82de5824-b29b-4737-9e9d-44f5796ef227.jpeg'),
   '702254aa-2764-4fe4-b28e-20336a0ab069': require('../assets/images/players/702254aa-2764-4fe4-b28e-20336a0ab069.jpeg'),
-  // GT — Batch 1 (18 players)
+  // GT — Batch 1 (18 players) + Batch 2 (6 players)
   '0c3d24bb-a517-435f-8cc3-60e945327bb3': require('../assets/images/players/0c3d24bb-a517-435f-8cc3-60e945327bb3.jpeg'),
   '2a8d8640-2213-4cf6-ac7e-309d8b733e96': require('../assets/images/players/2a8d8640-2213-4cf6-ac7e-309d8b733e96.jpeg'),
   '3a51a030-8cac-42c7-8a47-e32fd1bcedd4': require('../assets/images/players/3a51a030-8cac-42c7-8a47-e32fd1bcedd4.jpeg'),
@@ -235,6 +235,13 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   'f0687183-ad9a-44f7-9cbf-4f7eb0cbfb5a': require('../assets/images/players/f0687183-ad9a-44f7-9cbf-4f7eb0cbfb5a.jpeg'),
   'f8e6accd-6b73-4869-93a6-d45519a361f0': require('../assets/images/players/f8e6accd-6b73-4869-93a6-d45519a361f0.jpeg'),
   'fe5f4f96-c207-4e3f-b0d5-cebc74435448': require('../assets/images/players/fe5f4f96-c207-4e3f-b0d5-cebc74435448.jpeg'),
+  // GT — Batch 2 (6 players)
+  '7d6bbd6c-c5bb-4e1c-9374-aaa829e77611': require('../assets/images/players/7d6bbd6c-c5bb-4e1c-9374-aaa829e77611.jpeg'),
+  '79f582a1-f5ab-4d30-8f5f-b05d4143608c': require('../assets/images/players/79f582a1-f5ab-4d30-8f5f-b05d4143608c.jpeg'),
+  '309d3ffd-3d06-460d-9427-c559a604d471': require('../assets/images/players/309d3ffd-3d06-460d-9427-c559a604d471.jpeg'),
+  '6364e591-1f4b-4fe6-867c-ae61ea21f6f0': require('../assets/images/players/6364e591-1f4b-4fe6-867c-ae61ea21f6f0.jpeg'),
+  '7263e990-a9e9-4829-8adf-760d18d1315c': require('../assets/images/players/7263e990-a9e9-4829-8adf-760d18d1315c.jpeg'),
+  'd0f69230-16e0-4a79-92aa-f9f7c588d5d3': require('../assets/images/players/d0f69230-16e0-4a79-92aa-f9f7c588d5d3.jpeg'),
   // Other teams — append here (DC, etc.)
 };
 
