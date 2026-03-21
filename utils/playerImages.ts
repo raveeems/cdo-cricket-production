@@ -129,7 +129,13 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   '4269d64c-962d-4cd9-b2d2-1a62f51256b8': require('../assets/images/players/4269d64c-962d-4cd9-b2d2-1a62f51256b8.jpeg'),
   'c6442879-0071-438a-a48e-4eb9c549ec13': require('../assets/images/players/c6442879-0071-438a-a48e-4eb9c549ec13.jpeg'),
   'fd2ee2dd-5051-4ced-baac-4c5a14253c6f': require('../assets/images/players/fd2ee2dd-5051-4ced-baac-4c5a14253c6f.jpeg'),
-  // RR — Batch 2 (6 players) — append here
+  // RR — Batch 2 (6 players)
+  'f3876b65-0643-49df-9255-4a06dd3fa051': require('../assets/images/players/f3876b65-0643-49df-9255-4a06dd3fa051.jpeg'),
+  '0f5502aa-40c8-43c6-a38f-1496000bd5b6': require('../assets/images/players/0f5502aa-40c8-43c6-a38f-1496000bd5b6.jpeg'),
+  '0e2b638b-e356-41bf-b986-f0f0f84bad38': require('../assets/images/players/0e2b638b-e356-41bf-b986-f0f0f84bad38.jpeg'),
+  'cdacd831-24fc-4aa3-94c5-0882bfaec018': require('../assets/images/players/cdacd831-24fc-4aa3-94c5-0882bfaec018.jpeg'),
+  'a254feed-0d7c-4f04-a2ab-7bf9ceef156b': require('../assets/images/players/a254feed-0d7c-4f04-a2ab-7bf9ceef156b.jpeg'),
+  '2518d07c-55ea-416d-99d8-e847cba97ea2': require('../assets/images/players/2518d07c-55ea-416d-99d8-e847cba97ea2.jpeg'),
   // Other teams — append here (DC, KKR, etc.)
 };
 
