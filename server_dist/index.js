@@ -892,33 +892,14 @@ function getTeamColor(shortName) {
   return TEAM_COLORS[shortName.toUpperCase()] || "#333333";
 }
 function getTeamShort(fullName) {
-  const mapping = {
-    "Mumbai Indians": "MI",
-    "Chennai Super Kings": "CSK",
-    "Royal Challengers Bengaluru": "RCB",
-    "Royal Challengers Bangalore": "RCB",
-    "Kolkata Knight Riders": "KKR",
-    "Delhi Capitals": "DC",
-    "Rajasthan Royals": "RR",
-    "Sunrisers Hyderabad": "SRH",
-    "Punjab Kings": "PBKS",
-    "Gujarat Titans": "GT",
-    "Lucknow Super Giants": "LSG",
-    India: "IND",
-    Australia: "AUS",
-    England: "ENG",
-    Pakistan: "PAK",
-    "South Africa": "SA",
-    "New Zealand": "NZ",
-    "West Indies": "WI",
-    "Sri Lanka": "SL",
-    Bangladesh: "BAN",
-    Afghanistan: "AFG"
-  };
-  if (mapping[fullName]) return mapping[fullName];
+  if (KNOWN_TEAM_CODES[fullName]) return KNOWN_TEAM_CODES[fullName];
   const words = fullName.split(" ");
   if (words.length === 1) return fullName.substring(0, 3).toUpperCase();
   return words.map((w) => w[0]).join("").toUpperCase().substring(0, 4);
+}
+function resolveTeamShort(teamName, apiShortname) {
+  if (KNOWN_TEAM_CODES[teamName]) return KNOWN_TEAM_CODES[teamName];
+  return apiShortname || getTeamShort(teamName);
 }
 async function fetchUpcomingMatches() {
   const apiKey = getActiveApiKey();
@@ -976,8 +957,8 @@ async function fetchUpcomingMatches() {
       const team2 = m.teams[1];
       const team1Info = m.teamInfo?.find((t) => t.name === team1);
       const team2Info = m.teamInfo?.find((t) => t.name === team2);
-      const team1Short = team1Info?.shortname || getTeamShort(team1);
-      const team2Short = team2Info?.shortname || getTeamShort(team2);
+      const team1Short = resolveTeamShort(team1, team1Info?.shortname);
+      const team2Short = resolveTeamShort(team2, team2Info?.shortname);
       const hasScoreData = !!(m.score && m.score.length > 0 && m.score.some((s) => s.r > 0 || s.w > 0 || s.o > 0));
       const { status, statusNote } = determineMatchStatus(
         m.matchStarted,
@@ -1034,8 +1015,8 @@ async function fetchSeriesMatches(seriesId, seriesName) {
       const team2 = m.teams[1];
       const team1Info = m.teamInfo?.find((t) => t.name === team1);
       const team2Info = m.teamInfo?.find((t) => t.name === team2);
-      const team1Short = team1Info?.shortname || getTeamShort(team1);
-      const team2Short = team2Info?.shortname || getTeamShort(team2);
+      const team1Short = resolveTeamShort(team1, team1Info?.shortname);
+      const team2Short = resolveTeamShort(team2, team2Info?.shortname);
       const { status, statusNote } = determineMatchStatus(
         m.matchStarted,
         m.matchEnded,
@@ -1178,8 +1159,8 @@ async function syncMatchesFromApi() {
       const team2 = m.teams[1];
       const team1Info = m.teamInfo?.find((t) => t.name === team1);
       const team2Info = m.teamInfo?.find((t) => t.name === team2);
-      const team1Short = team1Info?.shortname || getTeamShort(team1);
-      const team2Short = team2Info?.shortname || getTeamShort(team2);
+      const team1Short = resolveTeamShort(team1, team1Info?.shortname);
+      const team2Short = resolveTeamShort(team2, team2Info?.shortname);
       const hasScoreData = !!(m.score && m.score.length > 0 && m.score.some((s) => s.r > 0 || s.w > 0 || s.o > 0));
       const { status, statusNote } = determineMatchStatus(
         m.matchStarted,
@@ -1403,7 +1384,7 @@ async function fetchSeriesSquad(seriesId) {
           externalId: p.id,
           name: p.name,
           team: team.teamName,
-          teamShort: team.shortname || getTeamShort(team.teamName),
+          teamShort: resolveTeamShort(team.teamName, team.shortname),
           role,
           credits: assignCredits(role)
         });
@@ -1468,7 +1449,7 @@ async function fetchMatchSquad(externalMatchId) {
           externalId: p.id,
           name: p.name,
           team: team.teamName,
-          teamShort: team.shortname || getTeamShort(team.teamName),
+          teamShort: resolveTeamShort(team.teamName, team.shortname),
           role,
           credits: assignCredits(role)
         });
@@ -1487,7 +1468,7 @@ async function fetchMatchSquad(externalMatchId) {
     const teamInfo = infoJson.data.teamInfo || [];
     for (const team of teamInfo) {
       const teamName = team.name || "";
-      const teamShort = team.shortname || getTeamShort(teamName);
+      const teamShort = resolveTeamShort(teamName, team.shortname);
       const teamPlayers = team.players || [];
       for (const p of teamPlayers) {
         if (!p.id || !p.name) continue;
@@ -1907,7 +1888,7 @@ async function fetchLiveScorecard(externalMatchId) {
     return null;
   }
 }
-var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
+var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, KNOWN_TEAM_CODES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
     "use strict";
@@ -1956,6 +1937,29 @@ var init_cricket_api = __esm({
       LSG: "#3FD5F3",
       GT: "#1B2133"
     };
+    KNOWN_TEAM_CODES = {
+      "Mumbai Indians": "MI",
+      "Chennai Super Kings": "CSK",
+      "Royal Challengers Bengaluru": "RCB",
+      "Royal Challengers Bangalore": "RCB",
+      "Kolkata Knight Riders": "KKR",
+      "Delhi Capitals": "DC",
+      "Rajasthan Royals": "RR",
+      "Sunrisers Hyderabad": "SRH",
+      "Punjab Kings": "PBKS",
+      "Gujarat Titans": "GT",
+      "Lucknow Super Giants": "LSG",
+      India: "IND",
+      Australia: "AUS",
+      England: "ENG",
+      Pakistan: "PAK",
+      "South Africa": "SA",
+      "New Zealand": "NZ",
+      "West Indies": "WI",
+      "Sri Lanka": "SL",
+      Bangladesh: "BAN",
+      Afghanistan: "AFG"
+    };
     lastStatusRefresh = 0;
     STATUS_REFRESH_INTERVAL = 5 * 60 * 1e3;
   }
@@ -1970,7 +1974,7 @@ init_db();
 init_schema();
 init_cricket_api();
 import { createServer } from "node:http";
-import { eq as eq2, and as and2, sql as sql3 } from "drizzle-orm";
+import { eq as eq2, and as and2, sql as sql3, or, desc as desc2 } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { createHmac } from "crypto";
@@ -2223,6 +2227,61 @@ async function registerRoutes(app2) {
     });
     return res.json({ ok: true });
   });
+  const IPL_2026_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f";
+  if (process.env.NODE_ENV !== "production") {
+    app2.get("/api/dev/players", async (req, res) => {
+      const teamsParam = typeof req.query.teams === "string" ? req.query.teams : "";
+      const teams = teamsParam.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 2);
+      if (teams.length < 2) return res.json({ players: [], lastMatchXI: {} });
+      const allPlayers = [];
+      const teamsNeedingApiData = [];
+      for (const teamShort of teams) {
+        const [recent] = await db.select({ id: matches.id }).from(matches).where(or(eq2(matches.team1Short, teamShort), eq2(matches.team2Short, teamShort))).orderBy(desc2(matches.startTime)).limit(1);
+        if (recent) {
+          const teamPlayers = await storage.getPlayersForMatch(recent.id);
+          const filtered = teamPlayers.filter((p) => p.teamShort === teamShort);
+          if (filtered.length > 0) {
+            allPlayers.push(...filtered);
+            console.log(`[DEV players] DB: ${filtered.length} players for ${teamShort}`);
+          } else {
+            teamsNeedingApiData.push(teamShort);
+          }
+        } else {
+          teamsNeedingApiData.push(teamShort);
+        }
+      }
+      if (teamsNeedingApiData.length > 0) {
+        console.log(`[DEV players] No DB data for ${teamsNeedingApiData.join(", ")} \u2014 fetching from series squad API`);
+        const { fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+        const seriesPlayers = await fetchSeriesSquad2(IPL_2026_SERIES_ID);
+        console.log(`[DEV players] Series squad returned ${seriesPlayers.length} total players`);
+        for (const teamShort of teamsNeedingApiData) {
+          const apiTeamPlayers = seriesPlayers.filter((p) => p.teamShort === teamShort);
+          console.log(`[DEV players] API: ${apiTeamPlayers.length} players for ${teamShort}`);
+          allPlayers.push(
+            ...apiTeamPlayers.map((p) => ({
+              id: p.externalId,
+              matchId: `mock-dev`,
+              externalId: p.externalId,
+              name: p.name,
+              team: p.team,
+              teamShort: p.teamShort,
+              role: p.role,
+              credits: p.credits,
+              points: 0,
+              selectedBy: 0,
+              recentForm: [],
+              isImpactPlayer: false,
+              isPlayingXI: false,
+              apiName: p.name
+            }))
+          );
+        }
+      }
+      console.log(`[DEV players] Total returned: ${allPlayers.length} players for teams [${teams.join(", ")}]`);
+      return res.json({ players: allPlayers, lastMatchXI: {} });
+    });
+  }
   app2.get("/api/auth/me", async (req, res) => {
     let userId = req.session.userId;
     if (!userId) {
@@ -3308,7 +3367,7 @@ async function registerRoutes(app2) {
         await syncMatchesFromApi();
         await refreshStaleMatchStatuses();
         return res.json({
-          message: "T20 World Cup match sync triggered successfully"
+          message: "Match sync triggered successfully"
         });
       } catch (err) {
         console.error("Sync error:", err);
@@ -4925,6 +4984,48 @@ async function registerRoutes(app2) {
         return res.json({ message: `Locked multi-team usage for ${usagesIncremented} users` });
       } catch (err) {
         return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/players/export",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const allPlayers = await db.select({
+          playerId: players.id,
+          playerName: players.name,
+          teamName: players.team,
+          teamShort: players.teamShort,
+          role: players.role,
+          credits: players.credits,
+          points: players.points,
+          selectedBy: players.selectedBy,
+          externalId: players.externalId,
+          isImpactPlayer: players.isImpactPlayer,
+          isPlayingXI: players.isPlayingXI
+        }).from(players).orderBy(players.team, players.name);
+        const playersByTeam = /* @__PURE__ */ new Map();
+        for (const player of allPlayers) {
+          if (!playersByTeam.has(player.teamName)) {
+            playersByTeam.set(player.teamName, []);
+          }
+          playersByTeam.get(player.teamName).push(player);
+        }
+        const summary = {
+          totalPlayers: allPlayers.length,
+          totalTeams: playersByTeam.size,
+          teamBreakdown: Array.from(playersByTeam.entries()).map(([team, players2]) => ({
+            team,
+            count: players2.length
+          })),
+          players: allPlayers
+        };
+        return res.json(summary);
+      } catch (err) {
+        console.error("Player export error:", err);
+        return res.status(500).json({ message: "Failed to export players" });
       }
     }
   );
