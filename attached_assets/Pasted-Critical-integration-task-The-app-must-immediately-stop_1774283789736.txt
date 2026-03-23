@@ -1,0 +1,46 @@
+Critical integration task.
+
+The app must immediately stop using the old P1 API and replace it with the new P1 API identified by:
+
+NEW P1 API ID:
+58934899-94ba-4214-927a-56a900042137
+
+Strict non-negotiable rules:
+1. Replace the existing P1 API with this new P1 API only.
+2. The app must stop using the old P1 API completely after this change.
+3. Under no circumstances should P2 API be modified, refactored, renamed, rerouted, or impacted in any way.
+4. Do not make any speculative cleanup changes outside the P1 integration scope.
+5. Do not touch P2 request logic, response handling, environment variables, routes, helpers, or fallback logic.
+
+Task:
+1. Identify every exact file, function, route, helper, env variable, and callsite currently using the old P1 API.
+2. Replace only those P1-specific integrations with the new P1 API ID: 58934899-94ba-4214-927a-56a900042137
+3. Preserve existing app behavior as much as possible.
+4. If response shape or configuration differs, add the minimum required adaptation layer for P1 only.
+5. Keep P2 entirely isolated and unchanged.
+
+Before implementing, first return:
+1. exact files where old P1 API is currently used
+2. exact files that will be changed
+3. whether any shared helper currently used by both P1 and P2 creates risk
+4. how you will ensure P2 remains untouched
+5. risk assessment for regressions
+
+Implementation rules:
+- If old P1 and P2 currently share any common utility, do not casually refactor that utility unless absolutely necessary.
+- If isolation is needed, create a P1-specific adapter/wrapper rather than modifying shared P2 behavior.
+- Do not change database schema unless absolutely required.
+- Do not change unrelated UI.
+- Do not change admin flows unless they directly depend on P1.
+- Do not remove P2 env/config or alter its runtime behavior.
+
+After implementing, return:
+1. exact files changed
+2. exact old P1 callsites removed/replaced
+3. confirmation that old P1 is no longer used
+4. confirmation that P2 files/callsites/config were not changed
+5. PASS/FAIL verification for:
+   - all P1-dependent flows
+   - no P2 regression
+   - build success
+   - runtime readiness
