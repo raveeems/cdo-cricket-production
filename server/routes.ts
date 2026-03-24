@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { db, dbConnected, serverReady } from "./db";
 import { userTeams, players as playersTable, users, matches as matchesTable, matchPlayerStatus as mpsTable } from "@shared/schema";
 import { eq, and, sql, or, desc } from "drizzle-orm";
-import { fetchUpcomingMatches, fetchSeriesMatches, fetchSeriesList, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
+import { fetchUpcomingMatches, fetchSeriesMatches, fetchSeriesList, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo, ensureIPLPreviewMatches } from "./cricket-api";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { randomUUID, createHmac } from "crypto";
@@ -529,9 +529,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/matches", isAuthenticated, async (_req: Request, res: Response) => {
     try { await refreshStaleMatchStatuses(); } catch (e) { console.error("Status refresh error:", e); }
     const allMatches = await storage.getAllMatches();
+
+    // Display-layer: ensure next 5 upcoming IPL fixtures are in DB so they show
+    // on the Home screen independently of the 48-hour auto-sync mechanism.
+    try {
+      const newIPL = await ensureIPLPreviewMatches(allMatches);
+      if (newIPL.length > 0) allMatches.push(...newIPL);
+    } catch (e) { console.error("IPL preview error:", e); }
+
     const nowMs = Date.now();
     const MS_7D = 7 * 24 * 60 * 60 * 1000;
     const MS_3H = 3 * 60 * 60 * 1000;
+
+    // Define here so it can be used both in the loop and the cap step below.
+    const isIPLLeague = (league: string) => {
+      const l = (league || "").toLowerCase();
+      return l.includes("indian premier league") || l.includes(" ipl") || l.startsWith("ipl ");
+    };
 
     const matchesWithParticipants: { match: typeof allMatches[0]; participantCount: number }[] = [];
 
@@ -548,23 +562,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const isLive = m.status === "live";
 
-      // Home feed: upcoming (next 7 days), live, or delayed — never completed
-      const included = isUpcoming || isLive || (m.status === "delayed");
+      // IPL preview: always include upcoming API-sourced IPL matches regardless of time window.
+      // The display cap below limits this to the next 5, so this won't flood the feed.
+      const isIPLPreview = m.status === "upcoming" && isIPLLeague(m.league || "") && !!m.externalId;
+
+      // Home feed: upcoming within 7D, live, delayed, or IPL preview candidates — never completed
+      const included = isUpcoming || isLive || (m.status === "delayed") || isIPLPreview;
 
       if (included) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
     }
 
-    // IPL display cap: show only the next 5 upcoming IPL matches (from auto-synced pool).
+    // IPL display cap: show only the next 5 upcoming IPL matches (from API-sourced pool).
     // Applies only to matches that are (a) IPL by league AND (b) have an externalId,
-    // which means they came from the API (auto-sync or admin-import).
+    // which means they came from the API (auto-sync, admin-import, or IPL preview).
     // Manually admin-created matches never have an externalId and are always shown.
     // Live and delayed IPL matches are never capped — they are happening now.
-    const isIPLLeague = (league: string) => {
-      const l = (league || "").toLowerCase();
-      return l.includes("indian premier league") || l.includes(" ipl") || l.startsWith("ipl ");
-    };
 
     const upcomingIPLFromApi = matchesWithParticipants
       .filter(mp => mp.match.status === "upcoming" && isIPLLeague(mp.match.league) && !!mp.match.externalId)

@@ -327,15 +327,11 @@ export default function HomeScreen() {
     },
   });
 
-  const MS_7D = 7 * 24 * 60 * 60 * 1000;
-  const nowMs = Date.now();
   const allMatches = injectDevMockMatches(data?.matches || []);
-  const visibleMatches = allMatches.filter(m => {
-    if (m.status === 'completed') return false;
-    if (m.status === 'live' || m.status === 'delayed') return true;
-    if (m.status === 'upcoming') return new Date(m.startTime).getTime() <= nowMs + MS_7D;
-    return false;
-  });
+  // Backend is the authoritative source: it sends exactly what should be shown
+  // (live/delayed always; upcoming within 7D for non-IPL; next 5 IPL regardless
+  // of how far out they start; manual matches always). Just drop completed here.
+  const visibleMatches = allMatches.filter(m => m.status !== 'completed');
 
   const webTopInset = isWeb ? 67 : 0;
 

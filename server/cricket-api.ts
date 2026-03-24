@@ -548,6 +548,85 @@ export async function fetchSeriesMatches(
   }
 }
 
+// ─── IPL preview: ensure next-5 upcoming IPL fixtures are in DB for Home display ───
+const IPL_2026_SERIES_ID_PREVIEW = "87c62aac-bc3c-4738-ab93-19da0690488f";
+let _iplPreviewCache: {
+  data: Array<{
+    externalId: string; seriesId: string; team1: string; team1Short: string;
+    team1Color: string; team2: string; team2Short: string; team2Color: string;
+    venue: string; startTime: Date; status: string; statusNote: string; league: string;
+  }>;
+  expiresAt: number;
+} | null = null;
+const IPL_PREVIEW_TTL_MS = 15 * 60 * 1000;
+
+async function getCachedIPLSeriesMatches() {
+  if (_iplPreviewCache && Date.now() < _iplPreviewCache.expiresAt) {
+    return _iplPreviewCache.data;
+  }
+  const data = await fetchSeriesMatches(IPL_2026_SERIES_ID_PREVIEW, "Indian Premier League 2026");
+  _iplPreviewCache = { data, expiresAt: Date.now() + IPL_PREVIEW_TTL_MS };
+  return data;
+}
+
+/**
+ * Ensures the next 5 upcoming IPL fixtures (from the series API) are in the DB
+ * so they appear on the Home screen without waiting for the 48-hour auto-sync.
+ * The 48-hour syncMatchesFromApi() mechanism is completely unchanged.
+ * Returns any newly created Match objects so the caller can merge them immediately.
+ */
+export async function ensureIPLPreviewMatches(existingMatches: any[]): Promise<any[]> {
+  const nowMs = Date.now();
+  let seriesMatches: Awaited<ReturnType<typeof getCachedIPLSeriesMatches>>;
+  try {
+    seriesMatches = await getCachedIPLSeriesMatches();
+  } catch (e) {
+    console.error("IPL preview: series fetch failed", e);
+    return [];
+  }
+
+  const next5 = seriesMatches
+    .filter(m => new Date(m.startTime).getTime() > nowMs && m.status === "upcoming")
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+    .slice(0, 5);
+
+  if (next5.length === 0) return [];
+
+  const { storage } = await import("./storage");
+  const newMatches: any[] = [];
+
+  for (const m of next5) {
+    if (existingMatches.some(e => e.externalId === m.externalId)) continue;
+    try {
+      const created = await storage.createMatch({
+        externalId: m.externalId,
+        seriesId: m.seriesId,
+        team1: m.team1,
+        team1Short: m.team1Short,
+        team1Color: m.team1Color,
+        team2: m.team2,
+        team2Short: m.team2Short,
+        team2Color: m.team2Color,
+        venue: m.venue,
+        startTime: m.startTime,
+        status: m.status,
+        statusNote: m.statusNote,
+        league: m.league,
+        totalPrize: "0",
+        entryFee: 0,
+        spotsTotal: 100,
+        spotsFilled: 0,
+      });
+      console.log(`IPL preview: auto-imported ${m.team1} vs ${m.team2} (${m.externalId})`);
+      newMatches.push(created);
+    } catch (e) {
+      console.error(`IPL preview: failed to import ${m.externalId}`, e);
+    }
+  }
+
+  return newMatches;
+}
+
 async function upsertMatches(
   apiMatches: Array<{
     externalId: string;

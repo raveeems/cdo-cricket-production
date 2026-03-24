@@ -776,6 +776,7 @@ var init_storage = __esm({
 // server/cricket-api.ts
 var cricket_api_exports = {};
 __export(cricket_api_exports, {
+  ensureIPLPreviewMatches: () => ensureIPLPreviewMatches,
   fetchLiveScorecard: () => fetchLiveScorecard,
   fetchMatchInfo: () => fetchMatchInfo,
   fetchMatchScorecard: () => fetchMatchScorecard,
@@ -1082,6 +1083,57 @@ async function fetchSeriesMatches(seriesId, seriesName) {
     console.error("Series Info API error:", err);
     return [];
   }
+}
+async function getCachedIPLSeriesMatches() {
+  if (_iplPreviewCache && Date.now() < _iplPreviewCache.expiresAt) {
+    return _iplPreviewCache.data;
+  }
+  const data = await fetchSeriesMatches(IPL_2026_SERIES_ID_PREVIEW, "Indian Premier League 2026");
+  _iplPreviewCache = { data, expiresAt: Date.now() + IPL_PREVIEW_TTL_MS };
+  return data;
+}
+async function ensureIPLPreviewMatches(existingMatches) {
+  const nowMs = Date.now();
+  let seriesMatches;
+  try {
+    seriesMatches = await getCachedIPLSeriesMatches();
+  } catch (e) {
+    console.error("IPL preview: series fetch failed", e);
+    return [];
+  }
+  const next5 = seriesMatches.filter((m) => new Date(m.startTime).getTime() > nowMs && m.status === "upcoming").sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).slice(0, 5);
+  if (next5.length === 0) return [];
+  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const newMatches = [];
+  for (const m of next5) {
+    if (existingMatches.some((e) => e.externalId === m.externalId)) continue;
+    try {
+      const created = await storage2.createMatch({
+        externalId: m.externalId,
+        seriesId: m.seriesId,
+        team1: m.team1,
+        team1Short: m.team1Short,
+        team1Color: m.team1Color,
+        team2: m.team2,
+        team2Short: m.team2Short,
+        team2Color: m.team2Color,
+        venue: m.venue,
+        startTime: m.startTime,
+        status: m.status,
+        statusNote: m.statusNote,
+        league: m.league,
+        totalPrize: "0",
+        entryFee: 0,
+        spotsTotal: 100,
+        spotsFilled: 0
+      });
+      console.log(`IPL preview: auto-imported ${m.team1} vs ${m.team2} (${m.externalId})`);
+      newMatches.push(created);
+    } catch (e) {
+      console.error(`IPL preview: failed to import ${m.externalId}`, e);
+    }
+  }
+  return newMatches;
 }
 async function upsertMatches(apiMatches, existingMatches) {
   const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
@@ -1920,7 +1972,7 @@ async function fetchLiveScorecard(externalMatchId) {
     return null;
   }
 }
-var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, KNOWN_TEAM_CODES, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
+var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, KNOWN_TEAM_CODES, IPL_2026_SERIES_ID_PREVIEW, _iplPreviewCache, IPL_PREVIEW_TTL_MS, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
     "use strict";
@@ -1992,6 +2044,9 @@ var init_cricket_api = __esm({
       Bangladesh: "BAN",
       Afghanistan: "AFG"
     };
+    IPL_2026_SERIES_ID_PREVIEW = "87c62aac-bc3c-4738-ab93-19da0690488f";
+    _iplPreviewCache = null;
+    IPL_PREVIEW_TTL_MS = 15 * 60 * 1e3;
     lastStatusRefresh = 0;
     STATUS_REFRESH_INTERVAL = 5 * 60 * 1e3;
   }
@@ -2454,9 +2509,19 @@ async function registerRoutes(app2) {
       console.error("Status refresh error:", e);
     }
     const allMatches = await storage.getAllMatches();
+    try {
+      const newIPL = await ensureIPLPreviewMatches(allMatches);
+      if (newIPL.length > 0) allMatches.push(...newIPL);
+    } catch (e) {
+      console.error("IPL preview error:", e);
+    }
     const nowMs = Date.now();
     const MS_7D = 7 * 24 * 60 * 60 * 1e3;
     const MS_3H = 3 * 60 * 60 * 1e3;
+    const isIPLLeague = (league) => {
+      const l = (league || "").toLowerCase();
+      return l.includes("indian premier league") || l.includes(" ipl") || l.startsWith("ipl ");
+    };
     const matchesWithParticipants = [];
     for (const m of allMatches) {
       const startMs = new Date(m.startTime).getTime();
@@ -2467,15 +2532,12 @@ async function registerRoutes(app2) {
       const startsWithin7d = startMs <= nowMs + MS_7D;
       const isUpcoming = isUpcomingOrDelayed && startsWithin7d;
       const isLive = m.status === "live";
-      const included = isUpcoming || isLive || m.status === "delayed";
+      const isIPLPreview = m.status === "upcoming" && isIPLLeague(m.league || "") && !!m.externalId;
+      const included = isUpcoming || isLive || m.status === "delayed" || isIPLPreview;
       if (included) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
     }
-    const isIPLLeague = (league) => {
-      const l = (league || "").toLowerCase();
-      return l.includes("indian premier league") || l.includes(" ipl") || l.startsWith("ipl ");
-    };
     const upcomingIPLFromApi = matchesWithParticipants.filter((mp) => mp.match.status === "upcoming" && isIPLLeague(mp.match.league) && !!mp.match.externalId).sort((a, b) => new Date(a.match.startTime).getTime() - new Date(b.match.startTime).getTime());
     const top5IPLIds = new Set(upcomingIPLFromApi.slice(0, 5).map((mp) => mp.match.id));
     const cappedMatches = matchesWithParticipants.filter((mp) => {
