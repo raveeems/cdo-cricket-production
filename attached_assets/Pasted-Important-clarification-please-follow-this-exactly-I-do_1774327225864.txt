@@ -1,0 +1,54 @@
+Important clarification — please follow this exactly.
+
+I do NOT want to change the existing IPL auto-add / sync logic.
+
+Current intended behavior:
+- IPL matches should continue to be auto-added/synced using the existing 48-hour logic already in place.
+- Future IPL matches should still continue to get added automatically when they fall into that existing sync window.
+- Manually added matches must remain untouched and must continue to show normally.
+
+What I want changed:
+- In the user-facing app, show only the NEXT 5 upcoming IPL matches at a time.
+- This display limit must apply only to the auto-synced IPL match list.
+- This must NOT hide or remove manually added matches.
+- This must NOT stop future IPL matches from being added in the background.
+- This must NOT change admin browse/add flows.
+- This must NOT affect scorecards, squads, sync behavior, or P2 logic.
+
+So the rule should be:
+
+USER-FACING DISPLAY LOGIC
+1. Keep all manually added matches visible as they already are.
+2. For IPL auto-synced matches, show only the next 5 upcoming matches sorted by start time ascending.
+3. Do not show completed/stale IPL matches on the main upcoming list.
+4. Do not change the existing backend sync/addition mechanism that keeps future IPL matches flowing in via the 48-hour window.
+
+Before implementing, first return:
+1. exact file(s) and function(s) currently responsible for:
+   - auto-syncing/adding IPL matches
+   - manually added matches
+   - user-facing match list display
+2. where the existing 48-hour logic currently lives
+3. exactly where you will apply the “next 5 upcoming IPL matches” rule
+4. confirmation that this will be a display/filtering change only, not a sync/addition change
+5. any regression risk
+
+Implementation rules:
+- Do not reduce the actual set of synced IPL matches in storage if that would interfere with the existing 48-hour sync flow.
+- Do not hide manually added matches.
+- Do not alter admin-created/manual match visibility.
+- Do not touch non-IPL browse behavior.
+- Do not touch P2.
+
+After implementing, return:
+1. exact files changed
+2. exact logic added/changed
+3. confirmation that manually added matches remain visible
+4. confirmation that IPL auto-sync still works with the existing 48-hour logic
+5. confirmation that the user-facing app now shows only the next 5 upcoming IPL matches from the auto-synced IPL pool
+6. PASS/FAIL verification for:
+   - manual matches still visible
+   - next 5 upcoming IPL matches shown
+   - sorted correctly
+   - future IPL matches still continue to enter through existing sync logic
+   - no completed/stale IPL matches shown in the main upcoming list
