@@ -556,7 +556,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
 
-    matchesWithParticipants.sort((a, b) => {
+    // IPL display cap: show only the next 5 upcoming IPL matches (from auto-synced pool).
+    // Applies only to matches that are (a) IPL by league AND (b) have an externalId,
+    // which means they came from the API (auto-sync or admin-import).
+    // Manually admin-created matches never have an externalId and are always shown.
+    // Live and delayed IPL matches are never capped — they are happening now.
+    const isIPLLeague = (league: string) => {
+      const l = (league || "").toLowerCase();
+      return l.includes("indian premier league") || l.includes(" ipl") || l.startsWith("ipl ");
+    };
+
+    const upcomingIPLFromApi = matchesWithParticipants
+      .filter(mp => mp.match.status === "upcoming" && isIPLLeague(mp.match.league) && !!mp.match.externalId)
+      .sort((a, b) => new Date(a.match.startTime).getTime() - new Date(b.match.startTime).getTime());
+
+    const top5IPLIds = new Set(upcomingIPLFromApi.slice(0, 5).map(mp => mp.match.id));
+
+    const cappedMatches = matchesWithParticipants.filter(mp => {
+      const isApiIPL = isIPLLeague(mp.match.league) && !!mp.match.externalId;
+      if (!isApiIPL) return true;                          // non-IPL or manually-created: always show
+      if (mp.match.status !== "upcoming") return true;    // live/delayed IPL: always show
+      return top5IPLIds.has(mp.match.id);                 // upcoming API IPL: only next 5
+    });
+
+    cappedMatches.sort((a, b) => {
       const order: Record<string, number> = { live: 0, delayed: 0, upcoming: 1, completed: 2 };
       const oa = order[a.match.status] ?? 1;
       const ob = order[b.match.status] ?? 1;
@@ -571,7 +594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return new Date(b.match.startTime).getTime() - new Date(a.match.startTime).getTime();
     });
 
-    const result = matchesWithParticipants.map((mp) => ({
+    const result = cappedMatches.map((mp) => ({
       ...mp.match,
       participantCount: mp.participantCount,
     }));

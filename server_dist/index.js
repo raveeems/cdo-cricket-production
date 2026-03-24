@@ -2472,7 +2472,19 @@ async function registerRoutes(app2) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
     }
-    matchesWithParticipants.sort((a, b) => {
+    const isIPLLeague = (league) => {
+      const l = (league || "").toLowerCase();
+      return l.includes("indian premier league") || l.includes(" ipl") || l.startsWith("ipl ");
+    };
+    const upcomingIPLFromApi = matchesWithParticipants.filter((mp) => mp.match.status === "upcoming" && isIPLLeague(mp.match.league) && !!mp.match.externalId).sort((a, b) => new Date(a.match.startTime).getTime() - new Date(b.match.startTime).getTime());
+    const top5IPLIds = new Set(upcomingIPLFromApi.slice(0, 5).map((mp) => mp.match.id));
+    const cappedMatches = matchesWithParticipants.filter((mp) => {
+      const isApiIPL = isIPLLeague(mp.match.league) && !!mp.match.externalId;
+      if (!isApiIPL) return true;
+      if (mp.match.status !== "upcoming") return true;
+      return top5IPLIds.has(mp.match.id);
+    });
+    cappedMatches.sort((a, b) => {
       const order = { live: 0, delayed: 0, upcoming: 1, completed: 2 };
       const oa = order[a.match.status] ?? 1;
       const ob = order[b.match.status] ?? 1;
@@ -2486,7 +2498,7 @@ async function registerRoutes(app2) {
       }
       return new Date(b.match.startTime).getTime() - new Date(a.match.startTime).getTime();
     });
-    const result = matchesWithParticipants.map((mp) => ({
+    const result = cappedMatches.map((mp) => ({
       ...mp.match,
       participantCount: mp.participantCount
     }));
