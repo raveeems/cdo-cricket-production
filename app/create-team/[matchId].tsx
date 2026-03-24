@@ -586,7 +586,11 @@ export default function CreateTeamScreen() {
   }, [impactEligiblePlayers, primaryImpactId, primaryImpactPlayer, impactEnabled]);
 
   const isDuplicateTeam = (cId: string | null, vId: string | null) => {
-    if (selectedIds.size !== 11 || !cId || !vId) return false;
+    if (selectedIds.size !== 11) return false;
+    // When captain or VC is on the impact slot, the ID is null — use primaryImpactId as proof
+    const hasCaptain = captainType === 'impact_slot' ? !!primaryImpactId : !!cId;
+    const hasVC      = vcType      === 'impact_slot' ? !!primaryImpactId : !!vId;
+    if (!hasCaptain || !hasVC) return false;
     const selectedArray = Array.from(selectedIds).sort();
     return existingTeams.some((team) => {
       if (isEditMode && team.id === editTeamId) return false;

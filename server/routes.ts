@@ -1200,10 +1200,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .json({ message: "Must select exactly 11 players" });
         }
 
-        if (!captainId || !viceCaptainId) {
-          return res
-            .status(400)
-            .json({ message: "Captain and Vice-Captain required" });
+        // Impact-slot-aware captain/VC validation.
+        // captainType and vcType from the request are only honoured when the match
+        // has impact features enabled — prevents spoofing the bypass on non-impact matches.
+        const reqCaptainType = captainType === "impact_slot" ? "impact_slot" : "player";
+        const reqVcType     = vcType === "impact_slot" ? "impact_slot" : "player";
+        const matchImpactOn = match.impactFeaturesEnabled === true;
+        const captainOnSlot = matchImpactOn && reqCaptainType === "impact_slot";
+        const vcOnSlot      = matchImpactOn && reqVcType     === "impact_slot";
+
+        if (captainOnSlot && vcOnSlot) {
+          return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+        }
+        if (!captainOnSlot && !captainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain required" });
+        }
+        if (!vcOnSlot && !viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain required" });
         }
 
         const matchPlayers = await storage.getPlayersForMatch(matchId);
@@ -1373,7 +1386,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!playerIds || playerIds.length !== 11) {
           return res.status(400).json({ message: "Must select exactly 11 players" });
         }
-        if (!captainId || !viceCaptainId) {
+
+        // Impact-slot-aware captain/VC validation (mirrors POST /api/teams logic).
+        const reqCaptainTypeU = captainType === "impact_slot" ? "impact_slot" : "player";
+        const reqVcTypeU      = vcType === "impact_slot" ? "impact_slot" : "player";
+        const matchImpactOnU  = match.impactFeaturesEnabled === true;
+        const captainOnSlotU  = matchImpactOnU && reqCaptainTypeU === "impact_slot";
+        const vcOnSlotU       = matchImpactOnU && reqVcTypeU     === "impact_slot";
+
+        if (captainOnSlotU && vcOnSlotU) {
+          return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+        }
+        if (!captainOnSlotU && !captainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain required" });
+        }
+        if (!vcOnSlotU && !viceCaptainId) {
           return res.status(400).json({ message: "Captain and Vice-Captain required" });
         }
 
