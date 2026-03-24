@@ -1,0 +1,120 @@
+We found a critical bug in team submission / preview validation related to the Impact Slot captain rule.
+
+Bug summary
+
+The app currently allows me to configure Captain on Impact Slot, and the Team Preview correctly shows:
+
+Impact Zone populated
+“Captain on Impact Slot” shown
+multiplier shown as 2x
+
+But the app still throws:
+“Submission Failed — Captain and Vice-Captain required”
+
+This is incorrect.
+
+Expected behavior
+
+As per our game rules, the following must be valid:
+
+Captain can be assigned to a normal player OR to the Impact Slot
+Vice-Captain can be assigned to a normal player OR to the Impact Slot
+both C and VC cannot both be assigned to Impact Slot simultaneously
+if Captain is on Impact Slot, the app must not require a normal captain player selection
+if Vice-Captain is on Impact Slot, the app must not require a normal vice-captain player selection
+
+So if captainType = "impact_slot" or vcType = "impact_slot", the submission must be treated as valid as long as all related rules are satisfied.
+
+Mandatory workflow
+
+Do not code yet.
+Do not push yet.
+Do not deploy to Railway yet.
+
+Phase 1 — inspect only
+
+Inspect the full validation flow and report back first.
+
+I want you to check all of these exact places:
+
+create-team flow validation
+review/submit validation
+Team Preview / success screen state mapping
+payload sent to API on submit
+backend route validation for team creation/update
+DB/storage handling for:
+captainId
+viceCaptainId
+captainType
+vcType
+primaryImpactId
+backupImpactId
+What I want you to confirm first
+
+Please identify exactly where the failure is happening:
+
+Is frontend submit validation still requiring captainId and viceCaptainId?
+Is the API payload missing captainType / vcType?
+Is backend validation ignoring captainType = "impact_slot"?
+Is the UI state storing Impact Slot correctly but submit path validating incorrectly?
+Is there any mismatch between create-team and edit-team flows?
+Expected logic to enforce
+
+Please use this exact validation logic:
+
+Valid captain / vice-captain combinations
+
+Allowed:
+
+captain = player, vice-captain = player
+captain = impact_slot, vice-captain = player
+captain = player, vice-captain = impact_slot
+
+Not allowed:
+
+captain = impact_slot AND vice-captain = impact_slot
+captain missing entirely
+vice-captain missing entirely
+Important
+
+If captainType === "impact_slot", then a normal captainId must not be required.
+If vcType === "impact_slot", then a normal viceCaptainId must not be required.
+
+Also ensure:
+
+Impact Slot C/VC is only allowed if valid primary/backup impact picks exist
+all existing duplicate-prevention rules remain intact
+main XI players still cannot also be primary/backup impact picks
+Report back before coding
+
+After inspection, stop and reply in this exact structure:
+
+1. Exact root cause
+2. Exact file(s) where validation is failing
+3. Whether the bug is frontend only, backend only, or both
+4. Exact state/payload mismatch, if any
+5. Exact implementation plan to fix it safely
+6. Any edge cases or risks
+7. Whether create-team and edit-team will both be fixed
+
+Then stop and wait for my approval.
+
+Do not push.
+Do not deploy.
+Do not say fixed before proving the actual submission now works with Captain on Impact Slot.
+
+After implementation, before push approval
+
+I want proof of all of these:
+
+team submission succeeds when Captain is on Impact Slot and Vice-Captain is on a player
+team submission succeeds when Vice-Captain is on Impact Slot and Captain is on a player
+validation fails only when both C and VC are assigned to Impact Slot
+validation fails when neither valid Captain nor valid Vice-Captain exists
+edit-team flow also works correctly
+exact files changed
+whether frontend bundle needed rebuild
+stop and wait for my approval before push
+My product expectation
+
+This is a primary gameplay rule, so fix this at the validation/data-flow level, not as a UI-only patch.
