@@ -1376,23 +1376,9 @@ async function refreshPlayingXIForLiveMatches() {
       if (playingIds.length >= 2) {
         await storage2.markPlayingXI(match.id, playingIds);
         console.log(`Playing XI updated for ${match.team1} vs ${match.team2}: ${playingIds.length} players marked`);
-        const updatedPlayers = await storage2.getPlayersForMatch(match.id);
-        const playerById = new Map(updatedPlayers.map((p) => [p.id, p]));
-        const playerByExtId = new Map(updatedPlayers.filter((p) => p.externalId).map((p) => [p.externalId, p]));
-        const allTeams = await storage2.getAllTeamsForMatch(match.id);
-        for (const team of allTeams) {
-          const teamPlayerIds = team.playerIds;
-          let totalPoints = 0;
-          for (const pid of teamPlayerIds) {
-            const p = playerById.get(pid) || playerByExtId.get(pid);
-            if (p) {
-              let pts = p.points || 0;
-              if (pid === team.captainId) pts *= 2;
-              else if (pid === team.viceCaptainId) pts *= 1.5;
-              totalPoints += pts;
-            }
-          }
-          await storage2.updateUserTeamPoints(team.id, totalPoints);
+        const recalc = globalThis.__recalculateTeamTotals;
+        if (recalc) {
+          await recalc(match.id, `${match.team1Short} vs ${match.team2Short}`);
         }
       }
     } catch (err) {
@@ -4065,12 +4051,15 @@ async function registerRoutes(app2) {
         const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
         const xiPlayers = prevPlayers.filter((p) => p.isPlayingXI && p.teamShort === teamShort);
         const playerNames = xiPlayers.map((p) => p.name);
+        const impactPlayerRaw = prevPlayers.find((p) => p.isImpactPlayer && !p.isPlayingXI && p.teamShort === teamShort);
+        const impactPlayerName = impactPlayerRaw?.name ?? null;
         return res.json({
           found: true,
           matchId: prevMatch.id,
           matchLabel: `${prevMatch.team1Short} vs ${prevMatch.team2Short}`,
           playerNames,
-          count: playerNames.length
+          count: playerNames.length,
+          impactPlayerName
         });
       } catch (err) {
         console.error("Last playing XI error:", err);

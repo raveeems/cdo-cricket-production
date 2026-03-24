@@ -2287,6 +2287,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
         const xiPlayers = prevPlayers.filter(p => p.isPlayingXI && p.teamShort === teamShort);
         const playerNames = xiPlayers.map(p => p.name);
+        const impactPlayerRaw = prevPlayers.find(p => p.isImpactPlayer && !p.isPlayingXI && p.teamShort === teamShort);
+        const impactPlayerName = impactPlayerRaw?.name ?? null;
 
         return res.json({
           found: true,
@@ -2294,6 +2296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           matchLabel: `${prevMatch.team1Short} vs ${prevMatch.team2Short}`,
           playerNames,
           count: playerNames.length,
+          impactPlayerName,
         });
       } catch (err: any) {
         console.error("Last playing XI error:", err);

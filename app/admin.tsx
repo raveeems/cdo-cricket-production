@@ -409,7 +409,7 @@ export default function AdminScreen() {
   };
 
   const STATUS_CYCLE: Record<string, string> = { playing_xi: 'not_active', not_active: 'impact_sub', impact_sub: 'playing_xi' };
-  const STATUS_COLORS: Record<string, string> = { playing_xi: '#22C55E', not_active: '#EF4444', impact_sub: '#F59E0B' };
+  const STATUS_COLORS: Record<string, string> = { playing_xi: '#22C55E', not_active: '#EF4444', impact_sub: '#9333EA' };
   const STATUS_LABELS: Record<string, string> = { playing_xi: 'XI', not_active: 'OUT', impact_sub: 'SUB' };
 
   const cyclePlayerStatus = async (matchId: string, playerId: string, currentStatus: string | undefined) => {
@@ -784,13 +784,31 @@ export default function AdminScreen() {
         matchedIds.forEach(id => next.add(id));
         return next;
       });
+      const impactName: string | null = data.impactPlayerName ?? null;
+      let impactNote = '';
+      if (impactName) {
+        const impactInSquad = currentSquad.find(p => p.name.toLowerCase() === impactName.toLowerCase());
+        if (impactInSquad && selectedMatchId) {
+          try {
+            await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/player-status`, {
+              playerId: impactInSquad.id,
+              adminStatus: 'impact_sub',
+            });
+            impactNote = ` | ⚡ Impact: ${impactName} → marked SUB`;
+          } catch {
+            impactNote = ` | ⚡ Prev Impact: ${impactName} (mark manually)`;
+          }
+        } else {
+          impactNote = ` | ⚡ Prev Impact: ${impactName} (not in squad)`;
+        }
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const total = data.playerNames.length;
       const matched = matchedIds.length;
       if (matched === total) {
-        setXiMessage(`Loaded ${matched} players from ${data.matchLabel}`);
+        setXiMessage(`Loaded ${matched} players from ${data.matchLabel}${impactNote}`);
       } else {
-        setXiMessage(`Loaded ${matched}/${total} players from ${data.matchLabel} (${total - matched} not in current squad)`);
+        setXiMessage(`Loaded ${matched}/${total} from ${data.matchLabel} (${total - matched} not in squad)${impactNote}`);
       }
     } catch (e: any) {
       setXiMessage('Failed to load previous XI');
@@ -1564,11 +1582,11 @@ export default function AdminScreen() {
                                     disabled={isUpdating}
                                     style={{
                                       paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
-                                      backgroundColor: isImpactSub ? '#F59E0B30' : colors.surfaceElevated,
-                                      borderWidth: 1, borderColor: isImpactSub ? '#F59E0B' : colors.border,
+                                      backgroundColor: isImpactSub ? '#9333EA30' : colors.surfaceElevated,
+                                      borderWidth: 1, borderColor: isImpactSub ? '#9333EA' : colors.border,
                                     }}
                                   >
-                                    <Text style={{ color: isImpactSub ? '#F59E0B' : colors.textTertiary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>⚡</Text>
+                                    <Text style={{ color: isImpactSub ? '#9333EA' : colors.textTertiary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>⚡</Text>
                                   </Pressable>
                                 </View>
                               );

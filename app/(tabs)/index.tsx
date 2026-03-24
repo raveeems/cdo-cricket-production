@@ -111,8 +111,9 @@ function CompactCardSkeleton({ colors }: { colors: AppColors }) {
 
 function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants; teamsCount: number }) {
   const { colors, isDark } = useTheme();
-  const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(match.startTime, match.status));
-  const matchStarted = new Date(match.startTime).getTime() <= Date.now();
+  const effectiveStart = match.revisedStartTime ?? match.startTime;
+  const [timeLeft, setTimeLeft] = useState(getTimeUntilMatch(effectiveStart, match.status));
+  const matchStarted = new Date(effectiveStart).getTime() <= Date.now();
   const effectiveStatus = (match.status === 'delayed' || match.status === 'upcoming') && matchStarted ? 'live' : match.status;
   const logo1 = getTeamLogo(match.team1Short);
   const logo2 = getTeamLogo(match.team2Short);
@@ -121,10 +122,10 @@ function CompactMatchCard({ match, teamsCount }: { match: MatchWithParticipants;
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeLeft(getTimeUntilMatch(match.startTime, match.status));
+      setTimeLeft(getTimeUntilMatch(effectiveStart, match.status));
     }, 60000);
     return () => clearInterval(interval);
-  }, [match.startTime, match.status]);
+  }, [effectiveStart, match.status]);
 
   const participants = match.participantCount ?? 0;
   const isLive = effectiveStatus === 'live';

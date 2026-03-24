@@ -1,0 +1,67 @@
+I want you to FIX the following remaining pre-IPL gaps and then VERIFY each one with proof.
+
+Important:
+Do not split this into theory first. Do the implementation and then give me proof-based verification.
+
+Fix these items in this exact order:
+
+1. Player points display
+Requirement:
+- In the user-facing player selection UI, show meaningful pre-match points
+- First tell me which field you are choosing to show:
+  - previous match points
+  - or series/tournament total points
+- Then wire that field into the player cards consistently
+
+2. Previous Impact player in Admin auto-load
+Requirement:
+- Admin "Load Prev XI" flow must also surface/use the previous Impact player
+- Do not leave the returned impact value unused
+
+3. Previous Impact player shown to users in next match
+Requirement:
+- When users open the next match, previous match XI is already surfaced
+- Previous match Impact player must also be surfaced correctly
+- Do not rely only on current-match isImpactPlayer flags
+
+4. Revised start time shown correctly to users
+Requirement:
+- User-facing countdown/time must use revisedStartTime ?? startTime consistently
+- Home screen and relevant match views must reflect revised time correctly
+
+5. Legacy scoring path inconsistency
+Requirement:
+- Remove or align the old scoring path so Impact/captain/vc logic is consistent everywhere
+- There should not be a stale alternate scoring calculation producing different totals
+
+6. Impact player color
+Requirement:
+- Impact player visual color must be Purple
+- Playing XI remains Green
+- Non-playing remains Red
+
+Implementation rules:
+- Do not touch unrelated logic
+- Do not change P2
+- Do not change database schema unless absolutely necessary
+- Keep the existing Impact workflow intact
+- Keep the existing admin controls intact
+
+After fixing, return results in this exact format for EACH of the 6 items:
+
+Feature:
+Status: FIXED / PARTIAL / NOT FIXED
+Files changed:
+Exact code-path changed:
+How I can test it in UI:
+Proof:
+- screenshot guidance
+- exact field/function now used
+- exact before/after behavior
+Gap / Risk (if any):
+
+At the end, give me:
+1. a summary table of all 6 items
+2. mark each as GREEN / YELLOW / RED
+3. tell me which of these are now IPL-ready
+4. tell me if any item still needs another pass before launch

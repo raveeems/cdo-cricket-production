@@ -460,8 +460,8 @@ export default function MatchDetailScreen() {
               </View>
               {team.primaryImpactId && (
                 <View style={[styles.captainRow, { marginTop: 4 }]}>
-                  <MaterialCommunityIcons name="lightning-bolt" size={14} color="#F59E0B" />
-                  <Text style={[styles.captainName, { color: '#F59E0B', fontFamily: 'Inter_500Medium', fontSize: 11, marginLeft: 4 }]}>
+                  <MaterialCommunityIcons name="lightning-bolt" size={14} color="#9333EA" />
+                  <Text style={[styles.captainName, { color: '#9333EA', fontFamily: 'Inter_500Medium', fontSize: 11, marginLeft: 4 }]}>
                     {players.find(p => p.id === team.primaryImpactId)?.name || 'Impact Pick'}
                     {team.backupImpactId ? ` / ${players.find(p => p.id === team.backupImpactId)?.name || 'Backup'}` : ''}
                   </Text>
@@ -1468,8 +1468,8 @@ export default function MatchDetailScreen() {
                 {player.name}
               </Text>
               {player.isImpactPlayer && (
-                <View style={[styles.impactBadge, { backgroundColor: colors.warning + '20' }]}>
-                  <MaterialCommunityIcons name="lightning-bolt" size={10} color={colors.warning} />
+                <View style={[styles.impactBadge, { backgroundColor: '#9333EA20' }]}>
+                  <MaterialCommunityIcons name="lightning-bolt" size={10} color="#9333EA" />
                 </View>
               )}
             </View>

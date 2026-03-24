@@ -134,7 +134,7 @@ function PlayerItem({
               </View>
             )}
             {player.isImpactPlayer && (
-              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.warning} />
+              <MaterialCommunityIcons name="lightning-bolt" size={12} color="#9333EA" />
             )}
           </View>
           <Text style={[styles.playerItemTeam, { color: getTeamTextColor(player.teamShort), fontFamily: 'Inter_600SemiBold' }]}>
@@ -144,7 +144,7 @@ function PlayerItem({
       </View>
       <View style={styles.playerItemRight}>
         <Text style={[styles.playerCredits, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
-          {player.credits} Cr  |  {player.points != null ? player.points : 0} pts
+          {player.credits} Cr  |  {(player.points ?? 0) > 0 ? `${player.points} pts` : player.lastMatchPoints != null ? `${player.lastMatchPoints} prev` : '—'}
         </Text>
         <View style={styles.formRow}>
           {(player.recentForm || []).slice(0, 3).map((v, i) => (
@@ -239,11 +239,11 @@ function CompactPlayerItem({
               </View>
             )}
             {player.isImpactPlayer && (
-              <MaterialCommunityIcons name="lightning-bolt" size={8} color={colors.warning} />
+              <MaterialCommunityIcons name="lightning-bolt" size={8} color="#9333EA" />
             )}
           </View>
           <Text style={[styles.compactMeta, { color: colors.textTertiary }]} numberOfLines={1}>
-            {player.credits}Cr · {player.points ?? 0}pts
+            {player.credits}Cr · {(player.points ?? 0) > 0 ? `${player.points}pts` : player.lastMatchPoints != null ? `${player.lastMatchPoints}prev` : '—'}
           </Text>
         </View>
         <View style={[styles.compactCheck, { borderColor: isSelected ? colors.accent : colors.border, backgroundColor: isSelected ? colors.accent : 'transparent' }]}>
