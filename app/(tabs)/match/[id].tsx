@@ -104,6 +104,7 @@ export default function MatchDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [previewTeamId, setPreviewTeamId] = useState<string | null>(null);
 
   // Layer 2 guard: DEV-only mock match IDs must never reach real API calls
   const isMockId = __DEV__ && typeof id === 'string' && id.startsWith('mock-');
@@ -439,26 +440,36 @@ export default function MatchDetailScreen() {
                   {team.name}
                 </Text>
               </View>
-              {canEdit && (
-                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push({ pathname: '/create-team/[matchId]', params: { matchId: match.id, editTeamId: team.id } });
-                    }}
-                  >
-                    <Ionicons name="create-outline" size={18} color={colors.primary} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      deleteTeam(team.id);
-                    }}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={colors.error} />
-                  </Pressable>
-                </View>
-              )}
+              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPreviewTeamId(team.id);
+                  }}
+                >
+                  <Ionicons name="eye-outline" size={18} color={colors.textSecondary} />
+                </Pressable>
+                {canEdit && (
+                  <>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push({ pathname: '/create-team/[matchId]', params: { matchId: match.id, editTeamId: team.id } });
+                      }}
+                    >
+                      <Ionicons name="create-outline" size={18} color={colors.primary} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        deleteTeam(team.id);
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.error} />
+                    </Pressable>
+                  </>
+                )}
+              </View>
             </View>
             <View style={[styles.teamCardDetails, { borderTopColor: colors.border }]}>
               <Text style={[styles.teamDetailText, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
@@ -492,6 +503,35 @@ export default function MatchDetailScreen() {
           </View>
         ))
       )}
+
+      {previewTeamId && (() => {
+        const previewTeam = userTeams.find(t => t.id === previewTeamId);
+        if (!previewTeam) return null;
+        const previewPitchPlayers: PitchPlayer[] = previewTeam.playerIds
+          .map(pid => players.find(pl => pl.id === pid))
+          .filter((p): p is Player => !!p)
+          .map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
+            points: p.points || 0,
+            teamShort: p.teamShort,
+            externalId: (p as any).externalId,
+            isPlayingXI: p.isPlayingXI,
+          }));
+        return (
+          <TeamPitchView
+            isModal={true}
+            visible={true}
+            players={previewPitchPlayers}
+            captainId={previewTeam.captainId}
+            viceCaptainId={previewTeam.viceCaptainId}
+            teamName={previewTeam.name}
+            totalPoints={previewTeam.totalPoints > 0 ? previewTeam.totalPoints : undefined}
+            onClose={() => setPreviewTeamId(null)}
+          />
+        );
+      })()}
 
       {canEdit && canCreateMore && (
         <Pressable
@@ -1191,6 +1231,8 @@ export default function MatchDetailScreen() {
                     role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
                     points: p.points || 0,
                     teamShort: p.teamShort,
+                    externalId: (p as any).externalId,
+                    isPlayingXI: (p as any).isPlayingXI,
                   }));
                 } else {
                   pitchPlayers = entry.playerIds
@@ -1202,6 +1244,8 @@ export default function MatchDetailScreen() {
                       role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
                       points: p.points || 0,
                       teamShort: p.teamShort,
+                      externalId: (p as any).externalId,
+                      isPlayingXI: p.isPlayingXI,
                     }));
                 }
                 if (pitchPlayers.length === 0) {
@@ -1367,6 +1411,8 @@ export default function MatchDetailScreen() {
                           role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
                           points: p.points || 0,
                           teamShort: p.teamShort,
+                          externalId: (p as any).externalId,
+                          isPlayingXI: p.isPlayingXI,
                         }));
                       return (
                         <View style={{ marginTop: 10 }}>

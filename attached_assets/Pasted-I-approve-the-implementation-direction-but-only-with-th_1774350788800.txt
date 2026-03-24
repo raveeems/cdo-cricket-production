@@ -1,0 +1,50 @@
+I approve the implementation direction, but only with the following exact conditions. Please follow these exactly and do not make assumptions.
+
+Approval conditions
+1. Status-dot legend must be exactly this
+Green = confirmed in Playing XI
+Red = confirmed not in Playing XI
+Grey = Playing XI not announced / unknown
+Purple = do not implement now unless actual backend data exists for named Impact Substitute in this specific match
+
+Do not merge “not announced” and “not in XI” into the same color.
+
+2. Match-state display rules must be exactly this
+Upcoming / pre-match: show status dots; points may remain but status is the primary signal
+Live: points should be visible; status dot may remain only if it does not clutter the UI
+Completed: points should be shown; no need to prioritize status dots
+
+Please confirm the exact final behavior before coding.
+
+3. Team card action rules must be exactly this
+Eye / preview icon must always be visible
+Edit and delete icons should remain only when editable
+Final icon order should be: eye, edit, delete
+Preview must open a read-only Team Preview without entering edit flow
+4. Preview implementation scope
+Reuse the existing Team Preview / TeamPitchView path
+Do not create a separate unnecessary preview system
+Do not redesign the layout beyond what is required for photos + status dots + preview access
+5. Player photo behavior
+Use externalId-based image lookup in Team Preview
+Fall back to jersey only when image is unavailable
+Keep captain / vice-captain badges working cleanly
+Avoid overlap between badge and status dot
+6. Build / deployment control
+
+After implementation:
+
+verify locally first
+regenerate the web build/static bundle
+verify that the built output includes the updated UI
+then stop and report back
+do not push to main
+do not deploy to Railway
+wait for my approval again
+Before coding, reply confirming:
+you accept all 6 conditions exactly,
+the exact final behavior for upcoming/live/completed matches,
+the exact icon placement/order on the team card,
+that you will stop after local verification and rebuilt web bundle verification, before push/deploy.
+
+Only after that confirmation should you start implementation.

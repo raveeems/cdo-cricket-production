@@ -11,6 +11,8 @@ interface PitchPlayer {
   role: 'WK' | 'BAT' | 'AR' | 'BOWL';
   points?: number;
   teamShort?: string;
+  externalId?: string;
+  isPlayingXI?: boolean;
 }
 
 interface TeamPitchViewProps {
@@ -63,7 +65,17 @@ function shortenName(name: string): string {
   return `${initials} ${last}`;
 }
 
-function PitchPlayerNode({ player, isCaptain, isVC }: { player: PitchPlayer; isCaptain: boolean; isVC: boolean }) {
+function PitchPlayerNode({
+  player,
+  isCaptain,
+  isVC,
+  xiAnnounced,
+}: {
+  player: PitchPlayer;
+  isCaptain: boolean;
+  isVC: boolean;
+  xiAnnounced: boolean;
+}) {
   const { colors } = useTheme();
   const pts = player.points ?? 0;
   let displayPts = pts;
@@ -71,7 +83,16 @@ function PitchPlayerNode({ player, isCaptain, isVC }: { player: PitchPlayer; isC
   else if (isVC) displayPts = Math.round(pts * 1.5);
 
   const jerseyColor = getTeamColor(player.teamShort);
-  const playerImage = getPlayerImage(player.id);
+  const playerImage = getPlayerImage(player.externalId ?? player.id);
+
+  let dotColor: string;
+  if (!xiAnnounced) {
+    dotColor = '#6B7280';
+  } else if (player.isPlayingXI) {
+    dotColor = '#22C55E';
+  } else {
+    dotColor = '#EF4444';
+  }
 
   return (
     <View style={pitchStyles.playerNode}>
@@ -83,6 +104,7 @@ function PitchPlayerNode({ player, isCaptain, isVC }: { player: PitchPlayer; isC
             <Ionicons name="shirt" size={30} color={jerseyColor} />
           )}
         </View>
+        <View style={[pitchStyles.statusDot, { backgroundColor: dotColor }]} />
         {(isCaptain || isVC) && (
           <View style={[pitchStyles.cvBadge, isCaptain ? pitchStyles.captainBadge : pitchStyles.vcBadge]}>
             <Text style={[pitchStyles.cvBadgeText, isCaptain ? { color: '#000' } : { color: '#FFF' }]}>
@@ -105,6 +127,8 @@ function PitchPlayerNode({ player, isCaptain, isVC }: { player: PitchPlayer; isC
 
 function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
   const { colors } = useTheme();
+
+  const xiAnnounced = players.some(p => p.isPlayingXI);
 
   const wk = players.filter(p => p.role === 'WK');
   const bat = players.filter(p => p.role === 'BAT');
@@ -150,6 +174,7 @@ function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints
                 player={p}
                 isCaptain={captainId === p.id}
                 isVC={viceCaptainId === p.id}
+                xiAnnounced={xiAnnounced}
               />
             ))}
           </View>
@@ -314,6 +339,16 @@ const pitchStyles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     resizeMode: 'cover',
+  },
+  statusDot: {
+    position: 'absolute',
+    top: -2,
+    left: -4,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.35)',
   },
   cvBadge: {
     position: 'absolute',

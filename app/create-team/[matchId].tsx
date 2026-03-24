@@ -1547,6 +1547,8 @@ export default function CreateTeamScreen() {
           role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
           points: p.points || 0,
           teamShort: p.teamShort,
+          externalId: (p as any).externalId,
+          isPlayingXI: p.isPlayingXI,
         }));
         return (
         <>
@@ -1703,6 +1705,8 @@ export default function CreateTeamScreen() {
           role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
           points: p.points || 0,
           teamShort: p.teamShort,
+          externalId: (p as any).externalId,
+          isPlayingXI: p.isPlayingXI,
         }));
         return (
           <>
