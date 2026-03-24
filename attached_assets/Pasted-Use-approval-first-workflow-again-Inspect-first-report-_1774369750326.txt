@@ -1,0 +1,145 @@
+Use approval-first workflow again.
+Inspect first, report exact files/components and implementation plan, then wait for approval before pushing or deploying.
+
+Do not make random design choices.
+Do not hardcode team-specific chip styles like “RCB always black pill” or “SRH always white pill.”
+This must be driven by the actual two teams in the match.
+
+Task 1 — Improve team differentiation in Team Preview / pitch view
+Current problem
+
+In Team Preview / pitch view, users are finding it hard to immediately distinguish players from the two teams at first glance, especially in matchups like RCB vs SRH where player images and overall tones can feel visually similar.
+
+Required change
+
+Do not change:
+
+player photos
+pitch layout
+player positions
+C/VC badges
+status dots
+
+Only improve the player name chip styling so the two teams are clearly distinguishable.
+
+Exact behavior required
+
+Assign chip style by the actual team side in the match.
+
+For example:
+
+team1 / match team A / first team = white text on black pill
+team2 / match team B / second team = black text on white pill
+
+This must stay consistent within that match.
+
+Important
+
+Do not hardcode by franchise, such as:
+
+“RCB always black pill”
+“SRH always white pill”
+
+That is not the desired approach.
+
+Instead:
+
+match team A gets style A
+match team B gets style B
+UI requirements
+keep the chip shape broadly the same unless a very small refinement is required
+text must remain bold enough and highly readable
+the white pill must have a subtle border and/or shadow so it does not disappear against lighter player art/highlights
+do not let the chip styling interfere with:
+C/VC badge
+status dot
+player image
+keep the overall look premium and clean
+Task 2 — Improve team-code readability in player selection list
+Current problem
+
+In the player selection list, team short codes like RCB / SRH are too faint in grey, especially in dark mode. Users forming teams quickly are finding them hard to notice.
+
+Required change
+
+Keep the background simple.
+
+Do not create a large colored badge or noisy visual treatment.
+
+Instead, make the team short code:
+
+semibold or bold
+in the team color
+slightly higher contrast than the current grey
+clean and readable in dark mode
+Desired style
+
+Examples:
+
+RCB short code can appear in a readable red
+SRH short code can appear in a readable orange
+similarly for other teams
+
+If a team color mapping does not already exist, define a clean and maintainable mapping.
+
+Fallback
+
+If for any reason a team color is unavailable, use a high-contrast readable neutral fallback — not the current faint grey.
+
+Inspection required before coding
+
+Before implementation, inspect and report back with:
+
+1. Exact files/components
+exact file(s) rendering the player name chip in Team Preview / pitch view
+exact file(s) rendering the player selection list row and team short code
+2. Team identity logic
+how team1 vs team2 is currently determined in Team Preview
+whether the chip style can be assigned cleanly by match side without fragile logic
+3. Team color mapping
+whether team color mapping already exists anywhere in the app
+if yes, where it is defined
+if not, where you propose to define it cleanly
+4. Exact implementation plan
+how you will apply black-pill / white-pill styling in Team Preview
+how you will style team short codes in selection list
+how you will preserve readability in dark mode
+how you will prevent white chips from disappearing on bright images
+5. Risks / edge cases
+
+Call out any:
+
+contrast issues
+overlap issues
+dark mode concerns
+maintenance risks
+teams with missing color mapping
+
+Then stop and wait for approval.
+
+Do not push.
+Do not deploy.
+Do not say done yet.
+
+After implementation, before any push approval
+
+I want proof of all of the below:
+
+Team Preview showing clearly different chip styles for the two teams within the same match
+match team A using white text on black pill
+match team B using black text on white pill
+player selection list showing team short code in team color with better readability
+dark mode readability verified
+web and mobile screenshots
+exact files changed
+confirmation that no unrelated UI was changed
+
+Then stop again and wait for approval before push/deploy.
+
+Important implementation constraints
+no hardcoding of chip style by franchise
+no oversized colored badges in player list
+no noisy UI additions
+no redesign of pitch layout
+no unrelated refactors
+keep it minimal, premium, and readable
