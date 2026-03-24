@@ -327,13 +327,13 @@ export default function HomeScreen() {
     },
   });
 
-  const MS_48H = 48 * 60 * 60 * 1000;
+  const MS_7D = 7 * 24 * 60 * 60 * 1000;
   const nowMs = Date.now();
   const allMatches = injectDevMockMatches(data?.matches || []);
   const visibleMatches = allMatches.filter(m => {
     if (m.status === 'completed') return false;
     if (m.status === 'live' || m.status === 'delayed') return true;
-    if (m.status === 'upcoming') return new Date(m.startTime).getTime() <= nowMs + MS_48H;
+    if (m.status === 'upcoming') return new Date(m.startTime).getTime() <= nowMs + MS_7D;
     return false;
   });
 
