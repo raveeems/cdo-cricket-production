@@ -1,0 +1,184 @@
+I want this task handled in a strict approval-first workflow.
+Do not directly code, do not push, and do not deploy before completing the inspection and getting my explicit approval.
+
+You must follow the workflow below exactly.
+
+Mandatory workflow
+Phase 1 — Inspection only (no code changes yet)
+
+First inspect the current implementation and give me a precise report.
+
+Do not modify code yet.
+Do not push anything yet.
+Do not rebuild production yet.
+Do not deploy to Railway yet.
+
+I want you to inspect and confirm all of the below first:
+
+the exact file(s) and component(s) currently rendering:
+the Team Preview screen
+the player avatar / jersey rendering in Team Preview
+the team card action icons near edit/delete
+the pre-match player status / playing XI indicator logic, if any
+why Team Preview is still showing jerseys instead of player images:
+is it using an old component?
+is image lookup not wired in this screen?
+is it always falling back to jersey?
+is player.externalId missing here?
+is this screen not using the corrected image logic?
+whether the current Team Preview is using:
+player.id
+player.externalId
+getPlayerImage(...)
+fallback placeholder/jersey logic
+where the new eye/preview icon should be added in the team card UI
+what exact data source is available right now for player match status:
+playing XI
+impact sub
+not in XI
+not announced / unknown
+whether backend changes are required or whether frontend-only changes are enough
+whether this screen is part of a compiled web bundle that must be rebuilt before Railway shows the latest UI
+Phase 2 — Report back before doing anything
+
+After inspection, stop and report back in this exact structure:
+
+A. Root cause findings
+exact root cause of jersey still showing
+exact reason preview is not directly accessible from team card
+exact current behavior of pre-match points/status rendering
+B. Files/components involved
+
+List the exact files and components that will need to be changed.
+
+C. Proposed implementation plan
+
+Explain exactly what you plan to change for each of the 3 tasks:
+
+player photos instead of jerseys
+eye icon for read-only preview
+status dots for pre-match player state
+D. Data logic
+
+Explain exactly what data will drive:
+
+player photo rendering
+preview navigation
+status dots
+E. Risks / edge cases
+
+Call out any ambiguity, missing data, overlap risk with captain/vice-captain badges, missing player photos, or web bundle rebuild issues.
+
+Then stop.
+
+Do not code until I explicitly approve the plan.
+
+Scope of required UI changes
+
+After I approve, only then implement the following 3 changes.
+
+Task 1 — Team Preview must show player photos, not jerseys
+
+In the Team Preview field layout:
+
+replace the jersey icon/placeholder with actual player photos
+use the correct image lookup logic based on external player ID
+if player image is unavailable, then and only then fall back to jersey/placeholder
+keep the existing field layout, role grouping, spacing, and overall structure intact
+captain and vice-captain badges must continue to work cleanly
+this must work on web and mobile
+
+You must confirm the exact root cause before changing it.
+
+Task 2 — Add read-only Preview access from team card
+
+In the “Your Teams” card area:
+
+keep the existing edit icon
+add a new eye icon near the edit icon
+tapping/clicking the eye icon should open Team Preview in read-only mode
+user must not be forced to enter edit flow to preview team
+do not change current edit behavior
+do not remove any existing functionality unless explicitly approved
+
+Important:
+If there is already a delete icon, confirm the final icon order and spacing before implementation.
+
+Task 3 — Show pre-match player status dots in Team Preview
+
+Before the match starts, team preview should visually prioritize player status over points.
+
+Preferred status logic:
+
+green dot = in official Playing XI
+purple dot = named as Impact Substitute
+red dot = confirmed not in Playing XI
+grey dot = Playing XI not announced yet / unknown
+
+If the current backend does not support all 4 states distinctly, explain exactly what states exist and propose the best clean fallback implementation before coding.
+
+Placement rules
+small dot near the top of the player image
+should be visible but not intrusive
+must not badly overlap with C/VC badges
+must work on mobile and web
+Match-state behavior
+pre-match: status dot is more important than points
+live/completed: points can remain visible as usual
+if both are shown pre-match, status must be more visually useful than points
+Strict implementation controls
+
+After I approve and you begin coding, follow these rules:
+
+do not make unrelated changes
+do not silently refactor unrelated files
+do not push to main until I review your implementation summary
+do not trigger Railway deployment until I explicitly approve push/deploy
+do not say “fixed” or “done” unless you have actually verified the rendered screen behavior
+if web build output needs regeneration, explicitly say so
+if production serves a compiled bundle, confirm that the updated bundle has been rebuilt
+verify that the preview screen being changed is the same one used in production, not a duplicate/unused component
+Required validation before any push
+
+Before asking for approval to push, you must verify and show me all of the below:
+
+exact files changed
+exact code path now used for player photos
+exact fallback behavior when photo is missing
+exact behavior of new eye icon
+exact status-dot mapping logic
+screenshot or precise proof that the updated Team Preview now shows:
+player photos
+preview accessible directly from team card
+status dots in pre-match view
+confirmation whether web bundle was rebuilt
+confirmation whether this is ready for push to main
+confirmation whether this is ready for Railway deployment
+
+Then stop again and wait for my approval.
+
+Do not push.
+Do not deploy.
+Wait for explicit approval.
+
+Final output format after implementation
+
+When you come back after implementing locally, use this exact format:
+
+1. Root cause confirmed
+2. Files changed
+3. Exact changes made
+4. Status-dot data source and logic
+5. Fallback behavior
+6. Web/mobile verification
+7. Build verification
+8. Ready for my approval to push? (yes/no)
+9. Ready for my approval to deploy to Railway? (yes/no)
+
+If anything is uncertain, say so clearly. Do not assume.
+
+This is an approval-gated task.
+No coding first.
+No push first.
+No Railway deployment first.
+Inspect → report → wait for my approval → implement → verify → wait for my approval again → push/deploy.
