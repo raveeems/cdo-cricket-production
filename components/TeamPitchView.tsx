@@ -24,6 +24,7 @@ interface TeamPitchViewProps {
   visible?: boolean;
   onClose?: () => void;
   isModal?: boolean;
+  matchCompleted?: boolean;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -70,11 +71,13 @@ function PitchPlayerNode({
   isCaptain,
   isVC,
   xiAnnounced,
+  matchCompleted,
 }: {
   player: PitchPlayer;
   isCaptain: boolean;
   isVC: boolean;
   xiAnnounced: boolean;
+  matchCompleted: boolean;
 }) {
   const { colors } = useTheme();
   const pts = player.points ?? 0;
@@ -104,7 +107,9 @@ function PitchPlayerNode({
             <Ionicons name="shirt" size={30} color={jerseyColor} />
           )}
         </View>
-        <View style={[pitchStyles.statusDot, { backgroundColor: dotColor }]} />
+        {!matchCompleted && (
+          <View style={[pitchStyles.statusDot, { backgroundColor: dotColor }]} />
+        )}
         {(isCaptain || isVC) && (
           <View style={[pitchStyles.cvBadge, isCaptain ? pitchStyles.captainBadge : pitchStyles.vcBadge]}>
             <Text style={[pitchStyles.cvBadgeText, isCaptain ? { color: '#000' } : { color: '#FFF' }]}>
@@ -118,14 +123,17 @@ function PitchPlayerNode({
           {shortenName(player.name)}
         </Text>
       </View>
-      <Text style={pitchStyles.pointsText}>
+      <Text style={[
+        pitchStyles.pointsText,
+        matchCompleted && displayPts > 0 && { color: '#FFD700', fontWeight: '700' as const },
+      ]}>
         {displayPts} pts
       </Text>
     </View>
   );
 }
 
-function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
+function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints, matchCompleted = false }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
   const { colors } = useTheme();
 
   const xiAnnounced = players.some(p => p.isPlayingXI);
@@ -175,6 +183,7 @@ function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints
                 isCaptain={captainId === p.id}
                 isVC={viceCaptainId === p.id}
                 xiAnnounced={xiAnnounced}
+                matchCompleted={matchCompleted}
               />
             ))}
           </View>
@@ -193,6 +202,7 @@ export default function TeamPitchView({
   visible = true,
   onClose,
   isModal = false,
+  matchCompleted = false,
 }: TeamPitchViewProps) {
   if (!isModal) {
     return (
@@ -202,6 +212,7 @@ export default function TeamPitchView({
         viceCaptainId={viceCaptainId}
         teamName={teamName}
         totalPoints={totalPoints}
+        matchCompleted={matchCompleted}
       />
     );
   }
@@ -224,6 +235,7 @@ export default function TeamPitchView({
             viceCaptainId={viceCaptainId}
             teamName={teamName}
             totalPoints={totalPoints}
+            matchCompleted={matchCompleted}
           />
         </View>
       </View>
