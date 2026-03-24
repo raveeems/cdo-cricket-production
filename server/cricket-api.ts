@@ -405,6 +405,49 @@ export async function fetchUpcomingMatches(): Promise<
 }
 
 
+export async function fetchSeriesList(): Promise<
+  Array<{ id: string; name: string; startDate: string }>
+> {
+  const apiKey = getActiveApiKey();
+  if (!apiKey) return [];
+
+  const results: Array<{ id: string; name: string; startDate: string }> = [];
+  const seen = new Set<string>();
+
+  for (const offset of [0, 25]) {
+    try {
+      const url = `${CRICKET_API_BASE}/series?apikey=${apiKey}&offset=${offset}`;
+      const res = await trackedFetch(url);
+      if (!res.ok) continue;
+
+      const json = (await res.json()) as CricApiResponse<
+        Array<{ id: string; name: string; startDate: string; endDate: string }>
+      >;
+
+      if (json.status !== "success" || !json.data) {
+        const reason = ((json as any).reason || "").toLowerCase();
+        if (reason.includes("limit") || reason.includes("quota") || reason.includes("blocked")) {
+          markTier1Blocked();
+        }
+        continue;
+      }
+
+      console.log(`Series List API: fetched ${json.data.length} series at offset=${offset}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
+
+      for (const s of json.data) {
+        if (s.id && !seen.has(s.id)) {
+          seen.add(s.id);
+          results.push({ id: s.id, name: s.name || "", startDate: s.startDate || "" });
+        }
+      }
+    } catch (_) {
+      continue;
+    }
+  }
+
+  return results;
+}
+
 export async function fetchSeriesMatches(
   seriesId: string,
   seriesName: string

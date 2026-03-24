@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { db, dbConnected, serverReady } from "./db";
 import { userTeams, players as playersTable, users, matches as matchesTable, matchPlayerStatus as mpsTable } from "@shared/schema";
 import { eq, and, sql, or, desc } from "drizzle-orm";
-import { fetchUpcomingMatches, fetchSeriesMatches, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
+import { fetchUpcomingMatches, fetchSeriesMatches, fetchSeriesList, syncMatchesFromApi, refreshStaleMatchStatuses, fetchMatchScorecard, fetchMatchInfo } from "./cricket-api";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { randomUUID, createHmac } from "crypto";
@@ -1679,24 +1679,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAdmin,
     async (req: Request, res: Response) => {
       try {
-        const [apiMatches, existingMatches] = await Promise.all([
-          fetchUpcomingMatches(),
-          storage.getAllMatches(),
-        ]);
-        const existingIds = new Set(existingMatches.map((m: any) => m.externalId).filter(Boolean));
         const isIPL = (name: string, league: string) => {
           const n = (name + " " + league).toLowerCase();
           return n.includes("indian premier league") || n.includes(" ipl") || n.includes("ipl ");
         };
+
+        // Fetch match-level results, series list, and DB matches in parallel
+        const [apiMatches, seriesList, existingMatches] = await Promise.all([
+          fetchUpcomingMatches(),
+          fetchSeriesList(),
+          storage.getAllMatches(),
+        ]);
+
+        const existingIds = new Set(existingMatches.map((m: any) => m.externalId).filter(Boolean));
         const now = Date.now();
+        const ms30d = 30 * 24 * 60 * 60 * 1000;
+
+        // Qualify non-IPL series whose startDate is within [-30 days, +30 days] of now, cap at 10
+        // Sort ascending by startDate so nearest series are prioritised before the cap
+        const qualifyingSeries = seriesList
+          .filter((s) => {
+            if (!s.startDate) return false;
+            if (isIPL(s.name, "")) return false;
+            const t = new Date(s.startDate).getTime();
+            return t >= now - ms30d && t <= now + ms30d;
+          })
+          .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+          .slice(0, 10);
+
+        console.log(`Browse API Matches: ${qualifyingSeries.length} qualifying non-IPL series to probe:`, qualifyingSeries.map((s) => s.name));
+
+        // Fetch fixtures for all qualifying series in parallel
+        const seriesFixtureSets = await Promise.all(
+          qualifyingSeries.map((s) => fetchSeriesMatches(s.id, s.name))
+        );
+
+        // Merge match-level + all series fixtures into a Map by externalId (dedup)
+        const combined = new Map<string, typeof apiMatches[0]>();
+        for (const m of apiMatches) {
+          if (m.externalId) combined.set(m.externalId, m);
+        }
+        for (const fixtures of seriesFixtureSets) {
+          for (const m of fixtures) {
+            if (m.externalId && !combined.has(m.externalId)) {
+              combined.set(m.externalId, m);
+            }
+          }
+        }
+
+        console.log(`Browse API Matches: ${apiMatches.length} match-level + ${[...combined.values()].length - apiMatches.filter(m => m.externalId && combined.has(m.externalId)).length} series-only = ${combined.size} total before filters`);
+
+        // Apply existing downstream filters unchanged
         const ms7d = 7 * 24 * 60 * 60 * 1000;
-        const filtered = apiMatches.filter((m) => {
+        const filtered = [...combined.values()].filter((m) => {
           if (existingIds.has(m.externalId)) return false;
           if (isIPL(m.team1 + " " + m.team2, m.league)) return false;
           if (m.status === "completed") return false;
           const t = new Date(m.startTime).getTime();
           return t >= now - 86400000 && t <= now + ms7d; // 24hr lookback so live matches can still be added
         });
+
         return res.json({ matches: filtered });
       } catch (err: any) {
         console.error("Browse API matches error:", err);

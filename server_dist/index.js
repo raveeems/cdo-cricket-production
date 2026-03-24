@@ -784,6 +784,7 @@ __export(cricket_api_exports, {
   fetchPlayingXI: () => fetchPlayingXI,
   fetchPlayingXIFromMatchInfo: () => fetchPlayingXIFromMatchInfo,
   fetchPlayingXIFromScorecard: () => fetchPlayingXIFromScorecard,
+  fetchSeriesList: () => fetchSeriesList,
   fetchSeriesMatches: () => fetchSeriesMatches,
   fetchSeriesSquad: () => fetchSeriesSquad,
   fetchUpcomingMatches: () => fetchUpcomingMatches,
@@ -993,6 +994,37 @@ async function fetchUpcomingMatches() {
     console.error("Cricket API fetch error:", err);
     return [];
   }
+}
+async function fetchSeriesList() {
+  const apiKey = getActiveApiKey();
+  if (!apiKey) return [];
+  const results = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const offset of [0, 25]) {
+    try {
+      const url = `${CRICKET_API_BASE}/series?apikey=${apiKey}&offset=${offset}`;
+      const res = await trackedFetch(url);
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (json.status !== "success" || !json.data) {
+        const reason = (json.reason || "").toLowerCase();
+        if (reason.includes("limit") || reason.includes("quota") || reason.includes("blocked")) {
+          markTier1Blocked();
+        }
+        continue;
+      }
+      console.log(`Series List API: fetched ${json.data.length} series at offset=${offset}, hits: ${json.info?.hitsUsed}/${json.info?.hitsLimit}`);
+      for (const s of json.data) {
+        if (s.id && !seen.has(s.id)) {
+          seen.add(s.id);
+          results.push({ id: s.id, name: s.name || "", startDate: s.startDate || "" });
+        }
+      }
+    } catch (_) {
+      continue;
+    }
+  }
+  return results;
 }
 async function fetchSeriesMatches(seriesId, seriesName) {
   const apiKey = getActiveApiKey();
@@ -3424,18 +3456,42 @@ async function registerRoutes(app2) {
     isAdmin,
     async (req, res) => {
       try {
-        const [apiMatches, existingMatches] = await Promise.all([
-          fetchUpcomingMatches(),
-          storage.getAllMatches()
-        ]);
-        const existingIds = new Set(existingMatches.map((m) => m.externalId).filter(Boolean));
         const isIPL = (name, league) => {
           const n = (name + " " + league).toLowerCase();
           return n.includes("indian premier league") || n.includes(" ipl") || n.includes("ipl ");
         };
+        const [apiMatches, seriesList, existingMatches] = await Promise.all([
+          fetchUpcomingMatches(),
+          fetchSeriesList(),
+          storage.getAllMatches()
+        ]);
+        const existingIds = new Set(existingMatches.map((m) => m.externalId).filter(Boolean));
         const now = Date.now();
+        const ms30d = 30 * 24 * 60 * 60 * 1e3;
+        const qualifyingSeries = seriesList.filter((s) => {
+          if (!s.startDate) return false;
+          if (isIPL(s.name, "")) return false;
+          const t = new Date(s.startDate).getTime();
+          return t >= now - ms30d && t <= now + ms30d;
+        }).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()).slice(0, 10);
+        console.log(`Browse API Matches: ${qualifyingSeries.length} qualifying non-IPL series to probe:`, qualifyingSeries.map((s) => s.name));
+        const seriesFixtureSets = await Promise.all(
+          qualifyingSeries.map((s) => fetchSeriesMatches(s.id, s.name))
+        );
+        const combined = /* @__PURE__ */ new Map();
+        for (const m of apiMatches) {
+          if (m.externalId) combined.set(m.externalId, m);
+        }
+        for (const fixtures of seriesFixtureSets) {
+          for (const m of fixtures) {
+            if (m.externalId && !combined.has(m.externalId)) {
+              combined.set(m.externalId, m);
+            }
+          }
+        }
+        console.log(`Browse API Matches: ${apiMatches.length} match-level + ${[...combined.values()].length - apiMatches.filter((m) => m.externalId && combined.has(m.externalId)).length} series-only = ${combined.size} total before filters`);
         const ms7d = 7 * 24 * 60 * 60 * 1e3;
-        const filtered = apiMatches.filter((m) => {
+        const filtered = [...combined.values()].filter((m) => {
           if (existingIds.has(m.externalId)) return false;
           if (isIPL(m.team1 + " " + m.team2, m.league)) return false;
           if (m.status === "completed") return false;
