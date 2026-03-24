@@ -25,6 +25,7 @@ interface TeamPitchViewProps {
   onClose?: () => void;
   isModal?: boolean;
   matchCompleted?: boolean;
+  team1Short?: string;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -72,14 +73,19 @@ function PitchPlayerNode({
   isVC,
   xiAnnounced,
   matchCompleted,
+  team1Short,
 }: {
   player: PitchPlayer;
   isCaptain: boolean;
   isVC: boolean;
   xiAnnounced: boolean;
   matchCompleted: boolean;
+  team1Short?: string;
 }) {
   const { colors } = useTheme();
+  const isTeam1 = team1Short
+    ? player.teamShort?.toUpperCase() === team1Short.toUpperCase()
+    : true;
   const pts = player.points ?? 0;
   let displayPts = pts;
   if (isCaptain) displayPts = pts * 2;
@@ -118,8 +124,16 @@ function PitchPlayerNode({
           </View>
         )}
       </View>
-      <View style={pitchStyles.namePill}>
-        <Text style={pitchStyles.nameText} numberOfLines={1}>
+      <View style={[
+        pitchStyles.namePill,
+        isTeam1
+          ? { backgroundColor: 'rgba(0,0,0,0.75)' }
+          : { backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.18)' },
+      ]}>
+        <Text style={[
+          pitchStyles.nameText,
+          isTeam1 ? { color: '#FFF' } : { color: '#111' },
+        ]} numberOfLines={1}>
           {shortenName(player.name)}
         </Text>
       </View>
@@ -133,7 +147,7 @@ function PitchPlayerNode({
   );
 }
 
-function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints, matchCompleted = false }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
+function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints, matchCompleted = false, team1Short }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
   const { colors } = useTheme();
 
   const xiAnnounced = players.some(p => p.isPlayingXI);
@@ -184,6 +198,7 @@ function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints
                 isVC={viceCaptainId === p.id}
                 xiAnnounced={xiAnnounced}
                 matchCompleted={matchCompleted}
+                team1Short={team1Short}
               />
             ))}
           </View>
@@ -203,6 +218,7 @@ export default function TeamPitchView({
   onClose,
   isModal = false,
   matchCompleted = false,
+  team1Short,
 }: TeamPitchViewProps) {
   if (!isModal) {
     return (
@@ -213,6 +229,7 @@ export default function TeamPitchView({
         teamName={teamName}
         totalPoints={totalPoints}
         matchCompleted={matchCompleted}
+        team1Short={team1Short}
       />
     );
   }
@@ -236,6 +253,7 @@ export default function TeamPitchView({
             teamName={teamName}
             totalPoints={totalPoints}
             matchCompleted={matchCompleted}
+            team1Short={team1Short}
           />
         </View>
       </View>

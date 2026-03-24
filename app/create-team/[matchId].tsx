@@ -57,6 +57,18 @@ const ROLE_LIMITS = {
 
 const MAX_FROM_ONE_TEAM = 10;
 
+const TEAM_TEXT_COLORS: Record<string, string> = {
+  CSK: '#B8960C', MI: '#1A7FD4', RCB: '#EC1C24', KKR: '#8B5CF6',
+  SRH: '#F59E0B', RR: '#EA1A85', DC: '#3B82F6', PBKS: '#DD1F2D',
+  LSG: '#06B6D4', GT: '#5B7CFA', IND: '#3B82F6', AUS: '#B8960C',
+  ENG: '#EF4444', SA: '#22C55E', NZ: '#6B7280', WI: '#9F1239',
+  SL: '#6366F1', BAN: '#16A34A', PAK: '#15803D', AFG: '#0EA5E9',
+};
+function getTeamTextColor(teamCode?: string): string {
+  if (!teamCode) return '#9CA3AF';
+  return TEAM_TEXT_COLORS[teamCode.toUpperCase()] ?? '#9CA3AF';
+}
+
 function PlayerItem({
   player,
   isSelected,
@@ -125,7 +137,7 @@ function PlayerItem({
               <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.warning} />
             )}
           </View>
-          <Text style={[styles.playerItemTeam, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[styles.playerItemTeam, { color: getTeamTextColor(player.teamShort), fontFamily: 'Inter_600SemiBold' }]}>
             {player.teamShort}
           </Text>
         </View>
@@ -283,8 +295,9 @@ function CaptainItem({
           <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
             {player.name}
           </Text>
-          <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-            {player.teamShort} | {player.credits} Cr
+          <Text style={[styles.captainMeta]}>
+            <Text style={{ color: getTeamTextColor(player.teamShort), fontFamily: 'Inter_600SemiBold' }}>{player.teamShort}</Text>
+            <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular' }}> | {player.credits} Cr</Text>
           </Text>
         </View>
       </View>
@@ -1573,6 +1586,7 @@ export default function CreateTeamScreen() {
               players={previewPitchPlayers}
               captainId={captainId}
               viceCaptainId={vcId}
+              team1Short={match?.team1Short}
             />
 
             <View style={[styles.previewSummary, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -1738,6 +1752,7 @@ export default function CreateTeamScreen() {
                 players={pitchPlayers}
                 captainId={captainId}
                 viceCaptainId={vcId}
+                team1Short={match?.team1Short}
               />
             </ScrollView>
             <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>

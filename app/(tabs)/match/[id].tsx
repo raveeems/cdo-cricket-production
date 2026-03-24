@@ -497,6 +497,7 @@ export default function MatchDetailScreen() {
             teamName={previewTeam.name}
             totalPoints={previewTeam.totalPoints > 0 ? previewTeam.totalPoints : undefined}
             matchCompleted={match.status === 'completed'}
+            team1Short={match.team1Short}
             onClose={() => setPreviewTeamId(null)}
           />
         );
@@ -1270,6 +1271,7 @@ export default function MatchDetailScreen() {
                       viceCaptainId={entry.viceCaptainId}
                       totalPoints={entry.totalPoints}
                       matchCompleted={match.status === 'completed'}
+                      team1Short={match.team1Short}
                     />
                   </View>
                 );
@@ -1429,6 +1431,7 @@ export default function MatchDetailScreen() {
                             teamName={team.name}
                             totalPoints={team.totalPoints}
                             matchCompleted={match.status === 'completed'}
+                            team1Short={match.team1Short}
                           />
                         </View>
                       );
