@@ -1037,6 +1037,7 @@ async function fetchSeriesMatches(seriesId, seriesName) {
     const json = await res.json();
     if (json.status !== "success" || !json.data?.matchList) {
       const reason = (json.reason || json.message || "").toLowerCase();
+      console.warn(`Series Info API non-success for ${seriesName}: status=${json.status} reason="${reason}"`);
       if (reason.includes("limit") || reason.includes("quota") || reason.includes("blocked")) {
         markTier1Blocked();
       }
@@ -1084,13 +1085,40 @@ async function fetchSeriesMatches(seriesId, seriesName) {
     return [];
   }
 }
+function buildIPLFixturesFromHardcoded() {
+  return IPL_2026_HARDCODED.map((f) => ({
+    externalId: f.externalId,
+    seriesId: f.seriesId,
+    team1: f.team1,
+    team1Short: f.team1Short,
+    team1Color: getTeamColor(f.team1Short),
+    team2: f.team2,
+    team2Short: f.team2Short,
+    team2Color: getTeamColor(f.team2Short),
+    venue: "",
+    startTime: new Date(f.dateTimeGMT),
+    status: "upcoming",
+    statusNote: "",
+    league: "Indian Premier League 2026"
+  }));
+}
 async function getCachedIPLSeriesMatches() {
   if (_iplPreviewCache && Date.now() < _iplPreviewCache.expiresAt) {
     return _iplPreviewCache.data;
   }
+  console.log("[IPL Preview] Fetching IPL 2026 series fixtures (cache miss)...");
+  const apiKey = getActiveApiKey();
+  console.log("[IPL Preview] API key available:", !!apiKey);
   const data = await fetchSeriesMatches(IPL_2026_SERIES_ID_PREVIEW, "Indian Premier League 2026");
-  _iplPreviewCache = { data, expiresAt: Date.now() + IPL_PREVIEW_TTL_MS };
-  return data;
+  console.log(`[IPL Preview] Series fetch returned ${data.length} fixtures`);
+  if (data.length > 0) {
+    _iplPreviewCache = { data, expiresAt: Date.now() + IPL_PREVIEW_TTL_MS };
+    return data;
+  }
+  console.log("[IPL Preview] API returned 0 fixtures \u2014 using hardcoded IPL 2026 fallback");
+  const fallback = buildIPLFixturesFromHardcoded();
+  _iplPreviewCache = { data: fallback, expiresAt: Date.now() + 2 * 60 * 1e3 };
+  return fallback;
 }
 async function ensureIPLPreviewMatches(existingMatches) {
   const nowMs = Date.now();
@@ -1972,7 +2000,7 @@ async function fetchLiveScorecard(externalMatchId) {
     return null;
   }
 }
-var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, KNOWN_TEAM_CODES, IPL_2026_SERIES_ID_PREVIEW, _iplPreviewCache, IPL_PREVIEW_TTL_MS, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
+var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, KNOWN_TEAM_CODES, IPL_2026_SERIES_ID_PREVIEW, IPL_2026_HARDCODED, _iplPreviewCache, IPL_PREVIEW_TTL_MS, lastStatusRefresh, STATUS_REFRESH_INTERVAL;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
     "use strict";
@@ -2045,6 +2073,28 @@ var init_cricket_api = __esm({
       Afghanistan: "AFG"
     };
     IPL_2026_SERIES_ID_PREVIEW = "87c62aac-bc3c-4738-ab93-19da0690488f";
+    IPL_2026_HARDCODED = [
+      { externalId: "55fe0f15-6eb0-4ad5-835b-5564be4f6a21", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Royal Challengers Bengaluru", team1Short: "RCB", team2: "Sunrisers Hyderabad", team2Short: "SRH", dateTimeGMT: "2026-03-28T14:00:00" },
+      { externalId: "e02475c1-8f9a-4915-a9e8-d4dbc3441c96", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Mumbai Indians", team1Short: "MI", team2: "Kolkata Knight Riders", team2Short: "KKR", dateTimeGMT: "2026-03-29T14:00:00" },
+      { externalId: "d788e9f9-99bf-4650-a035-92a7e21b3d08", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Rajasthan Royals", team1Short: "RR", team2: "Chennai Super Kings", team2Short: "CSK", dateTimeGMT: "2026-03-30T14:00:00" },
+      { externalId: "11ff7db9-9c71-464e-afcb-5b03e4fa4b0a", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Punjab Kings", team1Short: "PBKS", team2: "Gujarat Titans", team2Short: "GT", dateTimeGMT: "2026-03-31T14:00:00" },
+      { externalId: "ae676d7c-3082-489c-96c5-5620f393c900", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Lucknow Super Giants", team1Short: "LSG", team2: "Delhi Capitals", team2Short: "DC", dateTimeGMT: "2026-04-01T14:00:00" },
+      { externalId: "fd010e39-2255-4460-b0e0-962a26b67b70", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Kolkata Knight Riders", team1Short: "KKR", team2: "Sunrisers Hyderabad", team2Short: "SRH", dateTimeGMT: "2026-04-02T14:00:00" },
+      { externalId: "96d2aa6b-ea40-4da4-b4cf-eb996de24ef7", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Chennai Super Kings", team1Short: "CSK", team2: "Punjab Kings", team2Short: "PBKS", dateTimeGMT: "2026-04-03T14:00:00" },
+      { externalId: "736f3e02-212a-49bc-8b3b-08a106312702", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Delhi Capitals", team1Short: "DC", team2: "Mumbai Indians", team2Short: "MI", dateTimeGMT: "2026-04-04T10:00:00" },
+      { externalId: "ea4d01bf-bf47-4f7d-a4f8-32eade678141", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Gujarat Titans", team1Short: "GT", team2: "Rajasthan Royals", team2Short: "RR", dateTimeGMT: "2026-04-04T14:00:00" },
+      { externalId: "e43dd29e-c60e-40c9-a6c4-6c1bd69dd671", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Sunrisers Hyderabad", team1Short: "SRH", team2: "Lucknow Super Giants", team2Short: "LSG", dateTimeGMT: "2026-04-05T10:00:00" },
+      { externalId: "e92727d0-61fc-4c6f-82ed-cde4789745a2", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Royal Challengers Bengaluru", team1Short: "RCB", team2: "Chennai Super Kings", team2Short: "CSK", dateTimeGMT: "2026-04-05T14:00:00" },
+      { externalId: "adeebb28-bc39-439b-99ed-2daef5106232", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Kolkata Knight Riders", team1Short: "KKR", team2: "Punjab Kings", team2Short: "PBKS", dateTimeGMT: "2026-04-06T14:00:00" },
+      { externalId: "4f617f5e-c635-4989-b135-5430dc73c5d7", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Rajasthan Royals", team1Short: "RR", team2: "Mumbai Indians", team2Short: "MI", dateTimeGMT: "2026-04-07T14:00:00" },
+      { externalId: "12496498-8526-46d9-a053-da2ba8d047e1", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Delhi Capitals", team1Short: "DC", team2: "Gujarat Titans", team2Short: "GT", dateTimeGMT: "2026-04-08T14:00:00" },
+      { externalId: "c78dcc8a-67cf-460a-8f2b-8f16d3891682", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Kolkata Knight Riders", team1Short: "KKR", team2: "Lucknow Super Giants", team2Short: "LSG", dateTimeGMT: "2026-04-09T14:00:00" },
+      { externalId: "05a88a74-0e68-47d9-996b-257b3b1ebf8d", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Rajasthan Royals", team1Short: "RR", team2: "Royal Challengers Bengaluru", team2Short: "RCB", dateTimeGMT: "2026-04-10T14:00:00" },
+      { externalId: "a4cd9851-d79a-42b6-8a4b-b35cbb9f9f0a", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Punjab Kings", team1Short: "PBKS", team2: "Sunrisers Hyderabad", team2Short: "SRH", dateTimeGMT: "2026-04-11T10:00:00" },
+      { externalId: "204afd0a-026a-41f4-afda-653030a84e46", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Chennai Super Kings", team1Short: "CSK", team2: "Delhi Capitals", team2Short: "DC", dateTimeGMT: "2026-04-11T14:00:00" },
+      { externalId: "36d875e2-3333-4fab-ba4d-4f89fb4d7055", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Lucknow Super Giants", team1Short: "LSG", team2: "Gujarat Titans", team2Short: "GT", dateTimeGMT: "2026-04-12T10:00:00" },
+      { externalId: "11d553de-3b2a-4e58-9abd-4bb7d575595e", seriesId: IPL_2026_SERIES_ID_PREVIEW, team1: "Mumbai Indians", team1Short: "MI", team2: "Royal Challengers Bengaluru", team2Short: "RCB", dateTimeGMT: "2026-04-12T14:00:00" }
+    ];
     _iplPreviewCache = null;
     IPL_PREVIEW_TTL_MS = 15 * 60 * 1e3;
     lastStatusRefresh = 0;
