@@ -120,8 +120,8 @@ var init_schema = __esm({
       matchId: varchar("match_id").notNull(),
       name: text("name").notNull(),
       playerIds: jsonb("player_ids").$type().notNull().default([]),
-      captainId: varchar("captain_id").notNull(),
-      viceCaptainId: varchar("vice_captain_id").notNull(),
+      captainId: varchar("captain_id"),
+      viceCaptainId: varchar("vice_captain_id"),
       totalPoints: integer("total_points").notNull().default(0),
       primaryImpactId: varchar("primary_impact_id"),
       backupImpactId: varchar("backup_impact_id"),
@@ -218,8 +218,8 @@ var init_schema = __esm({
       matchId: z.string(),
       name: z.string(),
       playerIds: z.array(z.string()),
-      captainId: z.string(),
-      viceCaptainId: z.string(),
+      captainId: z.string().nullable().optional(),
+      viceCaptainId: z.string().nullable().optional(),
       primaryImpactId: z.string().optional(),
       backupImpactId: z.string().optional(),
       captainType: z.enum(["player", "impact_slot"]).default("player"),
@@ -243,6 +243,10 @@ async function runMigrations() {
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS revised_start_time TIMESTAMP;
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS admin_unlock_override BOOLEAN NOT NULL DEFAULT false;
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_scorecard_at TIMESTAMP;
+    `);
+    await client.query(`
+      ALTER TABLE user_teams ALTER COLUMN captain_id DROP NOT NULL;
+      ALTER TABLE user_teams ALTER COLUMN vice_captain_id DROP NOT NULL;
     `);
     console.log("[DB] Migrations complete.");
   } catch (err) {
@@ -3106,7 +3110,18 @@ async function registerRoutes(app2) {
         if (!playerIds || playerIds.length !== 11) {
           return res.status(400).json({ message: "Must select exactly 11 players" });
         }
-        if (!captainId || !viceCaptainId) {
+        const reqCaptainType = captainType === "impact_slot" ? "impact_slot" : "player";
+        const reqVcType = vcType === "impact_slot" ? "impact_slot" : "player";
+        const matchImpactOn = match.impactFeaturesEnabled === true;
+        const captainOnSlot = matchImpactOn && reqCaptainType === "impact_slot";
+        const vcOnSlot = matchImpactOn && reqVcType === "impact_slot";
+        if (captainOnSlot && vcOnSlot) {
+          return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+        }
+        if (!captainOnSlot && !captainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain required" });
+        }
+        if (!vcOnSlot && !viceCaptainId) {
           return res.status(400).json({ message: "Captain and Vice-Captain required" });
         }
         const matchPlayers = await storage.getPlayersForMatch(matchId);
@@ -3266,7 +3281,18 @@ async function registerRoutes(app2) {
         if (!playerIds || playerIds.length !== 11) {
           return res.status(400).json({ message: "Must select exactly 11 players" });
         }
-        if (!captainId || !viceCaptainId) {
+        const reqCaptainTypeU = captainType === "impact_slot" ? "impact_slot" : "player";
+        const reqVcTypeU = vcType === "impact_slot" ? "impact_slot" : "player";
+        const matchImpactOnU = match.impactFeaturesEnabled === true;
+        const captainOnSlotU = matchImpactOnU && reqCaptainTypeU === "impact_slot";
+        const vcOnSlotU = matchImpactOnU && reqVcTypeU === "impact_slot";
+        if (captainOnSlotU && vcOnSlotU) {
+          return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+        }
+        if (!captainOnSlotU && !captainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain required" });
+        }
+        if (!vcOnSlotU && !viceCaptainId) {
           return res.status(400).json({ message: "Captain and Vice-Captain required" });
         }
         const matchPlayers = await storage.getPlayersForMatch(team.matchId);

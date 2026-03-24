@@ -44,6 +44,12 @@ async function runMigrations(): Promise<void> {
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS admin_unlock_override BOOLEAN NOT NULL DEFAULT false;
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_scorecard_at TIMESTAMP;
     `);
+    // Allow null captainId/viceCaptainId for teams where C or VC is on the Impact Slot.
+    // Safe to run repeatedly — PostgreSQL no-ops if the column is already nullable.
+    await client.query(`
+      ALTER TABLE user_teams ALTER COLUMN captain_id DROP NOT NULL;
+      ALTER TABLE user_teams ALTER COLUMN vice_captain_id DROP NOT NULL;
+    `);
     console.log("[DB] Migrations complete.");
   } catch (err: any) {
     console.error("[DB] Migration error:", err.message);
