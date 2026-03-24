@@ -76,7 +76,7 @@ function PlayerItem({
 }) {
   const isInXI = player.isPlayingXI === true;
   const xiIndicatorColor = isInXI ? '#22C55E' : '#EF4444';
-  const playerImg = getPlayerImage(player.id);
+  const playerImg = getPlayerImage(player.externalId ?? player.id);
 
   return (
     <Pressable
@@ -180,7 +180,7 @@ function CompactPlayerItem({
   const displayName = nameParts.length > 1
     ? `${nameParts[0][0]}. ${nameParts.slice(1).join(' ')}`
     : player.name;
-  const playerImg = getPlayerImage(player.id);
+  const playerImg = getPlayerImage(player.externalId ?? player.id);
   const roleColor = getRoleColor(player.role, isDark);
 
   return (
@@ -259,7 +259,7 @@ function CaptainItem({
   colors: any;
   isDark: boolean;
 }) {
-  const captainPlayerImg = getPlayerImage(player.id);
+  const captainPlayerImg = getPlayerImage(player.externalId ?? player.id);
   return (
     <View style={[styles.captainItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
       <View style={styles.captainLeft}>
