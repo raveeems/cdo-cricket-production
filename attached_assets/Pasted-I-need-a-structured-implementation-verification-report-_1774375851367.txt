@@ -1,0 +1,144 @@
+I need a structured implementation verification report for the following features. Do NOT answer broadly. I want proof-based verification only.
+
+Important rule:
+For every item below, return all 5 things:
+1. exact file(s) involved
+2. exact route/component/function involved
+3. whether it is IMPLEMENTED or NOT IMPLEMENTED
+4. how I can test it in UI/admin
+5. proof (log, code path, screenshot guidance, or exact condition)
+
+I want the report split into two sections:
+- Admin features
+- User features
+- Backend / scoring / polling checks
+
+========================
+ADMIN FEATURES TO VERIFY
+========================
+
+1. Unlock after deadline for additional 5 mins
+Requirement:
+- Admin can unlock the game for 5 extra minutes after deadline
+- After those 5 mins, if the match is live / API starts giving score data, even admin cannot unlock
+
+Verify:
+- exact unlock rule
+- exact 5-minute window logic
+- exact condition that blocks unlock once live score data exists
+
+2. Admin can manually revise match start time after deadline
+Requirement:
+- Admin can change match start time manually even after deadline
+- this should support delayed matches
+
+Verify:
+- exact file and route
+- whether it saves correctly
+- whether user-facing match time reflects it
+
+3. Admin can mark Playing XI / Impact / Non-playing after toss
+Requirement:
+- Playing XI = Green
+- Impact players = Purple
+- Non-playing players = Red
+
+Verify:
+- exact admin screen/component
+- exact status values used
+- exact color mapping used
+- where it shows in user-facing UI
+
+4. Admin can auto-select previous Playing XI + previous Impact player list
+Requirement:
+- previous Playing XI auto-fill should exist
+- previous Impact player list should also be surfaced and selectable
+
+Verify:
+- whether both are implemented
+- if only previous XI exists and Impact is missing, say that clearly
+
+=======================
+USER FEATURES TO VERIFY
+=======================
+
+5. Previous match Playing XI + Impact visible in next match selection
+Requirement:
+- when user opens a new match, previous match Playing XI of both teams should appear first
+- previous match Impact players should also be surfaced
+- non-playing players should come after
+
+Verify:
+- exact file/component
+- exact sorting/grouping logic
+- whether both previous XI and previous Impact are handled
+
+6. Player points visible
+Requirement:
+- app should show previous match points OR total points in that series
+- tell me exactly which one is currently shown
+
+Verify:
+- source field used
+- exact file/component
+- whether it is previous-match points or series-total points
+
+===============================
+BACKEND / SCORING / POLLING
+===============================
+
+7. API polling interval during live match
+Requirement:
+- confirm exact interval used to fetch scorecard/live score during match
+
+Verify:
+- exact file/function
+- exact interval value in seconds or milliseconds
+
+8. Points calculation including Impact players
+Requirement:
+- confirm points logic is fully in place
+- includes normal players, captain, vice-captain, impact player, backup impact logic if applicable
+
+Verify:
+- exact scoring function(s)
+- exact impact scoring logic path
+- whether implemented fully or partially
+
+9. Full Impact player workflow
+Requirement:
+- primary impact pick
+- backup impact pick
+- validation rules
+- save flow
+- preview flow
+- scoring flow
+
+Verify:
+- all exact files involved
+- whether workflow is end-to-end complete
+
+=======================
+RESPONSE FORMAT
+=======================
+
+For each of the 9 items above, respond in this exact format:
+
+Feature:
+Status: IMPLEMENTED / PARTIAL / NOT IMPLEMENTED
+Files:
+Route / Component / Function:
+How to test:
+Proof:
+Gap / Risk:
+
+At the end, give me:
+1. a summary table with all 9 items
+2. mark each as GREEN / YELLOW / RED
+3. tell me which of these still need changes before IPL starts
+
+Important:
+- Do not give assumptions
+- Do not say “should work”
+- verify each item from actual code paths
+- if something is partial, say exactly what part is missing
