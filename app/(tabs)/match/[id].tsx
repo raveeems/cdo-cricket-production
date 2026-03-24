@@ -376,40 +376,8 @@ export default function MatchDetailScreen() {
     { key: 'players', label: 'Players', icon: 'people-outline' },
   ];
 
-  const renderOverviewTab = () => (
-    <View style={styles.contentSection}>
-      <View style={styles.contestRow}>
-        <View style={[styles.contestCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-          <View style={styles.contestHeader}>
-            <Text style={[styles.contestLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
-              Prize Pool
-            </Text>
-            <Text style={[styles.contestValue, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
-              {match.totalPrize}
-            </Text>
-          </View>
-          <View style={[styles.contestBar, { backgroundColor: colors.border }]}>
-            <View
-              style={[
-                styles.contestBarFill,
-                {
-                  width: `${filledPercent}%`,
-                  backgroundColor: filledPercent > 80 ? colors.error : colors.success,
-                },
-              ]}
-            />
-          </View>
-          <View style={styles.contestMeta}>
-            <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-              {match.spotsFilled} joined
-            </Text>
-            <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
-              Entry: {match.entryFee} coins
-            </Text>
-          </View>
-        </View>
-      </View>
-
+  const renderMyTeamsSection = () => (
+    <>
       <View style={[styles.sectionHeader, { borderLeftColor: colors.accent }]}>
         <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
           Your Teams ({userTeams.length}/3)
@@ -563,6 +531,42 @@ export default function MatchDetailScreen() {
           </Text>
         </View>
       )}
+    </>
+  );
+
+  const renderOverviewTab = () => (
+    <View style={styles.contentSection}>
+      <View style={styles.contestRow}>
+        <View style={[styles.contestCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <View style={styles.contestHeader}>
+            <Text style={[styles.contestLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+              Prize Pool
+            </Text>
+            <Text style={[styles.contestValue, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
+              {match.totalPrize}
+            </Text>
+          </View>
+          <View style={[styles.contestBar, { backgroundColor: colors.border }]}>
+            <View
+              style={[
+                styles.contestBarFill,
+                {
+                  width: `${filledPercent}%`,
+                  backgroundColor: filledPercent > 80 ? colors.error : colors.success,
+                },
+              ]}
+            />
+          </View>
+          <View style={styles.contestMeta}>
+            <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+              {match.spotsFilled} joined
+            </Text>
+            <Text style={[styles.contestMetaText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
+              Entry: {match.entryFee} coins
+            </Text>
+          </View>
+        </View>
+      </View>
 
       <Pressable
         onPress={async () => {
@@ -1699,6 +1703,8 @@ export default function MatchDetailScreen() {
             </Pressable>
           ))}
         </View>
+
+        {renderMyTeamsSection()}
 
         {activeTab === 'overview' && renderOverviewTab()}
         {activeTab === 'standings' && renderStandingsTab()}
