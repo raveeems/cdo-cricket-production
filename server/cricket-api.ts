@@ -493,6 +493,7 @@ export async function fetchSeriesMatches(
 
     if (json.status !== "success" || !json.data?.matchList) {
       const reason = ((json as any).reason || (json as any).message || "").toLowerCase();
+      console.warn(`Series Info API non-success for ${seriesName}: status=${json.status} reason="${reason}"`);
       if (reason.includes("limit") || reason.includes("quota") || reason.includes("blocked")) {
         markTier1Blocked();
       }
@@ -564,7 +565,11 @@ async function getCachedIPLSeriesMatches() {
   if (_iplPreviewCache && Date.now() < _iplPreviewCache.expiresAt) {
     return _iplPreviewCache.data;
   }
+  console.log("[IPL Preview] Fetching IPL 2026 series fixtures (cache miss)...");
+  const apiKey = getActiveApiKey();
+  console.log("[IPL Preview] API key available:", !!apiKey);
   const data = await fetchSeriesMatches(IPL_2026_SERIES_ID_PREVIEW, "Indian Premier League 2026");
+  console.log(`[IPL Preview] Series fetch returned ${data.length} fixtures`);
   _iplPreviewCache = { data, expiresAt: Date.now() + IPL_PREVIEW_TTL_MS };
   return data;
 }

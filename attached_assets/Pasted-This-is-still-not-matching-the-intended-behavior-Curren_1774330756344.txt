@@ -1,0 +1,45 @@
+This is still not matching the intended behavior.
+
+Current observed behavior:
+- a manually added PSL match is visible on the Home screen
+- upcoming IPL matches are still NOT visible
+
+This proves the current implementation is only showing IPL matches that already exist in the synced DB pool, which is still governed by the 48-hour auto-add rule.
+
+That is NOT the intended product behavior.
+
+Exact intended behavior:
+1. Keep the existing 48-hour IPL auto-sync/add logic unchanged.
+2. Manually added matches must remain visible.
+3. In addition to that, the Home screen must also show the NEXT 5 upcoming IPL matches, even if they are beyond the current 48-hour synced DB window.
+4. This is a display requirement, not a sync/storage requirement.
+5. Do not wait for those first 5 IPL fixtures to enter the DB through the 48-hour sync rule before showing them.
+
+So the likely current gap is:
+- top-5 IPL logic is being applied only to IPL matches already present in DB
+- instead of sourcing the next 5 upcoming IPL fixtures independently for display
+
+Investigate and implement the correct behavior.
+
+Before implementing, first return:
+1. Is the current Home screen IPL list sourced only from DB matches?
+2. Are there currently zero IPL matches in DB because of the 48-hour sync/add rule?
+3. Is that the exact reason IPL is not visible right now?
+4. What is the cleanest way to show the next 5 upcoming IPL matches on Home without changing the existing 48-hour sync/add mechanism?
+
+Implementation requirement:
+- Keep existing 48-hour sync/add logic unchanged
+- Keep manual matches visible
+- Add a display-layer source for the next 5 upcoming IPL fixtures
+- Merge and dedup cleanly with manually added matches / synced DB matches
+- Do not break admin flows
+- Do not touch P2
+
+After implementing, return:
+1. exact files changed
+2. exact source of the new “next 5 upcoming IPL matches” display data
+3. confirmation that manual matches remain visible
+4. confirmation that 48-hour auto-sync logic is unchanged
+5. proof that the Home screen now shows:
+   - manual PSL match
+   - plus the next 5 upcoming IPL matches
