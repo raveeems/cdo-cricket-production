@@ -147,6 +147,8 @@ export default function AdminScreen() {
   const [loadingPlayerStatus, setLoadingPlayerStatus] = useState<string | null>(null);
   const [updatingPlayerId, setUpdatingPlayerId] = useState<string | null>(null);
   const [settingWinnerId, setSettingWinnerId] = useState<string | null>(null);
+  const [fetchingSquadMatchId, setFetchingSquadMatchId] = useState<string | null>(null);
+  const [fetchSquadResult, setFetchSquadResult] = useState<Record<string, string>>({});
 
   const [apiMatchesBrowse, setApiMatchesBrowse] = useState<any[]>([]);
   const [browsingApiMatches, setBrowsingApiMatches] = useState(false);
@@ -448,6 +450,24 @@ export default function AdminScreen() {
       if (s.adminStatus === 'impact_sub') sub++;
     });
     return { xi, sub };
+  };
+
+  const fetchSquadForPlayerStatus = async (matchId: string) => {
+    setFetchingSquadMatchId(matchId);
+    setFetchSquadResult(prev => ({ ...prev, [matchId]: '' }));
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${matchId}/fetch-squad`);
+      const data = await res.json();
+      const msg = data.message || 'Done';
+      setFetchSquadResult(prev => ({ ...prev, [matchId]: msg }));
+      if (data.totalPlayers > 0) {
+        await refreshPlayerStatusData(matchId);
+      }
+    } catch (e: any) {
+      setFetchSquadResult(prev => ({ ...prev, [matchId]: '❌ ' + (e.message || 'Failed to fetch squad') }));
+    } finally {
+      setFetchingSquadMatchId(null);
+    }
   };
 
   const toggleImpactSub = async (matchId: string, playerId: string, currentValue: boolean) => {
@@ -1566,9 +1586,42 @@ export default function AdminScreen() {
                     </View>
 
                     {(!playerStatusData[m.id] || playerStatusData[m.id].players.length === 0) ? (
-                      <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
-                        {loadingPlayerStatus === m.id ? 'Loading...' : 'No players loaded for this match'}
-                      </Text>
+                      <View style={{ alignItems: 'flex-start', gap: 8 }}>
+                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                          {loadingPlayerStatus === m.id
+                            ? 'Loading players...'
+                            : 'Squad not loaded for this match. Fetch squad first to mark XI and Impact Players.'}
+                        </Text>
+                        {loadingPlayerStatus !== m.id && (
+                          <Pressable
+                            onPress={() => fetchSquadForPlayerStatus(m.id)}
+                            disabled={fetchingSquadMatchId === m.id}
+                            style={{
+                              flexDirection: 'row', alignItems: 'center', gap: 6,
+                              paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
+                              backgroundColor: colors.primary + '15',
+                              borderWidth: 1, borderColor: colors.primary + '40',
+                              opacity: fetchingSquadMatchId === m.id ? 0.5 : 1,
+                            }}
+                          >
+                            {fetchingSquadMatchId === m.id
+                              ? <ActivityIndicator size="small" color={colors.primary} />
+                              : <Ionicons name="download-outline" size={14} color={colors.primary} />
+                            }
+                            <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>
+                              {fetchingSquadMatchId === m.id ? 'Fetching...' : 'Fetch Squad from API'}
+                            </Text>
+                          </Pressable>
+                        )}
+                        {fetchSquadResult[m.id] ? (
+                          <Text style={{
+                            fontSize: 11, fontFamily: 'Inter_400Regular' as const,
+                            color: fetchSquadResult[m.id].startsWith('❌') ? colors.error : '#22C55E',
+                          }}>
+                            {fetchSquadResult[m.id]}
+                          </Text>
+                        ) : null}
+                      </View>
                     ) : (
                       (['team1Short', 'team2Short'] as const).map(teamKey => {
                         const teamShort = m[teamKey];
