@@ -312,7 +312,7 @@ export class DatabaseStorage {
     for (const pid of playerIds) {
       await db
         .update(players)
-        .set({ isPlayingXI: true, points: 4 })
+        .set({ isPlayingXI: true, isImpactPlayer: false, points: 4 })
         .where(and(eq(players.matchId, matchId), eq(players.id, pid)));
       updated++;
     }
