@@ -2127,6 +2127,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Expected 11-22 player IDs (Playing XI for both teams)" });
         }
 
+        // Per-team validation: each team must contribute exactly 11 players
+        const allMatchPlayers = await storage.getPlayersForMatch(matchId);
+        const playerIdSet = new Set(playerIds as string[]);
+        const teamCounts: Record<string, number> = {};
+        for (const p of allMatchPlayers) {
+          if (playerIdSet.has(p.id) && p.teamShort) {
+            teamCounts[p.teamShort] = (teamCounts[p.teamShort] || 0) + 1;
+          }
+        }
+        const teams = Object.keys(teamCounts);
+        for (const team of teams) {
+          if (teamCounts[team] !== 11) {
+            return res.status(400).json({
+              message: `${team} must have exactly 11 XI players (got ${teamCounts[team]})`,
+            });
+          }
+        }
+        if (teams.length !== 2) {
+          return res.status(400).json({
+            message: `XI must include players from exactly 2 teams (got ${teams.length})`,
+          });
+        }
+
         const updated = await storage.markPlayingXIByIds(matchId, playerIds);
         await storage.updateMatch(matchId, { playingXIManual: true });
 
