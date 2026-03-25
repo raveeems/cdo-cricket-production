@@ -408,21 +408,24 @@ export default function AdminScreen() {
     }
   };
 
-  const STATUS_CYCLE: Record<string, string> = { playing_xi: 'not_active', not_active: 'impact_sub', impact_sub: 'playing_xi' };
   const STATUS_COLORS: Record<string, string> = { playing_xi: '#22C55E', not_active: '#EF4444', impact_sub: '#9333EA' };
   const STATUS_LABELS: Record<string, string> = { playing_xi: 'XI', not_active: 'OUT', impact_sub: 'SUB' };
 
-  const cyclePlayerStatus = async (matchId: string, playerId: string, currentStatus: string | undefined) => {
-    const next = currentStatus ? (STATUS_CYCLE[currentStatus] || 'playing_xi') : 'playing_xi';
+  const setPlayerStatus = async (matchId: string, playerId: string, newStatus: string) => {
     setUpdatingPlayerId(playerId);
     try {
-      await apiRequest('POST', `/api/admin/matches/${matchId}/player-status`, { playerId, adminStatus: next });
+      const res = await apiRequest('POST', `/api/admin/matches/${matchId}/player-status`, { playerId, adminStatus: newStatus });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        Alert.alert('Cannot Set Status', data.message || 'Failed to update player status');
+        return;
+      }
       setPlayerStatusData(prev => {
         const d = prev[matchId];
         if (!d) return prev;
         const newMap = new Map(d.statuses);
         const existing = newMap.get(playerId) || { playerId, officialImpactSubUsed: false };
-        newMap.set(playerId, { ...existing, adminStatus: next });
+        newMap.set(playerId, { ...existing, adminStatus: newStatus });
         return { ...prev, [matchId]: { ...d, statuses: newMap } };
       });
     } catch (e) {
@@ -430,6 +433,21 @@ export default function AdminScreen() {
     } finally {
       setUpdatingPlayerId(null);
     }
+  };
+
+  const getTeamStatusCounts = (matchId: string, teamShort: string) => {
+    const data = playerStatusData[matchId];
+    if (!data) return { xi: 0, sub: 0 };
+    const teamPlayerIds = new Set(
+      data.players.filter((p: any) => p.teamShort === teamShort).map((p: any) => p.id)
+    );
+    let xi = 0, sub = 0;
+    data.statuses.forEach((s: any, pid: string) => {
+      if (!teamPlayerIds.has(pid)) return;
+      if (s.adminStatus === 'playing_xi') xi++;
+      if (s.adminStatus === 'impact_sub') sub++;
+    });
+    return { xi, sub };
   };
 
   const toggleImpactSub = async (matchId: string, playerId: string, currentValue: boolean) => {
@@ -1467,11 +1485,11 @@ export default function AdminScreen() {
 
                   <Pressable
                     onPress={() => togglePlayerStatusExpand(m.id)}
-                    accessibilityLabel="View Participants"
+                    accessibilityLabel="Player Status"
                     style={[styles.actionBtn, { flex: 1, backgroundColor: playerStatusExpandedId === m.id ? colors.primary + '0D' : undefined, borderColor: playerStatusExpandedId === m.id ? colors.primary + '60' : colors.border }]}
                   >
-                    <Ionicons name={playerStatusExpandedId === m.id ? 'people' : 'people-outline'} size={13} color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary} />
-                    <Text style={[styles.actionBtnText, { color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary }]}>Entries</Text>
+                    <Ionicons name={playerStatusExpandedId === m.id ? 'shield' : 'shield-outline'} size={13} color={playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary} />
+                    <Text style={[styles.actionBtnText, { color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary }]}>Player Status</Text>
                   </Pressable>
                 </View>
 
@@ -1524,9 +1542,10 @@ export default function AdminScreen() {
                 ) : null}
                 {playerStatusExpandedId === m.id && (
                   <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const }}>
-                        Player Status
+                    {/* Panel header */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.5 }}>
+                        XI / IMPACT PLAYER SELECTION
                       </Text>
                       <Pressable onPress={() => refreshPlayerStatusData(m.id)} style={{ padding: 4 }}>
                         {loadingPlayerStatus === m.id
@@ -1535,6 +1554,17 @@ export default function AdminScreen() {
                         }
                       </Pressable>
                     </View>
+
+                    {/* Column header labels */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, paddingHorizontal: 0 }}>
+                      <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const }}>PLAYER</Text>
+                      <Text style={{ width: 28, color: colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const }}>ROLE</Text>
+                      <Text style={{ width: 30, color: '#22C55E', fontSize: 8, fontFamily: 'Inter_700Bold' as const, textAlign: 'center' }}>XI</Text>
+                      <Text style={{ width: 30, color: '#9333EA', fontSize: 8, fontFamily: 'Inter_700Bold' as const, textAlign: 'center' }}>SUB</Text>
+                      <Text style={{ width: 30, color: '#EF4444', fontSize: 8, fontFamily: 'Inter_700Bold' as const, textAlign: 'center' }}>OUT</Text>
+                      <Text style={{ width: 22, color: '#9333EA', fontSize: 8, fontFamily: 'Inter_700Bold' as const, textAlign: 'center' }}>⚡</Text>
+                    </View>
+
                     {(!playerStatusData[m.id] || playerStatusData[m.id].players.length === 0) ? (
                       <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
                         {loadingPlayerStatus === m.id ? 'Loading...' : 'No players loaded for this match'}
@@ -1542,55 +1572,144 @@ export default function AdminScreen() {
                     ) : (
                       (['team1Short', 'team2Short'] as const).map(teamKey => {
                         const teamShort = m[teamKey];
-                        const teamPlayers = playerStatusData[m.id].players.filter((p: any) => p.teamShort === teamShort);
+                        const psd = playerStatusData[m.id];
+                        const teamPlayers = psd.players.filter((p: any) => p.teamShort === teamShort);
                         if (teamPlayers.length === 0) return null;
+                        const { xi, sub } = getTeamStatusCounts(m.id, teamShort);
+                        const xiPlayers = teamPlayers.filter((p: any) => psd.statuses.get(p.id)?.adminStatus === 'playing_xi');
+                        const subPlayers = teamPlayers.filter((p: any) => psd.statuses.get(p.id)?.adminStatus === 'impact_sub');
+                        const otherPlayers = teamPlayers.filter((p: any) => {
+                          const s = psd.statuses.get(p.id)?.adminStatus;
+                          return !s || s === 'not_active';
+                        });
+
+                        const renderRow = (p: any) => {
+                          const ps = psd.statuses.get(p.id);
+                          const adminStatus = ps?.adminStatus as string | undefined;
+                          const isImpactSub = ps?.officialImpactSubUsed === true;
+                          const isUpdating = updatingPlayerId === p.id;
+                          const subAtMax = sub >= 5 && adminStatus !== 'impact_sub';
+
+                          const btnBase = {
+                            width: 30, height: 18, borderRadius: 3,
+                            justifyContent: 'center' as const, alignItems: 'center' as const,
+                            borderWidth: 1,
+                          };
+                          return (
+                            <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 3, gap: 0 }}>
+                              <Text style={{ flex: 1, color: colors.text, fontSize: 11, fontFamily: 'Inter_400Regular' as const }} numberOfLines={1}>
+                                {p.name}
+                              </Text>
+                              <Text style={{ width: 28, color: colors.textTertiary, fontSize: 9, fontFamily: 'Inter_400Regular' as const }}>
+                                {p.role}
+                              </Text>
+                              {/* XI button */}
+                              <Pressable
+                                onPress={() => setPlayerStatus(m.id, p.id, 'playing_xi')}
+                                disabled={isUpdating}
+                                style={[btnBase, {
+                                  backgroundColor: adminStatus === 'playing_xi' ? '#22C55E' : 'transparent',
+                                  borderColor: adminStatus === 'playing_xi' ? '#22C55E' : colors.border,
+                                  opacity: isUpdating ? 0.5 : 1,
+                                }]}
+                              >
+                                <Text style={{ color: adminStatus === 'playing_xi' ? '#fff' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>XI</Text>
+                              </Pressable>
+                              {/* SUB button */}
+                              <Pressable
+                                onPress={() => setPlayerStatus(m.id, p.id, 'impact_sub')}
+                                disabled={isUpdating || subAtMax}
+                                style={[btnBase, {
+                                  marginLeft: 2,
+                                  backgroundColor: adminStatus === 'impact_sub' ? '#9333EA' : 'transparent',
+                                  borderColor: adminStatus === 'impact_sub' ? '#9333EA' : subAtMax ? colors.border : colors.border,
+                                  opacity: (isUpdating || subAtMax) ? 0.35 : 1,
+                                }]}
+                              >
+                                <Text style={{ color: adminStatus === 'impact_sub' ? '#fff' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>SUB</Text>
+                              </Pressable>
+                              {/* OUT button */}
+                              <Pressable
+                                onPress={() => setPlayerStatus(m.id, p.id, 'not_active')}
+                                disabled={isUpdating}
+                                style={[btnBase, {
+                                  marginLeft: 2,
+                                  backgroundColor: adminStatus === 'not_active' ? '#EF4444' : 'transparent',
+                                  borderColor: adminStatus === 'not_active' ? '#EF4444' : colors.border,
+                                  opacity: isUpdating ? 0.5 : 1,
+                                }]}
+                              >
+                                <Text style={{ color: adminStatus === 'not_active' ? '#fff' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>OUT</Text>
+                              </Pressable>
+                              {/* ⚡ actual sub used — only shown for impact_sub players */}
+                              {adminStatus === 'impact_sub' ? (
+                                <Pressable
+                                  onPress={() => toggleImpactSub(m.id, p.id, isImpactSub)}
+                                  disabled={isUpdating}
+                                  style={{
+                                    width: 22, height: 18, borderRadius: 3, marginLeft: 2,
+                                    backgroundColor: isImpactSub ? '#9333EA30' : colors.surfaceElevated,
+                                    borderWidth: 1, borderColor: isImpactSub ? '#9333EA' : colors.border,
+                                    justifyContent: 'center', alignItems: 'center',
+                                  }}
+                                >
+                                  <Text style={{ color: isImpactSub ? '#9333EA' : colors.textTertiary, fontSize: 9 }}>⚡</Text>
+                                </Pressable>
+                              ) : (
+                                <View style={{ width: 24 }} />
+                              )}
+                            </View>
+                          );
+                        };
+
                         return (
-                          <View key={teamKey} style={{ marginBottom: 8 }}>
-                            <Text style={{ color: colors.text, fontSize: 11, fontFamily: 'Inter_700Bold' as const, marginBottom: 4 }}>
-                              {teamShort}
-                            </Text>
-                            {teamPlayers.map((p: any) => {
-                              const ps = playerStatusData[m.id].statuses.get(p.id);
-                              const adminStatus = ps?.adminStatus;
-                              const isImpactSub = ps?.officialImpactSubUsed === true;
-                              const statusColor = adminStatus ? STATUS_COLORS[adminStatus] : colors.textTertiary;
-                              const statusLabel = adminStatus ? STATUS_LABELS[adminStatus] : '—';
-                              const isUpdating = updatingPlayerId === p.id;
-                              return (
-                                <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 3, gap: 6 }}>
-                                  <Pressable
-                                    onPress={() => cyclePlayerStatus(m.id, p.id, adminStatus)}
-                                    disabled={isUpdating}
-                                    style={{
-                                      width: 34, height: 20, borderRadius: 4, backgroundColor: statusColor + '30',
-                                      borderWidth: 1, borderColor: statusColor, justifyContent: 'center', alignItems: 'center',
-                                    }}
-                                  >
-                                    {isUpdating
-                                      ? <ActivityIndicator size="small" color={statusColor} style={{ transform: [{ scale: 0.6 }] }} />
-                                      : <Text style={{ color: statusColor, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>{statusLabel}</Text>
-                                    }
-                                  </Pressable>
-                                  <Text style={{ flex: 1, color: colors.text, fontSize: 12, fontFamily: 'Inter_400Regular' as const }} numberOfLines={1}>
-                                    {p.name}
-                                  </Text>
-                                  <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const, width: 28 }}>
-                                    {p.role}
-                                  </Text>
-                                  <Pressable
-                                    onPress={() => toggleImpactSub(m.id, p.id, isImpactSub)}
-                                    disabled={isUpdating}
-                                    style={{
-                                      paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
-                                      backgroundColor: isImpactSub ? '#9333EA30' : colors.surfaceElevated,
-                                      borderWidth: 1, borderColor: isImpactSub ? '#9333EA' : colors.border,
-                                    }}
-                                  >
-                                    <Text style={{ color: isImpactSub ? '#9333EA' : colors.textTertiary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>⚡</Text>
-                                  </Pressable>
-                                </View>
-                              );
-                            })}
+                          <View key={teamKey} style={{ marginBottom: 14 }}>
+                            {/* Team header + live counters */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                              <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_700Bold' as const }}>{teamShort}</Text>
+                              <View style={{
+                                paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+                                backgroundColor: xi === 11 ? '#22C55E20' : colors.surfaceElevated,
+                                borderWidth: 1, borderColor: xi === 11 ? '#22C55E60' : colors.border,
+                              }}>
+                                <Text style={{ color: xi === 11 ? '#22C55E' : colors.textSecondary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>
+                                  XI: {xi}/11
+                                </Text>
+                              </View>
+                              <View style={{
+                                paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+                                backgroundColor: sub > 5 ? '#EF444420' : sub === 5 ? '#9333EA20' : colors.surfaceElevated,
+                                borderWidth: 1, borderColor: sub > 5 ? '#EF444460' : sub === 5 ? '#9333EA60' : colors.border,
+                              }}>
+                                <Text style={{ color: sub > 5 ? '#EF4444' : sub === 5 ? '#9333EA' : colors.textSecondary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>
+                                  SUB: {sub}/5{sub > 5 ? ' ⚠' : ''}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* PLAYING XI section */}
+                            {xiPlayers.length > 0 && (
+                              <Text style={{ color: '#22C55E', fontSize: 8, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.6, marginBottom: 2 }}>
+                                PLAYING XI
+                              </Text>
+                            )}
+                            {xiPlayers.map(renderRow)}
+
+                            {/* IMPACT OPTIONS section */}
+                            {subPlayers.length > 0 && (
+                              <Text style={{ color: '#9333EA', fontSize: 8, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.6, marginTop: xiPlayers.length > 0 ? 6 : 0, marginBottom: 2 }}>
+                                IMPACT OPTIONS ({subPlayers.length}/5)
+                              </Text>
+                            )}
+                            {subPlayers.map(renderRow)}
+
+                            {/* REMAINING SQUAD section */}
+                            {otherPlayers.length > 0 && (
+                              <Text style={{ color: colors.textTertiary, fontSize: 8, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.6, marginTop: (xiPlayers.length > 0 || subPlayers.length > 0) ? 6 : 0, marginBottom: 2 }}>
+                                REMAINING SQUAD
+                              </Text>
+                            )}
+                            {otherPlayers.map(renderRow)}
                           </View>
                         );
                       })

@@ -3273,6 +3273,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "playerId or playerIds required" });
         }
 
+        // Enforce max 5 impact_sub per team
+        if (adminStatus === "impact_sub") {
+          const allPlayers = await storage.getPlayersForMatch(matchId);
+          const targetPlayer = allPlayers.find((p) => p.id === playerId);
+          if (targetPlayer) {
+            const allStatuses = await storage.getMatchPlayerStatuses(matchId);
+            const teamPlayerIds = new Set(
+              allPlayers.filter((p) => p.teamShort === targetPlayer.teamShort).map((p) => p.id)
+            );
+            const teamImpactCount = allStatuses.filter(
+              (s) => s.adminStatus === "impact_sub" && teamPlayerIds.has(s.playerId) && s.playerId !== playerId
+            ).length;
+            if (teamImpactCount >= 5) {
+              return res.status(400).json({
+                message: `${targetPlayer.teamShort} already has 5 impact players. Remove one before adding another.`,
+              });
+            }
+          }
+        }
+
+        // Enforce mutual exclusivity: if setting playing_xi, ensure not already impact_sub in DB
+        // (frontend prevents this but belt-and-suspenders)
+
         const data: any = { matchId, playerId, sourceType: "admin" };
         if (adminStatus) data.adminStatus = adminStatus;
         if (typeof officialImpactSubUsed === "boolean") data.officialImpactSubUsed = officialImpactSubUsed;

@@ -1,0 +1,137 @@
+Act as a senior product-minded full-stack engineer.
+
+We have now code-verified the current admin workflow for Playing XI and Impact Players, and this confirms there is still a product/UX gap that must be fixed properly.
+
+CURRENT VERIFIED STATE
+1. Playing XI selection
+- Exists in a clean dedicated "Playing XI" admin section
+- Admin selects XI and saves successfully
+
+2. Impact player selection
+- Does NOT exist as a clean dedicated Impact Players flow
+- It is currently hidden inside:
+  Admin → match card → "Entries" button → Player Status panel
+- Admin must cycle each player through:
+  no status → XI → OUT → SUB → XI
+- To mark a fresh player as SUB, admin may need multiple taps
+- There is no clear Impact Players section
+- There is no 5-player validation
+- There is no live counter like SUB 3/5
+- Admin can accidentally mark any number as impact_sub
+
+3. Actual impact used
+- Done separately via ⚡ toggle in Player Status panel
+- This part is fine and should remain intact unless needed for consistency
+
+WHAT I NEED NOW
+I want you to implement a proper admin-side Impact Player management flow.
+
+TARGET BEHAVIOR
+For each match, admin workflow should be:
+
+Step 1:
+Select Playing XI for Team A and Team B
+
+Step 2:
+Select exactly 5 Impact Players for Team A and exactly 5 Impact Players for Team B
+
+Step 3:
+During the match, mark the actual impact substitute used via ⚡
+
+REQUIRED IMPROVEMENTS
+1. Add a clear Impact Players selection experience
+- Either in the same admin flow as Playing XI
+- Or as a clearly labeled dedicated section/tab/panel called "Impact Players"
+- Do NOT leave it hidden behind an unclear "Entries" action without proper labeling
+
+2. Enforce max 5 Impact players per team
+- Admin must not be able to mark a 6th impact_sub for the same team
+- This must be enforced in backend, not only frontend
+- Frontend should show a warning if admin tries
+
+3. Show live counters
+For each team, show:
+- XI: 11/11
+- SUB: 0/5, 1/5, 2/5 ... 5/5
+These counts must update live as admin selects
+
+4. Improve state selection UX
+Current cycle is poor:
+no status → XI → OUT → SUB → XI
+
+Replace this with a cleaner interaction.
+
+Preferred options:
+OPTION A (best):
+Separate action buttons/chips for each player:
+- XI
+- SUB
+- OUT
+
+OPTION B (acceptable):
+Simpler cycle order:
+no status → XI → SUB → OUT → no status
+
+But Option A is strongly preferred.
+
+5. Visual grouping
+Inside the Player Status / Impact selection experience, clearly separate players into sections:
+- PLAYING XI
+- IMPACT OPTIONS
+- OUT / REMAINING SQUAD
+
+6. Keep existing scoring safe
+- Do not break officialImpactSubUsed
+- Do not break resolveImpactSlot
+- Do not break frontend IN / IMPACT / OUT rendering already fixed
+
+NON-NEGOTIABLE RULES
+- Exactly 11 XI per team
+- Maximum 5 Impact players per team
+- A player cannot be both XI and SUB
+- OUT means neither XI nor SUB
+- Backend validation must reject invalid writes
+- UI labels must be obvious and admin-friendly
+
+TASKS
+1. Audit the best place in current admin UI to add this cleanly
+2. Implement the improved flow
+3. Add backend validation for max 5 impact_sub per team
+4. Add live team-wise counters
+5. Improve visual grouping / labeling
+6. Keep all existing downstream functionality working
+
+OUTPUT FORMAT I WANT
+A. Exact UX/design choice you implemented
+- where admin now selects Impact Players
+- why this is better
+
+B. Exact files changed
+- file paths
+- functions/components changed
+
+C. Backend validation added
+- how 5-per-team enforcement works
+- what happens on invalid attempt
+
+D. Frontend behavior
+- how XI is selected
+- how SUB is selected
+- how counts are shown
+- how groups are shown
+
+E. Scoring safety
+- confirm officialImpactSubUsed still works
+- confirm resolveImpactSlot logic remains safe
+
+F. Manual test cases completed
+- valid case
+- 6th impact player blocked
+- XI and SUB mutual exclusivity
+- UI counter updates
+- actual sub used still works
+
+IMPORTANT
+Do not give me a partial patch.
+Do not only tweak colors or labels.
+I need a proper admin workflow improvement that makes Impact Player selection obvious, safe, and hard to misuse.
