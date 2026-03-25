@@ -1,0 +1,99 @@
+Act as a senior full-stack engineer. I need a code-verified audit plus implementation for two separate items.
+
+========================================
+PART 1 — PRE-ANNOUNCEMENT PLAYER ORDER + POINTS DISPLAY
+========================================
+
+I want to verify the exact behavior of the player selection screen BEFORE the current match Playing XI / Impact is announced.
+
+Expected product logic I want checked:
+
+1. If current match XI / Impact is NOT yet set, the app should show at the top:
+   - players who were in the PREVIOUS match Playing XI
+   - then players who were Impact players in the PREVIOUS match
+   - then the remaining players who did not play the previous game
+
+2. I need to know what points are shown on each player card in the selection screen:
+   - total tournament points for that player?
+   - or points scored in the previous game only?
+
+Do a code-verified audit and answer exactly:
+
+A. Current exact behavior
+- When current match XI / Impact is not announced, how are players ordered today?
+- Does the app currently use previous-match Playing XI / Impact at all? YES / NO
+
+B. Exact data source
+- Which table / fields / API are used to compute the player list order before announcement?
+- If previous match logic exists, which previous match is used and how is it found?
+
+C. Points display
+- On the player selection page, what numeric points are shown for each player today?
+- Tournament cumulative points?
+- Previous match points?
+- Another field? Be precise.
+
+D. Exact file/component
+- Which file renders the player list order?
+- Which file renders the points text on the player card?
+
+E. If current behavior does NOT match the expected product logic, implement this:
+- Before current match XI / Impact is available:
+  1. previous match XI players first
+  2. previous match Impact players next
+  3. remaining players last
+- Also confirm whether the points shown should be:
+  - tournament total points
+  OR
+  - previous game points
+  If unclear in current product, state current behavior honestly and make no silent assumptions.
+
+F. Final verification
+- one real match example
+- show 5 sample players and why they appear in that order
+- show exactly what points value is displayed for them and where it comes from
+
+========================================
+PART 2 — EDIT WINNER PREDICTION BEFORE DEADLINE
+========================================
+
+Current issue:
+If the user has already selected a winner prediction (example: SRH), there is no option to change it.
+
+Required behavior:
+1. Show an edit icon/button in the Winner Predictions card when a prediction already exists.
+2. User can edit/change the winner prediction ONLY before the same fantasy deadline used for team lock.
+3. After the deadline passes, edit must be disabled/hidden and prediction becomes locked.
+4. Use the same deadline logic as fantasy team submission/editing. Do not create a separate timing rule.
+
+Implement and report:
+
+A. Exact UX change
+- where the edit icon appears
+- what happens when user taps it
+- how user re-selects the new winning team
+
+B. Deadline logic
+- exact function / condition used
+- confirm it is the same as fantasy lock deadline
+
+C. Exact files changed
+- frontend file(s)
+- backend route(s), if any
+
+D. Save/update behavior
+- if a prediction already exists, does this update the existing record or create a new one?
+- confirm no duplicate predictions for the same user + match
+
+E. Locked state
+- how it behaves after deadline
+- what the user sees
+
+F. Final verification
+- tested before deadline: prediction can be changed
+- tested after deadline: prediction cannot be changed
+
+IMPORTANT
+Do not give assumptions.
+Do a code-verified answer.
+If either part is not implemented today, implement it and then report exact files, logic, and test proof.

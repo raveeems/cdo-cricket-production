@@ -23,7 +23,7 @@ import { useTeams } from '@/contexts/TeamContext';
 import { getTimeUntilMatch, canEditTeam, getRoleColor, Match, Player, ContestTeam } from '@/lib/mock-data';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
-import { getApiUrl, queryClient } from '@/lib/query-client';
+import { getApiUrl, queryClient, apiRequest } from '@/lib/query-client';
 import { getMockMatchById } from '@/lib/dev-mock-matches';
 import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
@@ -103,6 +103,8 @@ export default function MatchDetailScreen() {
   const [repairResult, setRepairResult] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
+  const [editingPrediction, setEditingPrediction] = useState(false);
+  const [savingPrediction, setSavingPrediction] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [previewTeamId, setPreviewTeamId] = useState<string | null>(null);
 
@@ -346,6 +348,21 @@ export default function MatchDetailScreen() {
   const canEdit = canEditTeam(match.startTime, match.status, match.revisedStartTime, match.adminUnlockOverride);
   const canCreateMore = userTeams.length < 3;
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
+
+  const handleChangePrediction = async (team: string) => {
+    if (!canEdit || savingPrediction) return;
+    setSavingPrediction(true);
+    try {
+      const res = await apiRequest('POST', '/api/predictions', { matchId: id, predictedWinner: team });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        queryClient.invalidateQueries({ queryKey: ['/api/predictions', id] });
+        setEditingPrediction(false);
+      }
+    } finally {
+      setSavingPrediction(false);
+    }
+  };
 
   const handleRepairTeams = async () => {
     if (!match) return;
@@ -612,16 +629,66 @@ export default function MatchDetailScreen() {
           </View>
 
           {predictionsData.myPrediction ? (
-            <View style={[styles.myPredictionBadge, { backgroundColor: colors.accent + '15', borderColor: colors.accent + '40' }]}>
-              <Text style={[styles.myPredictionLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
-                Your pick:
-              </Text>
-              <View style={[styles.predictionPill, { backgroundColor: colors.accent + '25' }]}>
-                <Text style={[styles.predictionPillText, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
-                  {predictionsData.myPrediction.predictedWinner}
+            editingPrediction ? (
+              <View>
+                <Text style={[styles.myPredictionLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium', marginBottom: 8 }]}>
+                  Change your pick:
                 </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {[match.team1Short, match.team2Short].map((team) => (
+                    <Pressable
+                      key={team}
+                      onPress={() => handleChangePrediction(team)}
+                      disabled={savingPrediction}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 8,
+                        alignItems: 'center',
+                        backgroundColor: predictionsData.myPrediction?.predictedWinner === team
+                          ? colors.accent + '30'
+                          : colors.surfaceElevated,
+                        borderWidth: 1.5,
+                        borderColor: predictionsData.myPrediction?.predictedWinner === team
+                          ? colors.accent
+                          : colors.cardBorder,
+                        opacity: savingPrediction ? 0.6 : 1,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 15 }}>
+                        {team}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable
+                  onPress={() => setEditingPrediction(false)}
+                  style={{ marginTop: 8, alignSelf: 'center' }}
+                >
+                  <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_500Medium', fontSize: 13 }}>
+                    Cancel
+                  </Text>
+                </Pressable>
               </View>
-            </View>
+            ) : (
+              <View style={[styles.myPredictionBadge, { backgroundColor: colors.accent + '15', borderColor: colors.accent + '40' }]}>
+                <Text style={[styles.myPredictionLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>
+                  Your pick:
+                </Text>
+                <View style={[styles.predictionPill, { backgroundColor: colors.accent + '25' }]}>
+                  <Text style={[styles.predictionPillText, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>
+                    {predictionsData.myPrediction.predictedWinner}
+                  </Text>
+                </View>
+                {canEdit ? (
+                  <Pressable onPress={() => setEditingPrediction(true)} hitSlop={8} style={{ marginLeft: 6 }}>
+                    <Ionicons name="pencil" size={15} color={colors.textTertiary} />
+                  </Pressable>
+                ) : (
+                  <Ionicons name="lock-closed" size={13} color={colors.textTertiary} style={{ marginLeft: 6 }} />
+                )}
+              </View>
+            )
           ) : (
             <Text style={[styles.noPredictionText, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>
               No prediction yet - submit a team to predict
