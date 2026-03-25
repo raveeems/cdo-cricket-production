@@ -1,0 +1,72 @@
+Important correction to the product logic:
+
+External API squad release timing cannot be the dependency for pre-match admin setup.
+
+In our workflow, I must be able to manually manage the squad before the API releases official squad data. Even if the API only gives squad after first ball, the app must still let me do all of this pre-match:
+
+1. See the currently available squad for both teams from our DB
+2. Manually add any missing squad member/player for that specific match
+3. Select Playing XI from that available squad
+4. Select exactly 5 Impact players from the remaining non-XI players
+5. Later manually map API scorecard names to our selected players if needed
+
+So the Player Status / XI-Impact workflow must NOT depend on external API squad fetch.
+
+I need you to audit and implement the correct product behavior.
+
+TASKS
+
+1. Confirm what the current source of truth is for the Playing XI screen
+- Is it reading team squad from internal DB already?
+- If yes, use the same available squad source for Impact Player selection
+
+2. Fix the Player Status / XI-Impact panel so it loads the currently available squad from our internal DB/manual squad pool even when external API squad is unavailable.
+
+3. Add a manual “Add Player” flow inside admin for a match/team if a squad member is missing.
+- Required fields at minimum:
+  - player name
+  - team
+  - role
+  - optional teamShort / credits if needed
+- The added player must become immediately available in:
+  - Playing XI selection
+  - Impact Player selection
+
+4. Enforce the admin selection logic:
+- XI must be chosen from available squad
+- Impact players must be chosen only from remaining non-XI players
+- Exactly 5 impact players per team max
+- XI player cannot also be Impact
+
+5. Keep API Fetch Squad as optional helper only, not as required path.
+
+6. Give me a code-verified answer on the below:
+
+OUTPUT FORMAT
+
+A. Current source of truth
+- What data source currently feeds Playing XI selection?
+- What data source currently feeds Player Status / Impact selection?
+- Why are they different right now, if they are?
+
+B. Exact gap
+- Why can I select XI from available squad but not select Impact from the same available squad?
+
+C. Exact fix to implement
+- How Player Status will now load from internal/manual squad data
+- How manual Add Player will work
+- How newly added player appears immediately in XI and Impact flows
+
+D. Validation rules
+- XI = 11 max
+- Impact = 5 max from remaining non-XI players
+- No overlap between XI and Impact
+
+E. Exact files to change
+
+F. Proof after fix
+- Show one match where external API squad is unavailable but admin can still:
+  - see available squad
+  - add missing player manually
+  - select XI
+  - select 5 Impact players from remaining players

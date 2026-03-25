@@ -149,6 +149,13 @@ export default function AdminScreen() {
   const [settingWinnerId, setSettingWinnerId] = useState<string | null>(null);
   const [fetchingSquadMatchId, setFetchingSquadMatchId] = useState<string | null>(null);
   const [fetchSquadResult, setFetchSquadResult] = useState<Record<string, string>>({});
+  const [panelAddOpen, setPanelAddOpen] = useState<string | null>(null);
+  const [panelAddName, setPanelAddName] = useState('');
+  const [panelAddTeam, setPanelAddTeam] = useState('');
+  const [panelAddRole, setPanelAddRole] = useState('BAT');
+  const [panelAddCredits, setPanelAddCredits] = useState('8');
+  const [panelAdding, setPanelAdding] = useState(false);
+  const [panelAddMsg, setPanelAddMsg] = useState('');
 
   const [apiMatchesBrowse, setApiMatchesBrowse] = useState<any[]>([]);
   const [browsingApiMatches, setBrowsingApiMatches] = useState(false);
@@ -450,6 +457,38 @@ export default function AdminScreen() {
       if (s.adminStatus === 'impact_sub') sub++;
     });
     return { xi, sub };
+  };
+
+  const handleAddPlayerInPanel = async (matchId: string, match: MatchInfo) => {
+    if (!panelAddName.trim()) { setPanelAddMsg('Player name is required'); return; }
+    if (!panelAddTeam) { setPanelAddMsg('Select a team'); return; }
+    setPanelAdding(true);
+    setPanelAddMsg('');
+    const teamFull = panelAddTeam === match.team1Short ? match.team1 : match.team2;
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${matchId}/players`, {
+        players: [{
+          name: panelAddName.trim(),
+          team: teamFull,
+          teamShort: panelAddTeam,
+          role: panelAddRole,
+          credits: parseFloat(panelAddCredits) || 8,
+        }],
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setPanelAddMsg('❌ ' + (d.message || 'Failed to add player'));
+        return;
+      }
+      setPanelAddName('');
+      setPanelAddCredits('8');
+      setPanelAddMsg('✔ Player added — now select XI or SUB');
+      await refreshPlayerStatusData(matchId);
+    } catch (e: any) {
+      setPanelAddMsg('❌ ' + (e.message || 'Failed to add player'));
+    } finally {
+      setPanelAdding(false);
+    }
   };
 
   const fetchSquadForPlayerStatus = async (matchId: string) => {
@@ -1586,41 +1625,43 @@ export default function AdminScreen() {
                     </View>
 
                     {(!playerStatusData[m.id] || playerStatusData[m.id].players.length === 0) ? (
-                      <View style={{ alignItems: 'flex-start', gap: 8 }}>
-                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
-                          {loadingPlayerStatus === m.id
-                            ? 'Loading players...'
-                            : 'Squad not loaded for this match. Fetch squad first to mark XI and Impact Players.'}
-                        </Text>
-                        {loadingPlayerStatus !== m.id && (
-                          <Pressable
-                            onPress={() => fetchSquadForPlayerStatus(m.id)}
-                            disabled={fetchingSquadMatchId === m.id}
-                            style={{
-                              flexDirection: 'row', alignItems: 'center', gap: 6,
-                              paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
-                              backgroundColor: colors.primary + '15',
-                              borderWidth: 1, borderColor: colors.primary + '40',
-                              opacity: fetchingSquadMatchId === m.id ? 0.5 : 1,
-                            }}
-                          >
-                            {fetchingSquadMatchId === m.id
-                              ? <ActivityIndicator size="small" color={colors.primary} />
-                              : <Ionicons name="download-outline" size={14} color={colors.primary} />
-                            }
-                            <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>
-                              {fetchingSquadMatchId === m.id ? 'Fetching...' : 'Fetch Squad from API'}
+                      <View style={{ gap: 10 }}>
+                        {loadingPlayerStatus === m.id ? (
+                          <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>Loading players...</Text>
+                        ) : (
+                          <>
+                            <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                              No squad in DB yet. Add players manually below, or try fetching from the API.
                             </Text>
-                          </Pressable>
+                            {/* Fetch from API — optional */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Pressable
+                                onPress={() => fetchSquadForPlayerStatus(m.id)}
+                                disabled={fetchingSquadMatchId === m.id}
+                                style={{
+                                  flexDirection: 'row', alignItems: 'center', gap: 5,
+                                  paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7,
+                                  backgroundColor: colors.surfaceElevated,
+                                  borderWidth: 1, borderColor: colors.border,
+                                  opacity: fetchingSquadMatchId === m.id ? 0.5 : 1,
+                                }}
+                              >
+                                {fetchingSquadMatchId === m.id
+                                  ? <ActivityIndicator size="small" color={colors.primary} />
+                                  : <Ionicons name="download-outline" size={12} color={colors.textSecondary} />
+                                }
+                                <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_500Medium' as const }}>
+                                  {fetchingSquadMatchId === m.id ? 'Fetching...' : 'Fetch Squad from API'}
+                                </Text>
+                              </Pressable>
+                            </View>
+                            {fetchSquadResult[m.id] ? (
+                              <Text style={{ fontSize: 10, fontFamily: 'Inter_400Regular' as const, color: fetchSquadResult[m.id].startsWith('❌') ? colors.error : '#22C55E' }}>
+                                {fetchSquadResult[m.id]}
+                              </Text>
+                            ) : null}
+                          </>
                         )}
-                        {fetchSquadResult[m.id] ? (
-                          <Text style={{
-                            fontSize: 11, fontFamily: 'Inter_400Regular' as const,
-                            color: fetchSquadResult[m.id].startsWith('❌') ? colors.error : '#22C55E',
-                          }}>
-                            {fetchSquadResult[m.id]}
-                          </Text>
-                        ) : null}
                       </View>
                     ) : (
                       (['team1Short', 'team2Short'] as const).map(teamKey => {
@@ -1767,6 +1808,109 @@ export default function AdminScreen() {
                         );
                       })
                     )}
+
+                    {/* ── ADD MISSING PLAYER ── always visible at bottom of panel */}
+                    <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 10, paddingTop: 8 }}>
+                      <Pressable
+                        onPress={() => {
+                          if (panelAddOpen === m.id) {
+                            setPanelAddOpen(null);
+                            setPanelAddMsg('');
+                          } else {
+                            setPanelAddOpen(m.id);
+                            setPanelAddName('');
+                            setPanelAddTeam(m.team1Short);
+                            setPanelAddRole('BAT');
+                            setPanelAddCredits('8');
+                            setPanelAddMsg('');
+                          }
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+                      >
+                        <Ionicons name={panelAddOpen === m.id ? 'chevron-up' : 'add-circle-outline'} size={14} color={colors.primary} />
+                        <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>
+                          {panelAddOpen === m.id ? 'Cancel' : 'Add Missing Player'}
+                        </Text>
+                      </Pressable>
+
+                      {panelAddOpen === m.id && (
+                        <View style={{ marginTop: 8, gap: 6 }}>
+                          {/* Team selector */}
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {([m.team1Short, m.team2Short] as string[]).map(ts => (
+                              <Pressable
+                                key={ts}
+                                onPress={() => setPanelAddTeam(ts)}
+                                style={{
+                                  flex: 1, paddingVertical: 6, borderRadius: 7, alignItems: 'center',
+                                  backgroundColor: panelAddTeam === ts ? colors.primary : colors.surfaceElevated,
+                                  borderWidth: 1, borderColor: panelAddTeam === ts ? colors.primary : colors.border,
+                                }}
+                              >
+                                <Text style={{ color: panelAddTeam === ts ? '#FFF' : colors.textSecondary, fontSize: 12, fontFamily: 'Inter_700Bold' as const }}>
+                                  {ts}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                          {/* Role selector */}
+                          <View style={{ flexDirection: 'row', gap: 5 }}>
+                            {(['BAT', 'BOWL', 'AR', 'WK'] as const).map(r => (
+                              <Pressable
+                                key={r}
+                                onPress={() => setPanelAddRole(r)}
+                                style={{
+                                  flex: 1, paddingVertical: 5, borderRadius: 6, alignItems: 'center',
+                                  backgroundColor: panelAddRole === r ? colors.primary + '20' : colors.surfaceElevated,
+                                  borderWidth: 1, borderColor: panelAddRole === r ? colors.primary : colors.border,
+                                }}
+                              >
+                                <Text style={{ color: panelAddRole === r ? colors.primary : colors.textSecondary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>
+                                  {r}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                          {/* Name + Credits row */}
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
+                            <TextInput
+                              style={{ flex: 3, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 6, fontFamily: 'Inter_500Medium', fontSize: 12 }}
+                              placeholder="Player name"
+                              placeholderTextColor={colors.textTertiary}
+                              value={panelAddName}
+                              onChangeText={setPanelAddName}
+                            />
+                            <TextInput
+                              style={{ flex: 1, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 6, fontFamily: 'Inter_500Medium', fontSize: 12 }}
+                              placeholder="Cr"
+                              placeholderTextColor={colors.textTertiary}
+                              value={panelAddCredits}
+                              onChangeText={setPanelAddCredits}
+                              keyboardType="decimal-pad"
+                            />
+                          </View>
+                          {/* Submit */}
+                          <Pressable
+                            onPress={() => handleAddPlayerInPanel(m.id, m)}
+                            disabled={panelAdding}
+                            style={{
+                              backgroundColor: colors.primary, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                              opacity: panelAdding ? 0.6 : 1,
+                            }}
+                          >
+                            {panelAdding
+                              ? <ActivityIndicator size="small" color="#FFF" />
+                              : <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold' as const, fontSize: 12 }}>Add to Match</Text>
+                            }
+                          </Pressable>
+                          {panelAddMsg ? (
+                            <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular' as const, color: panelAddMsg.startsWith('✔') ? '#22C55E' : colors.error }}>
+                              {panelAddMsg}
+                            </Text>
+                          ) : null}
+                        </View>
+                      )}
+                    </View>
                   </View>
                 )}
               </View>
