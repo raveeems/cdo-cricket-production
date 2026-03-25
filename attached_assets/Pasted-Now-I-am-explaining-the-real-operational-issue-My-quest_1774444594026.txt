@@ -1,0 +1,46 @@
+Now I am explaining the real operational issue.
+
+My question is not about whether the frontend badge fix exists.
+
+My actual issue is this:
+
+As admin, I can select the Playing XI for both teams in the Playing XI screen.
+
+But after that, where exactly do I select the 5 Impact players for both teams?
+
+That is the critical workflow gap.
+
+If I do not explicitly select the 5 Impact players from admin, then how will the app know who the official impact players are for that match?
+
+I need a code-verified and UI-verified answer on the below:
+
+1. In the current admin workflow, what is the exact step-by-step process to do all of this for one match:
+   - select Playing XI for Team A
+   - select Playing XI for Team B
+   - select 5 Impact players for Team A
+   - select 5 Impact players for Team B
+   - mark actual impact substitute used later during the match
+
+2. Tell me the exact admin screen / tab / panel name for each step above.
+
+3. If impact players are selected in Player Status panel and not in Playing XI screen, explain exactly how admin is supposed to use it in practice.
+   - How do I identify remaining eligible players?
+   - How do I set exactly 5 per team?
+   - Is there any validation preventing more than 5 impact players per team?
+
+4. Confirm whether the current admin UI has a clean dedicated “Impact Players” selection flow or whether it is only done indirectly via Player Status cycling.
+
+5. If it is only done indirectly via Player Status cycling, I want that stated clearly because that is the source of confusion.
+
+6. Also answer this very clearly:
+   - Does the app currently enforce exactly 5 impact players per team from admin side?
+   - Or can admin accidentally mark any number of players as impact_sub?
+
+7. If there is no proper validation or dedicated flow, then this is still a product gap and needs to be fixed.
+
+Output format:
+A. Current exact admin workflow
+B. Exact screen/panel names
+C. Whether 5 impact players per team is enforced: YES / NO
+D. Whether current UX is proper or indirect/confusing
+E. What needs to be improved
