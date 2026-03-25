@@ -87,7 +87,8 @@ function PlayerItem({
   isDisabled: boolean;
 }) {
   const isInXI = player.isPlayingXI === true;
-  const xiIndicatorColor = isInXI ? '#22C55E' : '#EF4444';
+  const isImpact = player.isImpactPlayer === true && !isInXI;
+  const xiIndicatorColor = isInXI ? '#22C55E' : isImpact ? '#9333EA' : '#EF4444';
   const playerImg = getPlayerImage(player.externalId ?? player.id);
 
   return (
@@ -129,12 +130,9 @@ function PlayerItem({
             {showPlayingXI && (
               <View style={{ backgroundColor: xiIndicatorColor + '20', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, marginLeft: 4 }}>
                 <Text style={{ color: xiIndicatorColor, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>
-                  {isInXI ? 'IN' : 'OUT'}
+                  {isInXI ? 'IN' : isImpact ? 'IMPACT' : 'OUT'}
                 </Text>
               </View>
-            )}
-            {player.isImpactPlayer && (
-              <MaterialCommunityIcons name="lightning-bolt" size={12} color="#9333EA" />
             )}
           </View>
           <Text style={[styles.playerItemTeam, { color: getTeamTextColor(player.teamShort), fontFamily: 'Inter_600SemiBold' }]}>
@@ -187,7 +185,8 @@ function CompactPlayerItem({
   isDisabled: boolean;
 }) {
   const isInXI = player.isPlayingXI === true;
-  const xiIndicatorColor = isInXI ? '#22C55E' : '#EF4444';
+  const isImpact = player.isImpactPlayer === true && !isInXI;
+  const xiIndicatorColor = isInXI ? '#22C55E' : isImpact ? '#9333EA' : '#EF4444';
   const nameParts = player.name.split(' ');
   const displayName = nameParts.length > 1
     ? `${nameParts[0][0]}. ${nameParts.slice(1).join(' ')}`
@@ -234,12 +233,9 @@ function CompactPlayerItem({
             {showPlayingXI && (
               <View style={{ backgroundColor: xiIndicatorColor + '20', paddingHorizontal: 2, paddingVertical: 1, borderRadius: 3 }}>
                 <Text style={{ color: xiIndicatorColor, fontSize: 6, fontFamily: 'Inter_700Bold' as const }}>
-                  {isInXI ? 'IN' : 'OUT'}
+                  {isInXI ? 'IN' : isImpact ? 'IMPACT' : 'OUT'}
                 </Text>
               </View>
-            )}
-            {player.isImpactPlayer && (
-              <MaterialCommunityIcons name="lightning-bolt" size={8} color="#9333EA" />
             )}
           </View>
           <Text style={[styles.compactMeta, { color: colors.textTertiary }]} numberOfLines={1}>
@@ -506,9 +502,9 @@ export default function CreateTeamScreen() {
 
   const sortedPlayers = useMemo(() => {
     return [...allPlayers].sort((a, b) => {
-      const aIn = a.isPlayingXI === true ? 0 : 1;
-      const bIn = b.isPlayingXI === true ? 0 : 1;
-      if (aIn !== bIn) return aIn - bIn;
+      const aRank = a.isPlayingXI === true ? 0 : a.isImpactPlayer === true ? 1 : 2;
+      const bRank = b.isPlayingXI === true ? 0 : b.isImpactPlayer === true ? 1 : 2;
+      if (aRank !== bRank) return aRank - bRank;
       return b.credits - a.credits;
     });
   }, [allPlayers]);
@@ -519,7 +515,7 @@ export default function CreateTeamScreen() {
   }, [sortedPlayers, filter]);
 
   const hasPlayingXIData = useMemo(() => {
-    return allPlayers.some((p) => p.isPlayingXI !== undefined && p.isPlayingXI !== null);
+    return allPlayers.some((p) => p.isPlayingXI === true || p.isImpactPlayer === true);
   }, [allPlayers]);
 
   const selectedPlayers = useMemo(() => {

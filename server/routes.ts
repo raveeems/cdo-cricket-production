@@ -3251,6 +3251,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (playerIds && Array.isArray(playerIds)) {
           await storage.bulkSetAdminStatus(matchId, playerIds, adminStatus);
+          if (adminStatus) {
+            for (const pid of playerIds) {
+              await storage.updatePlayer(pid, {
+                isPlayingXI: adminStatus === "playing_xi",
+                isImpactPlayer: adminStatus === "impact_sub",
+              });
+            }
+          }
           await storage.createAuditLog({
             adminUserId: req.session.userId!,
             actionType: "bulk_set_player_status",
@@ -3270,6 +3278,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (typeof officialImpactSubUsed === "boolean") data.officialImpactSubUsed = officialImpactSubUsed;
 
         const status = await storage.upsertMatchPlayerStatus(data);
+
+        if (adminStatus) {
+          await storage.updatePlayer(playerId, {
+            isPlayingXI: adminStatus === "playing_xi",
+            isImpactPlayer: adminStatus === "impact_sub",
+          });
+        }
+
         await storage.createAuditLog({
           adminUserId: req.session.userId!,
           actionType: officialImpactSubUsed !== undefined ? "set_impact_sub" : "set_player_status",
