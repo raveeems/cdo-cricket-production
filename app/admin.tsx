@@ -74,6 +74,7 @@ export default function AdminScreen() {
   const [matchPlayers, setMatchPlayers] = useState<PlayerInfo[]>([]);
   const [xiPlayerIds, setXiPlayerIds] = useState<Set<string>>(new Set());
   const [impactPlayerIds, setImpactPlayerIds] = useState<Set<string>>(new Set());
+  const [teamMode, setTeamMode] = useState<Record<string, 'xi' | 'impact'>>({});
   const [loadingPlayers, setLoadingPlayers] = useState(false);
   const [savingXI, setSavingXI] = useState(false);
   const [xiMessage, setXiMessage] = useState('');
@@ -803,6 +804,10 @@ export default function AdminScreen() {
         setXiPlayerIds(existingXI);
         setImpactPlayerIds(existingImpact);
       }
+      const m2 = matches.find(x => x.id === matchId);
+      if (m2) {
+        setTeamMode({ [m2.team1Short]: 'xi', [m2.team2Short]: 'xi' });
+      }
     } catch (e) {
       console.error('Failed to load players:', e);
     } finally {
@@ -855,6 +860,15 @@ export default function AdminScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setXiPlayerIds(prev => { const next = new Set(prev); next.delete(playerId); return next; });
     setImpactPlayerIds(prev => { const next = new Set(prev); next.delete(playerId); return next; });
+  };
+
+  const tapPlayer = (playerId: string, teamShort: string) => {
+    const mode = teamMode[teamShort] ?? 'xi';
+    if (mode === 'xi') {
+      setPlayerXI(playerId, teamShort);
+    } else {
+      setPlayerImpact(playerId, teamShort);
+    }
   };
 
   const saveXIAndImpact = async () => {
@@ -2323,6 +2337,7 @@ export default function AdminScreen() {
                 ].map(({ label, players: teamPlayers, teamNum }) => {
                   const teamXI = teamPlayers.filter(p => xiPlayerIds.has(p.id)).length;
                   const teamImpact = teamPlayers.filter(p => impactPlayerIds.has(p.id)).length;
+                  const mode = teamMode[label] ?? 'xi';
                   // Sort: XI first, Impact second, remaining last
                   const sorted = [...teamPlayers].sort((a, b) => {
                     const aRank = xiPlayerIds.has(a.id) ? 0 : impactPlayerIds.has(a.id) ? 1 : 2;
@@ -2330,37 +2345,26 @@ export default function AdminScreen() {
                     return aRank - bRank;
                   });
                   return (
-                    <View key={teamNum} style={{ marginTop: teamNum === 1 ? 12 : 16 }}>
-                      <View style={styles.xiTeamHeaderRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 14 }}>
-                            {label}
-                          </Text>
-                          <View style={[styles.xiTeamCount, {
-                            backgroundColor: teamXI === 11 ? '#22C55E' : teamXI > 11 ? '#EF4444' : colors.primary,
-                          }]}>
-                            <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold' as const, fontSize: 11 }}>
-                              XI {teamXI}/11
-                            </Text>
-                          </View>
-                          <View style={{ backgroundColor: teamImpact >= 5 ? '#9333EA' : '#9333EA30', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
-                            <Text style={{ color: teamImpact >= 5 ? '#FFF' : '#9333EA', fontFamily: 'Inter_700Bold' as const, fontSize: 11 }}>
-                              ⚡ {teamImpact}/5
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <View key={teamNum} style={{ marginTop: teamNum === 1 ? 12 : 20 }}>
+                      {/* Team header row */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 16 }}>
+                          {label}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                          {/* Last XI */}
                           <Pressable
                             onPress={() => loadPreviousXI(label)}
                             disabled={loadingPrevXI}
-                            style={[styles.xiQuickBtn, { backgroundColor: colors.primary + '15' }]}
+                            style={[styles.xiQuickBtn, { backgroundColor: colors.surfaceElevated }]}
                           >
                             {loadingPrevXI
                               ? <ActivityIndicator size="small" color={colors.primary} />
-                              : <Ionicons name="clipboard-outline" size={13} color={colors.primary} />
+                              : <Ionicons name="clipboard-outline" size={13} color={colors.textSecondary} />
                             }
-                            <Text style={{ color: colors.primary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>Last XI</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>Last XI</Text>
                           </Pressable>
+                          {/* Clear */}
                           <Pressable
                             onPress={() => {
                               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -2375,48 +2379,90 @@ export default function AdminScreen() {
                         </View>
                       </View>
 
+                      {/* ── MODE PILLS ── large tap targets to switch selection mode */}
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                        <Pressable
+                          onPress={() => setTeamMode(prev => ({ ...prev, [label]: 'xi' }))}
+                          style={{
+                            flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            paddingVertical: 12, borderRadius: 12,
+                            backgroundColor: mode === 'xi' ? '#22C55E' : colors.surfaceElevated,
+                            borderWidth: 2, borderColor: mode === 'xi' ? '#22C55E' : colors.border,
+                          }}
+                        >
+                          <Ionicons name="people" size={18} color={mode === 'xi' ? '#FFF' : '#22C55E'} />
+                          <Text style={{ color: mode === 'xi' ? '#FFF' : '#22C55E', fontFamily: 'Inter_700Bold' as const, fontSize: 15 }}>
+                            XI {teamXI}/11
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => setTeamMode(prev => ({ ...prev, [label]: 'impact' }))}
+                          style={{
+                            flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            paddingVertical: 12, borderRadius: 12,
+                            backgroundColor: mode === 'impact' ? '#9333EA' : colors.surfaceElevated,
+                            borderWidth: 2, borderColor: mode === 'impact' ? '#9333EA' : colors.border,
+                          }}
+                        >
+                          <Text style={{ color: mode === 'impact' ? '#FFF' : '#9333EA', fontSize: 18 }}>⚡</Text>
+                          <Text style={{ color: mode === 'impact' ? '#FFF' : '#9333EA', fontFamily: 'Inter_700Bold' as const, fontSize: 15 }}>
+                            IMPACT {teamImpact}/5
+                          </Text>
+                        </Pressable>
+                      </View>
+
+                      {/* Mode hint */}
+                      <Text style={{ color: mode === 'xi' ? '#22C55E' : '#9333EA', fontFamily: 'Inter_500Medium' as const, fontSize: 11, marginBottom: 8, textAlign: 'center' }}>
+                        {mode === 'xi'
+                          ? `Tap players to select XI — ${11 - teamXI > 0 ? `${11 - teamXI} more needed` : 'XI complete ✔'}`
+                          : `Tap non-XI players to select Impact — ${5 - teamImpact > 0 ? `${5 - teamImpact} more needed` : 'Impact complete ✔'}`
+                        }
+                      </Text>
+
+                      {/* Player chip grid */}
                       <View style={styles.xiChipGrid}>
                         {sorted.map(p => {
                           const isXI = xiPlayerIds.has(p.id);
                           const isImpact = impactPlayerIds.has(p.id);
+                          const isNone = !isXI && !isImpact;
                           const chipWidth = Platform.OS === 'web' ? '23%' : '31%';
-                          const chipBg = isXI ? '#22C55E' : isImpact ? '#9333EA15' : colors.card;
+                          // In impact mode, XI players appear dimmed and untappable
+                          const dimmed = mode === 'impact' && isXI;
+                          const chipBg = isXI ? '#22C55E' : isImpact ? '#9333EA' : colors.card;
                           const chipBorder = isXI ? '#22C55E' : isImpact ? '#9333EA' : colors.cardBorder;
                           return (
                             <View key={p.id} style={{ position: 'relative', width: chipWidth }}>
-                              <View style={[styles.xiChip, { backgroundColor: chipBg, borderColor: chipBorder, borderWidth: isImpact ? 2 : 1, paddingBottom: 4 }]}>
-                                <Text style={{ color: isXI ? '#FFFFFFCC' : isImpact ? '#9333EA' : colors.textSecondary, fontSize: 9, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.3 }}>
+                              <Pressable
+                                onPress={() => tapPlayer(p.id, label)}
+                                disabled={dimmed}
+                                style={[
+                                  styles.xiChip,
+                                  {
+                                    backgroundColor: chipBg,
+                                    borderColor: chipBorder,
+                                    borderWidth: (isXI || isImpact) ? 2 : 1,
+                                    opacity: dimmed ? 0.35 : 1,
+                                  },
+                                ]}
+                              >
+                                <Text style={{ color: (isXI || isImpact) ? '#FFFFFF99' : colors.textSecondary, fontSize: 9, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.3 }}>
                                   {p.role}
                                 </Text>
-                                <Text style={{ color: isXI ? '#FFF' : colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>
+                                <Text style={{ color: (isXI || isImpact) ? '#FFF' : colors.text, fontSize: 13, fontFamily: 'Inter_700Bold' as const }} numberOfLines={1}>
                                   {p.name.split(' ').pop()}
                                 </Text>
-                                <Text style={{ color: isXI ? '#FFFFFF80' : colors.textTertiary, fontSize: 9, fontFamily: 'Inter_400Regular' as const }} numberOfLines={1}>
+                                <Text style={{ color: (isXI || isImpact) ? '#FFFFFF70' : colors.textTertiary, fontSize: 9, fontFamily: 'Inter_400Regular' as const }} numberOfLines={1}>
                                   {p.name.split(' ').slice(0, -1).join(' ').substring(0, 12) || p.name}
                                 </Text>
-                                {/* Three-state action buttons */}
-                                <View style={{ flexDirection: 'row', gap: 2, marginTop: 5 }}>
-                                  <Pressable
-                                    onPress={() => setPlayerXI(p.id, label)}
-                                    style={{ flex: 1, backgroundColor: isXI ? '#16A34A' : '#22C55E20', borderRadius: 4, paddingVertical: 3, alignItems: 'center' }}
-                                  >
-                                    <Text style={{ color: isXI ? '#FFF' : '#22C55E', fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>XI</Text>
-                                  </Pressable>
-                                  <Pressable
-                                    onPress={() => setPlayerImpact(p.id, label)}
-                                    disabled={isXI}
-                                    style={{ flex: 1, backgroundColor: isImpact ? '#9333EA' : '#9333EA20', borderRadius: 4, paddingVertical: 3, alignItems: 'center', opacity: isXI ? 0.3 : 1 }}
-                                  >
-                                    <Text style={{ color: isImpact ? '#FFF' : '#9333EA', fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>⚡</Text>
-                                  </Pressable>
-                                  <Pressable
-                                    onPress={() => clearPlayerStatus(p.id)}
-                                    style={{ flex: 1, backgroundColor: (!isXI && !isImpact) ? colors.border : '#EF444420', borderRadius: 4, paddingVertical: 3, alignItems: 'center' }}
-                                  >
-                                    <Text style={{ color: (!isXI && !isImpact) ? colors.textTertiary : '#EF4444', fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>✕</Text>
-                                  </Pressable>
-                                </View>
-                              </View>
+                                {/* Status label inside card */}
+                                {(isXI || isImpact) && (
+                                  <View style={{ marginTop: 4, backgroundColor: isXI ? '#16A34A' : '#7C3AED', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, alignSelf: 'center' }}>
+                                    <Text style={{ color: '#FFF', fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>
+                                      {isXI ? 'XI' : '⚡ IMP'}
+                                    </Text>
+                                  </View>
+                                )}
+                              </Pressable>
                               <Pressable
                                 onPress={() => handleDeletePlayer(p.id, p.name)}
                                 style={{ position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', zIndex: 10 }}

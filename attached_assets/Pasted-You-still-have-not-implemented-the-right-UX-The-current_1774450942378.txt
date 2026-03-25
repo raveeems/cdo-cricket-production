@@ -1,0 +1,70 @@
+You still have not implemented the right UX.
+
+The current XI / Impact controls inside each player card are far too small. They are smaller than a fingertip and not usable in a real toss-time workflow.
+
+My requirement is very clear:
+
+I want to do everything in the SAME Playing XI screen, but not with tiny per-player buttons.
+
+I want this flow:
+
+1. On the same Playing XI screen, I first tap the pill/button for "XI mode"
+2. Then I tap players to select the Playing XI
+3. After XI is done, I tap the pill/button for "Impact mode"
+4. Then I tap players from the REMAINING non-XI players to select the 5 Impact players
+5. Same screen, no other panel, no tiny buttons
+
+THIS IS THE REQUIRED UX
+
+For each team section, implement:
+
+- A clear large mode switch / pills at the top:
+  [XI MODE]   [IMPACT MODE]
+
+Behavior:
+- If XI mode is active:
+  - tapping a player card toggles XI on/off
+  - selected XI players show green
+  - max 11 per team
+- If Impact mode is active:
+  - tapping a player card toggles Impact on/off
+  - only remaining non-XI players can be selected
+  - selected Impact players show purple
+  - max 5 per team
+- XI player must not be selectable in Impact mode
+- Clear counters always visible:
+  - XI 0/11
+  - Impact 0/5
+
+IMPORTANT:
+- Remove or stop relying on the tiny per-player XI / ⚡ / ✕ buttons
+- Player cards themselves should be the tap targets
+- Tap target must be large enough for fast manual admin usage during the 20 minutes after toss
+- This is a speed-and-usability requirement, not a cosmetic preference
+
+Preferred visual behavior:
+- Active team mode is clearly highlighted
+- Card tap selects status based on current mode
+- Already selected XI players remain green
+- Already selected Impact players remain purple
+- Remaining players stay default
+- Optional Clear button can remain at team level
+
+VALIDATION RULES
+- XI max 11 per team
+- Impact max 5 per team
+- Impact only from remaining non-XI players
+- Same-screen save flow remains
+
+OUTPUT FORMAT
+A. Exact UX change you will implement
+B. Exact files/components to change
+C. How tap behavior works in XI mode
+D. How tap behavior works in Impact mode
+E. How you will prevent XI/Impact overlap
+F. Proof after implementation with screenshot or exact code-verified report
+
+IMPORTANT
+Do not give me another tiny button-based solution.
+The player card itself must become the large tap target, controlled by XI mode vs Impact mode.
+That is the correct match-day workflow.
