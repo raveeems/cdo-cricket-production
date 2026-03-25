@@ -287,7 +287,7 @@ export default function AdminScreen() {
     setDeleting(true);
     setDeleteResult('');
     try {
-      const res = await apiRequest('DELETE', `/api/admin/matches/${matchId}?force=true`);
+      const res = await apiRequest('DELETE', `/api/admin/matches/${matchId}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.message || `Server error ${res.status}`);

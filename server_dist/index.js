@@ -3742,7 +3742,7 @@ async function registerRoutes(app2) {
         const forceDelete = req.query.force === "true";
         const teams = await storage.getAllTeamsForMatch(matchId);
         if (teams.length > 0 && !forceDelete) {
-          return res.status(400).json({ message: `Cannot delete match with ${teams.length} existing teams. Use force=true to override.` });
+          return res.status(400).json({ message: `Cannot delete this match \u2014 ${teams.length} user team${teams.length === 1 ? "" : "s"} exist. Please use Void Match instead.` });
         }
         if (teams.length > 0 && forceDelete) {
           for (const team of teams) {
