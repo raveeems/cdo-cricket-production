@@ -1,0 +1,87 @@
+Act as a senior product-minded full-stack engineer.
+
+Please understand the requirement correctly. This is a very basic admin workflow requirement and it must be implemented exactly as described.
+
+CORE REQUIREMENT
+After toss, I have only around 20 minutes before match start.
+
+So in the SAME screen where I select the Playing XI, I must also be able to immediately select the 5 Impact players from the remaining players.
+
+I do NOT want to:
+- go to another screen
+- open a separate Player Status panel elsewhere
+- depend on API squad release
+- fetch squad from API before I can continue
+
+The complete pre-match admin workflow must happen in ONE place.
+
+REQUIRED SAME-SCREEN FLOW
+For each match, on the Playing XI screen itself:
+
+1. Show the available squad for Team A and Team B from our internal/manual squad data
+2. Let admin select exactly 11 Playing XI for Team A
+3. Let admin select exactly 11 Playing XI for Team B
+4. After / while selecting XI, let admin also select exactly 5 Impact players for each team from the REMAINING non-XI players only
+5. A player selected in XI must not be selectable as Impact
+6. No need to navigate anywhere else to finish this
+
+UI REQUIREMENTS
+Inside the same Playing XI page for the selected match:
+
+- Keep current team-wise squad display
+- Add a clear selection mode or controls for each player:
+  - XI
+  - IMPACT
+  - NONE / OUT
+
+Preferred UX:
+- one-tap chips/buttons on each player card:
+  [XI] [IMPACT] [CLEAR]
+Not cycling through hidden states.
+
+LIVE RULES
+- XI counter per team: 0/11 to 11/11
+- Impact counter per team: 0/5 to 5/5
+- IMPACT can only be chosen from remaining non-XI players
+- If player is XI, disable IMPACT for that player
+- If player is IMPACT, disable XI only if it would break remaining logic, or switching to XI should remove IMPACT automatically
+- Max 11 XI per team
+- Max 5 Impact per team
+
+VISUAL GROUPING IN SAME SCREEN
+As selections happen, the same screen should clearly separate:
+- PLAYING XI
+- IMPACT PLAYERS
+- REMAINING SQUAD
+
+Or, if keeping one grid, then player cards must clearly show current state:
+- XI = green
+- IMPACT = purple
+- NONE/OUT = default/red as appropriate
+
+IMPORTANT PRODUCT RULE
+This must use our internal/manual squad pool already available for the match.
+External API squad release is optional and cannot be a dependency for pre-match setup.
+
+If a player is missing, admin can add manually — but after that, the same Playing XI screen must immediately support XI and Impact selection for that player too.
+
+TASKS
+1. Modify the existing Playing XI screen itself to support Impact player selection
+2. Remove the need to go to separate Player Status flow for pre-match XI/Impact setup
+3. Enforce all validation in backend too
+4. Keep actual in-match impact-used (⚡) logic separate if needed, but pre-match XI + Impact setup must be in one place
+
+OUTPUT FORMAT I WANT
+A. Exact UX you will implement in the same Playing XI screen
+B. Exact files to change
+C. Exact validation rules
+D. How XI and Impact selection will work together in one screen
+E. How manual added players will appear immediately in this same flow
+F. Manual test cases you completed
+
+IMPORTANT
+Do not give me a workaround.
+Do not suggest another panel.
+Do not keep XI and Impact selection in two different places.
+
+I want both actions in the SAME Playing XI screen because that is the real match-day admin workflow.
