@@ -570,14 +570,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // The display cap below limits this to the next 5, so this won't flood the feed.
       const isIPLPreview = m.status === "upcoming" && isIPLLeague(m.league || "") && !!m.externalId;
 
-      const isFromApi = !!m.externalId;
-      const isApiIPLMatch = isFromApi && isIPLLeague(m.league || "");
-      const isManuallyCreated = !isFromApi;
-
-      // Home feed: only show IPL matches (from API) or manually admin-created matches.
-      // Upcoming non-IPL API matches (PSL, ICC, etc.) are excluded entirely.
-      const included = isLive || (m.status === "delayed") || isIPLPreview ||
-        (isUpcoming && (isApiIPLMatch || isManuallyCreated));
+      // Home feed: show all upcoming (within 7d), live, delayed, and IPL preview matches.
+      // Admin controls what's in the DB — everything in DB is intentional.
+      const included = isUpcoming || isLive || (m.status === "delayed") || isIPLPreview;
 
       if (included) {
         matchesWithParticipants.push({ match: m, participantCount });
