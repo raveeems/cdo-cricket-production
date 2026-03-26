@@ -1,0 +1,154 @@
+Act as a senior full-stack engineer working on my fantasy cricket app.
+
+I need to manually add replacement players who are not coming from the API squad feed.
+
+Important:
+I have already renamed the player images using the API-style player IDs themselves.
+So image mapping should happen by exact player ID match.
+
+I want these players added to their respective teams and made fully available across the app.
+
+PLAYERS TO ADD
+
+1.
+playerId: 9f2db0cf-2b7a-4722-9134-211f612102b9
+playerName: Dasun Shanaka
+team: Rajasthan Royals
+teamShort: RR
+role: Bowling Allrounder
+battingStyle: Right Handed Bat
+bowlingStyle: Right-arm fast-medium
+
+2.
+playerId: fbde22e3-60f9-4f4c-b26a-fad73644cbee
+playerName: Saurabh Dubey
+team: Kolkata Knight Riders
+teamShort: KKR
+role: Bowler
+battingStyle: Right Handed Bat
+bowlingStyle: Left-arm fast-medium
+
+3.
+playerId: 50e38c9d-bf39-44b8-b5e6-0c9f36b8cbdf
+playerName: Blessing Muzarabani
+team: Kolkata Knight Riders
+teamShort: KKR
+role: Bowler
+battingStyle: Right Handed Bat
+bowlingStyle: Right-arm fast-medium
+
+4.
+playerId: 7cb23ef6-2cd5-4aeb-9047-a5054d220f98
+playerName: David Payne
+team: Sunrisers Hyderabad
+teamShort: SRH
+role: Bowler
+battingStyle: Right Handed Bat
+bowlingStyle: Left-arm fast-medium
+
+5.
+playerId: 0284af4f-d4eb-4894-bacc-a468c1020951
+playerName: Spencer Johnson 
+team: Chennai Super Kings
+teamShort: CSK
+role: Bowler
+battingStyle: Right Handed Bat
+bowlingStyle: Left-arm fast-medium
+
+6.
+playerId: 80193c8f-687d-47c3-a7e9-b098a83c7812
+playerName: Navdeep Saini
+team: Kolkata Knight Riders
+teamShort: KKR
+role: Bowler
+battingStyle: Right Handed Bat
+bowlingStyle: Right-arm fast-medium
+
+7.
+playerId: 3df5944d-dcc5-41fd-aec1-060b4c513536
+playerName: Kulwant Khejroliya
+team: Gujarat Titans
+teamShort: GT
+role: Bowler
+battingStyle: Left Handed Bat
+bowlingStyle: Left-arm fast-medium
+
+REQUIREMENT
+
+I want these players added as manual replacement players and fully usable in the app.
+
+They must appear in:
+1. squad / player selection for the respective team
+2. Playing XI admin screen
+3. Impact player selection
+4. user create-team player list
+5. any player image rendering that uses player ID image mapping
+
+IMAGE MAPPING RULE
+
+- Images are already renamed using the playerId exactly
+- Example expected image filename logic:
+  <playerId>.png or <playerId>.jpg or whatever current app image convention uses
+- The app must resolve the replacement player image using exact playerId match
+- Do not depend on player name matching for images
+
+TASKS
+
+1. Audit current player storage and image lookup flow
+- identify where player master / match player rows are created
+- identify where images are resolved
+- identify whether playerId-based image mapping already exists
+
+2. Add these 7 players safely
+- either to the correct player master source
+- or to the manual squad layer already used for missing players / replacements
+- choose the safest approach based on current architecture
+
+3. Ensure no duplicate creation
+- if a player with the same playerId already exists, update instead of duplicating
+- playerId must be treated as the unique key
+
+4. Ensure these players can be attached to the correct team squad
+- RR, KKR, SRH, CSK, GT respectively
+
+5. Ensure they are selectable in match-day flows
+- XI
+- Impact
+- create-team
+
+6. Ensure images render correctly by playerId
+
+OUTPUT FORMAT I WANT
+
+A. Current architecture
+- where players are stored
+- where team squad comes from
+- how images are resolved today
+
+B. Exact implementation choice
+- where you inserted these replacement players
+- why that is the safest place
+
+C. Exact files changed
+- list file paths
+- list functions changed
+
+D. Data handling
+- how duplicates are prevented
+- how playerId is enforced as unique
+
+E. Image handling
+- exact image path / lookup logic
+- confirm these new players will render images by playerId
+
+F. Verification
+- show all 7 players added successfully
+- show each mapped to the correct team
+- show that they appear in squad / XI / Impact / create-team flows
+- show that image lookup works
+
+IMPORTANT
+Do not give me a generic answer.
+Do a code-verified implementation.
+Do not rely on name matching for images.
+Use playerId as the source of truth.

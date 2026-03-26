@@ -269,6 +269,15 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   'de19a93e-06df-4597-9186-7a53c1613552': require('../assets/images/players/de19a93e-06df-4597-9186-7a53c1613552.jpeg'),
   '6d4e7d4a-4fae-4958-bc15-a063c09508eb': require('../assets/images/players/6d4e7d4a-4fae-4958-bc15-a063c09508eb.jpeg'),
   // Other teams — append here
+
+  // Replacement players — IPL 2026 (manually added, keyed by exact playerId)
+  '9f2db0cf-2b7a-4722-9134-211f612102b9': require('../assets/images/players/9f2db0cf-2b7a-4722-9134-211f612102b9.png'),  // Dasun Shanaka — RR
+  'fbde22e3-60f9-4f4c-b26a-fad73644cbee': require('../assets/images/players/fbde22e3-60f9-4f4c-b26a-fad73644cbee.png'),  // Saurabh Dubey — KKR
+  '50e38c9d-bf39-44b8-b5e6-0c9f36b8cbdf': require('../assets/images/players/50e38c9d-bf39-44b8-b5e6-0c9f36b8cbdf.png'),  // Blessing Muzarabani — KKR
+  '7cb23ef6-2cd5-4aeb-9047-a5054d220f98': require('../assets/images/players/7cb23ef6-2cd5-4aeb-9047-a5054d220f98.png'),  // David Payne — SRH
+  '0284af4f-d4eb-4894-bacc-a468c1020951': require('../assets/images/players/0284af4f-d4eb-4894-bacc-a468c1020951.png'),  // Spencer Johnson — CSK
+  '80193c8f-687d-47c3-a7e9-b098a83c7812': require('../assets/images/players/80193c8f-687d-47c3-a7e9-b098a83c7812.png'),  // Navdeep Saini — KKR
+  '3df5944d-dcc5-41fd-aec1-060b4c513536': require('../assets/images/players/3df5944d-dcc5-41fd-aec1-060b4c513536.png'),  // Kulwant Khejroliya — GT
 };
 
 export function getPlayerImage(playerId?: string | null): ImageSourcePropType | null {

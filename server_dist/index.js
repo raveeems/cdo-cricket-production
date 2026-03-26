@@ -5304,6 +5304,52 @@ async function registerRoutes(app2) {
       }
     }
   );
+  const REPLACEMENT_PLAYERS = [
+    { externalId: "9f2db0cf-2b7a-4722-9134-211f612102b9", name: "Dasun Shanaka", team: "Rajasthan Royals", teamShort: "RR", role: "AR", credits: 8.5 },
+    { externalId: "fbde22e3-60f9-4f4c-b26a-fad73644cbee", name: "Saurabh Dubey", team: "Kolkata Knight Riders", teamShort: "KKR", role: "BOWL", credits: 8 },
+    { externalId: "50e38c9d-bf39-44b8-b5e6-0c9f36b8cbdf", name: "Blessing Muzarabani", team: "Kolkata Knight Riders", teamShort: "KKR", role: "BOWL", credits: 8 },
+    { externalId: "7cb23ef6-2cd5-4aeb-9047-a5054d220f98", name: "David Payne", team: "Sunrisers Hyderabad", teamShort: "SRH", role: "BOWL", credits: 8 },
+    { externalId: "0284af4f-d4eb-4894-bacc-a468c1020951", name: "Spencer Johnson", team: "Chennai Super Kings", teamShort: "CSK", role: "BOWL", credits: 8 },
+    { externalId: "80193c8f-687d-47c3-a7e9-b098a83c7812", name: "Navdeep Saini", team: "Kolkata Knight Riders", teamShort: "KKR", role: "BOWL", credits: 8 },
+    { externalId: "3df5944d-dcc5-41fd-aec1-060b4c513536", name: "Kulwant Khejroliya", team: "Gujarat Titans", teamShort: "GT", role: "BOWL", credits: 8 }
+  ];
+  async function seedReplacementPlayers() {
+    try {
+      const allMatches = await storage.getAllMatches();
+      const activeMatches = allMatches.filter(
+        (m) => m.status === "upcoming" || m.status === "live"
+      );
+      for (const player of REPLACEMENT_PLAYERS) {
+        const relevantMatches = activeMatches.filter(
+          (m) => m.team1Short === player.teamShort || m.team2Short === player.teamShort
+        );
+        for (const match of relevantMatches) {
+          await storage.upsertPlayersForMatch(match.id, [{
+            matchId: match.id,
+            externalId: player.externalId,
+            name: player.name,
+            team: player.team,
+            teamShort: player.teamShort,
+            role: player.role,
+            credits: player.credits
+          }]);
+        }
+      }
+      console.log(`[ReplacementPlayers] Seeded ${REPLACEMENT_PLAYERS.length} players into ${activeMatches.length} active matches`);
+    } catch (err) {
+      console.error("[ReplacementPlayers] Seed error:", err);
+    }
+  }
+  seedReplacementPlayers();
+  app2.post(
+    "/api/admin/seed-replacement-players",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      await seedReplacementPlayers();
+      return res.json({ message: "Replacement players seeded into all active matches" });
+    }
+  );
   const httpServer = createServer(app2);
   return httpServer;
 }
