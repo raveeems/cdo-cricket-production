@@ -1065,8 +1065,41 @@ function setupErrorHandler(app: express.Application) {
               try {
                 await storage.updateMatch(match.id, { firstScorecardAt: new Date() } as any);
                 log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
+                // Auto-mark Playing XI from first scorecard (players appearing now are the original XI)
+                const allMatchPlayers = await storage.getPlayersForMatch(match.id);
+                let autoXiCount = 0;
+                for (const player of allMatchPlayers) {
+                  if (!player.externalId) continue;
+                  if (pointsMap.has(player.externalId) && !player.isPlayingXI) {
+                    await storage.updatePlayer(player.id, { isPlayingXI: true });
+                    autoXiCount++;
+                  }
+                }
+                if (autoXiCount > 0) {
+                  log(`[Heartbeat:Impact] Auto-marked ${autoXiCount} players as Playing XI from first scorecard for ${matchLabel}`);
+                }
               } catch (fse) {
                 console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
+              }
+            } else if (pointsMap.size > 0 && (match as any).firstScorecardAt) {
+              // Auto-detect impact substitutes on subsequent scorecards:
+              // A player appearing in the scorecard who was NOT in the original XI is an impact sub
+              try {
+                const allMatchPlayers = await storage.getPlayersForMatch(match.id);
+                for (const player of allMatchPlayers) {
+                  if (!player.externalId || player.isPlayingXI || player.isImpactPlayer) continue;
+                  if (pointsMap.has(player.externalId)) {
+                    log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
+                    await storage.updatePlayer(player.id, { isImpactPlayer: true });
+                    await storage.upsertMatchPlayerStatus({
+                      matchId: match.id,
+                      playerId: player.id,
+                      officialImpactSubUsed: true,
+                    });
+                  }
+                }
+              } catch (impactErr) {
+                console.error(`[Heartbeat:Impact] Auto-detection failed for ${matchLabel}:`, impactErr);
               }
             }
 
