@@ -2741,6 +2741,33 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("[playerPoints] fetch error:", err);
       }
+      try {
+        const matchForNorm = await storage.getMatch(matchId);
+        if (matchForNorm) {
+          const t1s = matchForNorm.team1Short ?? "";
+          const t2s = matchForNorm.team2Short ?? "";
+          const t1f = (matchForNorm.team1 ?? "").toLowerCase();
+          const t2f = (matchForNorm.team2 ?? "").toLowerCase();
+          matchPlayers = matchPlayers.map((p) => {
+            if (p.teamShort === t1s || p.teamShort === t2s) return p;
+            const ps = (p.teamShort ?? "").toLowerCase();
+            const pt = (p.team ?? "").toLowerCase();
+            if (pt.length > 2 && t1f.length > 2 && (pt === t1f || t1f.includes(pt) || pt.includes(t1f))) {
+              return { ...p, teamShort: t1s };
+            }
+            if (pt.length > 2 && t2f.length > 2 && (pt === t2f || t2f.includes(pt) || pt.includes(t2f))) {
+              return { ...p, teamShort: t2s };
+            }
+            const t1sl = t1s.toLowerCase();
+            const t2sl = t2s.toLowerCase();
+            if (ps.endsWith(t1sl) || t1sl.endsWith(ps)) return { ...p, teamShort: t1s };
+            if (ps.endsWith(t2sl) || t2sl.endsWith(ps)) return { ...p, teamShort: t2s };
+            return p;
+          });
+        }
+      } catch (normErr) {
+        console.error("[teamShort normalization] error:", normErr);
+      }
       const augmentedPlayers = matchPlayers.map((p) => ({
         ...p,
         lastMatchPoints: playerPointsMap[p.id]?.lastMatchPoints ?? null,

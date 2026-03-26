@@ -787,6 +787,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("[playerPoints] fetch error:", err);
       }
 
+      // Normalize player.teamShort to the canonical match short codes.
+      // Players created via API may carry different short codes than those stored
+      // on the match (e.g. player.teamShort='HHK' while match.team2Short='HK').
+      // This causes the ALL-tab grouping (exact string equality) to show 0 players
+      // for one team.  We fix it here so every downstream consumer gets clean data.
+      try {
+        const matchForNorm = await storage.getMatch(matchId);
+        if (matchForNorm) {
+          const t1s = matchForNorm.team1Short ?? '';
+          const t2s = matchForNorm.team2Short ?? '';
+          const t1f = (matchForNorm.team1 ?? '').toLowerCase();
+          const t2f = (matchForNorm.team2 ?? '').toLowerCase();
+
+          matchPlayers = matchPlayers.map((p) => {
+            if (p.teamShort === t1s || p.teamShort === t2s) return p; // already canonical
+            const ps = (p.teamShort ?? '').toLowerCase();
+            const pt = (p.team ?? '').toLowerCase();
+
+            // Signal 1: full team name (most reliable — API short codes can vary)
+            if (pt.length > 2 && t1f.length > 2 && (pt === t1f || t1f.includes(pt) || pt.includes(t1f))) {
+              return { ...p, teamShort: t1s };
+            }
+            if (pt.length > 2 && t2f.length > 2 && (pt === t2f || t2f.includes(pt) || pt.includes(t2f))) {
+              return { ...p, teamShort: t2s };
+            }
+            // Signal 2: short code — one ends with the other (e.g. HHK ↔ HK, INA ↔ IN)
+            const t1sl = t1s.toLowerCase();
+            const t2sl = t2s.toLowerCase();
+            if (ps.endsWith(t1sl) || t1sl.endsWith(ps)) return { ...p, teamShort: t1s };
+            if (ps.endsWith(t2sl) || t2sl.endsWith(ps)) return { ...p, teamShort: t2s };
+
+            return p; // no normalization found — keep as-is
+          });
+        }
+      } catch (normErr) {
+        console.error("[teamShort normalization] error:", normErr);
+        // non-fatal — continue with un-normalized players
+      }
+
       const augmentedPlayers = matchPlayers.map((p) => ({
         ...p,
         lastMatchPoints: playerPointsMap[p.id]?.lastMatchPoints ?? null,
