@@ -278,6 +278,7 @@ const PLAYER_IMAGES: Record<string, ImageSourcePropType> = {
   '0284af4f-d4eb-4894-bacc-a468c1020951': require('../assets/images/players/0284af4f-d4eb-4894-bacc-a468c1020951.png'),  // Spencer Johnson — CSK
   '80193c8f-687d-47c3-a7e9-b098a83c7812': require('../assets/images/players/80193c8f-687d-47c3-a7e9-b098a83c7812.png'),  // Navdeep Saini — KKR
   '3df5944d-dcc5-41fd-aec1-060b4c513536': require('../assets/images/players/3df5944d-dcc5-41fd-aec1-060b4c513536.png'),  // Kulwant Khejroliya — GT
+  '9e6fa482-3ad3-4831-b05d-4fed2510cdf5': require('../assets/images/players/9e6fa482-3ad3-4831-b05d-4fed2510cdf5.jpeg'), // Glenn Phillips — GT
 };
 
 export function getPlayerImage(playerId?: string | null): ImageSourcePropType | null {
