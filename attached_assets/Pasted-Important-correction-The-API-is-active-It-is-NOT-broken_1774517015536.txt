@@ -1,0 +1,67 @@
+Important correction:
+
+The API is active. It is NOT broken.
+
+So the previous explanation that I need to manually bulk-import squads because the API is unavailable is not acceptable.
+
+That means there is a real bug in our squad fetch / sync / attach flow.
+
+Current observed issue:
+- PBKS vs GT create-team shows only 1 GT replacement player
+- PBKS shows 0
+- So the normal squad is not getting attached to the match even though API is active
+
+I need a code-verified diagnosis based on the assumption that the API is active.
+
+Please answer exactly:
+
+A. Exact fetch path
+For PBKS vs GT, when the app tries to load or sync squad, what exact flow is executed?
+Show the exact chain:
+- route/function called
+- external API endpoint called
+- response received
+- DB insert/upsert function called
+
+B. Exact IDs used
+For this match, show:
+- internal match id
+- external match id
+- series id
+- team1/team2 names and shorts
+I want to verify the squad fetch is being called with the correct identifiers.
+
+C. External API truth
+For this exact match/team context, run the real squad fetch and show:
+- whether API returns squad data
+- how many players it returns
+- 5 sample players from each team
+Do not tell me “subscription invalid” unless you show the exact live response again right now.
+
+D. DB import truth
+If the API is returning players, explain why they are not ending up in:
+players WHERE match_id = '82d4f9f8-dcbd-424c-b48f-f9c0047b4335'
+
+E. Compare working vs broken case
+CSK vs RCB had full squad rows.
+PBKS vs GT does not.
+Compare the two exact code paths and explain what differs.
+
+F. Fix required
+If API is active, I want the proper fix:
+- fetch squad from API
+- upsert into match player rows
+- make full squad visible in create-team / Playing XI / Impact
+- keep replacement players merged without duplicates
+
+G. Verification
+After the fix, show:
+- PBKS player count
+- GT player count
+- Kulwant still present
+- create-team now shows both teams correctly
+
+IMPORTANT
+Do not fall back to telling me to manually paste squads.
+The API is active.
+So diagnose why the automated squad population is failing.
