@@ -96,6 +96,10 @@ async function isAdmin(req: Request, res: Response, next: Function) {
 const LIVE_CACHE_TTL_MS = 45_000;
 const liveScorecardCache = new Map<string, { data: any; fetchedAt: number }>();
 const liveScoreCache = new Map<string, { data: any; fetchedAt: number }>();
+// Tracks matches where the squad API returned 0 results (e.g. subscription limit).
+// Back off 1 hour before retrying so a busy create-team page doesn't spam the API.
+const squadFetchBackoff = new Map<string, number>();
+const SQUAD_BACKOFF_MS = 60 * 60 * 1000;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const PgStore = connectPgSimple(session);
@@ -635,7 +639,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const matchId = req.params.id;
       let matchPlayers = await storage.getPlayersForMatch(matchId);
 
-      if (matchPlayers.length === 0) {
+      // Auto-fetch squad when fewer than 15 players exist (covers: empty match AND matches where
+      // only replacement players have been seeded — not just the strict === 0 case).
+      const SQUAD_MIN = 15;
+      const backoffUntil = squadFetchBackoff.get(matchId) ?? 0;
+      const squadFetchAllowed = matchPlayers.length < SQUAD_MIN && Date.now() > backoffUntil;
+      if (squadFetchAllowed) {
         const match = await storage.getMatch(matchId);
         if (match?.externalId) {
           try {
@@ -671,9 +680,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await storage.upsertPlayersForMatch(matchId, playersToCreate);
               matchPlayers = await storage.getPlayersForMatch(matchId);
               console.log(`Auto-fetched ${matchPlayers.length} players for match ${matchId}`);
+              squadFetchBackoff.delete(matchId); // success — clear backoff
+            } else {
+              // API returned 0 — back off to avoid hammering an unavailable endpoint
+              squadFetchBackoff.set(matchId, Date.now() + SQUAD_BACKOFF_MS);
+              console.log(`[SquadFetch] 0 players returned for match ${matchId} — backing off 1h`);
             }
           } catch (err) {
             console.error("Auto-fetch squad error:", err);
+            squadFetchBackoff.set(matchId, Date.now() + SQUAD_BACKOFF_MS);
           }
         }
       }
@@ -3734,8 +3749,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // ---- ADMIN: Force-sync squad for a specific match from the cricket API ----
+  app.post(
+    '/api/admin/matches/:id/sync-squad',
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      const matchId = req.params.id;
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: 'Match not found' });
+      if (!match.externalId) return res.status(400).json({ message: 'Match has no externalId — cannot sync from API' });
+      try {
+        const { fetchMatchSquad, fetchSeriesSquad } = await import('./cricket-api');
+        let squad = await fetchMatchSquad(match.externalId);
+        let squadSource = 'match_squad';
+        if (squad.length === 0 && match.seriesId) {
+          const seriesPlayers = await fetchSeriesSquad(match.seriesId);
+          const t1 = match.team1.toLowerCase();
+          const t2 = match.team2.toLowerCase();
+          squad = seriesPlayers.filter((p) => {
+            const pt = p.team.toLowerCase();
+            return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
+          });
+          squadSource = 'series_squad';
+        }
+        if (squad.length === 0) {
+          return res.status(502).json({ message: `API returned 0 players for this match (tried ${squadSource})` });
+        }
+        await storage.upsertPlayersForMatch(matchId, squad.map((p) => ({
+          matchId, externalId: p.externalId, name: p.name, team: p.team,
+          teamShort: p.teamShort, role: p.role, credits: p.credits,
+        })));
+        const updated = await storage.getPlayersForMatch(matchId);
+        return res.json({ message: `Synced ${updated.length} players for ${match.team1} vs ${match.team2} via ${squadSource}` });
+      } catch (err: any) {
+        console.error('[sync-squad] error:', err);
+        return res.status(500).json({ message: 'Squad sync failed', error: err.message });
+      }
+    }
+  );
+
+  // ---- STARTUP: sync squads for all upcoming/live matches with < 15 players ----
+  // Runs outside the 48h heartbeat window so freshly-added matches are populated immediately.
+  async function syncMissingSquads(): Promise<void> {
+    const SQUAD_MIN = 15;
+    try {
+      const allMatches = await storage.getAllMatches();
+      const candidates = allMatches.filter((m: any) =>
+        (m.status === 'upcoming' || m.status === 'live') && m.externalId
+      );
+      const { fetchMatchSquad, fetchSeriesSquad } = await import('./cricket-api');
+      for (const match of candidates) {
+        const existing = await storage.getPlayersForMatch(match.id);
+        if (existing.length >= SQUAD_MIN) continue;
+        try {
+          let squad = await fetchMatchSquad(match.externalId!);
+          let squadSource = 'match_squad';
+          if (squad.length === 0 && match.seriesId) {
+            const seriesPlayers = await fetchSeriesSquad(match.seriesId);
+            const t1 = match.team1.toLowerCase();
+            const t2 = match.team2.toLowerCase();
+            squad = seriesPlayers.filter((p: any) => {
+              const pt = p.team.toLowerCase();
+              return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
+            });
+            squadSource = 'series_squad';
+          }
+          if (squad.length > 0) {
+            await storage.upsertPlayersForMatch(match.id, squad.map((p: any) => ({
+              matchId: match.id, externalId: p.externalId, name: p.name, team: p.team,
+              teamShort: p.teamShort, role: p.role, credits: p.credits,
+            })));
+            console.log(`[SquadSync] ${match.team1Short} vs ${match.team2Short}: upserted ${squad.length} players via ${squadSource}`);
+          } else {
+            console.log(`[SquadSync] ${match.team1Short} vs ${match.team2Short}: API returned 0 players — will retry later`);
+          }
+        } catch (err) {
+          console.error(`[SquadSync] Error for ${match.team1Short} vs ${match.team2Short}:`, err);
+        }
+      }
+    } catch (err) {
+      console.error('[SquadSync] Startup sync error:', err);
+    }
+  }
+
   // Auto-seed on startup (idempotent — upsert deduplicates by externalId or name+teamShort)
   seedReplacementPlayers();
+  // NOTE: syncMissingSquads() is NOT called at startup — the current API subscription does not
+  // include match_squad / series_squad endpoints ("Subscription invalid").  Squad data must be
+  // added manually via POST /api/admin/matches/:id/players, or triggered via
+  // POST /api/admin/matches/:id/sync-squad after a subscription upgrade.
 
   // Admin endpoint — call this after new matches are added to the schedule
   app.post(

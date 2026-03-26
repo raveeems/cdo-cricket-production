@@ -102,6 +102,10 @@ export default function AdminScreen() {
   const [addPlayerMsg, setAddPlayerMsg] = useState('');
   const [addingPlayer, setAddingPlayer] = useState(false);
 
+  const [bulkJson, setBulkJson] = useState('');
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkImportMsg, setBulkImportMsg] = useState('');
+
   const [rewardsAvailable, setRewardsAvailable] = useState<any[]>([]);
   const [rewardsClaimed, setRewardsClaimed] = useState<any[]>([]);
   const [loadingRewards, setLoadingRewards] = useState(false);
@@ -732,6 +736,54 @@ export default function AdminScreen() {
       setAddPlayerMsg('Failed: ' + (e.message || 'Unknown error'));
     } finally {
       setAddingPlayer(false);
+    }
+  };
+
+  const handleBulkImport = async () => {
+    if (!selectedMatchId || !selectedMatch) return;
+    setBulkImportMsg('');
+    let parsed: any[];
+    try {
+      parsed = JSON.parse(bulkJson.trim());
+      if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Must be a non-empty JSON array');
+    } catch (e: any) {
+      setBulkImportMsg('❌ Invalid JSON: ' + e.message);
+      return;
+    }
+    const players = parsed.map((p: any) => {
+      const team: string = p.team || '';
+      const teamShort: string = p.teamShort ||
+        (team === selectedMatch.team1 ? selectedMatch.team1Short :
+          team === selectedMatch.team2 ? selectedMatch.team2Short :
+            team.substring(0, 3).toUpperCase());
+      return {
+        name: String(p.name || '').trim(),
+        apiName: p.apiName ? String(p.apiName).trim() : undefined,
+        externalId: p.externalId ? String(p.externalId).trim() : undefined,
+        team: team.trim(),
+        teamShort,
+        role: p.role || 'BAT',
+        credits: parseFloat(p.credits) || 8,
+      };
+    }).filter(p => p.name && p.team);
+    if (players.length === 0) {
+      setBulkImportMsg('❌ No valid players found (name + team required)');
+      return;
+    }
+    setBulkImporting(true);
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/players`, { players });
+      const data = await res.json();
+      setBulkImportMsg(`✓ ${data.message || 'Imported'} (${players.length} players)`);
+      setBulkJson('');
+      const refetchRes = await apiRequest('GET', `/api/matches/${selectedMatchId}/players`);
+      const refetchData = await refetchRes.json();
+      const fresh = (refetchData.players || []) as PlayerInfo[];
+      setMatchPlayers(fresh);
+    } catch (e: any) {
+      setBulkImportMsg('❌ Failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setBulkImporting(false);
     }
   };
 
@@ -2622,6 +2674,73 @@ export default function AdminScreen() {
                   }]}>
                     <Ionicons name={addPlayerMsg.startsWith('Failed') || addPlayerMsg.startsWith('❌') ? 'alert-circle' : 'checkmark-circle'} size={13} color={addPlayerMsg.startsWith('Failed') || addPlayerMsg.startsWith('❌') ? colors.error : '#22C55E'} />
                     <Text style={[styles.feedbackPillText, { color: addPlayerMsg.startsWith('Failed') || addPlayerMsg.startsWith('❌') ? colors.error : '#22C55E' }]}>{addPlayerMsg}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {selectedMatchId && selectedMatch && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
+                Bulk Import Squad — {selectedMatch.team1Short} v {selectedMatch.team2Short}
+              </Text>
+              <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+                Paste a JSON array to import an entire squad in one shot. Each item needs at least{' '}
+                <Text style={{ fontFamily: 'Inter_700Bold' }}>name</Text> and{' '}
+                <Text style={{ fontFamily: 'Inter_700Bold' }}>team</Text>. Optional: role, credits, apiName, externalId.
+              </Text>
+              <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                <Text style={[styles.formFieldLabel, { color: colors.textTertiary }]}>JSON — example format</Text>
+                <TextInput
+                  style={[styles.addPlayerInput, {
+                    backgroundColor: colors.surfaceElevated,
+                    color: colors.text,
+                    borderColor: colors.border,
+                    fontFamily: 'Inter_400Regular',
+                    fontSize: 12,
+                    minHeight: 140,
+                    textAlignVertical: 'top',
+                    paddingTop: 10,
+                  }]}
+                  value={bulkJson}
+                  onChangeText={setBulkJson}
+                  multiline
+                  placeholder={`[\n  {"name":"Shikhar Dhawan","team":"${selectedMatch.team1}","role":"BAT","credits":9},\n  {"name":"Sai Sudharsan","team":"${selectedMatch.team2}","role":"BAT","credits":8.5}\n]`}
+                  placeholderTextColor={colors.textTertiary}
+                />
+                <Text style={[{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11, marginBottom: 10 }]}>
+                  Valid roles: BAT · WK · AR · BOWL
+                </Text>
+                <Pressable
+                  onPress={handleBulkImport}
+                  disabled={bulkImporting || !bulkJson.trim()}
+                  style={{
+                    height: 44, borderRadius: 12,
+                    backgroundColor: colors.primary,
+                    justifyContent: 'center', alignItems: 'center', flexDirection: 'row',
+                    opacity: (bulkImporting || !bulkJson.trim()) ? 0.5 : 1,
+                  }}
+                >
+                  {bulkImporting ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload" size={18} color="#FFF" />
+                      <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 14, marginLeft: 8 }}>
+                        Import Squad
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+                {bulkImportMsg !== '' && (
+                  <View style={[styles.feedbackPill, {
+                    backgroundColor: bulkImportMsg.startsWith('❌') ? colors.error + '12' : '#22C55E15',
+                    borderColor: bulkImportMsg.startsWith('❌') ? colors.error + '40' : '#22C55E40',
+                    marginTop: 8,
+                  }]}>
+                    <Ionicons name={bulkImportMsg.startsWith('❌') ? 'alert-circle' : 'checkmark-circle'} size={13} color={bulkImportMsg.startsWith('❌') ? colors.error : '#22C55E'} />
+                    <Text style={[styles.feedbackPillText, { color: bulkImportMsg.startsWith('❌') ? colors.error : '#22C55E' }]}>{bulkImportMsg}</Text>
                   </View>
                 )}
               </View>

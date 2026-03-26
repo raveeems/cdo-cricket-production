@@ -2176,6 +2176,8 @@ async function isAdmin(req, res, next) {
 var LIVE_CACHE_TTL_MS = 45e3;
 var liveScorecardCache = /* @__PURE__ */ new Map();
 var liveScoreCache = /* @__PURE__ */ new Map();
+var squadFetchBackoff = /* @__PURE__ */ new Map();
+var SQUAD_BACKOFF_MS = 60 * 60 * 1e3;
 async function registerRoutes(app2) {
   const PgStore = connectPgSimple(session);
   const dbUrl = process.env.DATABASE_URL || "";
@@ -2623,7 +2625,10 @@ async function registerRoutes(app2) {
     async (req, res) => {
       const matchId = req.params.id;
       let matchPlayers = await storage.getPlayersForMatch(matchId);
-      if (matchPlayers.length === 0) {
+      const SQUAD_MIN = 15;
+      const backoffUntil = squadFetchBackoff.get(matchId) ?? 0;
+      const squadFetchAllowed = matchPlayers.length < SQUAD_MIN && Date.now() > backoffUntil;
+      if (squadFetchAllowed) {
         const match = await storage.getMatch(matchId);
         if (match?.externalId) {
           try {
@@ -2655,9 +2660,14 @@ async function registerRoutes(app2) {
               await storage.upsertPlayersForMatch(matchId, playersToCreate);
               matchPlayers = await storage.getPlayersForMatch(matchId);
               console.log(`Auto-fetched ${matchPlayers.length} players for match ${matchId}`);
+              squadFetchBackoff.delete(matchId);
+            } else {
+              squadFetchBackoff.set(matchId, Date.now() + SQUAD_BACKOFF_MS);
+              console.log(`[SquadFetch] 0 players returned for match ${matchId} \u2014 backing off 1h`);
             }
           } catch (err) {
             console.error("Auto-fetch squad error:", err);
+            squadFetchBackoff.set(matchId, Date.now() + SQUAD_BACKOFF_MS);
           }
         }
       }
@@ -5338,6 +5348,95 @@ async function registerRoutes(app2) {
       console.log(`[ReplacementPlayers] Seeded ${REPLACEMENT_PLAYERS.length} players into ${activeMatches.length} active matches`);
     } catch (err) {
       console.error("[ReplacementPlayers] Seed error:", err);
+    }
+  }
+  app2.post(
+    "/api/admin/matches/:id/sync-squad",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      const matchId = req.params.id;
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      if (!match.externalId) return res.status(400).json({ message: "Match has no externalId \u2014 cannot sync from API" });
+      try {
+        const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+        let squad = await fetchMatchSquad2(match.externalId);
+        let squadSource = "match_squad";
+        if (squad.length === 0 && match.seriesId) {
+          const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
+          const t1 = match.team1.toLowerCase();
+          const t2 = match.team2.toLowerCase();
+          squad = seriesPlayers.filter((p) => {
+            const pt = p.team.toLowerCase();
+            return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
+          });
+          squadSource = "series_squad";
+        }
+        if (squad.length === 0) {
+          return res.status(502).json({ message: `API returned 0 players for this match (tried ${squadSource})` });
+        }
+        await storage.upsertPlayersForMatch(matchId, squad.map((p) => ({
+          matchId,
+          externalId: p.externalId,
+          name: p.name,
+          team: p.team,
+          teamShort: p.teamShort,
+          role: p.role,
+          credits: p.credits
+        })));
+        const updated = await storage.getPlayersForMatch(matchId);
+        return res.json({ message: `Synced ${updated.length} players for ${match.team1} vs ${match.team2} via ${squadSource}` });
+      } catch (err) {
+        console.error("[sync-squad] error:", err);
+        return res.status(500).json({ message: "Squad sync failed", error: err.message });
+      }
+    }
+  );
+  async function syncMissingSquads() {
+    const SQUAD_MIN = 15;
+    try {
+      const allMatches = await storage.getAllMatches();
+      const candidates = allMatches.filter(
+        (m) => (m.status === "upcoming" || m.status === "live") && m.externalId
+      );
+      const { fetchMatchSquad: fetchMatchSquad2, fetchSeriesSquad: fetchSeriesSquad2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+      for (const match of candidates) {
+        const existing = await storage.getPlayersForMatch(match.id);
+        if (existing.length >= SQUAD_MIN) continue;
+        try {
+          let squad = await fetchMatchSquad2(match.externalId);
+          let squadSource = "match_squad";
+          if (squad.length === 0 && match.seriesId) {
+            const seriesPlayers = await fetchSeriesSquad2(match.seriesId);
+            const t1 = match.team1.toLowerCase();
+            const t2 = match.team2.toLowerCase();
+            squad = seriesPlayers.filter((p) => {
+              const pt = p.team.toLowerCase();
+              return pt === t1 || pt === t2 || pt.includes(t1) || t1.includes(pt) || pt.includes(t2) || t2.includes(pt);
+            });
+            squadSource = "series_squad";
+          }
+          if (squad.length > 0) {
+            await storage.upsertPlayersForMatch(match.id, squad.map((p) => ({
+              matchId: match.id,
+              externalId: p.externalId,
+              name: p.name,
+              team: p.team,
+              teamShort: p.teamShort,
+              role: p.role,
+              credits: p.credits
+            })));
+            console.log(`[SquadSync] ${match.team1Short} vs ${match.team2Short}: upserted ${squad.length} players via ${squadSource}`);
+          } else {
+            console.log(`[SquadSync] ${match.team1Short} vs ${match.team2Short}: API returned 0 players \u2014 will retry later`);
+          }
+        } catch (err) {
+          console.error(`[SquadSync] Error for ${match.team1Short} vs ${match.team2Short}:`, err);
+        }
+      }
+    } catch (err) {
+      console.error("[SquadSync] Startup sync error:", err);
     }
   }
   seedReplacementPlayers();
