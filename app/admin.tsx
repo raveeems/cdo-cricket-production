@@ -105,6 +105,7 @@ export default function AdminScreen() {
   const [bulkJson, setBulkJson] = useState('');
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkImportMsg, setBulkImportMsg] = useState('');
+  const [bulkImportCounts, setBulkImportCounts] = useState<{ byTeam: Record<string, number>; total: number } | null>(null);
 
   const [rewardsAvailable, setRewardsAvailable] = useState<any[]>([]);
   const [rewardsClaimed, setRewardsClaimed] = useState<any[]>([]);
@@ -771,10 +772,14 @@ export default function AdminScreen() {
       return;
     }
     setBulkImporting(true);
+    setBulkImportCounts(null);
     try {
       const res = await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/players`, { players });
       const data = await res.json();
-      setBulkImportMsg(`✓ ${data.message || 'Imported'} (${players.length} players)`);
+      const byTeam: Record<string, number> = data.byTeam || {};
+      const total: number = data.totalPlayers ?? players.length;
+      setBulkImportCounts({ byTeam, total });
+      setBulkImportMsg('✓ Import complete');
       setBulkJson('');
       const refetchRes = await apiRequest('GET', `/api/matches/${selectedMatchId}/players`);
       const refetchData = await refetchRes.json();
@@ -782,6 +787,7 @@ export default function AdminScreen() {
       setMatchPlayers(fresh);
     } catch (e: any) {
       setBulkImportMsg('❌ Failed: ' + (e.message || 'Unknown error'));
+      setBulkImportCounts(null);
     } finally {
       setBulkImporting(false);
     }
@@ -2733,14 +2739,48 @@ export default function AdminScreen() {
                     </>
                   )}
                 </Pressable>
-                {bulkImportMsg !== '' && (
+
+                {bulkImportMsg.startsWith('❌') && (
                   <View style={[styles.feedbackPill, {
-                    backgroundColor: bulkImportMsg.startsWith('❌') ? colors.error + '12' : '#22C55E15',
-                    borderColor: bulkImportMsg.startsWith('❌') ? colors.error + '40' : '#22C55E40',
+                    backgroundColor: colors.error + '12',
+                    borderColor: colors.error + '40',
                     marginTop: 8,
                   }]}>
-                    <Ionicons name={bulkImportMsg.startsWith('❌') ? 'alert-circle' : 'checkmark-circle'} size={13} color={bulkImportMsg.startsWith('❌') ? colors.error : '#22C55E'} />
-                    <Text style={[styles.feedbackPillText, { color: bulkImportMsg.startsWith('❌') ? colors.error : '#22C55E' }]}>{bulkImportMsg}</Text>
+                    <Ionicons name="alert-circle" size={13} color={colors.error} />
+                    <Text style={[styles.feedbackPillText, { color: colors.error }]}>{bulkImportMsg}</Text>
+                  </View>
+                )}
+
+                {bulkImportCounts && !bulkImportMsg.startsWith('❌') && (
+                  <View style={{
+                    marginTop: 12,
+                    padding: 14,
+                    borderRadius: 12,
+                    backgroundColor: '#22C55E10',
+                    borderWidth: 1,
+                    borderColor: '#22C55E40',
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                      <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+                      <Text style={{ color: '#22C55E', fontFamily: 'Inter_700Bold', fontSize: 13, marginLeft: 6 }}>
+                        Import complete — {bulkImportCounts.total} players in DB
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {Object.entries(bulkImportCounts.byTeam).map(([teamShort, count]) => (
+                        <View key={teamShort} style={{
+                          flex: 1, alignItems: 'center', paddingVertical: 8,
+                          borderRadius: 10, backgroundColor: colors.surfaceElevated,
+                          borderWidth: 1, borderColor: colors.border,
+                        }}>
+                          <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 18 }}>{count}</Text>
+                          <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 11, marginTop: 2 }}>{teamShort}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 8 }}>
+                      Duplicates were skipped. Replacement players are included in the counts above.
+                    </Text>
                   </View>
                 )}
               </View>

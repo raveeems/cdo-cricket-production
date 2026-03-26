@@ -2083,8 +2083,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
 
-        const playersToCreate = playerList.map((p: any) => ({
+        const playersToUpsert = playerList.map((p: any) => ({
           matchId,
+          externalId: p.externalId || undefined,
           name: p.name,
           apiName: p.apiName || null,
           team: p.team,
@@ -2097,10 +2098,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isImpactPlayer: p.isImpactPlayer || false,
         }));
 
-        await storage.bulkCreatePlayers(playersToCreate);
+        // Use upsert so re-running the same import never creates duplicate rows.
+        // Deduplication is by externalId first, then name+teamShort (case-insensitive).
+        await storage.upsertPlayersForMatch(matchId, playersToUpsert);
+
+        // Return team-wise counts from the live DB after upsert
+        const allAfter = await storage.getPlayersForMatch(matchId);
+        const byTeam: Record<string, number> = {};
+        for (const p of allAfter) { byTeam[p.teamShort] = (byTeam[p.teamShort] ?? 0) + 1; }
 
         return res.json({
-          message: `Added ${playersToCreate.length} players`,
+          message: `Upserted ${playersToUpsert.length} players`,
+          totalPlayers: allAfter.length,
+          byTeam,
         });
       } catch (err: any) {
         console.error("Add players error:", err);

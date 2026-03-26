@@ -3871,8 +3871,9 @@ async function registerRoutes(app2) {
         const matchId = req.params.id;
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
-        const playersToCreate = playerList.map((p) => ({
+        const playersToUpsert = playerList.map((p) => ({
           matchId,
+          externalId: p.externalId || void 0,
           name: p.name,
           apiName: p.apiName || null,
           team: p.team,
@@ -3884,9 +3885,16 @@ async function registerRoutes(app2) {
           recentForm: p.recentForm || [],
           isImpactPlayer: p.isImpactPlayer || false
         }));
-        await storage.bulkCreatePlayers(playersToCreate);
+        await storage.upsertPlayersForMatch(matchId, playersToUpsert);
+        const allAfter = await storage.getPlayersForMatch(matchId);
+        const byTeam = {};
+        for (const p of allAfter) {
+          byTeam[p.teamShort] = (byTeam[p.teamShort] ?? 0) + 1;
+        }
         return res.json({
-          message: `Added ${playersToCreate.length} players`
+          message: `Upserted ${playersToUpsert.length} players`,
+          totalPlayers: allAfter.length,
+          byTeam
         });
       } catch (err) {
         console.error("Add players error:", err);
