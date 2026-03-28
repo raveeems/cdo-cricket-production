@@ -374,6 +374,8 @@ export default function CreateTeamScreen() {
   }>({
     queryKey: ['/api/matches', matchId, 'players'],
     enabled: !!matchId && !isMockId,
+    staleTime: 0,
+    refetchInterval: 30 * 1000,
   });
 
   // DEV only: fetch real players by team for mock matches
