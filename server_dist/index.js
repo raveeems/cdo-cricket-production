@@ -2175,8 +2175,9 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
         (a, b) => (b.overs || 0) - (a.overs || 0)
       );
       const lbScoreParts = [];
+      let lbTotalOvers = 0;
       for (const is of sortedInnScores) {
-        totalOvers = Math.max(totalOvers, is.overs || 0);
+        lbTotalOvers += is.overs || 0;
         const teamShort = is.batteamshortname || "Team";
         const runs = is.runs ?? 0;
         const wickets = is.wickets ?? 0;
@@ -2185,6 +2186,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
           lbScoreParts.push(`${teamShort}: ${runs}/${wickets} (${overs} ov)`);
         }
       }
+      if (lbTotalOvers > totalOvers) totalOvers = lbTotalOvers;
       if (lbScoreParts.length > 0) {
         scoreStringParts.splice(0, scoreStringParts.length, ...lbScoreParts);
       }

@@ -2015,8 +2015,9 @@ export async function fetchCricbuzzScorecard(
         (a: any, b: any) => (b.overs || 0) - (a.overs || 0)
       );
       const lbScoreParts: string[] = [];
+      let lbTotalOvers = 0;
       for (const is of sortedInnScores) {
-        totalOvers = Math.max(totalOvers, is.overs || 0);
+        lbTotalOvers += (is.overs || 0); // SUM so CricAPI comparison stays fair
         const teamShort = is.batteamshortname || "Team";
         const runs = is.runs ?? 0;
         const wickets = is.wickets ?? 0;
@@ -2025,6 +2026,7 @@ export async function fetchCricbuzzScorecard(
           lbScoreParts.push(`${teamShort}: ${runs}/${wickets} (${overs} ov)`);
         }
       }
+      if (lbTotalOvers > totalOvers) totalOvers = lbTotalOvers;
       if (lbScoreParts.length > 0) {
         // Replace scard-derived parts (which may have no team names or wrong order)
         scoreStringParts.splice(0, scoreStringParts.length, ...lbScoreParts);
