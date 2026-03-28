@@ -13,6 +13,7 @@ interface PitchPlayer {
   teamShort?: string;
   externalId?: string;
   isPlayingXI?: boolean;
+  isImpactPlayer?: boolean;
 }
 
 interface TeamPitchViewProps {
@@ -26,6 +27,9 @@ interface TeamPitchViewProps {
   isModal?: boolean;
   matchCompleted?: boolean;
   team1Short?: string;
+  impactPlayer?: PitchPlayer | null;
+  captainType?: string | null;
+  vcType?: string | null;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -97,6 +101,8 @@ function PitchPlayerNode({
   let dotColor: string;
   if (!xiAnnounced) {
     dotColor = '#6B7280';
+  } else if (player.isImpactPlayer) {
+    dotColor = '#9333EA';
   } else if (player.isPlayingXI) {
     dotColor = '#22C55E';
   } else {
@@ -147,7 +153,7 @@ function PitchPlayerNode({
   );
 }
 
-function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints, matchCompleted = false, team1Short }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
+function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints, matchCompleted = false, team1Short, impactPlayer, captainType, vcType }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
   const { colors } = useTheme();
 
   const xiAnnounced = players.some(p => p.isPlayingXI);
@@ -163,6 +169,9 @@ function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints
     { label: 'ALL-ROUNDERS', players: ar },
     { label: 'BOWLERS', players: bowl },
   ];
+
+  const impactIsCaptain = captainType === 'impact_slot';
+  const impactIsVC = vcType === 'impact_slot';
 
   return (
     <LinearGradient
@@ -186,7 +195,7 @@ function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints
         </View>
       )}
 
-      {rows.map((row, idx) => (
+      {rows.map((row) => (
         <View key={row.label} style={pitchStyles.roleSection}>
           <Text style={pitchStyles.roleLabel}>{row.label}</Text>
           <View style={pitchStyles.playersRow}>
@@ -204,6 +213,24 @@ function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints
           </View>
         </View>
       ))}
+
+      {impactPlayer && (
+        <View style={[pitchStyles.roleSection, pitchStyles.impactSection]}>
+          <View style={pitchStyles.impactLabelRow}>
+            <Text style={[pitchStyles.roleLabel, pitchStyles.impactLabel]}>⚡ IMPACT SUB</Text>
+          </View>
+          <View style={pitchStyles.playersRow}>
+            <PitchPlayerNode
+              player={{ ...impactPlayer, isImpactPlayer: true }}
+              isCaptain={impactIsCaptain}
+              isVC={impactIsVC}
+              xiAnnounced={xiAnnounced}
+              matchCompleted={matchCompleted}
+              team1Short={team1Short}
+            />
+          </View>
+        </View>
+      )}
     </LinearGradient>
   );
 }
@@ -219,6 +246,9 @@ export default function TeamPitchView({
   isModal = false,
   matchCompleted = false,
   team1Short,
+  impactPlayer,
+  captainType,
+  vcType,
 }: TeamPitchViewProps) {
   if (!isModal) {
     return (
@@ -230,6 +260,9 @@ export default function TeamPitchView({
         totalPoints={totalPoints}
         matchCompleted={matchCompleted}
         team1Short={team1Short}
+        impactPlayer={impactPlayer}
+        captainType={captainType}
+        vcType={vcType}
       />
     );
   }
@@ -254,6 +287,9 @@ export default function TeamPitchView({
             totalPoints={totalPoints}
             matchCompleted={matchCompleted}
             team1Short={team1Short}
+            impactPlayer={impactPlayer}
+            captainType={captainType}
+            vcType={vcType}
           />
         </View>
       </View>
@@ -420,6 +456,20 @@ const pitchStyles = StyleSheet.create({
     fontSize: 9,
     fontFamily: 'Inter_700Bold',
     marginTop: 1,
+  },
+  impactSection: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(147,51,234,0.35)',
+    marginTop: 4,
+    paddingTop: 4,
+  },
+  impactLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  impactLabel: {
+    color: 'rgba(167,85,255,0.85)',
   },
   modalOverlay: {
     flex: 1,

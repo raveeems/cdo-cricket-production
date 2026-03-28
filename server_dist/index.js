@@ -3371,7 +3371,7 @@ async function registerRoutes(app2) {
         const standings = allTeams.map((t) => {
           let resolvedPlayers = t.playerIds.map((pid) => {
             const p = playerById.get(pid);
-            if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort, externalId: p.externalId };
+            if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort, externalId: p.externalId, isPlayingXI: p.isPlayingXI ?? false, isImpactPlayer: p.isImpactPlayer ?? false };
             return null;
           }).filter(Boolean);
           if (resolvedPlayers.length === 0 && matchPlayersForResponse.length > 0) {
@@ -3388,6 +3388,13 @@ async function registerRoutes(app2) {
               externalId: p.externalId
             }));
           }
+          const impactCandidateIds = [t.primaryImpactId, t.backupImpactId].filter(Boolean);
+          for (const impId of impactCandidateIds) {
+            const impP = playerById.get(impId);
+            if (impP?.isImpactPlayer && !resolvedPlayers.find((rp) => rp.id === impP.id)) {
+              resolvedPlayers.push({ id: impP.id, name: impP.name, role: impP.role, points: impP.points || 0, teamShort: impP.teamShort, externalId: impP.externalId, isPlayingXI: false, isImpactPlayer: true });
+            }
+          }
           return {
             teamId: t.id,
             teamName: t.name,
@@ -3398,6 +3405,10 @@ async function registerRoutes(app2) {
             playerIds: t.playerIds,
             captainId: t.captainId,
             viceCaptainId: t.viceCaptainId,
+            primaryImpactId: t.primaryImpactId || null,
+            backupImpactId: t.backupImpactId || null,
+            captainType: t.captainType || null,
+            vcType: t.vcType || null,
             resolvedPlayers
           };
         }).sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
