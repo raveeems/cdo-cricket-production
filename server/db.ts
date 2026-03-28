@@ -44,6 +44,11 @@ async function runMigrations(): Promise<void> {
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS admin_unlock_override BOOLEAN NOT NULL DEFAULT false;
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_scorecard_at TIMESTAMP;
     `);
+    // Add id column to match_player_status if missing (older production DBs lack it).
+    await client.query(`
+      ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS id VARCHAR DEFAULT gen_random_uuid();
+      UPDATE match_player_status SET id = gen_random_uuid() WHERE id IS NULL;
+    `);
     // Allow null captainId/viceCaptainId for teams where C or VC is on the Impact Slot.
     // Safe to run repeatedly — PostgreSQL no-ops if the column is already nullable.
     await client.query(`

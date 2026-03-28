@@ -535,7 +535,7 @@ export class DatabaseStorage {
       if (data.sourceType !== undefined) updateData.sourceType = data.sourceType;
       const [updated] = await db.update(matchPlayerStatus)
         .set(updateData)
-        .where(eq(matchPlayerStatus.id, existing.id))
+        .where(and(eq(matchPlayerStatus.matchId, existing.matchId), eq(matchPlayerStatus.playerId, existing.playerId)))
         .returning();
       return updated;
     } else {
