@@ -1964,20 +1964,25 @@ export async function fetchCricbuzzScorecard(
       }
 
       // BOWLING (only present for completed innings)
+      if (bowling.length > 0) {
+        console.log(`[Cricbuzz:Bowl:Raw] First bowler object: ${JSON.stringify(bowling[0])}`);
+      }
       for (const bw of bowling) {
-        const name: string = bw.name || bw.nickname;
+        const name: string = bw.name || bw.bowlerName || bw.nickName || bw.fullName;
         if (!name) continue;
-        const actualOvers = cbOversToDecimal(bw.overs || 0);
-        const eco = parseFloat(String(bw.economy || 0)) || 0;
+        const actualOvers = cbOversToDecimal(bw.overs || bw.ov || bw.o || 0);
+        const eco = parseFloat(String(bw.economy || bw.eco || bw.er || 0)) || 0;
+        const wickets = bw.wickets ?? bw.w ?? bw.wkts ?? 0;
+        const maidens = bw.maidens ?? bw.m ?? bw.maiden ?? 0;
         const lbwBonus = lbwBowledByBowler.get(name) || lbwBowledByBowler.get(normalizeName(name)) || 0;
         const pts = calcCricbuzzBowlingPoints(
-          bw.wickets || 0,
-          bw.maidens || 0,
+          wickets,
+          maidens,
           eco,
           actualOvers,
           lbwBonus
         );
-        console.log(`[Cricbuzz:Bowl] Inn${inn.inningsId} ${name}: ${bw.wickets}w ${bw.overs}ov eco=${eco} => ${pts}pts`);
+        console.log(`[Cricbuzz:Bowl] Inn${inn.inningsId} ${name}: ${wickets}w ${actualOvers}ov eco=${eco} => ${pts}pts`);
         addNamePoints(namePointsMap, name, pts);
       }
 
