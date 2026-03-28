@@ -1861,6 +1861,25 @@ function calcCricbuzzBowlingPoints(
   return pts;
 }
 
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function addNamePoints(
+  map: Map<string, number>,
+  name: string,
+  pts: number
+): void {
+  if (!name || pts === 0) return;
+  const key = normalizeName(name);
+  if (!key) return;
+  map.set(key, (map.get(key) || 0) + pts);
+}
+
 interface CricbuzzScoreResult {
   namePointsMap: Map<string, number>;
   scoreString: string;
@@ -1924,9 +1943,7 @@ export async function fetchCricbuzzScorecard(
           b.sixes || 0,
           !!dismissed
         );
-        if (pts !== 0) {
-          namePointsMap.set(name, (namePointsMap.get(name) || 0) + pts);
-        }
+        addNamePoints(namePointsMap, name, pts);
 
         // FIELDING from dismissal string
         if (b.outdec) {
@@ -1935,14 +1952,11 @@ export async function fetchCricbuzzScorecard(
           const stumpMatch = d.match(/^st\s+(.+?)\s+b\s+/i);
           const runoutMatch = d.match(/run out\s*\((.+?)\)/i);
           if (catchMatch) {
-            const fn = catchMatch[1].trim();
-            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 8);
+            addNamePoints(namePointsMap, catchMatch[1].trim(), 8);
           } else if (stumpMatch) {
-            const fn = stumpMatch[1].trim();
-            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 12);
+            addNamePoints(namePointsMap, stumpMatch[1].trim(), 12);
           } else if (runoutMatch) {
-            const fn = runoutMatch[1].trim();
-            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 6);
+            addNamePoints(namePointsMap, runoutMatch[1].trim(), 6);
           }
         }
       }
@@ -1953,16 +1967,15 @@ export async function fetchCricbuzzScorecard(
         if (!name) continue;
         const actualOvers = cbOversToDecimal(bw.overs || 0);
         const eco = parseFloat(String(bw.economy || 0)) || 0;
+        const lbwBonus = lbwBowledByBowler.get(name) || lbwBowledByBowler.get(normalizeName(name)) || 0;
         const pts = calcCricbuzzBowlingPoints(
           bw.wickets || 0,
           bw.maidens || 0,
           eco,
           actualOvers,
-          lbwBowledByBowler.get(name) || 0
+          lbwBonus
         );
-        if (pts !== 0) {
-          namePointsMap.set(name, (namePointsMap.get(name) || 0) + pts);
-        }
+        addNamePoints(namePointsMap, name, pts);
       }
 
       // Score string from batting total
@@ -2007,9 +2020,10 @@ export async function fetchCricbuzzScorecard(
         const bw = mini[bk];
         if (!bw?.name) continue;
         const name: string = bw.name;
+        const normKey = normalizeName(name);
         const actualOvers = cbOversToDecimal(bw.overs || 0);
         const eco = parseFloat(String(bw.economy || 0)) || 0;
-        const existing = namePointsMap.get(name) || 0;
+        const existing = namePointsMap.get(normKey) || 0;
         // Add bowling pts if they haven't been counted via scard yet
         if (existing === 0 || bw.wickets > 0) {
           const pts = calcCricbuzzBowlingPoints(
@@ -2020,7 +2034,7 @@ export async function fetchCricbuzzScorecard(
             0
           );
           if (pts !== 0) {
-            namePointsMap.set(name, existing + pts);
+            namePointsMap.set(normKey, existing + pts);
           }
         }
       }

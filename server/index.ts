@@ -1123,7 +1123,7 @@ function setupErrorHandler(app: express.Application) {
               }
             }
 
-            if (pointsMap.size > 0) {
+            if (pointsMap.size > 0 || namePointsMap.size > 0) {
               const updatedCount = await updateFantasyPoints(
                 match.id,
                 matchLabel,

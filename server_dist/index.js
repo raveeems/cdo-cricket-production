@@ -2068,6 +2068,15 @@ function calcCricbuzzBowlingPoints(wickets, maidens, economy, actualOvers, lbwBo
   }
   return pts;
 }
+function normalizeName(name) {
+  return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
+function addNamePoints(map, name, pts) {
+  if (!name || pts === 0) return;
+  const key = normalizeName(name);
+  if (!key) return;
+  map.set(key, (map.get(key) || 0) + pts);
+}
 async function fetchCricbuzzScorecard(team1Short, team2Short) {
   if (!process.env.RAPIDAPI_KEY) return null;
   try {
@@ -2109,23 +2118,18 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
           b.sixes || 0,
           !!dismissed
         );
-        if (pts !== 0) {
-          namePointsMap.set(name, (namePointsMap.get(name) || 0) + pts);
-        }
+        addNamePoints(namePointsMap, name, pts);
         if (b.outdec) {
           const d = b.outdec;
           const catchMatch = d.match(/^c\s+(.+?)\s+b\s+/i);
           const stumpMatch = d.match(/^st\s+(.+?)\s+b\s+/i);
           const runoutMatch = d.match(/run out\s*\((.+?)\)/i);
           if (catchMatch) {
-            const fn = catchMatch[1].trim();
-            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 8);
+            addNamePoints(namePointsMap, catchMatch[1].trim(), 8);
           } else if (stumpMatch) {
-            const fn = stumpMatch[1].trim();
-            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 12);
+            addNamePoints(namePointsMap, stumpMatch[1].trim(), 12);
           } else if (runoutMatch) {
-            const fn = runoutMatch[1].trim();
-            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 6);
+            addNamePoints(namePointsMap, runoutMatch[1].trim(), 6);
           }
         }
       }
@@ -2134,16 +2138,15 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
         if (!name) continue;
         const actualOvers = cbOversToDecimal(bw.overs || 0);
         const eco = parseFloat(String(bw.economy || 0)) || 0;
+        const lbwBonus = lbwBowledByBowler.get(name) || lbwBowledByBowler.get(normalizeName(name)) || 0;
         const pts = calcCricbuzzBowlingPoints(
           bw.wickets || 0,
           bw.maidens || 0,
           eco,
           actualOvers,
-          lbwBowledByBowler.get(name) || 0
+          lbwBonus
         );
-        if (pts !== 0) {
-          namePointsMap.set(name, (namePointsMap.get(name) || 0) + pts);
-        }
+        addNamePoints(namePointsMap, name, pts);
       }
       const runs = batsmen.reduce((s, b) => s + (b.runs || 0), 0) + (inn.extras?.total || 0);
       const wickets = batsmen.filter(
@@ -2176,9 +2179,10 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
         const bw = mini[bk];
         if (!bw?.name) continue;
         const name = bw.name;
+        const normKey = normalizeName(name);
         const actualOvers = cbOversToDecimal(bw.overs || 0);
         const eco = parseFloat(String(bw.economy || 0)) || 0;
-        const existing = namePointsMap.get(name) || 0;
+        const existing = namePointsMap.get(normKey) || 0;
         if (existing === 0 || bw.wickets > 0) {
           const pts = calcCricbuzzBowlingPoints(
             bw.wickets || 0,
@@ -2188,7 +2192,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
             0
           );
           if (pts !== 0) {
-            namePointsMap.set(name, existing + pts);
+            namePointsMap.set(normKey, existing + pts);
           }
         }
       }
@@ -6599,7 +6603,7 @@ function setupErrorHandler(app2) {
               console.error(`[Heartbeat:Impact] Auto-detection failed for ${matchLabel}:`, impactErr);
             }
           }
-          if (pointsMap.size > 0) {
+          if (pointsMap.size > 0 || namePointsMap.size > 0) {
             const updatedCount = await updateFantasyPoints(
               match.id,
               matchLabel,
