@@ -2267,7 +2267,8 @@ async function fetchCricbuzzLiveScorecard(team1Short, team2Short) {
         eco: parseFloat(String(bw.economy ?? 0)) || 0,
         fantasyPoints: 0
       }));
-      const totalRuns = (inn.score ?? batting.reduce((s, b) => s + b.r, 0)) + (extras.total ?? 0);
+      const battingRunsSum = batting.reduce((s, b) => s + b.r, 0);
+      const totalRuns = inn.score ?? battingRunsSum + (extras.total ?? 0);
       const totalWickets = inn.wickets ?? batsmen.filter((b) => b.outdec && b.outdec !== "batting" && b.outdec !== "not out").length;
       const totalOvers = parseFloat(String(inn.overs ?? 0)) || 0;
       score.push({ r: totalRuns, w: totalWickets, o: totalOvers, inning: inningLabel });

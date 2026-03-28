@@ -2150,7 +2150,8 @@ export async function fetchCricbuzzLiveScorecard(
         fantasyPoints: 0,
       }));
 
-      const totalRuns = (inn.score ?? batting.reduce((s: number, b: any) => s + b.r, 0)) + (extras.total ?? 0);
+      const battingRunsSum = batting.reduce((s: number, b: any) => s + b.r, 0);
+      const totalRuns = inn.score ?? (battingRunsSum + (extras.total ?? 0));
       const totalWickets = inn.wickets ?? batsmen.filter((b: any) => b.outdec && b.outdec !== "batting" && b.outdec !== "not out").length;
       const totalOvers = parseFloat(String(inn.overs ?? 0)) || 0;
 
