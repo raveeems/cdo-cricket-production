@@ -3862,6 +3862,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: Award base +4 points to all XI players immediately ----
+  app.post(
+    '/api/admin/matches/:id/award-base-points',
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: 'Match not found' });
+        const players = await storage.getPlayersForMatch(matchId);
+        const xiPlayers = players.filter(p => p.isPlayingXI);
+        if (xiPlayers.length === 0) return res.status(400).json({ message: 'No Playing XI set for this match. Set XI first.' });
+        let updated = 0;
+        for (const p of xiPlayers) {
+          if (!p.points || p.points < 4) {
+            await storage.updatePlayer(p.id, { points: 4 });
+            updated++;
+          }
+        }
+        const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+        const recalcFn = (globalThis as any).__recalculateTeamTotals;
+        if (recalcFn) await recalcFn(matchId, matchLabel);
+        return res.json({ message: `Awarded +4 base points to ${updated} XI players`, xiCount: xiPlayers.length, updated });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  // ---- ADMIN: Manual player points entry (by player name match) ----
+  app.post(
+    '/api/admin/matches/:id/manual-points',
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: 'Match not found' });
+        // entries: [{ playerId?, name?, points: number }]
+        const entries: { playerId?: string; name?: string; points: number }[] = req.body.entries || [];
+        if (!entries.length) return res.status(400).json({ message: 'No entries provided' });
+        const players = await storage.getPlayersForMatch(matchId);
+        const results: { name: string; points: number; matched: boolean }[] = [];
+        for (const entry of entries) {
+          let player = entry.playerId ? players.find(p => p.id === entry.playerId) : null;
+          if (!player && entry.name) {
+            const nameLower = entry.name.toLowerCase().trim();
+            player = players.find(p => p.name.toLowerCase().includes(nameLower) || nameLower.includes(p.name.toLowerCase().split(' ').pop()!));
+          }
+          if (player) {
+            await storage.updatePlayer(player.id, { points: entry.points, isPlayingXI: true });
+            results.push({ name: player.name, points: entry.points, matched: true });
+          } else {
+            results.push({ name: entry.name || entry.playerId || 'unknown', points: entry.points, matched: false });
+          }
+        }
+        const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+        const recalcFn = (globalThis as any).__recalculateTeamTotals;
+        if (recalcFn) await recalcFn(matchId, matchLabel);
+        const allTeams = await storage.getAllTeamsForMatch(matchId);
+        return res.json({
+          message: `Manual points applied. ${results.filter(r => r.matched).length}/${entries.length} players matched.`,
+          results,
+          teamCount: allTeams.length,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
   const httpServer = createServer(app);
   return httpServer;
 }

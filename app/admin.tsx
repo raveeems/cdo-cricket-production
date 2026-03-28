@@ -156,6 +156,12 @@ export default function AdminScreen() {
   const [playerStatusExpandedId, setPlayerStatusExpandedId] = useState<string | null>(null);
   const [playerStatusData, setPlayerStatusData] = useState<Record<string, { players: any[]; statuses: Map<string, any> }>>({});
   const [loadingPlayerStatus, setLoadingPlayerStatus] = useState<string | null>(null);
+
+  const [manualPtsMatchId, setManualPtsMatchId] = useState<string | null>(null);
+  const [manualPtsText, setManualPtsText] = useState('');
+  const [manualPtsLoading, setManualPtsLoading] = useState(false);
+  const [manualPtsResult, setManualPtsResult] = useState('');
+  const [basePtsLoadingId, setBasePtsLoadingId] = useState<string | null>(null);
   const [updatingPlayerId, setUpdatingPlayerId] = useState<string | null>(null);
   const [settingWinnerId, setSettingWinnerId] = useState<string | null>(null);
   const [fetchingSquadMatchId, setFetchingSquadMatchId] = useState<string | null>(null);
@@ -270,6 +276,45 @@ export default function AdminScreen() {
       console.error('Recalculate failed:', e);
     } finally {
       setRecalculating(false);
+    }
+  };
+
+  const awardBasePoints = async (matchId: string) => {
+    setBasePtsLoadingId(matchId);
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${matchId}/award-base-points`);
+      const data = await res.json();
+      setMatchResult(matchId, `✔ ${data.message || 'Base points awarded'}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setMatchResult(matchId, `❌ ${e.message || 'Failed'}`);
+    } finally {
+      setBasePtsLoadingId(null);
+    }
+  };
+
+  const submitManualPoints = async () => {
+    if (!manualPtsMatchId || !manualPtsText.trim()) return;
+    setManualPtsLoading(true);
+    setManualPtsResult('');
+    try {
+      const lines = manualPtsText.trim().split('\n').filter(l => l.trim());
+      const entries = lines.map(line => {
+        const parts = line.split(':');
+        const name = parts[0]?.trim();
+        const points = parseInt(parts[1]?.trim() || '0', 10);
+        return { name, points };
+      }).filter(e => e.name && !isNaN(e.points));
+      if (!entries.length) { setManualPtsResult('❌ No valid entries. Format: PlayerName: 45'); return; }
+      const res = await apiRequest('POST', `/api/admin/matches/${manualPtsMatchId}/manual-points`, { entries });
+      const data = await res.json();
+      const unmatched = (data.results || []).filter((r: any) => !r.matched).map((r: any) => r.name);
+      setManualPtsResult(`✔ ${data.message}${unmatched.length ? ` | Unmatched: ${unmatched.join(', ')}` : ''}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setManualPtsResult(`❌ ${e.message || 'Failed'}`);
+    } finally {
+      setManualPtsLoading(false);
     }
   };
 
@@ -1691,6 +1736,59 @@ export default function AdminScreen() {
                     <Text style={[styles.actionBtnText, { color: playerStatusExpandedId === m.id ? colors.primary : colors.textSecondary }]}>Player Status</Text>
                   </Pressable>
                 </View>
+
+                {/* Manual Points row */}
+                <View style={{ flexDirection: 'row', gap: 7, marginBottom: 7 }}>
+                  <Pressable
+                    onPress={() => awardBasePoints(m.id)}
+                    disabled={basePtsLoadingId === m.id}
+                    accessibilityLabel="Award Base +4 Points"
+                    style={[styles.actionBtn, { flex: 1, borderColor: '#10B98160', backgroundColor: '#10B9810D', opacity: basePtsLoadingId === m.id ? 0.5 : 1 }]}
+                  >
+                    {basePtsLoadingId === m.id
+                      ? <ActivityIndicator size="small" color="#10B981" />
+                      : <Text style={{ fontSize: 12 }}>⚡</Text>}
+                    <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Base +4</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { setManualPtsMatchId(manualPtsMatchId === m.id ? null : m.id); setManualPtsText(''); setManualPtsResult(''); }}
+                    accessibilityLabel="Manual Player Points"
+                    style={[styles.actionBtn, { flex: 2, borderColor: manualPtsMatchId === m.id ? '#F59E0B60' : colors.border, backgroundColor: manualPtsMatchId === m.id ? '#F59E0B0D' : undefined }]}
+                  >
+                    <Ionicons name="create-outline" size={13} color={manualPtsMatchId === m.id ? '#F59E0B' : colors.textSecondary} />
+                    <Text style={[styles.actionBtnText, { color: manualPtsMatchId === m.id ? '#F59E0B' : colors.textSecondary }]}>Manual Pts</Text>
+                  </Pressable>
+                </View>
+
+                {/* Manual Points Entry Form */}
+                {manualPtsMatchId === m.id && (
+                  <View style={{ backgroundColor: colors.card, borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#F59E0B40' }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginBottom: 6, fontFamily: 'Inter_500Medium' as const }}>
+                      One per line: PlayerName: points{'\n'}e.g. Virat Kohli: 45{'\n'}Mohammad Siraj: 38
+                    </Text>
+                    <TextInput
+                      value={manualPtsText}
+                      onChangeText={setManualPtsText}
+                      multiline
+                      numberOfLines={8}
+                      placeholder="Virat Kohli: 45&#10;Faf du Plessis: 12&#10;Mohammad Siraj: 38"
+                      placeholderTextColor={colors.textTertiary}
+                      style={{ color: colors.text, backgroundColor: colors.background, borderRadius: 6, padding: 8, fontSize: 13, fontFamily: 'Inter_400Regular' as const, minHeight: 120, textAlignVertical: 'top', borderWidth: 1, borderColor: colors.border }}
+                    />
+                    {manualPtsResult ? (
+                      <Text style={{ color: manualPtsResult.startsWith('✔') ? '#10B981' : colors.error, fontSize: 12, marginTop: 6, fontFamily: 'Inter_500Medium' as const }}>{manualPtsResult}</Text>
+                    ) : null}
+                    <Pressable
+                      onPress={submitManualPoints}
+                      disabled={manualPtsLoading || !manualPtsText.trim()}
+                      style={{ marginTop: 8, backgroundColor: '#F59E0B', borderRadius: 6, padding: 10, alignItems: 'center', opacity: manualPtsLoading || !manualPtsText.trim() ? 0.5 : 1 }}
+                    >
+                      {manualPtsLoading
+                        ? <ActivityIndicator size="small" color="#fff" />
+                        : <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold' as const, fontSize: 13 }}>Apply Points & Recalculate All Teams</Text>}
+                    </Pressable>
+                  </View>
+                )}
 
                 {/* Destructive separator */}
                 <View style={{ height: 1, backgroundColor: colors.error + '22', marginBottom: 9 }} />
