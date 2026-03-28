@@ -5622,6 +5622,49 @@ async function registerRoutes(app2) {
     }
   );
   app2.post(
+    "/api/admin/matches/:id/apply-winning-bonus",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (!match.officialWinner) {
+          return res.status(400).json({ message: "Set the official winner first before applying the winning bonus" });
+        }
+        const WINNING_BONUS = 4;
+        const updated = await db.update(players).set({ points: sql3`${players.points} + ${WINNING_BONUS}` }).where(
+          and2(
+            eq2(players.matchId, matchId),
+            eq2(players.teamShort, match.officialWinner),
+            eq2(players.isPlayingXI, true)
+          )
+        ).returning({ id: players.id, name: players.name });
+        const recalcFn = globalThis.__recalculateTeamTotals;
+        if (recalcFn) {
+          await recalcFn(matchId, `${match.team1Short} vs ${match.team2Short}`);
+        }
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "apply_winning_bonus",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ winner: match.officialWinner, playersUpdated: updated.length, bonusPerPlayer: WINNING_BONUS })
+        });
+        return res.json({
+          message: `+${WINNING_BONUS} winning bonus applied to ${updated.length} players (${match.officialWinner} Playing XI)`,
+          playersUpdated: updated.length,
+          players: updated.map((p) => p.name)
+        });
+      } catch (err) {
+        console.error("Apply winning bonus error:", err);
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
     "/api/admin/matches/:id/recalculate",
     isAuthenticated,
     isAdmin,

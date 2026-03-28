@@ -3646,6 +3646,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.post(
+    "/api/admin/matches/:id/apply-winning-bonus",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (!match.officialWinner) {
+          return res.status(400).json({ message: "Set the official winner first before applying the winning bonus" });
+        }
+
+        const WINNING_BONUS = 4;
+        // Add +4 to all Playing XI players from the winning team
+        const updated = await db
+          .update(playersTable)
+          .set({ points: sql`${playersTable.points} + ${WINNING_BONUS}` })
+          .where(
+            and(
+              eq(playersTable.matchId, matchId),
+              eq(playersTable.teamShort, match.officialWinner),
+              eq(playersTable.isPlayingXI, true)
+            )
+          )
+          .returning({ id: playersTable.id, name: playersTable.name });
+
+        // Recalculate team totals
+        const recalcFn = (globalThis as any).__recalculateTeamTotals;
+        if (recalcFn) {
+          await recalcFn(matchId, `${match.team1Short} vs ${match.team2Short}`);
+        }
+
+        await storage.createAuditLog({
+          adminUserId: req.session.userId!,
+          actionType: "apply_winning_bonus",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ winner: match.officialWinner, playersUpdated: updated.length, bonusPerPlayer: WINNING_BONUS }),
+        });
+
+        return res.json({
+          message: `+${WINNING_BONUS} winning bonus applied to ${updated.length} players (${match.officialWinner} Playing XI)`,
+          playersUpdated: updated.length,
+          players: updated.map(p => p.name),
+        });
+      } catch (err: any) {
+        console.error("Apply winning bonus error:", err);
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.post(
     "/api/admin/matches/:id/recalculate",
     isAuthenticated,
     isAdmin,

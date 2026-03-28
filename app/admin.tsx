@@ -164,6 +164,7 @@ export default function AdminScreen() {
   const [basePtsLoadingId, setBasePtsLoadingId] = useState<string | null>(null);
   const [updatingPlayerId, setUpdatingPlayerId] = useState<string | null>(null);
   const [settingWinnerId, setSettingWinnerId] = useState<string | null>(null);
+  const [applyingBonusId, setApplyingBonusId] = useState<string | null>(null);
   const [fetchingSquadMatchId, setFetchingSquadMatchId] = useState<string | null>(null);
   const [fetchSquadResult, setFetchSquadResult] = useState<Record<string, string>>({});
   const [panelAddOpen, setPanelAddOpen] = useState<string | null>(null);
@@ -442,6 +443,32 @@ export default function AdminScreen() {
     } finally {
       setSettingWinnerId(null);
     }
+  };
+
+  const applyWinningBonus = async (m: MatchInfo) => {
+    Alert.alert(
+      'Apply Winning Bonus',
+      `Add +4 pts to all Playing XI players from ${m.officialWinner}?\n\nThis cannot be undone (use Manual Points to reverse).`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Apply +4 Bonus',
+          onPress: async () => {
+            setApplyingBonusId(m.id);
+            try {
+              const res = await apiRequest('POST', `/api/admin/matches/${m.id}/apply-winning-bonus`, {});
+              const data = await res.json();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Done', data.message || 'Winning bonus applied');
+            } catch (e) {
+              Alert.alert('Error', 'Failed to apply winning bonus');
+            } finally {
+              setApplyingBonusId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const togglePlayerStatusExpand = async (matchId: string) => {
@@ -1694,6 +1721,20 @@ export default function AdminScreen() {
                     <Text style={[styles.actionBtnText, { color: m.officialWinner ? '#F59E0B' : colors.textSecondary }]}>Settle</Text>
                   </Pressable>
                 </View>
+
+                {/* Win bonus row — only when official winner is set */}
+                {m.officialWinner && (
+                  <Pressable
+                    onPress={() => applyWinningBonus(m)}
+                    disabled={applyingBonusId === m.id}
+                    style={[styles.actionBtn, { marginBottom: 7, borderColor: '#22C55E60', backgroundColor: '#22C55E0D', opacity: applyingBonusId === m.id ? 0.5 : 1 }]}
+                  >
+                    {applyingBonusId === m.id
+                      ? <ActivityIndicator size="small" color="#22C55E" />
+                      : <Text style={{ fontSize: 12 }}>🏆</Text>}
+                    <Text style={[styles.actionBtnText, { color: '#22C55E' }]}>+4 Win Bonus ({m.officialWinner})</Text>
+                  </Pressable>
+                )}
 
                 {/* Secondary actions row */}
                 <View style={{ flexDirection: 'row', gap: 7, marginBottom: 12 }}>
