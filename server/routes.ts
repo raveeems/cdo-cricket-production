@@ -51,7 +51,7 @@ function checkUnlockEligibility(match: { firstScorecardAt?: Date | string | null
 
 function isEntryOpen(match: { startTime: Date | string; revisedStartTime?: Date | string | null; adminUnlockOverride?: boolean | null; firstScorecardAt?: Date | string | null }, nowMs: number): boolean {
   const lockMs = getEffectiveLockMs(match);
-  if (match.adminUnlockOverride === true && nowMs < lockMs) {
+  if (match.adminUnlockOverride === true) {
     if (match.firstScorecardAt) {
       const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 60_000;
       if (nowMs >= cutoff) return false;
@@ -1226,7 +1226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .status(400)
             .json({ message: "Entry deadline has passed" });
         }
-        if (match.status === "live" || match.status === "completed") {
+        if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
           return res
             .status(400)
             .json({ message: "Match has already started" });
@@ -1433,7 +1433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
         }
-        if (match.status === "live" || match.status === "completed") {
+        if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
           return res.status(400).json({ message: "Match has already started" });
         }
 
