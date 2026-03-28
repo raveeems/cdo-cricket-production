@@ -245,6 +245,10 @@ async function runMigrations() {
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_scorecard_at TIMESTAMP;
     `);
     await client.query(`
+      ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS id VARCHAR DEFAULT gen_random_uuid();
+      UPDATE match_player_status SET id = gen_random_uuid() WHERE id IS NULL;
+    `);
+    await client.query(`
       ALTER TABLE user_teams ALTER COLUMN captain_id DROP NOT NULL;
       ALTER TABLE user_teams ALTER COLUMN vice_captain_id DROP NOT NULL;
     `);
@@ -657,7 +661,7 @@ var init_storage = __esm({
           if (data.actualParticipationStatus !== void 0) updateData.actualParticipationStatus = data.actualParticipationStatus;
           if (data.officialImpactSubUsed !== void 0) updateData.officialImpactSubUsed = data.officialImpactSubUsed;
           if (data.sourceType !== void 0) updateData.sourceType = data.sourceType;
-          const [updated] = await db.update(matchPlayerStatus).set(updateData).where(eq(matchPlayerStatus.id, existing.id)).returning();
+          const [updated] = await db.update(matchPlayerStatus).set(updateData).where(and(eq(matchPlayerStatus.matchId, existing.matchId), eq(matchPlayerStatus.playerId, existing.playerId))).returning();
           return updated;
         } else {
           const [created] = await db.insert(matchPlayerStatus).values({
@@ -2136,7 +2140,7 @@ function checkUnlockEligibility(match) {
 }
 function isEntryOpen(match, nowMs) {
   const lockMs = getEffectiveLockMs(match);
-  if (match.adminUnlockOverride === true && nowMs < lockMs) {
+  if (match.adminUnlockOverride === true) {
     if (match.firstScorecardAt) {
       const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 6e4;
       if (nowMs >= cutoff) return false;
@@ -3037,7 +3041,7 @@ async function registerRoutes(app2) {
         const standings = allTeams.map((t) => {
           let resolvedPlayers = t.playerIds.map((pid) => {
             const p = playerById.get(pid);
-            if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort };
+            if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort, externalId: p.externalId };
             return null;
           }).filter(Boolean);
           if (resolvedPlayers.length === 0 && matchPlayersForResponse.length > 0) {
@@ -3050,7 +3054,8 @@ async function registerRoutes(app2) {
               name: p.name,
               role: p.role,
               points: p.points || 0,
-              teamShort: p.teamShort
+              teamShort: p.teamShort,
+              externalId: p.externalId
             }));
           }
           return {
@@ -3115,7 +3120,7 @@ async function registerRoutes(app2) {
         if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
         }
-        if (match.status === "live" || match.status === "completed") {
+        if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
           return res.status(400).json({ message: "Match has already started" });
         }
         const existingTeams = await storage.getUserTeamsForMatch(
@@ -3297,7 +3302,7 @@ async function registerRoutes(app2) {
         if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
         }
-        if (match.status === "live" || match.status === "completed") {
+        if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
           return res.status(400).json({ message: "Match has already started" });
         }
         const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode } = req.body;
@@ -6256,8 +6261,38 @@ function setupErrorHandler(app2) {
             try {
               await storage.updateMatch(match.id, { firstScorecardAt: /* @__PURE__ */ new Date() });
               log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
+              const allMatchPlayers = await storage.getPlayersForMatch(match.id);
+              let autoXiCount = 0;
+              for (const player of allMatchPlayers) {
+                if (!player.externalId) continue;
+                if (pointsMap.has(player.externalId) && !player.isPlayingXI) {
+                  await storage.updatePlayer(player.id, { isPlayingXI: true });
+                  autoXiCount++;
+                }
+              }
+              if (autoXiCount > 0) {
+                log(`[Heartbeat:Impact] Auto-marked ${autoXiCount} players as Playing XI from first scorecard for ${matchLabel}`);
+              }
             } catch (fse) {
               console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
+            }
+          } else if (pointsMap.size > 0 && match.firstScorecardAt) {
+            try {
+              const allMatchPlayers = await storage.getPlayersForMatch(match.id);
+              for (const player of allMatchPlayers) {
+                if (!player.externalId || player.isPlayingXI || player.isImpactPlayer) continue;
+                if (pointsMap.has(player.externalId)) {
+                  log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
+                  await storage.updatePlayer(player.id, { isImpactPlayer: true });
+                  await storage.upsertMatchPlayerStatus({
+                    matchId: match.id,
+                    playerId: player.id,
+                    officialImpactSubUsed: true
+                  });
+                }
+              }
+            } catch (impactErr) {
+              console.error(`[Heartbeat:Impact] Auto-detection failed for ${matchLabel}:`, impactErr);
             }
           }
           if (pointsMap.size > 0) {
