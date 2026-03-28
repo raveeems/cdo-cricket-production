@@ -944,19 +944,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json(cached.data);
         }
 
-        console.log(`[LiveScorecard] cache MISS for ${cacheKey} — fetching from CricAPI`);
+        console.log(`[LiveScorecard] cache MISS for ${cacheKey} — fetching (Cricbuzz primary)`);
         let scorecard = null;
         let source = "none";
-        try {
-          const { fetchLiveScorecard } = await import("./cricket-api");
-          scorecard = await fetchLiveScorecard(cacheKey);
-          if (scorecard) source = "CricAPI";
-        } catch (apiErr: any) {
-          console.error(`[LiveScorecard] fetch failed for ${cacheKey}:`, apiErr?.message || apiErr);
-        }
 
-        // Cricbuzz fallback when CricAPI returns nothing
-        if (!scorecard && process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
+        // --- PRIMARY: Cricbuzz ---
+        if (process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
           try {
             const { fetchCricbuzzLiveScorecard } = await import("./cricket-api");
             const cbData = await fetchCricbuzzLiveScorecard(match.team1Short, match.team2Short);
@@ -969,8 +962,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const key = normalize(p.name);
                 if (key) pointsByName.set(key, p.points ?? 0);
               }
-
-              // Attach fantasy points to each batter and bowler
               for (const inn of cbData.innings) {
                 for (const b of inn.batting) {
                   b.fantasyPoints = pointsByName.get(normalize(b.name)) ?? 0;
@@ -979,13 +970,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   bw.fantasyPoints = pointsByName.get(normalize(bw.name)) ?? 0;
                 }
               }
-
               scorecard = cbData;
               source = "Cricbuzz";
-              console.log(`[LiveScorecard] Using Cricbuzz data for ${match.team1Short} vs ${match.team2Short}`);
+              console.log(`[LiveScorecard] Cricbuzz (primary) for ${match.team1Short} vs ${match.team2Short}`);
             }
           } catch (cbErr: any) {
-            console.error(`[LiveScorecard] Cricbuzz fallback failed:`, cbErr?.message || cbErr);
+            console.error(`[LiveScorecard] Cricbuzz primary failed:`, cbErr?.message || cbErr);
+          }
+        }
+
+        // --- SECONDARY: CricAPI (only when Cricbuzz returned nothing) ---
+        if (!scorecard) {
+          try {
+            const { fetchLiveScorecard } = await import("./cricket-api");
+            scorecard = await fetchLiveScorecard(cacheKey);
+            if (scorecard) {
+              source = "CricAPI";
+              console.log(`[LiveScorecard] CricAPI (secondary) for ${cacheKey}`);
+            }
+          } catch (apiErr: any) {
+            console.error(`[LiveScorecard] CricAPI secondary failed for ${cacheKey}:`, apiErr?.message || apiErr);
           }
         }
 

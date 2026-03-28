@@ -594,89 +594,79 @@ function setupErrorHandler(app: express.Application) {
         const { fetchMatchScorecardWithScore, fetchMatchInfo, fetchCricbuzzScorecard } = await import(
           "./cricket-api"
         );
-        const result = await fetchMatchScorecardWithScore(match.externalId);
-        let source =
-          result.pointsMap.size > 0 || result.scoreString ? "CricAPI" : "";
-        log(
-          `[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}, overs=${result.totalOvers}`,
-        );
 
-        // --- Cricbuzz fallback when CricAPI has no scorecard data ---
-        if (!source && process.env.RAPIDAPI_KEY) {
+        const result = {
+          pointsMap: new Map<string, number>(),
+          namePointsMap: new Map<string, number>(),
+          scoreString: "",
+          matchEnded: false,
+          totalOvers: 0,
+        };
+        let source = "";
+
+        // --- PRIMARY: Cricbuzz ---
+        if (process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
           try {
-            log(`[Heartbeat:Score] CricAPI empty — trying Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
+            log(`[Heartbeat:Score] Cricbuzz (primary) for ${match.team1Short} vs ${match.team2Short}`);
             const cbResult = await fetchCricbuzzScorecard(match.team1Short, match.team2Short);
             if (cbResult && (cbResult.namePointsMap.size > 0 || cbResult.scoreString)) {
               result.namePointsMap = cbResult.namePointsMap;
-              result.scoreString = cbResult.scoreString || result.scoreString;
-              result.matchEnded = cbResult.matchEnded || result.matchEnded;
-              result.totalOvers = Math.max(result.totalOvers, cbResult.totalOvers);
+              result.scoreString = cbResult.scoreString || "";
+              result.matchEnded = cbResult.matchEnded;
+              result.totalOvers = cbResult.totalOvers;
               source = "Cricbuzz";
               log(`[Heartbeat:Score] Cricbuzz SUCCESS: ${cbResult.namePointsMap.size} players, score="${cbResult.scoreString}", ended=${cbResult.matchEnded}`);
             } else {
-              log(`[Heartbeat:Score] Cricbuzz also returned empty for ${match.team1Short} vs ${match.team2Short}`);
+              log(`[Heartbeat:Score] Cricbuzz empty — will try CricAPI for ${match.team1Short} vs ${match.team2Short}`);
             }
           } catch (cbErr) {
-            log(`[Heartbeat:Score] Cricbuzz fallback error for ${match.team1Short} vs ${match.team2Short}: ${cbErr}`);
+            log(`[Heartbeat:Score] Cricbuzz primary error for ${match.team1Short} vs ${match.team2Short}: ${cbErr}`);
           }
         }
 
-        try {
-          const matchInfo = await fetchMatchInfo(match.externalId);
-          if (
-            matchInfo &&
-            matchInfo.score &&
-            Array.isArray(matchInfo.score) &&
-            matchInfo.score.length > 0
-          ) {
-            const infoScoreArr = matchInfo.score;
-            const infoScoreString = infoScoreArr
-              .map(
-                (s: any) =>
-                  `${s?.inning ?? "?"}: ${s?.r ?? 0}/${s?.w ?? 0} (${s?.o ?? 0} ov)`,
-              )
-              .join(" | ");
-            const infoTotalOvers = infoScoreArr.reduce(
-              (sum: number, s: any) => sum + (s?.o || 0),
-              0,
-            );
-            const infoStatus = (
-              matchInfo.name ||
-              matchInfo.status ||
-              ""
-            ).toLowerCase();
-            const infoEnded =
-              infoStatus.includes("won") ||
-              infoStatus.includes("draw") ||
-              infoStatus.includes("tied") ||
-              infoStatus.includes("finished") ||
-              infoStatus.includes("beat") ||
-              infoStatus.includes("defeat") ||
-              infoStatus.includes("result") ||
-              infoStatus.includes("aban") ||
-              (matchInfo as any).matchEnded === true;
-
-            if (infoTotalOvers > result.totalOvers) {
-              log(
-                `[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info has fresher score ${infoTotalOvers} ov vs scorecard ${result.totalOvers} ov`,
-              );
-              const statusText = matchInfo.name || matchInfo.status || "";
-              result.scoreString = statusText
-                ? `${infoScoreString} — ${statusText}`
-                : infoScoreString;
-              result.totalOvers = infoTotalOvers;
-            }
-            if (infoEnded && !result.matchEnded) {
-              log(
-                `[Heartbeat:LiveScore] ${match.team1Short} vs ${match.team2Short}: match_info says ended`,
-              );
-              result.matchEnded = true;
-            }
+        // --- SECONDARY: CricAPI (only when Cricbuzz returned nothing) ---
+        if (!source) {
+          const cricResult = await fetchMatchScorecardWithScore(match.externalId);
+          log(`[Heartbeat:Score] CricAPI (secondary) ${match.team1Short} vs ${match.team2Short}: ${cricResult.pointsMap.size} players, score="${cricResult.scoreString.substring(0, 80)}"`);
+          if (cricResult.pointsMap.size > 0 || cricResult.scoreString) {
+            result.pointsMap = cricResult.pointsMap;
+            result.namePointsMap = cricResult.namePointsMap;
+            result.scoreString = cricResult.scoreString;
+            result.matchEnded = cricResult.matchEnded;
+            result.totalOvers = cricResult.totalOvers;
+            source = "CricAPI";
           }
-        } catch (infoErr) {
-          log(
-            `[Heartbeat:LiveScore] match_info fallback failed for ${match.team1Short} vs ${match.team2Short}: ${infoErr}`,
-          );
+
+          // CricAPI match_info supplement — only when Cricbuzz has no data
+          try {
+            const matchInfo = await fetchMatchInfo(match.externalId);
+            if (matchInfo && matchInfo.score && Array.isArray(matchInfo.score) && matchInfo.score.length > 0) {
+              const infoScoreArr = matchInfo.score;
+              const infoScoreString = infoScoreArr
+                .map((s: any) => `${s?.inning ?? "?"}: ${s?.r ?? 0}/${s?.w ?? 0} (${s?.o ?? 0} ov)`)
+                .join(" | ");
+              const infoTotalOvers = infoScoreArr.reduce((sum: number, s: any) => sum + (s?.o || 0), 0);
+              const infoStatus = (matchInfo.name || matchInfo.status || "").toLowerCase();
+              const infoEnded =
+                infoStatus.includes("won") || infoStatus.includes("draw") ||
+                infoStatus.includes("tied") || infoStatus.includes("finished") ||
+                infoStatus.includes("beat") || infoStatus.includes("defeat") ||
+                infoStatus.includes("result") || infoStatus.includes("aban") ||
+                (matchInfo as any).matchEnded === true;
+              if (infoTotalOvers > result.totalOvers) {
+                log(`[Heartbeat:LiveScore] CricAPI match_info has fresher score ${infoTotalOvers} ov vs ${result.totalOvers} ov`);
+                const statusText = matchInfo.name || matchInfo.status || "";
+                result.scoreString = statusText ? `${infoScoreString} — ${statusText}` : infoScoreString;
+                result.totalOvers = infoTotalOvers;
+              }
+              if (infoEnded && !result.matchEnded) {
+                log(`[Heartbeat:LiveScore] CricAPI match_info says match ended`);
+                result.matchEnded = true;
+              }
+            }
+          } catch (infoErr) {
+            log(`[Heartbeat:LiveScore] CricAPI match_info failed for ${match.team1Short} vs ${match.team2Short}: ${infoErr}`);
+          }
         }
 
         return { ...result, source };
