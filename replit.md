@@ -57,7 +57,14 @@ The project is built as a monorepo, sharing schema definitions between the front
 - **PostgreSQL**: The primary database, accessed via `DATABASE_URL` environment variable and Drizzle ORM.
 
 ### External APIs
-- **CricAPI (`https://api.cricapi.com/v1`)**: Provides cricket data for match synchronization, player squads, scorecards, and live scores. Features a 2-key fallback system to manage rate limits.
+- **CricAPI (`https://api.cricapi.com/v1`)**: Provides cricket data for match synchronization, player squads, scorecards, and live scores. Features a 2-key fallback system to manage rate limits. **Note**: CricAPI fails for live IPL 2026 matches — Cricbuzz is used as the primary live scoring source.
+- **Cricbuzz via RapidAPI**: Live scoring fallback used for IPL 2026. Fetches batting, bowling, and fielding data from `/mcenter/v1/{matchId}/scard` and `/mcenter/v1/{matchId}/leanback`. `fetchCricbuzzScorecard()` in `server/cricket-api.ts` — all player names normalized to lowercase (no special chars) before storing in `namePointsMap`. The `updateLiveScore` function in `server/index.ts` auto-falls back to Cricbuzz when CricAPI returns no data.
+
+### Admin Tools
+- **Base +4**: Awards +4 points to all Playing XI players instantly (`POST /api/admin/matches/:id/award-base-points`).
+- **Manual Points**: Enter `PlayerName: points` per line to award custom points and recalculate all teams (`POST /api/admin/matches/:id/manual-points`).
+- **Force Sync**: Triggers an immediate live score fetch (`POST /api/debug/force-sync` with body `{matchId}`).
+- **Recalculate**: Reprocesses all team scores from current player points (`POST /api/admin/matches/:id/recalculate`).
 
 ### Environment Variables
 - `DATABASE_URL`: PostgreSQL connection string.
@@ -65,6 +72,7 @@ The project is built as a monorepo, sharing schema definitions between the front
 - `EXPO_PUBLIC_DOMAIN`: Public domain for client-side API requests.
 - `REPLIT_DEV_DOMAIN`, `REPLIT_DOMAINS`: Replit-specific configurations for CORS and development.
 - `CRICKET_API_KEY`, `CRICAPI_KEY_TIER2`: Primary and fallback API keys for CricAPI.
+- `RAPIDAPI_KEY`: RapidAPI key for Cricbuzz live scoring (must be set in both Replit secrets AND Railway Variables).
 
 ### Key NPM Packages
 - **Frontend**: `expo`, `expo-router`, `react-native`, `@tanstack/react-query`, `expo-linear-gradient`, `expo-haptics`, `expo-image`, `react-native-reanimated`, `react-native-gesture-handler`, `@react-native-async-storage/async-storage`.
