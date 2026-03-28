@@ -2006,20 +2006,28 @@ export async function fetchCricbuzzScorecard(
       const leanback = await cricbuzzFetch(`/mcenter/v1/${matchId}/leanback`);
       const mini = leanback.miniscore || {};
 
-      // Accurate innings score
+      // Accurate innings score — rebuild scoreStringParts from leanback
+      // Sort: completed innings (more overs) first, live innings (fewer overs) last
+      // so the frontend's "last segment = main score" correctly shows the live innings
       const inningsScores: any[] =
         mini.inningsscores?.inningsscore || [];
-      for (const is of inningsScores) {
+      const sortedInnScores = [...inningsScores].sort(
+        (a: any, b: any) => (b.overs || 0) - (a.overs || 0)
+      );
+      const lbScoreParts: string[] = [];
+      for (const is of sortedInnScores) {
         totalOvers = Math.max(totalOvers, is.overs || 0);
         const teamShort = is.batteamshortname || "Team";
-        const existing = scoreStringParts.find((s) =>
-          s.startsWith(teamShort)
-        );
-        if (!existing && (is.runs > 0 || is.wickets > 0)) {
-          scoreStringParts.push(
-            `${teamShort}: ${is.runs}/${is.wickets} (${is.overs} ov)`
-          );
+        const runs = is.runs ?? 0;
+        const wickets = is.wickets ?? 0;
+        const overs = is.overs ?? 0;
+        if (runs > 0 || wickets > 0 || overs > 0) {
+          lbScoreParts.push(`${teamShort}: ${runs}/${wickets} (${overs} ov)`);
         }
+      }
+      if (lbScoreParts.length > 0) {
+        // Replace scard-derived parts (which may have no team names or wrong order)
+        scoreStringParts.splice(0, scoreStringParts.length, ...lbScoreParts);
       }
 
       // Current bowlers (only if not already in scard bowling)
