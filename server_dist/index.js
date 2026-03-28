@@ -2096,15 +2096,15 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
     console.log(`[Cricbuzz:Scard] ${team1Short} vs ${team2Short}: ${scorecard.length} innings in scard`);
     for (const inn of scorecard) {
       const batsmen = inn.batsman || [];
-      const bowling = inn.bowling || [];
-      console.log(`[Cricbuzz:Scard] Inn ${inn.inningsId}: ${batsmen.length} batsmen, ${bowling.length} bowlers`);
+      const bowling = inn.bowler || inn.bowling || [];
+      console.log(`[Cricbuzz:Scard] Inn ${inn.inningsid ?? inn.inningsId}: ${batsmen.length} batsmen, ${bowling.length} bowlers`);
       const lbwBowledByBowler = /* @__PURE__ */ new Map();
       for (const b of batsmen) {
         const d = (b.outdec || "").toLowerCase();
         if (d.startsWith("b ") || d.startsWith("lbw")) {
           const match = b.outdec.match(/b\s+(.+)/i);
           if (match) {
-            const bn = match[1].trim();
+            const bn = normalizeName(match[1].trim());
             lbwBowledByBowler.set(bn, (lbwBowledByBowler.get(bn) || 0) + 8);
           }
         }
@@ -2145,7 +2145,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
         const eco = parseFloat(String(bw.economy || bw.eco || bw.er || 0)) || 0;
         const wickets2 = bw.wickets ?? bw.w ?? bw.wkts ?? 0;
         const maidens = bw.maidens ?? bw.m ?? bw.maiden ?? 0;
-        const lbwBonus = lbwBowledByBowler.get(name) || lbwBowledByBowler.get(normalizeName(name)) || 0;
+        const lbwBonus = lbwBowledByBowler.get(normalizeName(name)) || 0;
         const pts = calcCricbuzzBowlingPoints(
           wickets2,
           maidens,
