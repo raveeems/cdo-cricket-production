@@ -2093,9 +2093,11 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
     let matchEnded = false;
     const scardData = await cricbuzzFetch(`/mcenter/v1/${matchId}/scard`);
     const scorecard = scardData.scorecard || [];
+    console.log(`[Cricbuzz:Scard] ${team1Short} vs ${team2Short}: ${scorecard.length} innings in scard`);
     for (const inn of scorecard) {
       const batsmen = inn.batsman || [];
       const bowling = inn.bowling || [];
+      console.log(`[Cricbuzz:Scard] Inn ${inn.inningsId}: ${batsmen.length} batsmen, ${bowling.length} bowlers`);
       const lbwBowledByBowler = /* @__PURE__ */ new Map();
       for (const b of batsmen) {
         const d = (b.outdec || "").toLowerCase();
@@ -2146,6 +2148,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
           actualOvers,
           lbwBonus
         );
+        console.log(`[Cricbuzz:Bowl] Inn${inn.inningsId} ${name}: ${bw.wickets}w ${bw.overs}ov eco=${eco} => ${pts}pts`);
         addNamePoints(namePointsMap, name, pts);
       }
       const runs = batsmen.reduce((s, b) => s + (b.runs || 0), 0) + (inn.extras?.total || 0);
@@ -2205,6 +2208,11 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
     console.log(
       `[Cricbuzz] ${team1Short} vs ${team2Short}: matchId=${matchId}, ${namePointsMap.size} players, score="${scoreString}", ended=${matchEnded}`
     );
+    if (namePointsMap.size > 0) {
+      const sorted = [...namePointsMap.entries()].sort((a, b) => b[1] - a[1]);
+      console.log(`[Cricbuzz:Map] Points map:
+${sorted.map(([n, p]) => `  ${n}: ${p}`).join("\n")}`);
+    }
     if (namePointsMap.size === 0 && !scoreString) return null;
     return { namePointsMap, scoreString, matchEnded, totalOvers };
   } catch (err) {
