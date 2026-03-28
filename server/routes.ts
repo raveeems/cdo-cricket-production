@@ -2507,6 +2507,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- DEBUG: RAW CRICBUZZ SCARD (Admin only) ----
+  app.get(
+    "/api/debug/cricbuzz-raw",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { default: cricbuzzFetchRaw } = await import("./cricket-api").then(m => ({
+          default: async (path: string) => {
+            const url = `https://cricbuzz-cricket.p.rapidapi.com${path}`;
+            const resp = await fetch(url, {
+              headers: {
+                "x-rapidapi-host": "cricbuzz-cricket.p.rapidapi.com",
+                "x-rapidapi-key": process.env.RAPIDAPI_KEY || "",
+              },
+            });
+            return resp.json();
+          }
+        }));
+        const matchId = req.query.matchId || "149618";
+        const [scard, leanback] = await Promise.all([
+          cricbuzzFetchRaw(`/mcenter/v1/${matchId}/scard`),
+          cricbuzzFetchRaw(`/mcenter/v1/${matchId}/leanback`),
+        ]);
+        const innings = (scard.scorecard || []).map((inn: any) => ({
+          inningsId: inn.inningsId,
+          batCount: (inn.batsman || []).length,
+          bowlCount: (inn.bowling || []).length,
+          firstBowler: (inn.bowling || [])[0] || null,
+          firstBatter: (inn.batsman || [])[0] || null,
+        }));
+        return res.json({ matchId, innings, leanbackKeys: Object.keys(leanback.miniscore || {}), rawScard: scard, rawLeanback: leanback });
+      } catch (e: any) {
+        return res.status(500).json({ error: e.message });
+      }
+    }
+  );
+
   // ---- DEBUG: FORCE SYNC (Admin only) ----
   app.post(
     "/api/debug/force-sync",
