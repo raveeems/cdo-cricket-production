@@ -1140,9 +1140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .map((t) => {
             let resolvedPlayers = (t.playerIds as string[]).map(pid => {
               const p = playerById.get(pid);
-              if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort };
+              if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort, externalId: p.externalId };
               return null;
-            }).filter(Boolean) as { id: string; name: string; role: string; points: number; teamShort: string }[];
+            }).filter(Boolean) as { id: string; name: string; role: string; points: number; teamShort: string; externalId: string | null }[];
 
             if (resolvedPlayers.length === 0 && matchPlayersForResponse.length > 0) {
               const targetPts = t.totalPoints || 0;
@@ -1150,7 +1150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const sorted = [...matchPlayersForResponse].sort((a, b) => (b.points || 0) - (a.points || 0));
               const topPlayers = sorted.slice(0, numPlayers);
               resolvedPlayers = topPlayers.map(p => ({
-                id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort,
+                id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort, externalId: p.externalId,
               }));
             }
 
