@@ -1754,3 +1754,301 @@ export async function fetchLiveScorecard(externalMatchId: string): Promise<{
     return null;
   }
 }
+
+// ============================================================
+// CRICBUZZ (RapidAPI) — fallback live scoring for IPL 2026
+// ============================================================
+
+const CRICBUZZ_HOST = "cricbuzz-cricket.p.rapidapi.com";
+
+async function cricbuzzFetch(path: string): Promise<any> {
+  const key = process.env.RAPIDAPI_KEY;
+  if (!key) throw new Error("RAPIDAPI_KEY not configured");
+  const res = await fetch(`https://${CRICBUZZ_HOST}${path}`, {
+    headers: {
+      "x-rapidapi-host": CRICBUZZ_HOST,
+      "x-rapidapi-key": key,
+    },
+  });
+  if (!res.ok) throw new Error(`Cricbuzz HTTP ${res.status} for ${path}`);
+  return res.json();
+}
+
+async function findCricbuzzMatchId(
+  team1Short: string,
+  team2Short: string
+): Promise<number | null> {
+  const data = await cricbuzzFetch("/matches/v1/live");
+  const t1 = team1Short.toLowerCase();
+  const t2 = team2Short.toLowerCase();
+  for (const typeMatch of data.typeMatches || []) {
+    for (const sm of typeMatch.seriesMatches || []) {
+      const series = sm.seriesAdWrapper || sm;
+      for (const m of series.matches || []) {
+        const mi = m.matchInfo || {};
+        const mt1 = (mi.team1?.teamSName || "").toLowerCase();
+        const mt2 = (mi.team2?.teamSName || "").toLowerCase();
+        if (
+          (mt1 === t1 && mt2 === t2) ||
+          (mt1 === t2 && mt2 === t1)
+        ) {
+          return parseInt(mi.matchId, 10);
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function cbOversToDecimal(overs: string | number): number {
+  const s = String(overs);
+  const [whole, balls] = s.split(".");
+  return parseInt(whole || "0", 10) + (parseInt(balls || "0", 10) / 6);
+}
+
+function calcCricbuzzBattingPoints(
+  runs: number,
+  balls: number,
+  fours: number,
+  sixes: number,
+  dismissed: boolean
+): number {
+  let pts = runs;
+  pts += fours * 4;
+  pts += sixes * 6;
+
+  if (runs >= 100) pts += 16;
+  else if (runs >= 75) pts += 12;
+  else if (runs >= 50) pts += 8;
+  else if (runs >= 25) pts += 4;
+
+  if (runs === 0 && balls > 0 && dismissed) pts -= 2;
+
+  if (balls >= 10) {
+    const sr = (runs / balls) * 100;
+    if (sr > 170) pts += 6;
+    else if (sr > 150) pts += 4;
+    else if (sr >= 130) pts += 2;
+    else if (sr <= 70 && sr >= 60) pts -= 2;
+    else if (sr < 60 && sr >= 50) pts -= 4;
+    else if (sr < 50) pts -= 6;
+  }
+  return pts;
+}
+
+function calcCricbuzzBowlingPoints(
+  wickets: number,
+  maidens: number,
+  economy: number,
+  actualOvers: number,
+  lbwBowledBonus: number
+): number {
+  let pts = wickets * 30;
+  if (wickets >= 5) pts += 16;
+  else if (wickets >= 4) pts += 8;
+  else if (wickets >= 3) pts += 4;
+  if (maidens > 0) pts += maidens * 12;
+  pts += lbwBowledBonus;
+
+  if (actualOvers >= 2) {
+    if (economy < 5) pts += 6;
+    else if (economy < 6) pts += 4;
+    else if (economy <= 7) pts += 2;
+    else if (economy >= 10 && economy <= 11) pts -= 2;
+    else if (economy > 11 && economy <= 12) pts -= 4;
+    else if (economy > 12) pts -= 6;
+  }
+  return pts;
+}
+
+interface CricbuzzScoreResult {
+  namePointsMap: Map<string, number>;
+  scoreString: string;
+  matchEnded: boolean;
+  totalOvers: number;
+}
+
+export async function fetchCricbuzzScorecard(
+  team1Short: string,
+  team2Short: string
+): Promise<CricbuzzScoreResult | null> {
+  if (!process.env.RAPIDAPI_KEY) return null;
+
+  try {
+    const matchId = await findCricbuzzMatchId(team1Short, team2Short);
+    if (!matchId) {
+      console.log(
+        `[Cricbuzz] No live match found for ${team1Short} vs ${team2Short}`
+      );
+      return null;
+    }
+
+    const namePointsMap = new Map<string, number>();
+    const scoreStringParts: string[] = [];
+    let totalOvers = 0;
+    let matchEnded = false;
+
+    // --- SCARD: batting + dismissals + completed-innings bowling ---
+    const scardData = await cricbuzzFetch(`/mcenter/v1/${matchId}/scard`);
+    const scorecard: any[] = scardData.scorecard || [];
+
+    for (const inn of scorecard) {
+      const batsmen: any[] = inn.batsman || [];
+      const bowling: any[] = inn.bowling || [];
+
+      // Build wicket-taker lookup from dismissals for LBW/bowled bonus
+      const lbwBowledByBowler = new Map<string, number>();
+      for (const b of batsmen) {
+        const d = (b.outdec || "").toLowerCase();
+        if (d.startsWith("b ") || d.startsWith("lbw")) {
+          const match = b.outdec.match(/b\s+(.+)/i);
+          if (match) {
+            const bn = match[1].trim();
+            lbwBowledByBowler.set(bn, (lbwBowledByBowler.get(bn) || 0) + 8);
+          }
+        }
+      }
+
+      // BATTING
+      for (const b of batsmen) {
+        const name: string = b.name || b.nickname;
+        if (!name) continue;
+        const dismissed =
+          b.outdec &&
+          b.outdec !== "batting" &&
+          b.outdec !== "not out";
+        const pts = calcCricbuzzBattingPoints(
+          b.runs || 0,
+          b.balls || 0,
+          b.fours || 0,
+          b.sixes || 0,
+          !!dismissed
+        );
+        if (pts !== 0) {
+          namePointsMap.set(name, (namePointsMap.get(name) || 0) + pts);
+        }
+
+        // FIELDING from dismissal string
+        if (b.outdec) {
+          const d = b.outdec;
+          const catchMatch = d.match(/^c\s+(.+?)\s+b\s+/i);
+          const stumpMatch = d.match(/^st\s+(.+?)\s+b\s+/i);
+          const runoutMatch = d.match(/run out\s*\((.+?)\)/i);
+          if (catchMatch) {
+            const fn = catchMatch[1].trim();
+            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 8);
+          } else if (stumpMatch) {
+            const fn = stumpMatch[1].trim();
+            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 12);
+          } else if (runoutMatch) {
+            const fn = runoutMatch[1].trim();
+            namePointsMap.set(fn, (namePointsMap.get(fn) || 0) + 6);
+          }
+        }
+      }
+
+      // BOWLING (only present for completed innings)
+      for (const bw of bowling) {
+        const name: string = bw.name || bw.nickname;
+        if (!name) continue;
+        const actualOvers = cbOversToDecimal(bw.overs || 0);
+        const eco = parseFloat(String(bw.economy || 0)) || 0;
+        const pts = calcCricbuzzBowlingPoints(
+          bw.wickets || 0,
+          bw.maidens || 0,
+          eco,
+          actualOvers,
+          lbwBowledByBowler.get(name) || 0
+        );
+        if (pts !== 0) {
+          namePointsMap.set(name, (namePointsMap.get(name) || 0) + pts);
+        }
+      }
+
+      // Score string from batting total
+      const runs =
+        batsmen.reduce((s: number, b: any) => s + (b.runs || 0), 0) +
+        (inn.extras?.total || 0);
+      const wickets = batsmen.filter(
+        (b: any) =>
+          b.outdec && b.outdec !== "batting" && b.outdec !== "not out"
+      ).length;
+      if (runs > 0 || wickets > 0) {
+        scoreStringParts.push(
+          `${inn.inningsId || "Inn"}: ${runs}/${wickets}`
+        );
+      }
+    }
+
+    // --- LEANBACK: live bowling for ongoing innings + accurate score ---
+    try {
+      const leanback = await cricbuzzFetch(`/mcenter/v1/${matchId}/leanback`);
+      const mini = leanback.miniscore || {};
+
+      // Accurate innings score
+      const inningsScores: any[] =
+        mini.inningsscores?.inningsscore || [];
+      for (const is of inningsScores) {
+        totalOvers = Math.max(totalOvers, is.overs || 0);
+        const teamShort = is.batteamshortname || "Team";
+        const existing = scoreStringParts.find((s) =>
+          s.startsWith(teamShort)
+        );
+        if (!existing && (is.runs > 0 || is.wickets > 0)) {
+          scoreStringParts.push(
+            `${teamShort}: ${is.runs}/${is.wickets} (${is.overs} ov)`
+          );
+        }
+      }
+
+      // Current bowlers (only if not already in scard bowling)
+      const bowlerKeys = ["bowlerstriker", "bowlernonstriker"] as const;
+      for (const bk of bowlerKeys) {
+        const bw = mini[bk];
+        if (!bw?.name) continue;
+        const name: string = bw.name;
+        const actualOvers = cbOversToDecimal(bw.overs || 0);
+        const eco = parseFloat(String(bw.economy || 0)) || 0;
+        const existing = namePointsMap.get(name) || 0;
+        // Add bowling pts if they haven't been counted via scard yet
+        if (existing === 0 || bw.wickets > 0) {
+          const pts = calcCricbuzzBowlingPoints(
+            bw.wickets || 0,
+            bw.maidens || 0,
+            eco,
+            actualOvers,
+            0
+          );
+          if (pts !== 0) {
+            namePointsMap.set(name, existing + pts);
+          }
+        }
+      }
+
+      // Match ended check
+      const status = (mini.status || "").toLowerCase();
+      matchEnded =
+        status.includes("won") ||
+        status.includes("draw") ||
+        status.includes("tied") ||
+        status.includes("result") ||
+        status.includes("abandoned");
+    } catch (lbErr) {
+      console.error("[Cricbuzz] Leanback failed:", lbErr);
+    }
+
+    const scoreString = scoreStringParts.join(" | ");
+    console.log(
+      `[Cricbuzz] ${team1Short} vs ${team2Short}: matchId=${matchId}, ${namePointsMap.size} players, score="${scoreString}", ended=${matchEnded}`
+    );
+
+    if (namePointsMap.size === 0 && !scoreString) return null;
+    return { namePointsMap, scoreString, matchEnded, totalOvers };
+  } catch (err) {
+    console.error(
+      `[Cricbuzz] fetchCricbuzzScorecard failed for ${team1Short} vs ${team2Short}:`,
+      err
+    );
+    return null;
+  }
+}

@@ -591,15 +591,35 @@ function setupErrorHandler(app: express.Application) {
       if (!match.externalId) return empty;
 
       try {
-        const { fetchMatchScorecardWithScore, fetchMatchInfo } = await import(
+        const { fetchMatchScorecardWithScore, fetchMatchInfo, fetchCricbuzzScorecard } = await import(
           "./cricket-api"
         );
         const result = await fetchMatchScorecardWithScore(match.externalId);
-        const source =
+        let source =
           result.pointsMap.size > 0 || result.scoreString ? "CricAPI" : "";
         log(
           `[Heartbeat:Score] ${match.team1Short} vs ${match.team2Short}: ${result.pointsMap.size} players in scorecard, score="${result.scoreString.substring(0, 80)}", ended=${result.matchEnded}, overs=${result.totalOvers}`,
         );
+
+        // --- Cricbuzz fallback when CricAPI has no scorecard data ---
+        if (!source && process.env.RAPIDAPI_KEY) {
+          try {
+            log(`[Heartbeat:Score] CricAPI empty — trying Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
+            const cbResult = await fetchCricbuzzScorecard(match.team1Short, match.team2Short);
+            if (cbResult && (cbResult.namePointsMap.size > 0 || cbResult.scoreString)) {
+              result.namePointsMap = cbResult.namePointsMap;
+              result.scoreString = cbResult.scoreString || result.scoreString;
+              result.matchEnded = cbResult.matchEnded || result.matchEnded;
+              result.totalOvers = Math.max(result.totalOvers, cbResult.totalOvers);
+              source = "Cricbuzz";
+              log(`[Heartbeat:Score] Cricbuzz SUCCESS: ${cbResult.namePointsMap.size} players, score="${cbResult.scoreString}", ended=${cbResult.matchEnded}`);
+            } else {
+              log(`[Heartbeat:Score] Cricbuzz also returned empty for ${match.team1Short} vs ${match.team2Short}`);
+            }
+          } catch (cbErr) {
+            log(`[Heartbeat:Score] Cricbuzz fallback error for ${match.team1Short} vs ${match.team2Short}: ${cbErr}`);
+          }
+        }
 
         try {
           const matchInfo = await fetchMatchInfo(match.externalId);
