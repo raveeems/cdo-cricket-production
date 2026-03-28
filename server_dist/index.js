@@ -785,6 +785,7 @@ var init_storage = __esm({
 var cricket_api_exports = {};
 __export(cricket_api_exports, {
   ensureIPLPreviewMatches: () => ensureIPLPreviewMatches,
+  fetchCricbuzzLiveScorecard: () => fetchCricbuzzLiveScorecard,
   fetchCricbuzzScorecard: () => fetchCricbuzzScorecard,
   fetchLiveScorecard: () => fetchLiveScorecard,
   fetchMatchInfo: () => fetchMatchInfo,
@@ -2228,6 +2229,71 @@ ${sorted.map(([n, p]) => `  ${n}: ${p}`).join("\n")}`);
     return null;
   }
 }
+async function fetchCricbuzzLiveScorecard(team1Short, team2Short) {
+  if (!process.env.RAPIDAPI_KEY) return null;
+  try {
+    const matchId = await findCricbuzzMatchId(team1Short, team2Short);
+    if (!matchId) return null;
+    const scardData = await cricbuzzFetch(`/mcenter/v1/${matchId}/scard`);
+    const scorecard = scardData.scorecard || [];
+    const matchComplete = !!scardData.ismatchcomplete;
+    const status = scardData.status || "";
+    const score = [];
+    const innings = [];
+    for (const inn of scorecard) {
+      const inningLabel = `${inn.batteamname || inn.batteamsname || "Team"} Innings`;
+      const batsmen = inn.batsman || [];
+      const bowlers = inn.bowler || inn.bowling || [];
+      const extras = inn.extras || {};
+      const batting = batsmen.map((b) => {
+        const dismissal = b.outdec && b.outdec !== "batting" ? b.outdec : "not out";
+        return {
+          name: b.name || b.nickname || "",
+          r: b.runs ?? 0,
+          b: b.balls ?? 0,
+          fours: b.fours ?? 0,
+          sixes: b.sixes ?? 0,
+          sr: parseFloat(String(b.strkrate ?? 0)) || 0,
+          dismissal,
+          fantasyPoints: 0
+        };
+      });
+      const bowling = bowlers.map((bw) => ({
+        name: bw.name || bw.nickname || "",
+        o: parseFloat(String(bw.overs ?? 0)) || 0,
+        m: bw.maidens ?? 0,
+        r: bw.runs ?? 0,
+        w: bw.wickets ?? 0,
+        eco: parseFloat(String(bw.economy ?? 0)) || 0,
+        fantasyPoints: 0
+      }));
+      const totalRuns = (inn.score ?? batting.reduce((s, b) => s + b.r, 0)) + (extras.total ?? 0);
+      const totalWickets = inn.wickets ?? batsmen.filter((b) => b.outdec && b.outdec !== "batting" && b.outdec !== "not out").length;
+      const totalOvers = parseFloat(String(inn.overs ?? 0)) || 0;
+      score.push({ r: totalRuns, w: totalWickets, o: totalOvers, inning: inningLabel });
+      innings.push({
+        inning: inningLabel,
+        extras: extras.total ?? 0,
+        extrasDetail: {
+          b: extras.byes ?? 0,
+          lb: extras.legbyes ?? 0,
+          w: extras.wides ?? 0,
+          nb: extras.noballs ?? 0,
+          p: extras.penalty ?? 0
+        },
+        totals: { r: totalRuns, w: totalWickets, o: totalOvers },
+        batting,
+        bowling
+      });
+    }
+    if (innings.length === 0) return null;
+    console.log(`[Cricbuzz:LiveScorecard] ${team1Short} vs ${team2Short}: ${innings.length} innings, complete=${matchComplete}`);
+    return { score, innings, status: status || `${team1Short} vs ${team2Short}` };
+  } catch (err) {
+    console.error(`[Cricbuzz:LiveScorecard] Failed for ${team1Short} vs ${team2Short}:`, err);
+    return null;
+  }
+}
 var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, KNOWN_TEAM_CODES, IPL_2026_SERIES_ID_PREVIEW, IPL_2026_HARDCODED, _iplPreviewCache, IPL_PREVIEW_TTL_MS, lastStatusRefresh, STATUS_REFRESH_INTERVAL, CRICBUZZ_HOST;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
@@ -3115,6 +3181,34 @@ async function registerRoutes(app2) {
           if (scorecard) source = "CricAPI";
         } catch (apiErr) {
           console.error(`[LiveScorecard] fetch failed for ${cacheKey}:`, apiErr?.message || apiErr);
+        }
+        if (!scorecard && process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
+          try {
+            const { fetchCricbuzzLiveScorecard: fetchCricbuzzLiveScorecard2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+            const cbData = await fetchCricbuzzLiveScorecard2(match.team1Short, match.team2Short);
+            if (cbData) {
+              const dbPlayers = await storage.getPlayersForMatch(match.id);
+              const normalize = (n) => n.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+              const pointsByName = /* @__PURE__ */ new Map();
+              for (const p of dbPlayers) {
+                const key = normalize(p.name);
+                if (key) pointsByName.set(key, p.points ?? 0);
+              }
+              for (const inn of cbData.innings) {
+                for (const b of inn.batting) {
+                  b.fantasyPoints = pointsByName.get(normalize(b.name)) ?? 0;
+                }
+                for (const bw of inn.bowling) {
+                  bw.fantasyPoints = pointsByName.get(normalize(bw.name)) ?? 0;
+                }
+              }
+              scorecard = cbData;
+              source = "Cricbuzz";
+              console.log(`[LiveScorecard] Using Cricbuzz data for ${match.team1Short} vs ${match.team2Short}`);
+            }
+          } catch (cbErr) {
+            console.error(`[LiveScorecard] Cricbuzz fallback failed:`, cbErr?.message || cbErr);
+          }
         }
         const payload = scorecard ? { scorecard, source } : { scorecard: null, message: "No scorecard data available yet" };
         liveScorecardCache.set(cacheKey, { data: payload, fetchedAt: now });

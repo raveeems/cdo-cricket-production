@@ -2078,3 +2078,104 @@ export async function fetchCricbuzzScorecard(
     return null;
   }
 }
+
+export async function fetchCricbuzzLiveScorecard(
+  team1Short: string,
+  team2Short: string
+): Promise<{
+  score: Array<{ r: number; w: number; o: number; inning: string }>;
+  innings: Array<{
+    inning: string;
+    extras?: number;
+    extrasDetail?: { b?: number; lb?: number; w?: number; nb?: number; p?: number };
+    totals?: { r: number; w: number; o: number };
+    batting: Array<{
+      name: string; r: number; b: number; fours: number; sixes: number;
+      sr: number; dismissal: string; fantasyPoints: number;
+    }>;
+    bowling: Array<{
+      name: string; o: number; m: number; r: number; w: number;
+      eco: number; fantasyPoints: number;
+    }>;
+  }>;
+  status: string;
+} | null> {
+  if (!process.env.RAPIDAPI_KEY) return null;
+  try {
+    const matchId = await findCricbuzzMatchId(team1Short, team2Short);
+    if (!matchId) return null;
+
+    const scardData = await cricbuzzFetch(`/mcenter/v1/${matchId}/scard`);
+    const scorecard: any[] = scardData.scorecard || [];
+    const matchComplete: boolean = !!scardData.ismatchcomplete;
+    const status: string = scardData.status || "";
+
+    const score: Array<{ r: number; w: number; o: number; inning: string }> = [];
+    const innings: Array<{
+      inning: string;
+      extras?: number;
+      extrasDetail?: { b?: number; lb?: number; w?: number; nb?: number; p?: number };
+      totals?: { r: number; w: number; o: number };
+      batting: Array<{ name: string; r: number; b: number; fours: number; sixes: number; sr: number; dismissal: string; fantasyPoints: number }>;
+      bowling: Array<{ name: string; o: number; m: number; r: number; w: number; eco: number; fantasyPoints: number }>;
+    }> = [];
+
+    for (const inn of scorecard) {
+      const inningLabel = `${inn.batteamname || inn.batteamsname || "Team"} Innings`;
+      const batsmen: any[] = inn.batsman || [];
+      const bowlers: any[] = inn.bowler || inn.bowling || [];
+      const extras = inn.extras || {};
+
+      const batting = batsmen.map((b: any) => {
+        const dismissal = b.outdec && b.outdec !== "batting" ? b.outdec : "not out";
+        return {
+          name: b.name || b.nickname || "",
+          r: b.runs ?? 0,
+          b: b.balls ?? 0,
+          fours: b.fours ?? 0,
+          sixes: b.sixes ?? 0,
+          sr: parseFloat(String(b.strkrate ?? 0)) || 0,
+          dismissal,
+          fantasyPoints: 0,
+        };
+      });
+
+      const bowling = bowlers.map((bw: any) => ({
+        name: bw.name || bw.nickname || "",
+        o: parseFloat(String(bw.overs ?? 0)) || 0,
+        m: bw.maidens ?? 0,
+        r: bw.runs ?? 0,
+        w: bw.wickets ?? 0,
+        eco: parseFloat(String(bw.economy ?? 0)) || 0,
+        fantasyPoints: 0,
+      }));
+
+      const totalRuns = (inn.score ?? batting.reduce((s: number, b: any) => s + b.r, 0)) + (extras.total ?? 0);
+      const totalWickets = inn.wickets ?? batsmen.filter((b: any) => b.outdec && b.outdec !== "batting" && b.outdec !== "not out").length;
+      const totalOvers = parseFloat(String(inn.overs ?? 0)) || 0;
+
+      score.push({ r: totalRuns, w: totalWickets, o: totalOvers, inning: inningLabel });
+      innings.push({
+        inning: inningLabel,
+        extras: extras.total ?? 0,
+        extrasDetail: {
+          b: extras.byes ?? 0,
+          lb: extras.legbyes ?? 0,
+          w: extras.wides ?? 0,
+          nb: extras.noballs ?? 0,
+          p: extras.penalty ?? 0,
+        },
+        totals: { r: totalRuns, w: totalWickets, o: totalOvers },
+        batting,
+        bowling,
+      });
+    }
+
+    if (innings.length === 0) return null;
+    console.log(`[Cricbuzz:LiveScorecard] ${team1Short} vs ${team2Short}: ${innings.length} innings, complete=${matchComplete}`);
+    return { score, innings, status: status || `${team1Short} vs ${team2Short}` };
+  } catch (err) {
+    console.error(`[Cricbuzz:LiveScorecard] Failed for ${team1Short} vs ${team2Short}:`, err);
+    return null;
+  }
+}

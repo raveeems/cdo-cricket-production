@@ -955,6 +955,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`[LiveScorecard] fetch failed for ${cacheKey}:`, apiErr?.message || apiErr);
         }
 
+        // Cricbuzz fallback when CricAPI returns nothing
+        if (!scorecard && process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
+          try {
+            const { fetchCricbuzzLiveScorecard } = await import("./cricket-api");
+            const cbData = await fetchCricbuzzLiveScorecard(match.team1Short, match.team2Short);
+            if (cbData) {
+              // Build name → points map from DB players for this match
+              const dbPlayers = await storage.getPlayersForMatch(match.id);
+              const normalize = (n: string) => n.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+              const pointsByName = new Map<string, number>();
+              for (const p of dbPlayers) {
+                const key = normalize(p.name);
+                if (key) pointsByName.set(key, p.points ?? 0);
+              }
+
+              // Attach fantasy points to each batter and bowler
+              for (const inn of cbData.innings) {
+                for (const b of inn.batting) {
+                  b.fantasyPoints = pointsByName.get(normalize(b.name)) ?? 0;
+                }
+                for (const bw of inn.bowling) {
+                  bw.fantasyPoints = pointsByName.get(normalize(bw.name)) ?? 0;
+                }
+              }
+
+              scorecard = cbData;
+              source = "Cricbuzz";
+              console.log(`[LiveScorecard] Using Cricbuzz data for ${match.team1Short} vs ${match.team2Short}`);
+            }
+          } catch (cbErr: any) {
+            console.error(`[LiveScorecard] Cricbuzz fallback failed:`, cbErr?.message || cbErr);
+          }
+        }
+
         const payload = scorecard
           ? { scorecard, source }
           : { scorecard: null, message: "No scorecard data available yet" };
