@@ -2292,6 +2292,52 @@ async function fetchCricbuzzLiveScorecard(team1Short, team2Short) {
         bowling
       });
     }
+    try {
+      const lb = await cricbuzzFetch(`/mcenter/v1/${matchId}/leanback`);
+      const mini = lb.miniscore || {};
+      const currentBatTeam = mini.batsmanStriker?.batTeamName || mini.batsman?.[0]?.batTeamName || "";
+      if (currentBatTeam) {
+        const alreadyIn = innings.some(
+          (inn) => inn.inning.toLowerCase().includes(currentBatTeam.toLowerCase())
+        );
+        if (!alreadyIn) {
+          const liveBatsmen = Array.isArray(mini.batsman) ? mini.batsman : [mini.batsmanStriker, mini.batsmanNonStriker].filter(Boolean);
+          const liveBowlers = [mini.bowlerStriker, mini.bowlerNonStriker].filter(Boolean);
+          const lbBatting = liveBatsmen.map((b) => ({
+            name: b.batName || b.name || "",
+            r: b.runs ?? 0,
+            b: b.balls ?? 0,
+            fours: b.fours ?? b.no4s ?? 0,
+            sixes: b.sixes ?? b.no6s ?? 0,
+            sr: parseFloat(String(b.strikeRate ?? b.strkrate ?? 0)) || 0,
+            dismissal: "batting",
+            fantasyPoints: 0
+          }));
+          const lbBowling = liveBowlers.map((bw) => ({
+            name: bw.bowlName || bw.name || "",
+            o: parseFloat(String(bw.overs ?? 0)) || 0,
+            m: bw.maidens ?? 0,
+            r: bw.runs ?? 0,
+            w: bw.wickets ?? 0,
+            eco: parseFloat(String(bw.economy ?? 0)) || 0,
+            fantasyPoints: 0
+          }));
+          const lbRuns = (mini.inningsscores?.inningsscore || []).find(
+            (s) => (s.batteamname || "").toLowerCase().includes(currentBatTeam.toLowerCase()) || (s.batteamshortname || "").toLowerCase() === currentBatTeam.toLowerCase()
+          );
+          const lbScore = { r: lbRuns?.runs ?? 0, w: lbRuns?.wickets ?? 0, o: lbRuns?.overs ?? 0 };
+          score.push({ r: lbScore.r, w: lbScore.w, o: lbScore.o, inning: `${currentBatTeam} Innings` });
+          innings.push({
+            inning: `${currentBatTeam} Innings`,
+            extras: 0,
+            totals: lbScore,
+            batting: lbBatting,
+            bowling: lbBowling
+          });
+        }
+      }
+    } catch (_lbErr) {
+    }
     if (innings.length === 0) return null;
     console.log(`[Cricbuzz:LiveScorecard] ${team1Short} vs ${team2Short}: ${innings.length} innings, complete=${matchComplete}`);
     return { score, innings, status: status || `${team1Short} vs ${team2Short}` };
