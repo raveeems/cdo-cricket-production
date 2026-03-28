@@ -6709,15 +6709,18 @@ function setupErrorHandler(app2) {
               );
             }
           }
-          if (pointsMap.size > 0 && !match.firstScorecardAt) {
+          const hasAnyScorecard = pointsMap.size > 0 || namePointsMap.size > 0;
+          const normName = (n) => n.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+          const inScorecard = (player) => player.externalId && pointsMap.has(player.externalId) || namePointsMap.size > 0 && normName(player.name) !== "" && namePointsMap.has(normName(player.name));
+          if (hasAnyScorecard && !match.firstScorecardAt) {
             try {
               await storage.updateMatch(match.id, { firstScorecardAt: /* @__PURE__ */ new Date() });
               log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
               const allMatchPlayers = await storage.getPlayersForMatch(match.id);
               let autoXiCount = 0;
               for (const player of allMatchPlayers) {
-                if (!player.externalId) continue;
-                if (pointsMap.has(player.externalId) && !player.isPlayingXI) {
+                if (player.isPlayingXI) continue;
+                if (inScorecard(player)) {
                   await storage.updatePlayer(player.id, { isPlayingXI: true });
                   autoXiCount++;
                 }
@@ -6728,12 +6731,12 @@ function setupErrorHandler(app2) {
             } catch (fse) {
               console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
             }
-          } else if (pointsMap.size > 0 && match.firstScorecardAt) {
+          } else if (hasAnyScorecard && match.firstScorecardAt) {
             try {
               const allMatchPlayers = await storage.getPlayersForMatch(match.id);
               for (const player of allMatchPlayers) {
-                if (!player.externalId || player.isPlayingXI || player.isImpactPlayer) continue;
-                if (pointsMap.has(player.externalId)) {
+                if (player.isPlayingXI || player.isImpactPlayer) continue;
+                if (inScorecard(player)) {
                   log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
                   await storage.updatePlayer(player.id, { isImpactPlayer: true });
                   await storage.upsertMatchPlayerStatus({

@@ -1081,7 +1081,13 @@ function setupErrorHandler(app: express.Application) {
               }
             }
 
-            if (pointsMap.size > 0 && !(match as any).firstScorecardAt) {
+            const hasAnyScorecard = pointsMap.size > 0 || namePointsMap.size > 0;
+            const normName = (n: string) => n.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+            const inScorecard = (player: { externalId?: string | null; name: string }) =>
+              (player.externalId && pointsMap.has(player.externalId)) ||
+              (namePointsMap.size > 0 && normName(player.name) !== "" && namePointsMap.has(normName(player.name)));
+
+            if (hasAnyScorecard && !(match as any).firstScorecardAt) {
               try {
                 await storage.updateMatch(match.id, { firstScorecardAt: new Date() } as any);
                 log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
@@ -1089,8 +1095,8 @@ function setupErrorHandler(app: express.Application) {
                 const allMatchPlayers = await storage.getPlayersForMatch(match.id);
                 let autoXiCount = 0;
                 for (const player of allMatchPlayers) {
-                  if (!player.externalId) continue;
-                  if (pointsMap.has(player.externalId) && !player.isPlayingXI) {
+                  if (player.isPlayingXI) continue;
+                  if (inScorecard(player)) {
                     await storage.updatePlayer(player.id, { isPlayingXI: true });
                     autoXiCount++;
                   }
@@ -1101,14 +1107,15 @@ function setupErrorHandler(app: express.Application) {
               } catch (fse) {
                 console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
               }
-            } else if (pointsMap.size > 0 && (match as any).firstScorecardAt) {
+            } else if (hasAnyScorecard && (match as any).firstScorecardAt) {
               // Auto-detect impact substitutes on subsequent scorecards:
               // A player appearing in the scorecard who was NOT in the original XI is an impact sub
+              // Works with both CricAPI (externalId) and Cricbuzz (normalized name)
               try {
                 const allMatchPlayers = await storage.getPlayersForMatch(match.id);
                 for (const player of allMatchPlayers) {
-                  if (!player.externalId || player.isPlayingXI || player.isImpactPlayer) continue;
-                  if (pointsMap.has(player.externalId)) {
+                  if (player.isPlayingXI || player.isImpactPlayer) continue;
+                  if (inScorecard(player)) {
                     log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
                     await storage.updatePlayer(player.id, { isImpactPlayer: true });
                     await storage.upsertMatchPlayerStatus({
