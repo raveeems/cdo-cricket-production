@@ -3347,6 +3347,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: USER ID LOOKUP ----
+  app.get(
+    "/api/admin/user-lookup",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const username = (req.query.username as string || "").toLowerCase().trim();
+        if (!username) return res.status(400).json({ message: "Provide ?username=xxx" });
+        const allUsers = await db.select({ id: users.id, username: users.username, teamName: users.teamName })
+          .from(users)
+          .where(sql`LOWER(${users.username}) = ${username} OR LOWER(${users.teamName}) = ${username}`);
+        return res.json({ users: allUsers });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
   app.post(
     "/api/admin/cleanup-test-users",
     isAuthenticated,

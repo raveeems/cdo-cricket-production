@@ -5579,6 +5579,21 @@ async function registerRoutes(app2) {
       }
     }
   );
+  app2.get(
+    "/api/admin/user-lookup",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const username = (req.query.username || "").toLowerCase().trim();
+        if (!username) return res.status(400).json({ message: "Provide ?username=xxx" });
+        const allUsers = await db.select({ id: users.id, username: users.username, teamName: users.teamName }).from(users).where(sql3`LOWER(${users.username}) = ${username} OR LOWER(${users.teamName}) = ${username}`);
+        return res.json({ users: allUsers });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
   app2.post(
     "/api/admin/cleanup-test-users",
     isAuthenticated,
