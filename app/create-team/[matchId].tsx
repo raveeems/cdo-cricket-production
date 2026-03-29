@@ -36,7 +36,7 @@ import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
 import { SkeletonBox } from '@/components/SkeletonBox';
 
-type Step = 'select' | 'impact' | 'captain' | 'preview' | 'success';
+type Step = 'select' | 'impact' | 'backup' | 'captain' | 'preview' | 'success';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
 
 const SPLASH_MESSAGES = [
@@ -958,14 +958,14 @@ export default function CreateTeamScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'impact' ? 'Impact Picks' : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
+          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'impact' ? 'Primary Impact Pick' : step === 'backup' ? 'Backup Impact Pick' : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
 
       {step !== 'success' && (
         <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, gap: 4 }}>
-          {(impactEnabled ? ['select', 'impact', 'captain', 'preview'] : ['select', 'captain', 'preview']).map((s, i, arr) => {
+          {(impactEnabled ? ['select', 'impact', 'backup', 'captain', 'preview'] : ['select', 'captain', 'preview']).map((s, i, arr) => {
             const stepIndex = arr.indexOf(step);
             const isActive = i <= stepIndex;
             return (
@@ -1251,10 +1251,10 @@ export default function CreateTeamScreen() {
           <View style={[styles.captainInfo, { backgroundColor: colors.surfaceElevated }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <MaterialCommunityIcons name="lightning-bolt" size={22} color={colors.warning} />
-              <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>Impact Picks</Text>
+              <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>Primary Impact Pick</Text>
             </View>
             <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, lineHeight: 18 }}>
-              Pick a Primary and Backup Impact player (same franchise, not in your Main XI). If they enter as Impact Sub, they score for you!
+              Pick one player not in your Main XI. If they enter as Impact Sub, they score for you! You'll choose a backup on the next page.
             </Text>
           </View>
 
@@ -1262,11 +1262,8 @@ export default function CreateTeamScreen() {
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
             showsVerticalScrollIndicator={false}
           >
-            <Text style={{ color: colors.accent, fontSize: 13, fontFamily: 'Inter_700Bold' as const, marginBottom: 8, marginTop: 8 }}>
-              PRIMARY IMPACT PICK
-            </Text>
             {impactEligiblePlayers.length === 0 ? (
-              <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 20 }}>No eligible players available</Text>
+              <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 40 }}>No eligible players available</Text>
             ) : (
               impactEligiblePlayers.map(player => {
                 const isSelected = primaryImpactId === player.id;
@@ -1306,50 +1303,105 @@ export default function CreateTeamScreen() {
                 );
               })
             )}
-
-            {primaryImpactId && (
-              <>
-                <Text style={{ color: colors.primary, fontSize: 13, fontFamily: 'Inter_700Bold' as const, marginBottom: 8, marginTop: 16 }}>
-                  BACKUP IMPACT PICK (same franchise as {primaryImpactPlayer?.teamShort})
-                </Text>
-                {backupEligiblePlayers.length === 0 ? (
-                  <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 20 }}>No eligible backup players from {primaryImpactPlayer?.teamShort}</Text>
-                ) : (
-                  backupEligiblePlayers.map(player => {
-                    const isSelected = backupImpactId === player.id;
-                    return (
-                      <Pressable
-                        key={player.id}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setBackupImpactId(isSelected ? null : player.id);
-                        }}
-                        style={[styles.captainItem, { backgroundColor: isSelected ? colors.primary + '15' : colors.card, borderColor: isSelected ? colors.primary + '40' : colors.cardBorder }]}
-                      >
-                        <View style={styles.captainLeft}>
-                          <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-                            <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>{player.role}</Text>
-                          </View>
-                          <View>
-                            <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
-                            <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} | {player.credits} Cr</Text>
-                          </View>
-                        </View>
-                        <View style={[styles.checkCircle, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' }]}>
-                          {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
-                        </View>
-                      </Pressable>
-                    );
-                  })
-                )}
-              </>
-            )}
           </ScrollView>
 
           <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
             <View style={styles.bottomBarRow}>
               <Pressable
                 onPress={() => setStep('select')}
+                style={[styles.backStepBtn, { borderColor: colors.border }]}
+              >
+                <Ionicons name="arrow-back" size={20} color={colors.text} />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setStep(primaryImpactId ? 'backup' : 'captain');
+                }}
+                style={[styles.saveBtn, { flex: 1 }]}
+              >
+                <LinearGradient
+                  colors={[colors.accent, colors.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.saveBtnGradient}
+                >
+                  <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                    {primaryImpactId ? 'Next: Choose Backup' : 'Skip Impact Picks'}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={20} color="#000" />
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </>
+      )}
+
+      {step === 'backup' && impactEnabled && (
+        <>
+          <View style={[styles.captainInfo, { backgroundColor: colors.surfaceElevated }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <MaterialCommunityIcons name="lightning-bolt" size={22} color={colors.primary} />
+              <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>Backup Impact Pick</Text>
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, lineHeight: 18 }}>
+              {primaryImpactPlayer
+                ? `Choose a backup from ${primaryImpactPlayer.teamShort} (same franchise as ${primaryImpactPlayer.name}). Used if your primary pick isn't available.`
+                : 'Choose a backup player from the same franchise as your primary pick.'}
+            </Text>
+          </View>
+
+          {primaryImpactPlayer && (
+            <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 4, padding: 10, borderRadius: 10, backgroundColor: colors.warning + '12', borderWidth: 1, borderColor: colors.warning + '30', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MaterialCommunityIcons name="lightning-bolt" size={16} color={colors.warning} />
+              <Text style={{ color: colors.warning, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }}>
+                Primary: {primaryImpactPlayer.name}
+              </Text>
+            </View>
+          )}
+
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {backupEligiblePlayers.length === 0 ? (
+              <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 40 }}>
+                No eligible backup players from {primaryImpactPlayer?.teamShort}
+              </Text>
+            ) : (
+              backupEligiblePlayers.map(player => {
+                const isSelected = backupImpactId === player.id;
+                return (
+                  <Pressable
+                    key={player.id}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setBackupImpactId(isSelected ? null : player.id);
+                    }}
+                    style={[styles.captainItem, { backgroundColor: isSelected ? colors.primary + '15' : colors.card, borderColor: isSelected ? colors.primary + '40' : colors.cardBorder }]}
+                  >
+                    <View style={styles.captainLeft}>
+                      <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+                        <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>{player.role}</Text>
+                      </View>
+                      <View>
+                        <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
+                        <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} | {player.credits} Cr</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.checkCircle, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' }]}>
+                      {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+
+          <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+            <View style={styles.bottomBarRow}>
+              <Pressable
+                onPress={() => setStep('impact')}
                 style={[styles.backStepBtn, { borderColor: colors.border }]}
               >
                 <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -1368,7 +1420,7 @@ export default function CreateTeamScreen() {
                   style={styles.saveBtnGradient}
                 >
                   <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                    {primaryImpactId ? 'Next: Choose C & VC' : 'Skip Impact Picks'}
+                    {backupImpactId ? 'Next: Choose C & VC' : 'Skip Backup Pick'}
                   </Text>
                   <Ionicons name="arrow-forward" size={20} color="#000" />
                 </LinearGradient>
@@ -1522,7 +1574,13 @@ export default function CreateTeamScreen() {
             )}
             <View style={styles.bottomBarRow}>
               <Pressable
-                onPress={() => setStep(impactEnabled ? 'impact' : 'select')}
+                onPress={() => {
+                  if (impactEnabled) {
+                    setStep(primaryImpactId ? 'backup' : 'impact');
+                  } else {
+                    setStep('select');
+                  }
+                }}
                 style={[styles.backStepBtn, { borderColor: colors.border }]}
               >
                 <Ionicons name="arrow-back" size={20} color={colors.text} />
