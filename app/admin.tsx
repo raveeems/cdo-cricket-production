@@ -164,6 +164,7 @@ export default function AdminScreen() {
   const [basePtsLoadingId, setBasePtsLoadingId] = useState<string | null>(null);
   const [updatingPlayerId, setUpdatingPlayerId] = useState<string | null>(null);
   const [settingWinnerId, setSettingWinnerId] = useState<string | null>(null);
+  const [settleDialogMatch, setSettleDialogMatch] = useState<MatchInfo | null>(null);
   const [applyingBonusId, setApplyingBonusId] = useState<string | null>(null);
   const [fetchingSquadMatchId, setFetchingSquadMatchId] = useState<string | null>(null);
   const [fetchSquadResult, setFetchSquadResult] = useState<Record<string, string>>({});
@@ -421,15 +422,7 @@ export default function AdminScreen() {
   };
 
   const promptSetWinner = (m: MatchInfo) => {
-    const options: any[] = [
-      { text: m.team1Short, onPress: () => callSetWinner(m.id, m.team1Short) },
-      { text: m.team2Short, onPress: () => callSetWinner(m.id, m.team2Short) },
-    ];
-    if (m.officialWinner) {
-      options.push({ text: 'Clear Winner', style: 'destructive', onPress: () => callSetWinner(m.id, null) });
-    }
-    options.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert('Set Official Winner', `${m.team1Short} vs ${m.team2Short}${m.officialWinner ? `\nCurrent: ${m.officialWinner}` : ''}`, options);
+    setSettleDialogMatch(m);
   };
 
   const callSetWinner = async (matchId: string, winner: string | null) => {
@@ -3795,6 +3788,52 @@ export default function AdminScreen() {
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Save</Text>
                 }
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Settle Winner Dialog — works on web + native */}
+      <Modal
+        visible={!!settleDialogMatch}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSettleDialogMatch(null)}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setSettleDialogMatch(null)}>
+          <Pressable style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 24, width: 300, borderWidth: 1, borderColor: colors.border }} onPress={e => e.stopPropagation()}>
+            <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 17, marginBottom: 4, textAlign: 'center' }}>Set Official Winner</Text>
+            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 13, marginBottom: 20, textAlign: 'center' }}>
+              {settleDialogMatch ? `${settleDialogMatch.team1Short} vs ${settleDialogMatch.team2Short}` : ''}
+              {settleDialogMatch?.officialWinner ? `\nCurrent: 🏆 ${settleDialogMatch.officialWinner}` : ''}
+            </Text>
+            <View style={{ gap: 10 }}>
+              <Pressable
+                style={{ backgroundColor: '#1D4ED8', borderRadius: 10, paddingVertical: 13, alignItems: 'center' }}
+                onPress={() => { const m = settleDialogMatch; setSettleDialogMatch(null); if (m) callSetWinner(m.id, m.team1Short); }}
+              >
+                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>🏏 {settleDialogMatch?.team1Short} Won</Text>
+              </Pressable>
+              <Pressable
+                style={{ backgroundColor: '#7C3AED', borderRadius: 10, paddingVertical: 13, alignItems: 'center' }}
+                onPress={() => { const m = settleDialogMatch; setSettleDialogMatch(null); if (m) callSetWinner(m.id, m.team2Short); }}
+              >
+                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>🏏 {settleDialogMatch?.team2Short} Won</Text>
+              </Pressable>
+              {settleDialogMatch?.officialWinner && (
+                <Pressable
+                  style={{ borderWidth: 1, borderColor: '#EF4444', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                  onPress={() => { const m = settleDialogMatch; setSettleDialogMatch(null); if (m) callSetWinner(m.id, null); }}
+                >
+                  <Text style={{ color: '#EF4444', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Clear Winner</Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={{ paddingVertical: 10, alignItems: 'center' }}
+                onPress={() => setSettleDialogMatch(null)}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 14 }}>Cancel</Text>
               </Pressable>
             </View>
           </Pressable>
