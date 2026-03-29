@@ -886,7 +886,9 @@ function setupErrorHandler(app: express.Application) {
               const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
               if (resolved.activePlayerId) {
                 const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
-                if (impactPlayer) {
+                if (impactPlayer && !impactPlayer.isPlayingXI) {
+                  // Guard: if player is already in Playing XI, they cannot be an impact sub
+                  // (prevents double +4: once from Playing XI bonus, once from impact slot)
                   let impactPts = (impactPlayer.points || 0) + 4; // +4 bonus for activated impact sub
                   let impactMultiplier = 1;
                   if (team.captainType === "impact_slot") impactMultiplier = 2;
