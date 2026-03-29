@@ -486,7 +486,7 @@ export class DatabaseStorage {
 
     // Also find verified users who have teams in this tournament but no ledger entry yet
     const teamPlayers = await db
-      .selectDistinct({ userId: users.id, userName: users.username })
+      .selectDistinct({ userId: users.id, teamName: users.teamName, username: users.username })
       .from(userTeams)
       .innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName)))
       .innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true)));
@@ -501,7 +501,7 @@ export class DatabaseStorage {
 
     for (const tp of teamPlayers) {
       if (!ledgerUserIds.has(tp.userId)) {
-        combined.push({ userId: tp.userId, userName: tp.userName, totalPoints: 0, matchCount: 0 });
+        combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: 0 });
       }
     }
 

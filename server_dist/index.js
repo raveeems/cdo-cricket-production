@@ -622,7 +622,7 @@ var init_storage = __esm({
           totalPoints: sql2`SUM(${tournamentLedger.pointsChange})`.as("total_points"),
           matchCount: sql2`COUNT(DISTINCT ${tournamentLedger.matchId})`.as("match_count")
         }).from(tournamentLedger).where(eq(tournamentLedger.tournamentName, tName)).groupBy(tournamentLedger.userId, tournamentLedger.userName).orderBy(desc(sql2`total_points`));
-        const teamPlayers = await db.selectDistinct({ userId: users.id, userName: users.username }).from(userTeams).innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName))).innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true)));
+        const teamPlayers = await db.selectDistinct({ userId: users.id, teamName: users.teamName, username: users.username }).from(userTeams).innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName))).innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true)));
         const ledgerUserIds = new Set(ledgerResult.map((r) => r.userId));
         const combined = ledgerResult.map((r) => ({
           userId: r.userId,
@@ -632,7 +632,7 @@ var init_storage = __esm({
         }));
         for (const tp of teamPlayers) {
           if (!ledgerUserIds.has(tp.userId)) {
-            combined.push({ userId: tp.userId, userName: tp.userName, totalPoints: 0, matchCount: 0 });
+            combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: 0 });
           }
         }
         return combined.sort((a, b) => b.totalPoints - a.totalPoints);
