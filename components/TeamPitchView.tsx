@@ -28,6 +28,7 @@ interface TeamPitchViewProps {
   matchCompleted?: boolean;
   team1Short?: string;
   impactPlayer?: PitchPlayer | null;
+  backupPlayer?: PitchPlayer | null;
   captainType?: string | null;
   vcType?: string | null;
 }
@@ -153,7 +154,85 @@ function PitchPlayerNode({
   );
 }
 
-function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints, matchCompleted = false, team1Short, impactPlayer, captainType, vcType }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
+function BenchStrip({ primary, backup, captainType, vcType }: {
+  primary: PitchPlayer | null | undefined;
+  backup: PitchPlayer | null | undefined;
+  captainType?: string | null;
+  vcType?: string | null;
+}) {
+  const { colors } = useTheme();
+  if (!primary && !backup) return null;
+
+  const impactIsCaptain = captainType === 'impact_slot';
+  const impactIsVC = vcType === 'impact_slot';
+  const primaryActivated = primary?.isImpactPlayer ?? false;
+  const backupActivated = backup?.isImpactPlayer ?? false;
+
+  function BenchCard({ player, label, isCaptain, isVC }: { player: PitchPlayer | null | undefined; label: string; isCaptain: boolean; isVC: boolean }) {
+    const pts = player?.points ?? 0;
+    let displayPts = pts;
+    if (isCaptain) displayPts = pts * 2;
+    else if (isVC) displayPts = Math.round(pts * 1.5);
+    const isActivated = player?.isImpactPlayer ?? false;
+    const jerseyColor = getTeamColor(player?.teamShort);
+    const playerImage = player ? getPlayerImage(player.externalId ?? player.id) : null;
+    return (
+      <View style={[benchStyles.card, isActivated && benchStyles.activatedCard]}>
+        <Text style={[benchStyles.cardLabel, isActivated && { color: '#C084FC' }]}>{label}</Text>
+        <View style={benchStyles.avatarWrap}>
+          <View style={[benchStyles.avatar, isActivated && benchStyles.activatedAvatar]}>
+            {playerImage ? (
+              <Image source={playerImage} style={benchStyles.avatarImg} />
+            ) : (
+              <Ionicons name="shirt" size={22} color={jerseyColor} />
+            )}
+          </View>
+          {(isCaptain || isVC) && (
+            <View style={[benchStyles.cvBadge, isCaptain ? benchStyles.captainBadge : benchStyles.vcBadge]}>
+              <Text style={[benchStyles.cvText, { color: isCaptain ? '#000' : '#FFF' }]}>{isCaptain ? 'C' : 'VC'}</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[benchStyles.playerName, { color: player ? colors.text : colors.textTertiary }]} numberOfLines={1}>
+          {player ? shortenName(player.name) : '—'}
+        </Text>
+        <Text style={benchStyles.teamText}>{player?.teamShort ?? ''} {player?.role ?? ''}</Text>
+        {isActivated ? (
+          <View style={benchStyles.activeBadge}>
+            <Text style={benchStyles.activeBadgeText}>⚡ ACTIVE</Text>
+          </View>
+        ) : null}
+        <Text style={[benchStyles.ptsText, isActivated ? { color: '#C084FC', fontFamily: 'Inter_700Bold' as const } : { color: colors.textTertiary }]}>
+          {displayPts} pts
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[benchStyles.strip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Text style={[benchStyles.stripTitle, { color: colors.textSecondary }]}>⚡ IMPACT BENCH</Text>
+      <View style={benchStyles.cardsRow}>
+        <BenchCard
+          player={primary}
+          label="PRIMARY"
+          isCaptain={impactIsCaptain && primaryActivated}
+          isVC={impactIsVC && primaryActivated}
+        />
+        {backup && (
+          <BenchCard
+            player={backup}
+            label="BACKUP"
+            isCaptain={impactIsCaptain && backupActivated}
+            isVC={impactIsVC && backupActivated}
+          />
+        )}
+      </View>
+    </View>
+  );
+}
+
+function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints, matchCompleted = false, team1Short, impactPlayer, backupPlayer, captainType, vcType }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
   const { colors } = useTheme();
 
   const xiAnnounced = players.some(p => p.isPlayingXI);
@@ -170,68 +249,58 @@ function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints
     { label: 'BOWLERS', players: bowl },
   ];
 
-  const impactIsCaptain = captainType === 'impact_slot';
-  const impactIsVC = vcType === 'impact_slot';
-
   return (
-    <LinearGradient
-      colors={['#1B5E20', '#2E7D32', '#388E3C', '#43A047', '#4CAF50']}
-      locations={[0, 0.25, 0.5, 0.75, 1]}
-      style={pitchStyles.pitch}
-    >
-      <View style={pitchStyles.pitchOverlay}>
-        <View style={pitchStyles.pitchLine1} />
-        <View style={pitchStyles.pitchLine2} />
-        <View style={pitchStyles.pitchCircle} />
-        <View style={pitchStyles.pitchStrip} />
-      </View>
-
-      {teamName && (
-        <View style={pitchStyles.teamHeader}>
-          <Text style={pitchStyles.teamNameText}>{teamName}</Text>
-          {totalPoints !== undefined && (
-            <Text style={pitchStyles.teamPointsText}>{totalPoints} pts</Text>
-          )}
+    <View>
+      <LinearGradient
+        colors={['#1B5E20', '#2E7D32', '#388E3C', '#43A047', '#4CAF50']}
+        locations={[0, 0.25, 0.5, 0.75, 1]}
+        style={pitchStyles.pitch}
+      >
+        <View style={pitchStyles.pitchOverlay}>
+          <View style={pitchStyles.pitchLine1} />
+          <View style={pitchStyles.pitchLine2} />
+          <View style={pitchStyles.pitchCircle} />
+          <View style={pitchStyles.pitchStrip} />
         </View>
+
+        {teamName && (
+          <View style={pitchStyles.teamHeader}>
+            <Text style={pitchStyles.teamNameText}>{teamName}</Text>
+            {totalPoints !== undefined && (
+              <Text style={pitchStyles.teamPointsText}>{totalPoints} pts</Text>
+            )}
+          </View>
+        )}
+
+        {rows.map((row) => (
+          <View key={row.label} style={pitchStyles.roleSection}>
+            <Text style={pitchStyles.roleLabel}>{row.label}</Text>
+            <View style={pitchStyles.playersRow}>
+              {row.players.map(p => (
+                <PitchPlayerNode
+                  key={p.id}
+                  player={p}
+                  isCaptain={captainId === p.id}
+                  isVC={viceCaptainId === p.id}
+                  xiAnnounced={xiAnnounced}
+                  matchCompleted={matchCompleted}
+                  team1Short={team1Short}
+                />
+              ))}
+            </View>
+          </View>
+        ))}
+      </LinearGradient>
+
+      {(impactPlayer || backupPlayer) && (
+        <BenchStrip
+          primary={impactPlayer}
+          backup={backupPlayer}
+          captainType={captainType}
+          vcType={vcType}
+        />
       )}
-
-      {rows.map((row) => (
-        <View key={row.label} style={pitchStyles.roleSection}>
-          <Text style={pitchStyles.roleLabel}>{row.label}</Text>
-          <View style={pitchStyles.playersRow}>
-            {row.players.map(p => (
-              <PitchPlayerNode
-                key={p.id}
-                player={p}
-                isCaptain={captainId === p.id}
-                isVC={viceCaptainId === p.id}
-                xiAnnounced={xiAnnounced}
-                matchCompleted={matchCompleted}
-                team1Short={team1Short}
-              />
-            ))}
-          </View>
-        </View>
-      ))}
-
-      {impactPlayer && (
-        <View style={[pitchStyles.roleSection, pitchStyles.impactSection]}>
-          <View style={pitchStyles.impactLabelRow}>
-            <Text style={[pitchStyles.roleLabel, pitchStyles.impactLabel]}>⚡ IMPACT SUB</Text>
-          </View>
-          <View style={pitchStyles.playersRow}>
-            <PitchPlayerNode
-              player={{ ...impactPlayer, isImpactPlayer: true }}
-              isCaptain={impactIsCaptain}
-              isVC={impactIsVC}
-              xiAnnounced={xiAnnounced}
-              matchCompleted={matchCompleted}
-              team1Short={team1Short}
-            />
-          </View>
-        </View>
-      )}
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -247,6 +316,7 @@ export default function TeamPitchView({
   matchCompleted = false,
   team1Short,
   impactPlayer,
+  backupPlayer,
   captainType,
   vcType,
 }: TeamPitchViewProps) {
@@ -261,6 +331,7 @@ export default function TeamPitchView({
         matchCompleted={matchCompleted}
         team1Short={team1Short}
         impactPlayer={impactPlayer}
+        backupPlayer={backupPlayer}
         captainType={captainType}
         vcType={vcType}
       />
@@ -288,6 +359,7 @@ export default function TeamPitchView({
             matchCompleted={matchCompleted}
             team1Short={team1Short}
             impactPlayer={impactPlayer}
+            backupPlayer={backupPlayer}
             captainType={captainType}
             vcType={vcType}
           />
@@ -491,5 +563,124 @@ const pitchStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+  },
+});
+
+const benchStyles = StyleSheet.create({
+  strip: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  stripTitle: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  cardsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  card: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    gap: 3,
+  },
+  activatedCard: {
+    borderColor: '#9333EA',
+    backgroundColor: 'rgba(147,51,234,0.08)',
+  },
+  cardLabel: {
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.2,
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+  },
+  avatarWrap: {
+    position: 'relative',
+    marginVertical: 4,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  activatedAvatar: {
+    borderWidth: 2,
+    borderColor: '#9333EA',
+  },
+  avatarImg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    resizeMode: 'cover',
+  },
+  cvBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
+  },
+  captainBadge: {
+    backgroundColor: '#FFF',
+  },
+  vcBadge: {
+    backgroundColor: '#1E293B',
+  },
+  cvText: {
+    fontSize: 8,
+    fontFamily: 'Inter_700Bold',
+  },
+  playerName: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    textAlign: 'center',
+  },
+  teamText: {
+    fontSize: 10,
+    fontFamily: 'Inter_400Regular',
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+  activeBadge: {
+    backgroundColor: 'rgba(147,51,234,0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(147,51,234,0.3)',
+  },
+  activeBadgeText: {
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
+    color: '#C084FC',
+    letterSpacing: 0.5,
+  },
+  ptsText: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
   },
 });

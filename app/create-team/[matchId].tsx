@@ -1315,10 +1315,12 @@ export default function CreateTeamScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
+                  if (!primaryImpactId) return;
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setStep(primaryImpactId ? 'backup' : 'captain');
+                  setStep('backup');
                 }}
-                style={[styles.saveBtn, { flex: 1 }]}
+                disabled={!primaryImpactId}
+                style={[styles.saveBtn, { flex: 1, opacity: primaryImpactId ? 1 : 0.45 }]}
               >
                 <LinearGradient
                   colors={[colors.accent, colors.accentDark]}
@@ -1327,7 +1329,7 @@ export default function CreateTeamScreen() {
                   style={styles.saveBtnGradient}
                 >
                   <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                    {primaryImpactId ? 'Next: Choose Backup' : 'Skip Impact Picks'}
+                    {primaryImpactId ? 'Next: Choose Backup' : 'Pick a Player to Continue'}
                   </Text>
                   <Ionicons name="arrow-forward" size={20} color="#000" />
                 </LinearGradient>
@@ -1643,6 +1645,10 @@ export default function CreateTeamScreen() {
               captainId={captainId}
               viceCaptainId={vcId}
               team1Short={match?.team1Short}
+              impactPlayer={primaryImpactId ? (() => { const p = allPlayers.find(pl => pl.id === primaryImpactId); return p ? { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: false } : null; })() : null}
+              backupPlayer={backupImpactId ? (() => { const p = allPlayers.find(pl => pl.id === backupImpactId); return p ? { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: false } : null; })() : null}
+              captainType={captainType}
+              vcType={vcType}
             />
 
             <View style={[styles.previewSummary, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -1656,40 +1662,26 @@ export default function CreateTeamScreen() {
               </View>
             </View>
 
-            {impactEnabled && primaryImpactId && (() => {
-              const primaryP = allPlayers.find(p => p.id === primaryImpactId);
-              const backupP = backupImpactId ? allPlayers.find(p => p.id === backupImpactId) : null;
-              return (
-                <View style={[styles.previewSummary, { backgroundColor: colors.warning + '08', borderColor: colors.warning + '25', marginTop: 12 }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                    <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.warning} />
-                    <Text style={{ color: colors.warning, fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>Impact Zone</Text>
-                  </View>
-                  <View style={styles.previewSummaryRow}>
-                    <Text style={[styles.previewSummaryLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>Primary</Text>
-                    <Text style={[styles.previewSummaryValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>{primaryP?.name || '—'}</Text>
-                  </View>
-                  {backupP && (
-                    <View style={styles.previewSummaryRow}>
-                      <Text style={[styles.previewSummaryLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>Backup</Text>
-                      <Text style={[styles.previewSummaryValue, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>{backupP.name}</Text>
-                    </View>
-                  )}
-                  {captainType === 'impact_slot' && (
-                    <View style={styles.previewSummaryRow}>
-                      <Text style={[styles.previewSummaryLabel, { color: colors.accent, fontFamily: 'Inter_600SemiBold' }]}>Captain on Impact Slot</Text>
-                      <Text style={[styles.previewSummaryValue, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>2x</Text>
-                    </View>
-                  )}
-                  {vcType === 'impact_slot' && (
-                    <View style={styles.previewSummaryRow}>
-                      <Text style={[styles.previewSummaryLabel, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>VC on Impact Slot</Text>
-                      <Text style={[styles.previewSummaryValue, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>1.5x</Text>
-                    </View>
-                  )}
+            {impactEnabled && (captainType === 'impact_slot' || vcType === 'impact_slot') && (
+              <View style={[styles.previewSummary, { backgroundColor: colors.accent + '08', borderColor: colors.accent + '25', marginTop: 12 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.accent} />
+                  <Text style={{ color: colors.accent, fontSize: 13, fontFamily: 'Inter_700Bold' as const }}>Impact Slot Multiplier</Text>
                 </View>
-              );
-            })()}
+                {captainType === 'impact_slot' && (
+                  <View style={styles.previewSummaryRow}>
+                    <Text style={[styles.previewSummaryLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>Captain on Impact Slot</Text>
+                    <Text style={[styles.previewSummaryValue, { color: colors.accent, fontFamily: 'Inter_700Bold' }]}>2x</Text>
+                  </View>
+                )}
+                {vcType === 'impact_slot' && (
+                  <View style={styles.previewSummaryRow}>
+                    <Text style={[styles.previewSummaryLabel, { color: colors.textSecondary, fontFamily: 'Inter_500Medium' }]}>VC on Impact Slot</Text>
+                    <Text style={[styles.previewSummaryValue, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>1.5x</Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             {impactEnabled && (
               <View style={[styles.previewSummary, { backgroundColor: colors.card, borderColor: colors.cardBorder, marginTop: 12 }]}>

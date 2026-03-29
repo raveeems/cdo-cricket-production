@@ -508,15 +508,17 @@ export default function MatchDetailScreen() {
             externalId: (p as any).externalId,
             isPlayingXI: p.isPlayingXI,
           }));
-        const previewImpactPlayer: PitchPlayer | null = (() => {
-          if (!match.impactFeaturesEnabled) return null;
-          const ids = [previewTeam.primaryImpactId, previewTeam.backupImpactId].filter(Boolean) as string[];
-          if (!ids.length) return null;
-          const activated = ids.map(id => players.find(p => p.id === id)).find(p => p?.isImpactPlayer);
-          const primary = players.find(p => p.id === previewTeam.primaryImpactId);
-          const resolved = activated || primary;
-          if (!resolved) return null;
-          return { id: resolved.id, name: resolved.name, role: resolved.role as 'WK'|'BAT'|'AR'|'BOWL', points: activated ? (resolved.points || 0) + 4 : (resolved.points || 0), teamShort: resolved.teamShort, externalId: (resolved as any).externalId, isPlayingXI: false, isImpactPlayer: true };
+        const previewPrimaryImpact: PitchPlayer | null = (() => {
+          if (!match.impactFeaturesEnabled || !previewTeam.primaryImpactId) return null;
+          const p = players.find(pl => pl.id === previewTeam.primaryImpactId);
+          if (!p) return null;
+          return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.isImpactPlayer ? (p.points || 0) + 4 : (p.points || 0), teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer };
+        })();
+        const previewBackupImpact: PitchPlayer | null = (() => {
+          if (!match.impactFeaturesEnabled || !previewTeam.backupImpactId) return null;
+          const p = players.find(pl => pl.id === previewTeam.backupImpactId);
+          if (!p) return null;
+          return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.isImpactPlayer ? (p.points || 0) + 4 : (p.points || 0), teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer };
         })();
         return (
           <TeamPitchView
@@ -529,7 +531,8 @@ export default function MatchDetailScreen() {
             totalPoints={previewTeam.totalPoints > 0 ? previewTeam.totalPoints : undefined}
             matchCompleted={match.status === 'completed'}
             team1Short={match.team1Short}
-            impactPlayer={previewImpactPlayer}
+            impactPlayer={previewPrimaryImpact}
+            backupPlayer={previewBackupImpact}
             captainType={previewTeam.captainType}
             vcType={previewTeam.vcType}
             onClose={() => setPreviewTeamId(null)}
@@ -1347,15 +1350,18 @@ export default function MatchDetailScreen() {
                     </View>
                   );
                 }
-                const entryImpactPlayer: PitchPlayer | null = (() => {
-                  const ids = [entry.primaryImpactId, entry.backupImpactId].filter(Boolean) as string[];
-                  if (!ids.length) return null;
-                  const allPool = [...(entry.resolvedPlayers || []), ...allKnownPlayers];
-                  const activated = ids.map(id => allPool.find(p => p.id === id)).find(p => (p as any)?.isImpactPlayer);
-                  const primary = allPool.find(p => p.id === entry.primaryImpactId);
-                  const resolved = activated || primary;
-                  if (!resolved) return null;
-                  return { id: resolved.id, name: resolved.name, role: resolved.role as 'WK'|'BAT'|'AR'|'BOWL', points: activated ? ((resolved.points || 0) + 4) : (resolved.points || 0), teamShort: (resolved as any).teamShort, externalId: (resolved as any).externalId, isPlayingXI: false, isImpactPlayer: true };
+                const entryPool = [...(entry.resolvedPlayers || []), ...allKnownPlayers];
+                const entryPrimaryImpact: PitchPlayer | null = (() => {
+                  if (!entry.primaryImpactId) return null;
+                  const p = entryPool.find(pl => pl.id === entry.primaryImpactId);
+                  if (!p) return null;
+                  return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: (p as any).isImpactPlayer ? ((p.points || 0) + 4) : (p.points || 0), teamShort: (p as any).teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!(p as any).isImpactPlayer };
+                })();
+                const entryBackupImpact: PitchPlayer | null = (() => {
+                  if (!entry.backupImpactId) return null;
+                  const p = entryPool.find(pl => pl.id === entry.backupImpactId);
+                  if (!p) return null;
+                  return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: (p as any).isImpactPlayer ? ((p.points || 0) + 4) : (p.points || 0), teamShort: (p as any).teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!(p as any).isImpactPlayer };
                 })();
                 return (
                   <View style={{ marginTop: 10, width: '100%' }}>
@@ -1366,7 +1372,8 @@ export default function MatchDetailScreen() {
                       totalPoints={entry.totalPoints}
                       matchCompleted={match.status === 'completed'}
                       team1Short={match.team1Short}
-                      impactPlayer={entryImpactPlayer}
+                      impactPlayer={entryPrimaryImpact}
+                      backupPlayer={entryBackupImpact}
                       captainType={entry.captainType}
                       vcType={entry.vcType}
                     />
@@ -1519,14 +1526,17 @@ export default function MatchDetailScreen() {
                           externalId: (p as any).externalId,
                           isPlayingXI: p.isPlayingXI,
                         }));
-                      const participantImpactPlayer: PitchPlayer | null = (() => {
-                        const ids = [team.primaryImpactId, team.backupImpactId].filter(Boolean) as string[];
-                        if (!ids.length) return null;
-                        const activated = ids.map(id => allKnownPlayers.find(p => p.id === id)).find(p => p?.isImpactPlayer);
-                        const primary = allKnownPlayers.find(p => p.id === team.primaryImpactId);
-                        const resolved = activated || primary;
-                        if (!resolved) return null;
-                        return { id: resolved.id, name: resolved.name, role: resolved.role as 'WK'|'BAT'|'AR'|'BOWL', points: activated ? (resolved.points || 0) + 4 : (resolved.points || 0), teamShort: resolved.teamShort, externalId: (resolved as any).externalId, isPlayingXI: false, isImpactPlayer: true };
+                      const participantPrimaryImpact: PitchPlayer | null = (() => {
+                        if (!team.primaryImpactId) return null;
+                        const p = allKnownPlayers.find(pl => pl.id === team.primaryImpactId);
+                        if (!p) return null;
+                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.isImpactPlayer ? (p.points || 0) + 4 : (p.points || 0), teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer };
+                      })();
+                      const participantBackupImpact: PitchPlayer | null = (() => {
+                        if (!team.backupImpactId) return null;
+                        const p = allKnownPlayers.find(pl => pl.id === team.backupImpactId);
+                        if (!p) return null;
+                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.isImpactPlayer ? (p.points || 0) + 4 : (p.points || 0), teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer };
                       })();
                       return (
                         <View style={{ marginTop: 10 }}>
@@ -1538,7 +1548,8 @@ export default function MatchDetailScreen() {
                             totalPoints={team.totalPoints}
                             matchCompleted={match.status === 'completed'}
                             team1Short={match.team1Short}
-                            impactPlayer={participantImpactPlayer}
+                            impactPlayer={participantPrimaryImpact}
+                            backupPlayer={participantBackupImpact}
                             captainType={team.captainType}
                             vcType={team.vcType}
                           />
