@@ -3153,6 +3153,7 @@ async function registerRoutes(app2) {
     const nowMs = Date.now();
     const MS_7D = 7 * 24 * 60 * 60 * 1e3;
     const MS_3H = 3 * 60 * 60 * 1e3;
+    const MS_24H = 24 * 60 * 60 * 1e3;
     const isIPLLeague = (league) => {
       const l = (league || "").toLowerCase();
       return l.includes("indian premier league") || l.includes(" ipl") || l.startsWith("ipl ");
@@ -3168,7 +3169,8 @@ async function registerRoutes(app2) {
       const isUpcoming = isUpcomingOrDelayed && startsWithin7d;
       const isLive = m.status === "live";
       const isIPLPreview = m.status === "upcoming" && isIPLLeague(m.league || "") && !!m.externalId;
-      const included = isUpcoming || isLive || m.status === "delayed" || isIPLPreview;
+      const isRecentlyCompleted = m.status === "completed" && startMs >= nowMs - MS_24H;
+      const included = isUpcoming || isLive || m.status === "delayed" || isIPLPreview || isRecentlyCompleted;
       if (included) {
         matchesWithParticipants.push({ match: m, participantCount });
       }

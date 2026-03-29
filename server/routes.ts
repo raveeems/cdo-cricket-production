@@ -544,6 +544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const nowMs = Date.now();
     const MS_7D = 7 * 24 * 60 * 60 * 1000;
     const MS_3H = 3 * 60 * 60 * 1000;
+    const MS_24H = 24 * 60 * 60 * 1000;
 
     // Define here so it can be used both in the loop and the cap step below.
     const isIPLLeague = (league: string) => {
@@ -570,9 +571,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // The display cap below limits this to the next 5, so this won't flood the feed.
       const isIPLPreview = m.status === "upcoming" && isIPLLeague(m.league || "") && !!m.externalId;
 
-      // Home feed: show all upcoming (within 7d), live, delayed, and IPL preview matches.
+      // Completed matches within last 24h — keep visible so admin can settle winner / recalculate.
+      const isRecentlyCompleted = m.status === "completed" && startMs >= nowMs - MS_24H;
+
+      // Home feed: show all upcoming (within 7d), live, delayed, IPL preview, and recently completed.
       // Admin controls what's in the DB — everything in DB is intentional.
-      const included = isUpcoming || isLive || (m.status === "delayed") || isIPLPreview;
+      const included = isUpcoming || isLive || (m.status === "delayed") || isIPLPreview || isRecentlyCompleted;
 
       if (included) {
         matchesWithParticipants.push({ match: m, participantCount });
