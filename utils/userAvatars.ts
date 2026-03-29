@@ -11,6 +11,7 @@ const USER_AVATARS: Record<string, ImageSourcePropType> = {
   'e9ef12ca-03bc-47f6-83dd-454e51ebcd10': require('../assets/images/prannit-stefano-avatar.jpg'),
   '885396c7-0345-43a5-a368-55354501136b': require('../assets/images/shankar-avatar.png'),
   '421ad85d-e72a-4197-b189-b5a6baddbe71': require('../assets/images/guna-avatar.png'),
+  'd8eaa75e-4dfe-4087-a2a9-b51453511e46': require('../assets/images/arunpatrician-avatar.png'),
 };
 
 export function getCustomAvatar(userId?: string | null): ImageSourcePropType | null {
