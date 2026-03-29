@@ -591,7 +591,7 @@ function setupErrorHandler(app: express.Application) {
       if (!match.externalId) return empty;
 
       try {
-        const { fetchMatchScorecardWithScore, fetchMatchInfo, fetchCricbuzzScorecard } = await import(
+        const { fetchMatchScorecardWithScore, fetchMatchInfo, fetchCricbuzzScorecard, fetchCrexScorecard } = await import(
           "./cricket-api"
         );
 
@@ -604,10 +604,30 @@ function setupErrorHandler(app: express.Application) {
         };
         let source = "";
 
-        // --- PRIMARY: Cricbuzz ---
-        if (process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
+        // --- PRIMARY: Crex (free, SSR, no API key needed) ---
+        if (match.team1Short && match.team2Short) {
           try {
-            log(`[Heartbeat:Score] Cricbuzz (primary) for ${match.team1Short} vs ${match.team2Short}`);
+            log(`[Heartbeat:Score] Crex (primary) for ${match.team1Short} vs ${match.team2Short}`);
+            const crexResult = await fetchCrexScorecard(match.team1Short, match.team2Short);
+            if (crexResult && (crexResult.namePointsMap.size > 0 || crexResult.scoreString)) {
+              result.namePointsMap = crexResult.namePointsMap;
+              result.scoreString = crexResult.scoreString || "";
+              result.matchEnded = crexResult.matchEnded;
+              result.totalOvers = crexResult.totalOvers;
+              source = "Crex";
+              log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players, score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
+            } else {
+              log(`[Heartbeat:Score] Crex empty — will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
+            }
+          } catch (crexErr) {
+            log(`[Heartbeat:Score] Crex error for ${match.team1Short} vs ${match.team2Short}: ${crexErr}`);
+          }
+        }
+
+        // --- SECONDARY: Cricbuzz (RapidAPI) ---
+        if (!source && process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
+          try {
+            log(`[Heartbeat:Score] Cricbuzz (secondary) for ${match.team1Short} vs ${match.team2Short}`);
             const cbResult = await fetchCricbuzzScorecard(match.team1Short, match.team2Short);
             if (cbResult && (cbResult.namePointsMap.size > 0 || cbResult.scoreString)) {
               result.namePointsMap = cbResult.namePointsMap;
@@ -620,7 +640,7 @@ function setupErrorHandler(app: express.Application) {
               log(`[Heartbeat:Score] Cricbuzz empty — will try CricAPI for ${match.team1Short} vs ${match.team2Short}`);
             }
           } catch (cbErr) {
-            log(`[Heartbeat:Score] Cricbuzz primary error for ${match.team1Short} vs ${match.team2Short}: ${cbErr}`);
+            log(`[Heartbeat:Score] Cricbuzz error for ${match.team1Short} vs ${match.team2Short}: ${cbErr}`);
           }
         }
 
