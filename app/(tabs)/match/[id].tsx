@@ -73,6 +73,9 @@ interface ResolvedPlayer {
   role: string;
   points: number;
   teamShort: string;
+  externalId?: string | null;
+  isPlayingXI?: boolean;
+  isImpactPlayer?: boolean;
 }
 
 interface StandingEntry {
@@ -1326,6 +1329,7 @@ export default function MatchDetailScreen() {
                     teamShort: p.teamShort,
                     externalId: (p as any).externalId,
                     isPlayingXI: (p as any).isPlayingXI,
+                    isImpactPlayer: !!(p as any).isImpactPlayer,
                   }));
                 } else {
                   pitchPlayers = entry.playerIds
@@ -1339,6 +1343,7 @@ export default function MatchDetailScreen() {
                       teamShort: p.teamShort,
                       externalId: (p as any).externalId,
                       isPlayingXI: p.isPlayingXI,
+                      isImpactPlayer: !!(p as any).isImpactPlayer,
                     }));
                 }
                 if (pitchPlayers.length === 0) {
