@@ -57,8 +57,9 @@ The project is built as a monorepo, sharing schema definitions between the front
 - **PostgreSQL**: The primary database, accessed via `DATABASE_URL` environment variable and Drizzle ORM.
 
 ### External APIs
-- **CricAPI (`https://api.cricapi.com/v1`)**: Provides cricket data for match synchronization, player squads, scorecards, and live scores. Features a 2-key fallback system to manage rate limits. **Note**: CricAPI fails for live IPL 2026 matches — Cricbuzz is used as the primary live scoring source.
-- **Cricbuzz via RapidAPI**: Live scoring fallback used for IPL 2026. Fetches batting, bowling, and fielding data from `/mcenter/v1/{matchId}/scard` and `/mcenter/v1/{matchId}/leanback`. `fetchCricbuzzScorecard()` in `server/cricket-api.ts` — all player names normalized to lowercase (no special chars) before storing in `namePointsMap`. The `updateLiveScore` function in `server/index.ts` auto-falls back to Cricbuzz when CricAPI returns no data.
+- **CricAPI (`https://api.cricapi.com/v1`)**: Provides cricket data for match synchronization, player squads, scorecards, and live scores. Features a 2-key fallback system to manage rate limits. **Note**: CricAPI fails for live IPL 2026 matches — Crex is the primary source.
+- **Crex (`https://crex.com`) — PRIMARY LIVE SOURCE**: SSR HTML scraping of IPL 2026 scorecards. Auto-discovers all 74 match URLs from the IPL 2026 schedule page (24h cache). Parses batting (runs/balls/4s/6s/dismissals), bowling (O/M/R/W/economy + LBW/bowled bonus), and fielding (catches/stumpings/run-outs) via `fetchCrexScorecard()` in `server/cricket-api.ts`. No API key required.
+- **Cricbuzz via RapidAPI — SECONDARY LIVE SOURCE**: Fallback when Crex returns no data. Fetches batting, bowling, and fielding data from `/mcenter/v1/{matchId}/scard` and `/mcenter/v1/{matchId}/leanback`. `fetchCricbuzzScorecard()` in `server/cricket-api.ts`. All player names normalized to lowercase (no special chars) before storing in `namePointsMap`.
 
 ### Admin Tools
 - **Base +4**: Awards +4 points to all Playing XI players instantly (`POST /api/admin/matches/:id/award-base-points`).
