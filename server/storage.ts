@@ -484,12 +484,19 @@ export class DatabaseStorage {
       .groupBy(tournamentLedger.userId, tournamentLedger.userName)
       .orderBy(desc(sql`total_points`));
 
-    // Also find verified users who have teams in this tournament but no ledger entry yet
+    // Also find verified users who have teams in this tournament but no ledger entry yet,
+    // with their actual match count (how many tournament matches they have teams in).
     const teamPlayers = await db
-      .selectDistinct({ userId: users.id, teamName: users.teamName, username: users.username })
+      .select({
+        userId: users.id,
+        teamName: users.teamName,
+        username: users.username,
+        matchCount: sql<number>`COUNT(DISTINCT ${userTeams.matchId})`.as('team_match_count'),
+      })
       .from(userTeams)
       .innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName)))
-      .innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true)));
+      .innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true)))
+      .groupBy(users.id, users.teamName, users.username);
 
     const ledgerUserIds = new Set(ledgerResult.map(r => r.userId));
     const combined: { userId: string; userName: string; totalPoints: number; matchCount: number }[] = ledgerResult.map(r => ({
@@ -501,7 +508,7 @@ export class DatabaseStorage {
 
     for (const tp of teamPlayers) {
       if (!ledgerUserIds.has(tp.userId)) {
-        combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: 0 });
+        combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: Number(tp.matchCount) });
       }
     }
 

@@ -622,7 +622,12 @@ var init_storage = __esm({
           totalPoints: sql2`SUM(${tournamentLedger.pointsChange})`.as("total_points"),
           matchCount: sql2`COUNT(DISTINCT ${tournamentLedger.matchId})`.as("match_count")
         }).from(tournamentLedger).where(eq(tournamentLedger.tournamentName, tName)).groupBy(tournamentLedger.userId, tournamentLedger.userName).orderBy(desc(sql2`total_points`));
-        const teamPlayers = await db.selectDistinct({ userId: users.id, teamName: users.teamName, username: users.username }).from(userTeams).innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName))).innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true)));
+        const teamPlayers = await db.select({
+          userId: users.id,
+          teamName: users.teamName,
+          username: users.username,
+          matchCount: sql2`COUNT(DISTINCT ${userTeams.matchId})`.as("team_match_count")
+        }).from(userTeams).innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName))).innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true))).groupBy(users.id, users.teamName, users.username);
         const ledgerUserIds = new Set(ledgerResult.map((r) => r.userId));
         const combined = ledgerResult.map((r) => ({
           userId: r.userId,
@@ -632,7 +637,7 @@ var init_storage = __esm({
         }));
         for (const tp of teamPlayers) {
           if (!ledgerUserIds.has(tp.userId)) {
-            combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: 0 });
+            combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: Number(tp.matchCount) });
           }
         }
         return combined.sort((a, b) => b.totalPoints - a.totalPoints);
@@ -5340,7 +5345,10 @@ async function registerRoutes(app2) {
     async (_req, res) => {
       try {
         const allMatches = await storage.getAllMatches();
-        const completed = allMatches.filter((m) => m.status === "completed" && !m.potProcessed);
+        const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1e3);
+        const completed = allMatches.filter(
+          (m) => m.status === "completed" && !m.potProcessed && new Date(m.startTime) >= tenDaysAgo
+        );
         const withParticipation = [];
         for (const m of completed) {
           const teams = await storage.getAllTeamsForMatch(m.id);
