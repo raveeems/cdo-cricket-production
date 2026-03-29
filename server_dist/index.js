@@ -5268,9 +5268,12 @@ async function registerRoutes(app2) {
           return res.status(400).json({ message: `Not enough players. Found ${allTeams.length} team(s), need at least 2.` });
         }
         const entryStake = Number(stake) || 30;
-        const maxPoints = Math.max(...allTeams.map((t) => t.totalPoints));
-        const winningTeams = allTeams.filter((t) => t.totalPoints === maxPoints);
-        const losingTeams = allTeams.filter((t) => t.totalPoints < maxPoints);
+        const uniquePointTiers = [...new Set(allTeams.map((t) => t.totalPoints || 0))].sort((a, b) => b - a);
+        const rank1Points = uniquePointTiers[0] ?? 0;
+        const rank2Points = uniquePointTiers[1] ?? null;
+        const winningTeams = allTeams.filter((t) => (t.totalPoints || 0) === rank1Points);
+        const neutralTeams = rank2Points !== null ? allTeams.filter((t) => (t.totalPoints || 0) === rank2Points) : [];
+        const losingTeams = allTeams.filter((t) => (t.totalPoints || 0) < (rank2Points ?? rank1Points));
         const totalPot = losingTeams.length * entryStake;
         const winnerPointsEach = losingTeams.length > 0 ? Math.round(totalPot / winningTeams.length) : 0;
         const userMap = /* @__PURE__ */ new Map();
@@ -5289,27 +5292,30 @@ async function registerRoutes(app2) {
             pointsChange: -entryStake
           });
         }
-        for (const t of winningTeams) {
-          await storage.createLedgerEntry({
-            userId: t.userId,
-            userName: userMap.get(t.userId) || "Unknown",
-            matchId,
-            tournamentName,
-            pointsChange: winnerPointsEach
-          });
+        if (winnerPointsEach > 0) {
+          for (const t of winningTeams) {
+            await storage.createLedgerEntry({
+              userId: t.userId,
+              userName: userMap.get(t.userId) || "Unknown",
+              matchId,
+              tournamentName,
+              pointsChange: winnerPointsEach
+            });
+          }
         }
         await storage.updateMatch(matchId, {
           tournamentName,
           entryStake,
           potProcessed: true
         });
-        console.log(`[Tournament Pot] Processed for ${match.team1Short} vs ${match.team2Short}: ${winningTeams.length} winner(s) (+${winnerPointsEach}), ${losingTeams.length} loser(s) (-${entryStake}), totalPot=${totalPot}`);
+        console.log(`[Tournament Pot] Processed for ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} winner(s) (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} loser(s) (-${entryStake}), totalPot=${totalPot}`);
         return res.json({
           message: "Pot processed successfully",
           winners: winningTeams.length,
+          neutral: neutralTeams.length,
           losers: losingTeams.length,
           winnerPoints: winnerPointsEach,
-          loserPoints: -entryStake,
+          loserPoints: losingTeams.length > 0 ? -entryStake : 0,
           totalPot,
           totalTeams: allTeams.length
         });
