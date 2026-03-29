@@ -471,7 +471,8 @@ export class DatabaseStorage {
   }
 
   async getTournamentStandings(tName: string): Promise<{ userId: string; userName: string; totalPoints: number; matchCount: number }[]> {
-    const result = await db
+    // Get settled ledger entries
+    const ledgerResult = await db
       .select({
         userId: tournamentLedger.userId,
         userName: tournamentLedger.userName,
@@ -482,12 +483,29 @@ export class DatabaseStorage {
       .where(eq(tournamentLedger.tournamentName, tName))
       .groupBy(tournamentLedger.userId, tournamentLedger.userName)
       .orderBy(desc(sql`total_points`));
-    return result.map(r => ({
+
+    // Also find verified users who have teams in this tournament but no ledger entry yet
+    const teamPlayers = await db
+      .selectDistinct({ userId: users.id, userName: users.username })
+      .from(userTeams)
+      .innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName)))
+      .innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true)));
+
+    const ledgerUserIds = new Set(ledgerResult.map(r => r.userId));
+    const combined: { userId: string; userName: string; totalPoints: number; matchCount: number }[] = ledgerResult.map(r => ({
       userId: r.userId,
       userName: r.userName,
       totalPoints: Number(r.totalPoints),
       matchCount: Number(r.matchCount),
     }));
+
+    for (const tp of teamPlayers) {
+      if (!ledgerUserIds.has(tp.userId)) {
+        combined.push({ userId: tp.userId, userName: tp.userName, totalPoints: 0, matchCount: 0 });
+      }
+    }
+
+    return combined.sort((a, b) => b.totalPoints - a.totalPoints);
   }
   // ====== IST Week Helpers ======
   getISTWeekStart(date?: Date): string {
