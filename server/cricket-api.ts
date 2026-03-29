@@ -2403,19 +2403,74 @@ function parseCrexHtml(html: string): CricbuzzScoreResult {
     addNamePoints(namePointsMap, name, pts);
   }
 
-  // Score string — find team header + runs block
+  // Score string — parse from embedded app-root-state JSON (most reliable)
+  // Crex embeds SSR state as: <script id="app-root-state">{"j":"220/4(20.0","k":"120/0(9.5",...}</script>
+  // "j" = 1st innings score, "k" = 2nd innings score (letters are fkey-based)
   const scoreStringParts: string[] = [];
   let totalOvers = 0;
-  const scoreBlockRegex =
-    /class="team-name[^"]*"[^>]*>\s*([A-Z]{2,6})\s*[\s\S]{0,300}?class="runs[^"]*"[^>]*>[\s\S]*?<span[^>]*>([\d\-]+)<\/span><span[^>]*>([\d.]+)<\/span>/g;
-  let sm: RegExpExecArray | null;
-  while ((sm = scoreBlockRegex.exec(html)) !== null) {
-    const team = sm[1].trim();
-    const score = sm[2];
-    const overs = parseFloat(sm[3]);
-    if (team && score) {
-      scoreStringParts.push(`${team}: ${score} (${overs} ov)`);
-      totalOvers += overs;
+
+  const stateScriptMatch = html.match(/<script[^>]*id="app-root-state"[^>]*>([\s\S]*?)<\/script>/);
+  if (stateScriptMatch) {
+    const stateJson = stateScriptMatch[1].replace(/&q;/g, '"');
+
+    // Extract team fkeys from metadata — team1_fkey maps to team1 short, team2_fkey to team2 short
+    const t1FkeyM = stateJson.match(/"team1_fkey"\s*:\s*"([^"]+)"/);
+    const t2FkeyM = stateJson.match(/"team2_fkey"\s*:\s*"([^"]+)"/);
+    const t1ShortM = stateJson.match(/"team1"\s*:\s*"([^"]+)"/);
+    const t2ShortM = stateJson.match(/"team2"\s*:\s*"([^"]+)"/);
+
+    const fkey1 = t1FkeyM ? t1FkeyM[1].toLowerCase() : "";
+    const fkey2 = t2FkeyM ? t2FkeyM[1].toLowerCase() : "";
+    // team1 full name → derive short from known names
+    const teamFullToShort: Record<string, string> = {
+      "mumbai indians": "MI", "kolkata knight riders": "KKR", "chennai super kings": "CSK",
+      "royal challengers bengaluru": "RCB", "royal challengers bangalore": "RCB",
+      "sunrisers hyderabad": "SRH", "delhi capitals": "DC", "punjab kings": "PBKS",
+      "rajasthan royals": "RR", "gujarat titans": "GT", "lucknow super giants": "LSG",
+    };
+    const team1Short = t1ShortM ? (teamFullToShort[t1ShortM[1].toLowerCase()] || t1ShortM[1].substring(0, 4).toUpperCase()) : "T1";
+    const team2Short = t2ShortM ? (teamFullToShort[t2ShortM[1].toLowerCase()] || t2ShortM[1].substring(0, 4).toUpperCase()) : "T2";
+
+    // The fkeys are used as JSON keys for innings scores: e.g. fkey1="f" → "f":"120/0(9.5"
+    // innings key "j" and "k" are the score fields
+    const inn1M = stateJson.match(new RegExp(`"${fkey2}"\\s*:\\s*"([\\d]+\\/[\\d]+\\([\\d.]+)"`));
+    const inn2M = stateJson.match(new RegExp(`"${fkey1}"\\s*:\\s*"([\\d]+\\/[\\d]+\\([\\d.]+)"`));
+    // Also try generic j/k pattern as fallback
+    const jMatch = !inn1M ? stateJson.match(/"j"\s*:\s*"([\d]+\/[\d]+\([\d.]+)"/) : null;
+    const kMatch = !inn2M ? stateJson.match(/"k"\s*:\s*"([\d]+\/[\d]+\([\d.]+)"/) : null;
+
+    const scores: Array<{ team: string; scoreRaw: string }> = [];
+    if (inn1M) scores.push({ team: team2Short, scoreRaw: inn1M[1] }); // fkey2 = team2 batted 1st
+    else if (jMatch) scores.push({ team: team2Short, scoreRaw: jMatch[1] });
+    if (inn2M) scores.push({ team: team1Short, scoreRaw: inn2M[1] });
+    else if (kMatch) scores.push({ team: team1Short, scoreRaw: kMatch[1] });
+
+    for (const { team, scoreRaw } of scores) {
+      // "220/4(20.0" → runs="220/4", overs=20.0
+      const parsed = scoreRaw.match(/^([\d]+\/[\d]+)\(([\d.]+)/);
+      if (parsed) {
+        const overs = parseFloat(parsed[2]);
+        scoreStringParts.push(`${team}: ${parsed[1]} (${overs} ov)`);
+        totalOvers += overs;
+      }
+    }
+  }
+
+  // Fallback: scan HTML text for inline score patterns like "KKR: 220/4 (20 Ov)"
+  if (scoreStringParts.length === 0) {
+    const seenTeams = new Set<string>();
+    let sm: RegExpExecArray | null;
+    const textScoreRegex = /\b([A-Z]{2,6})\s*:\s*([\d]+[-\/][\d]+)\s*\(([\d]+\.?[\d]*)\s*(?:Ov|ov|OV)\)/g;
+    while ((sm = textScoreRegex.exec(html)) !== null) {
+      const team = sm[1].trim();
+      if (seenTeams.has(team)) continue;
+      seenTeams.add(team);
+      const score = sm[2];
+      const overs = parseFloat(sm[3]);
+      if (team && score) {
+        scoreStringParts.push(`${team}: ${score} (${overs} ov)`);
+        totalOvers += overs;
+      }
     }
   }
 
@@ -2437,8 +2492,29 @@ export async function fetchCrexScorecard(
     const baseUrl = await findCrexMatchUrl(team1Short, team2Short);
     if (!baseUrl) return null;
 
-    const html = await fetchCrexPage(`${baseUrl}/scorecard`);
-    const result = parseCrexHtml(html);
+    // Fetch scorecard page for player stats
+    const scorecardHtml = await fetchCrexPage(`${baseUrl}/scorecard`);
+
+    // Parse player points from the scorecard page
+    const result = parseCrexHtml(scorecardHtml);
+
+    // If scorecard page only got 1 innings score, try the /live page which shows both innings
+    const scorecardInningsCount = (result.scoreString.match(/\([\d.]+\s*ov\)/g) || []).length;
+    if (scorecardInningsCount < 2) {
+      try {
+        const liveHtml = await fetchCrexPage(`${baseUrl}/live`);
+        const liveParsed = parseCrexHtml(liveHtml);
+        const liveInningsCount = (liveParsed.scoreString.match(/\([\d.]+\s*ov\)/g) || []).length;
+        if (liveParsed.scoreString && liveInningsCount > scorecardInningsCount) {
+          result.scoreString = liveParsed.scoreString;
+          result.totalOvers = liveParsed.totalOvers;
+          result.matchEnded = result.matchEnded || liveParsed.matchEnded;
+          console.log(`[Crex] Score supplemented from /live: "${liveParsed.scoreString}"`);
+        }
+      } catch (_liveErr) {
+        // /live page not available — score stays as-is from scorecard page
+      }
+    }
 
     console.log(
       `[Crex] ${team1Short} vs ${team2Short}: ${result.namePointsMap.size} players, score="${result.scoreString}", ended=${result.matchEnded}`

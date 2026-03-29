@@ -1056,7 +1056,9 @@ function setupErrorHandler(app: express.Application) {
             const incomingInningsCount = scoreString
               ? (scoreString.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length
               : 0;
+            // Crex is always fresh SSR data — never treat it as stale
             const isStaleScore =
+              source !== "Crex" &&
               totalOvers > 0 &&
               totalOvers < existingOvers &&
               incomingInningsCount <= existingInningsCount;
