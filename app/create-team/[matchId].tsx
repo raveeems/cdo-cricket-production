@@ -580,7 +580,10 @@ export default function CreateTeamScreen() {
 
   const impactEligiblePlayers = useMemo(() => {
     if (!impactEnabled) return [];
-    return allPlayers.filter(p => !selectedIds.has(p.id));
+    const nonXIPlayers = allPlayers.filter(p => !selectedIds.has(p.id));
+    // If admin has designated specific impact bench players, restrict to only those
+    const adminDesignated = nonXIPlayers.filter(p => p.isImpactPlayer === true);
+    return adminDesignated.length > 0 ? adminDesignated : nonXIPlayers;
   }, [allPlayers, selectedIds, impactEnabled]);
 
   const primaryImpactPlayer = useMemo(() => {
