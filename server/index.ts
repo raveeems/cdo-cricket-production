@@ -560,15 +560,40 @@ function setupErrorHandler(app: express.Application) {
             };
           }
 
-          // Smart last-name matching — handles abbreviated first names (e.g. "R. Jadeja" ↔ "Ravindra Jadeja").
-          // Rules to prevent false positives:
-          //   1. Last name must be ≥ 5 characters (avoids matching common short surnames: Ali, Roy, Das)
-          //   2. Exactly ONE scorecard entry may share that last name (ambiguous = skip entirely)
-          //   3. First initial of DB name must match first initial of scorecard name (when both exist)
+          // ── Stage 1: Word-subset matching ───────────────────────────────────────
+          // Every significant word (≥3 chars) from the DB name must appear inside
+          // the scorecard name.  This safely handles middle-name insertions:
+          //   "Allah Ghazanfar"  ↔  "Allah Mohammad Ghazanfar"  → ✓ match
+          //   "Harsh Dubey"      ↔  "Shivam Dubey"              → ✗ "harsh" missing
+          // Requires at least 2 significant words so single-word DB names fall
+          // through to Stage 2 below.
           const dbWords = normName.split(" ");
+          const dbSigWords = dbWords.filter((w) => w.length >= 3);
+          if (dbSigWords.length >= 2) {
+            const subsetCandidates: Array<[string, number]> = [];
+            for (const [scorecardKey, pts] of namePointsMap.entries()) {
+              const scorecardWords = scorecardKey.split(" ");
+              if (dbSigWords.every((w) => scorecardWords.includes(w))) {
+                subsetCandidates.push([scorecardKey, pts]);
+              }
+            }
+            if (subsetCandidates.length === 1) {
+              return {
+                fantasyPts: subsetCandidates[0][1],
+                matchMethod: `wordSubset(${player.name}→${subsetCandidates[0][0]})`,
+              };
+            }
+          }
+
+          // ── Stage 2: Last-name + first-initial fallback ──────────────────────
+          // Fires only when Stage 1 could not run (e.g. DB name is "R. Jadeja" —
+          // only one significant word "jadeja").  Still safe because:
+          //   1. Last name must be ≥ 5 chars  (excludes Ali, Roy, Das …)
+          //   2. Exactly ONE scorecard entry may match that last name
+          //   3. First initial must agree between DB and scorecard
           const dbLastName = dbWords[dbWords.length - 1] || "";
           const dbFirstInitial = dbWords[0]?.[0] || "";
-          if (dbLastName.length >= 5) {
+          if (dbSigWords.length < 2 && dbLastName.length >= 5) {
             const lastNameCandidates: Array<[string, number]> = [];
             for (const [scorecardKey, pts] of namePointsMap.entries()) {
               const scorecardWords = scorecardKey.split(" ");
@@ -580,7 +605,6 @@ function setupErrorHandler(app: express.Application) {
             if (lastNameCandidates.length === 1) {
               const [matchedKey, matchedPts] = lastNameCandidates[0];
               const matchedFirstInitial = matchedKey.split(" ")[0]?.[0] || "";
-              // Accept if first initials match or one side has no initial to compare
               if (!dbFirstInitial || !matchedFirstInitial || dbFirstInitial === matchedFirstInitial) {
                 return {
                   fantasyPts: matchedPts,

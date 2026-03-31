@@ -6747,9 +6747,25 @@ function setupErrorHandler(app2) {
           };
         }
         const dbWords = normName.split(" ");
+        const dbSigWords = dbWords.filter((w) => w.length >= 3);
+        if (dbSigWords.length >= 2) {
+          const subsetCandidates = [];
+          for (const [scorecardKey, pts] of namePointsMap.entries()) {
+            const scorecardWords = scorecardKey.split(" ");
+            if (dbSigWords.every((w) => scorecardWords.includes(w))) {
+              subsetCandidates.push([scorecardKey, pts]);
+            }
+          }
+          if (subsetCandidates.length === 1) {
+            return {
+              fantasyPts: subsetCandidates[0][1],
+              matchMethod: `wordSubset(${player.name}\u2192${subsetCandidates[0][0]})`
+            };
+          }
+        }
         const dbLastName = dbWords[dbWords.length - 1] || "";
         const dbFirstInitial = dbWords[0]?.[0] || "";
-        if (dbLastName.length >= 5) {
+        if (dbSigWords.length < 2 && dbLastName.length >= 5) {
           const lastNameCandidates = [];
           for (const [scorecardKey, pts] of namePointsMap.entries()) {
             const scorecardWords = scorecardKey.split(" ");
