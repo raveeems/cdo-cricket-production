@@ -281,6 +281,23 @@ export default function AdminScreen() {
     }
   };
 
+  const [rescoring, setRescoring] = useState(false);
+  const rescoreMatch = async (matchId: string) => {
+    setRescoring(true);
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${matchId}/rescore`);
+      const data = await res.json();
+      const msg = data.message || 'Re-scored';
+      setMatchResult(matchId, `✔ ${msg}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setMatchResult(matchId, '❌ Re-score failed: ' + (e.message || ''));
+      console.error('Re-score failed:', e);
+    } finally {
+      setRescoring(false);
+    }
+  };
+
   const awardBasePoints = async (matchId: string) => {
     setBasePtsLoadingId(matchId);
     try {
@@ -1691,6 +1708,18 @@ export default function AdminScreen() {
                       ? <ActivityIndicator size="small" color={colors.primary} />
                       : <Ionicons name="sync-outline" size={13} color={colors.primary} />}
                     <Text style={[styles.actionBtnText, { color: colors.primary }]}>Recalc</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => rescoreMatch(m.id)}
+                    disabled={rescoring}
+                    accessibilityLabel="Re-Score from Scorecard"
+                    style={[styles.actionBtn, { flex: 1, borderColor: '#EF444460', opacity: rescoring ? 0.5 : 1 }]}
+                  >
+                    {rescoring
+                      ? <ActivityIndicator size="small" color="#EF4444" />
+                      : <Ionicons name="refresh-circle-outline" size={13} color="#EF4444" />}
+                    <Text style={[styles.actionBtnText, { color: '#EF4444' }]}>Re-Score</Text>
                   </Pressable>
 
                   <Pressable

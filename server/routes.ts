@@ -3789,6 +3789,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Re-score: re-fetch scorecard + re-run player points + recalculate team totals (bypasses protection for ended matches)
+  app.post(
+    "/api/admin/matches/:id/rescore",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+        const updateLiveScoreFn = (globalThis as any).__updateLiveScore;
+        const updateFantasyPointsFn = (globalThis as any).__updateFantasyPoints;
+        const recalcFn = (globalThis as any).__recalculateTeamTotals;
+
+        if (!updateLiveScoreFn || !updateFantasyPointsFn || !recalcFn) {
+          return res.status(500).json({ message: "Scoring engine not initialized" });
+        }
+
+        const { pointsMap, namePointsMap } = await updateLiveScoreFn(match);
+        if (pointsMap.size === 0 && namePointsMap.size === 0) {
+          return res.status(422).json({ message: "No scorecard data available for this match — cannot re-score" });
+        }
+
+        const updatedCount = await updateFantasyPointsFn(matchId, matchLabel, pointsMap, namePointsMap, true /* matchEnded=true, bypasses protection */);
+        await recalcFn(matchId, matchLabel);
+
+        await storage.createAuditLog({
+          adminUserId: req.session.userId!,
+          actionType: "rescore",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ playersUpdated: updatedCount }),
+        });
+
+        return res.json({ message: `Re-scored ${updatedCount} players and recalculated all teams`, playersUpdated: updatedCount });
+      } catch (err: any) {
+        console.error("Re-score error:", err);
+        return res.status(500).json({ message: "Re-score failed: " + err.message });
+      }
+    }
+  );
+
   app.get(
     "/api/admin/matches/:id/audit-log",
     isAuthenticated,

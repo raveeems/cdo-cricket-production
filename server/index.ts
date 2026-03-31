@@ -559,12 +559,9 @@ function setupErrorHandler(app: express.Application) {
               matchMethod: "exactName",
             };
           }
-
-          for (const [apiName, apiPts] of namePointsMap) {
-            if (fuzzyNameMatch(apiName, normName)) {
-              return { fantasyPts: apiPts, matchMethod: `fuzzy(${apiName})` };
-            }
-          }
+          // NOTE: Fuzzy name matching removed — it caused false positives where bench players
+          // matched scorecard entries for different players with similar names (e.g. Deshpande).
+          // Players MUST match by externalId or exact normalized name only.
         }
       }
 
@@ -704,6 +701,7 @@ function setupErrorHandler(app: express.Application) {
       matchLabel: string,
       pointsMap: Map<string, number>,
       namePointsMap: Map<string, number>,
+      matchEnded: boolean = false,
     ): Promise<number> {
       const matchPlayers = await storage.getPlayersForMatch(matchId);
       const playerUpdates: Array<{
@@ -740,16 +738,27 @@ function setupErrorHandler(app: express.Application) {
           const { fantasyPts, matchMethod } = resolveResult;
           const existingPts = player.points || 0;
           const appearedOnScorecard = fantasyPts !== undefined && fantasyPts !== null;
-          const xiBase = (player.isPlayingXI || appearedOnScorecard) ? 4 : 0;
+          // +4 XI base ONLY for players explicitly in the Playing XI — never just for scorecard appearances
+          const xiBase = player.isPlayingXI ? 4 : 0;
 
           let finalPts: number;
 
           if (appearedOnScorecard) {
+            // Guard: only award scorecard stats to players who are in the XI or official impact subs.
+            // Scorecard entries for non-XI players are Crex/Cricbuzz false positives — skip them.
+            if (!player.isPlayingXI && !player.isImpactPlayer) {
+              log(
+                `[Heartbeat:Points] SKIP non-XI false positive: "${player.name}" (${matchMethod}) — not in Playing XI or official impact sub`,
+              );
+              unmapped++;
+              continue;
+            }
             finalPts = fantasyPts + xiBase;
             mapped++;
-            if (finalPts < existingPts) {
+            // Only protect points on live matches — if match has ended, allow corrections
+            if (!matchEnded && finalPts < existingPts) {
               log(
-                `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} — keeping existing`,
+                `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} — keeping existing (live match)`,
               );
               skippedProtected++;
               continue;
@@ -1122,26 +1131,10 @@ function setupErrorHandler(app: express.Application) {
                 console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
               }
             } else if (hasAnyScorecard && (match as any).firstScorecardAt) {
-              // Auto-detect impact substitutes on subsequent scorecards:
-              // A player appearing in the scorecard who was NOT in the original XI is an impact sub
-              // Works with both CricAPI (externalId) and Cricbuzz (normalized name)
-              try {
-                const allMatchPlayers = await storage.getPlayersForMatch(match.id);
-                for (const player of allMatchPlayers) {
-                  if (player.isPlayingXI || player.isImpactPlayer) continue;
-                  if (inScorecard(player)) {
-                    log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
-                    await storage.updatePlayer(player.id, { isImpactPlayer: true });
-                    await storage.upsertMatchPlayerStatus({
-                      matchId: match.id,
-                      playerId: player.id,
-                      officialImpactSubUsed: true,
-                    });
-                  }
-                }
-              } catch (impactErr) {
-                console.error(`[Heartbeat:Impact] Auto-detection failed for ${matchLabel}:`, impactErr);
-              }
+              // NOTE: Auto-detection of impact subs is intentionally DISABLED.
+              // Crex/Cricbuzz false positives and fuzzy name matches were causing bench players to be
+              // incorrectly flagged as officialImpactSubUsed=true, awarding +4 bonus to players who
+              // never entered the match. Admin must manually set impact subs via the admin panel.
             }
 
             if (pointsMap.size > 0 || namePointsMap.size > 0) {
@@ -1150,6 +1143,7 @@ function setupErrorHandler(app: express.Application) {
                 matchLabel,
                 pointsMap,
                 namePointsMap,
+                matchEnded,
               );
               if (updatedCount > 0) {
                 await recalculateTeamTotals(match.id, matchLabel);
@@ -1266,6 +1260,8 @@ function setupErrorHandler(app: express.Application) {
 
     (globalThis as any).__matchHeartbeat = matchHeartbeat;
     (globalThis as any).__recalculateTeamTotals = recalculateTeamTotals;
+    (globalThis as any).__updateFantasyPoints = updateFantasyPoints;
+    (globalThis as any).__updateLiveScore = updateLiveScore;
 
     setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
     log(

@@ -5976,6 +5976,50 @@ async function registerRoutes(app2) {
       }
     }
   );
+  app2.post(
+    "/api/admin/matches/:id/rescore",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const matchLabel = `${match.team1Short} vs ${match.team2Short}`;
+        const updateLiveScoreFn = globalThis.__updateLiveScore;
+        const updateFantasyPointsFn = globalThis.__updateFantasyPoints;
+        const recalcFn = globalThis.__recalculateTeamTotals;
+        if (!updateLiveScoreFn || !updateFantasyPointsFn || !recalcFn) {
+          return res.status(500).json({ message: "Scoring engine not initialized" });
+        }
+        const { pointsMap, namePointsMap } = await updateLiveScoreFn(match);
+        if (pointsMap.size === 0 && namePointsMap.size === 0) {
+          return res.status(422).json({ message: "No scorecard data available for this match \u2014 cannot re-score" });
+        }
+        const updatedCount = await updateFantasyPointsFn(
+          matchId,
+          matchLabel,
+          pointsMap,
+          namePointsMap,
+          true
+          /* matchEnded=true, bypasses protection */
+        );
+        await recalcFn(matchId, matchLabel);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "rescore",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({ playersUpdated: updatedCount })
+        });
+        return res.json({ message: `Re-scored ${updatedCount} players and recalculated all teams`, playersUpdated: updatedCount });
+      } catch (err) {
+        console.error("Re-score error:", err);
+        return res.status(500).json({ message: "Re-score failed: " + err.message });
+      }
+    }
+  );
   app2.get(
     "/api/admin/matches/:id/audit-log",
     isAuthenticated,
@@ -6698,11 +6742,6 @@ function setupErrorHandler(app2) {
             matchMethod: "exactName"
           };
         }
-        for (const [apiName, apiPts] of namePointsMap) {
-          if (fuzzyNameMatch(apiName, normName)) {
-            return { fantasyPts: apiPts, matchMethod: `fuzzy(${apiName})` };
-          }
-        }
       }
     }
     return { fantasyPts: void 0, matchMethod: "none" };
@@ -6806,7 +6845,7 @@ function setupErrorHandler(app2) {
       return empty;
     }
   }
-  async function updateFantasyPoints(matchId, matchLabel, pointsMap, namePointsMap) {
+  async function updateFantasyPoints(matchId, matchLabel, pointsMap, namePointsMap, matchEnded = false) {
     const matchPlayers = await storage.getPlayersForMatch(matchId);
     const playerUpdates = [];
     let mapped = 0;
@@ -6831,14 +6870,21 @@ function setupErrorHandler(app2) {
         const { fantasyPts, matchMethod } = resolveResult;
         const existingPts = player.points || 0;
         const appearedOnScorecard = fantasyPts !== void 0 && fantasyPts !== null;
-        const xiBase = player.isPlayingXI || appearedOnScorecard ? 4 : 0;
+        const xiBase = player.isPlayingXI ? 4 : 0;
         let finalPts;
         if (appearedOnScorecard) {
+          if (!player.isPlayingXI && !player.isImpactPlayer) {
+            log(
+              `[Heartbeat:Points] SKIP non-XI false positive: "${player.name}" (${matchMethod}) \u2014 not in Playing XI or official impact sub`
+            );
+            unmapped++;
+            continue;
+          }
           finalPts = fantasyPts + xiBase;
           mapped++;
-          if (finalPts < existingPts) {
+          if (!matchEnded && finalPts < existingPts) {
             log(
-              `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} \u2014 keeping existing`
+              `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} \u2014 keeping existing (live match)`
             );
             skippedProtected++;
             continue;
@@ -7139,30 +7185,14 @@ function setupErrorHandler(app2) {
               console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
             }
           } else if (hasAnyScorecard && match.firstScorecardAt) {
-            try {
-              const allMatchPlayers = await storage.getPlayersForMatch(match.id);
-              for (const player of allMatchPlayers) {
-                if (player.isPlayingXI || player.isImpactPlayer) continue;
-                if (inScorecard(player)) {
-                  log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
-                  await storage.updatePlayer(player.id, { isImpactPlayer: true });
-                  await storage.upsertMatchPlayerStatus({
-                    matchId: match.id,
-                    playerId: player.id,
-                    officialImpactSubUsed: true
-                  });
-                }
-              }
-            } catch (impactErr) {
-              console.error(`[Heartbeat:Impact] Auto-detection failed for ${matchLabel}:`, impactErr);
-            }
           }
           if (pointsMap.size > 0 || namePointsMap.size > 0) {
             const updatedCount = await updateFantasyPoints(
               match.id,
               matchLabel,
               pointsMap,
-              namePointsMap
+              namePointsMap,
+              matchEnded
             );
             if (updatedCount > 0) {
               await recalculateTeamTotals(match.id, matchLabel);
@@ -7255,6 +7285,8 @@ function setupErrorHandler(app2) {
   }
   globalThis.__matchHeartbeat = matchHeartbeat;
   globalThis.__recalculateTeamTotals = recalculateTeamTotals;
+  globalThis.__updateFantasyPoints = updateFantasyPoints;
+  globalThis.__updateLiveScore = updateLiveScore;
   setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
   log(
     "Match Heartbeat started (every 60s \u2014 score sync, points, lockout, stale-data rejection)"
