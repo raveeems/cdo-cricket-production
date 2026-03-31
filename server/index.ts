@@ -1116,28 +1116,17 @@ function setupErrorHandler(app: express.Application) {
               try {
                 await storage.updateMatch(match.id, { firstScorecardAt: new Date() } as any);
                 log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
-                // Auto-mark Playing XI from first scorecard (players appearing now are the original XI)
-                const allMatchPlayers = await storage.getPlayersForMatch(match.id);
-                let autoXiCount = 0;
-                for (const player of allMatchPlayers) {
-                  if (player.isPlayingXI) continue;
-                  if (inScorecard(player)) {
-                    await storage.updatePlayer(player.id, { isPlayingXI: true });
-                    autoXiCount++;
-                  }
-                }
-                if (autoXiCount > 0) {
-                  log(`[Heartbeat:Impact] Auto-marked ${autoXiCount} players as Playing XI from first scorecard for ${matchLabel}`);
-                }
+                // NOTE: Auto-detection of Playing XI from scorecard is intentionally DISABLED.
+                // The namePointsMap can contain entries for players who appear in dismissal records
+                // (e.g. "c Pretorius b Jadeja") or Crex false positives even if they never played.
+                // This caused non-playing players to be incorrectly stamped isPlayingXI=true,
+                // receiving full points (catch stats + XI base). Admin MUST set Playing XI manually.
               } catch (fse) {
                 console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
               }
-            } else if (hasAnyScorecard && (match as any).firstScorecardAt) {
-              // NOTE: Auto-detection of impact subs is intentionally DISABLED.
-              // Crex/Cricbuzz false positives and fuzzy name matches were causing bench players to be
-              // incorrectly flagged as officialImpactSubUsed=true, awarding +4 bonus to players who
-              // never entered the match. Admin must manually set impact subs via the admin panel.
             }
+            // NOTE: Auto-detection of impact subs is also intentionally DISABLED.
+            // Admin must manually mark impact subs via the admin panel.
 
             if (pointsMap.size > 0 || namePointsMap.size > 0) {
               const updatedCount = await updateFantasyPoints(

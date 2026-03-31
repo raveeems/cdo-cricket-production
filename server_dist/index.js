@@ -7169,22 +7169,9 @@ function setupErrorHandler(app2) {
             try {
               await storage.updateMatch(match.id, { firstScorecardAt: /* @__PURE__ */ new Date() });
               log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
-              const allMatchPlayers = await storage.getPlayersForMatch(match.id);
-              let autoXiCount = 0;
-              for (const player of allMatchPlayers) {
-                if (player.isPlayingXI) continue;
-                if (inScorecard(player)) {
-                  await storage.updatePlayer(player.id, { isPlayingXI: true });
-                  autoXiCount++;
-                }
-              }
-              if (autoXiCount > 0) {
-                log(`[Heartbeat:Impact] Auto-marked ${autoXiCount} players as Playing XI from first scorecard for ${matchLabel}`);
-              }
             } catch (fse) {
               console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
             }
-          } else if (hasAnyScorecard && match.firstScorecardAt) {
           }
           if (pointsMap.size > 0 || namePointsMap.size > 0) {
             const updatedCount = await updateFantasyPoints(
