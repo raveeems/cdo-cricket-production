@@ -6995,7 +6995,7 @@ function setupErrorHandler(app2) {
             const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
             if (resolved.activePlayerId) {
               const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
-              if (impactPlayer && !impactPlayer.isPlayingXI) {
+              if (impactPlayer && impactPlayer.isPlayingXI !== true && impactPlayer.isImpactPlayer === true) {
                 let impactPts = (impactPlayer.points || 0) + 4;
                 let impactMultiplier = 1;
                 if (team.captainType === "impact_slot") impactMultiplier = 2;
