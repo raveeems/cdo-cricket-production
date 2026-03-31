@@ -446,7 +446,13 @@ export default function AdminScreen() {
     setSettingWinnerId(matchId);
     try {
       await apiRequest('POST', `/api/admin/matches/${matchId}/set-winner`, { winner });
-      setMatches(prev => prev.map(m => m.id === matchId ? { ...m, officialWinner: winner } : m));
+      setMatches(prev => prev.map(m => m.id === matchId ? {
+        ...m,
+        officialWinner: winner,
+        // Mirror what the server does: setting a winner marks the match completed;
+        // clearing it reverts to live so admin can re-settle.
+        status: winner ? 'completed' : (m.status === 'completed' ? 'live' : m.status),
+      } : m));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       Alert.alert('Error', 'Failed to set winner');

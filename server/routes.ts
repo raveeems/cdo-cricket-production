@@ -3676,6 +3676,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Winner must be team1Short or team2Short" });
         }
         await storage.setOfficialWinner(matchId, winner || null);
+        // When a winner is set the match is definitively over — mark it completed so:
+        //   1. The frontend stops showing it as LIVE
+        //   2. Tournament Pot Management can see it as an unprocessed completed match
+        // Clearing the winner (winner=null) reverts to "live" so admin can re-settle if needed.
+        if (winner) {
+          await storage.updateMatch(matchId, { status: "completed" } as any);
+        } else if (match.status === "completed") {
+          await storage.updateMatch(matchId, { status: "live" } as any);
+        }
         await storage.createAuditLog({
           adminUserId: req.session.userId!,
           actionType: "set_winner",

@@ -5884,6 +5884,11 @@ async function registerRoutes(app2) {
           return res.status(400).json({ message: "Winner must be team1Short or team2Short" });
         }
         await storage.setOfficialWinner(matchId, winner || null);
+        if (winner) {
+          await storage.updateMatch(matchId, { status: "completed" });
+        } else if (match.status === "completed") {
+          await storage.updateMatch(matchId, { status: "live" });
+        }
         await storage.createAuditLog({
           adminUserId: req.session.userId,
           actionType: "set_winner",
