@@ -571,6 +571,7 @@ function setupErrorHandler(app: express.Application) {
     async function updateLiveScore(match: any): Promise<{
       pointsMap: Map<string, number>;
       namePointsMap: Map<string, number>;
+      battedOrBowledPlayers: Set<string>;
       scoreString: string;
       matchEnded: boolean;
       totalOvers: number;
@@ -579,6 +580,7 @@ function setupErrorHandler(app: express.Application) {
       const empty = {
         pointsMap: new Map<string, number>(),
         namePointsMap: new Map<string, number>(),
+        battedOrBowledPlayers: new Set<string>(),
         scoreString: "",
         matchEnded: false,
         totalOvers: 0,
@@ -595,6 +597,8 @@ function setupErrorHandler(app: express.Application) {
         const result = {
           pointsMap: new Map<string, number>(),
           namePointsMap: new Map<string, number>(),
+          // Players who genuinely batted or bowled (own scorecard row). Empty for non-Crex sources.
+          battedOrBowledPlayers: new Set<string>(),
           scoreString: "",
           matchEnded: false,
           totalOvers: 0,
@@ -608,11 +612,12 @@ function setupErrorHandler(app: express.Application) {
             const crexResult = await fetchCrexScorecard(match.team1Short, match.team2Short);
             if (crexResult && (crexResult.namePointsMap.size > 0 || crexResult.scoreString)) {
               result.namePointsMap = crexResult.namePointsMap;
+              result.battedOrBowledPlayers = crexResult.battedOrBowledPlayers;
               result.scoreString = crexResult.scoreString || "";
               result.matchEnded = crexResult.matchEnded;
               result.totalOvers = crexResult.totalOvers;
               source = "Crex";
-              log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players, score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
+              log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players (${crexResult.battedOrBowledPlayers.size} batted/bowled), score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
             } else {
               log(`[Heartbeat:Score] Crex empty — will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
             }
@@ -628,6 +633,7 @@ function setupErrorHandler(app: express.Application) {
             const cbResult = await fetchCricbuzzScorecard(match.team1Short, match.team2Short);
             if (cbResult && (cbResult.namePointsMap.size > 0 || cbResult.scoreString)) {
               result.namePointsMap = cbResult.namePointsMap;
+              result.battedOrBowledPlayers = cbResult.battedOrBowledPlayers; // empty Set for Cricbuzz
               result.scoreString = cbResult.scoreString || "";
               result.matchEnded = cbResult.matchEnded;
               result.totalOvers = cbResult.totalOvers;
@@ -1054,6 +1060,7 @@ function setupErrorHandler(app: express.Application) {
             const {
               pointsMap,
               namePointsMap,
+              battedOrBowledPlayers,
               scoreString,
               matchEnded,
               totalOvers,
@@ -1117,16 +1124,42 @@ function setupErrorHandler(app: express.Application) {
                 await storage.updateMatch(match.id, { firstScorecardAt: new Date() } as any);
                 log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
                 // NOTE: Auto-detection of Playing XI from scorecard is intentionally DISABLED.
-                // The namePointsMap can contain entries for players who appear in dismissal records
-                // (e.g. "c Pretorius b Jadeja") or Crex false positives even if they never played.
-                // This caused non-playing players to be incorrectly stamped isPlayingXI=true,
-                // receiving full points (catch stats + XI base). Admin MUST set Playing XI manually.
+                // Crex dismissal text (e.g. "c Pretorius b Jadeja") puts fielder names in the
+                // namePointsMap even for substitute/non-playing fielders, causing wrong isPlayingXI stamps.
+                // Admin MUST set Playing XI manually via the admin panel.
               } catch (fse) {
                 console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
               }
+            } else if (hasAnyScorecard && (match as any).firstScorecardAt) {
+              // Auto-detect impact substitutes on subsequent scorecards.
+              // Uses battedOrBowledPlayers (Crex-only): players with their OWN batting/bowling row.
+              // This excludes substitute fielders who only appear in dismissal text — preventing
+              // non-playing players like Pretorius from being wrongly flagged as impact subs.
+              // Falls back to namePointsMap when battedOrBowledPlayers is empty (Cricbuzz/CricAPI).
+              try {
+                const impactCandidateSet = battedOrBowledPlayers.size > 0 ? battedOrBowledPlayers : null;
+                const allMatchPlayers = await storage.getPlayersForMatch(match.id);
+                for (const player of allMatchPlayers) {
+                  if (player.isPlayingXI || player.isImpactPlayer) continue;
+                  const normPlayerName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+                  // Use strict battedOrBowledPlayers set if available (Crex), else fall back to namePointsMap
+                  const appearedInMatch = impactCandidateSet
+                    ? impactCandidateSet.has(normPlayerName)
+                    : (player.externalId ? pointsMap.has(player.externalId) : namePointsMap.has(normPlayerName));
+                  if (appearedInMatch) {
+                    log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
+                    await storage.updatePlayer(player.id, { isImpactPlayer: true });
+                    await storage.upsertMatchPlayerStatus({
+                      matchId: match.id,
+                      playerId: player.id,
+                      officialImpactSubUsed: true,
+                    });
+                  }
+                }
+              } catch (impactErr) {
+                console.error(`[Heartbeat:Impact] Auto-detection failed for ${matchLabel}:`, impactErr);
+              }
             }
-            // NOTE: Auto-detection of impact subs is also intentionally DISABLED.
-            // Admin must manually mark impact subs via the admin panel.
 
             if (pointsMap.size > 0 || namePointsMap.size > 0) {
               const updatedCount = await updateFantasyPoints(

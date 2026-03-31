@@ -1882,6 +1882,11 @@ function addNamePoints(
 
 interface CricbuzzScoreResult {
   namePointsMap: Map<string, number>;
+  // Players who have their OWN batting or bowling row (genuinely participated in the match).
+  // This excludes players who only appear in dismissal text as substitute fielders
+  // (e.g. "c Pretorius b Jadeja") — those are credited in namePointsMap for catches
+  // but are NOT considered to have "played" for impact sub detection purposes.
+  battedOrBowledPlayers: Set<string>;
   scoreString: string;
   matchEnded: boolean;
   totalOvers: number;
@@ -2079,7 +2084,9 @@ export async function fetchCricbuzzScorecard(
     }
 
     if (namePointsMap.size === 0 && !scoreString) return null;
-    return { namePointsMap, scoreString, matchEnded, totalOvers };
+    // Cricbuzz does not separate fielding-only mentions from batting/bowling rows,
+    // so battedOrBowledPlayers is empty — impact sub detection falls back to namePointsMap
+    return { namePointsMap, battedOrBowledPlayers: new Set<string>(), scoreString, matchEnded, totalOvers };
   } catch (err) {
     console.error(
       `[Cricbuzz] fetchCricbuzzScorecard failed for ${team1Short} vs ${team2Short}:`,
@@ -2331,6 +2338,10 @@ async function findCrexMatchUrl(
 
 function parseCrexHtml(html: string): CricbuzzScoreResult {
   const namePointsMap = new Map<string, number>();
+  // Tracks players who have their OWN batting or bowling row — i.e. actually participated.
+  // Players only in dismissal text (e.g. "c Pretorius b X" when Pretorius is a sub fielder)
+  // appear in namePointsMap for fielding points but NOT in battedOrBowledPlayers.
+  const battedOrBowledPlayers = new Set<string>();
   const lbwBowledMap = new Map<string, number>();
   const trSegments = html.split("</tr>");
 
@@ -2356,6 +2367,9 @@ function parseCrexHtml(html: string): CricbuzzScoreResult {
     if (statNums.length < 4) continue;
     const [runs, balls, fours, sixes] = statNums;
 
+    // This player has their own batting row — they genuinely participated
+    battedOrBowledPlayers.add(normalizeName(name));
+
     // LBW / bowled bonus map for bowling pass
     const lbwMatch = dismissal.match(/^(?:lbw\s+b|b)\s+(.+)/i);
     if (lbwMatch) {
@@ -2363,7 +2377,8 @@ function parseCrexHtml(html: string): CricbuzzScoreResult {
       lbwBowledMap.set(bn, (lbwBowledMap.get(bn) || 0) + 8);
     }
 
-    // Fielding points from dismissal text
+    // Fielding points from dismissal text — added to namePointsMap but fielders
+    // are NOT added to battedOrBowledPlayers (they may be sub fielders who didn't play)
     const catchMatch = dismissal.match(/^c\s+(.+?)\s+b\s+/i);
     const stumpMatch = dismissal.match(/^st\s+(.+?)\s+b\s+/i);
     const runoutMatch = dismissal.match(/run\s*out\s*[\(\[](.+?)[\)\]]/i);
@@ -2392,6 +2407,9 @@ function parseCrexHtml(html: string): CricbuzzScoreResult {
     const [overs, maidens, , wickets, economy] = statNums;
     const actualOvers = cbOversToDecimal(String(overs));
     const lbwBonus = lbwBowledMap.get(normalizeName(name)) || 0;
+
+    // This player has their own bowling row — they genuinely participated
+    battedOrBowledPlayers.add(normalizeName(name));
 
     const pts = calcCricbuzzBowlingPoints(
       wickets,
@@ -2478,6 +2496,7 @@ function parseCrexHtml(html: string): CricbuzzScoreResult {
 
   return {
     namePointsMap,
+    battedOrBowledPlayers,
     scoreString: scoreStringParts.join(" | "),
     matchEnded,
     totalOvers,

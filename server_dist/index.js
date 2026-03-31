@@ -2241,7 +2241,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
 ${sorted.map(([n, p]) => `  ${n}: ${p}`).join("\n")}`);
     }
     if (namePointsMap.size === 0 && !scoreString) return null;
-    return { namePointsMap, scoreString, matchEnded, totalOvers };
+    return { namePointsMap, battedOrBowledPlayers: /* @__PURE__ */ new Set(), scoreString, matchEnded, totalOvers };
   } catch (err) {
     console.error(
       `[Cricbuzz] fetchCricbuzzScorecard failed for ${team1Short} vs ${team2Short}:`,
@@ -2427,6 +2427,7 @@ async function findCrexMatchUrl(team1Short, team2Short) {
 }
 function parseCrexHtml(html) {
   const namePointsMap = /* @__PURE__ */ new Map();
+  const battedOrBowledPlayers = /* @__PURE__ */ new Set();
   const lbwBowledMap = /* @__PURE__ */ new Map();
   const trSegments = html.split("</tr>");
   for (const seg of trSegments) {
@@ -2445,6 +2446,7 @@ function parseCrexHtml(html) {
     ].map((m) => parseFloat(m[1]));
     if (statNums.length < 4) continue;
     const [runs, balls, fours, sixes] = statNums;
+    battedOrBowledPlayers.add(normalizeName(name));
     const lbwMatch = dismissal.match(/^(?:lbw\s+b|b)\s+(.+)/i);
     if (lbwMatch) {
       const bn = normalizeName(lbwMatch[1].trim());
@@ -2472,6 +2474,7 @@ function parseCrexHtml(html) {
     const [overs, maidens, , wickets, economy] = statNums;
     const actualOvers = cbOversToDecimal(String(overs));
     const lbwBonus = lbwBowledMap.get(normalizeName(name)) || 0;
+    battedOrBowledPlayers.add(normalizeName(name));
     const pts = calcCricbuzzBowlingPoints(
       wickets,
       maidens,
@@ -2544,6 +2547,7 @@ function parseCrexHtml(html) {
   const matchEnded = /won by|match tied|abandoned/.test(html.toLowerCase());
   return {
     namePointsMap,
+    battedOrBowledPlayers,
     scoreString: scoreStringParts.join(" | "),
     matchEnded,
     totalOvers
@@ -6750,6 +6754,7 @@ function setupErrorHandler(app2) {
     const empty = {
       pointsMap: /* @__PURE__ */ new Map(),
       namePointsMap: /* @__PURE__ */ new Map(),
+      battedOrBowledPlayers: /* @__PURE__ */ new Set(),
       scoreString: "",
       matchEnded: false,
       totalOvers: 0,
@@ -6761,6 +6766,8 @@ function setupErrorHandler(app2) {
       const result = {
         pointsMap: /* @__PURE__ */ new Map(),
         namePointsMap: /* @__PURE__ */ new Map(),
+        // Players who genuinely batted or bowled (own scorecard row). Empty for non-Crex sources.
+        battedOrBowledPlayers: /* @__PURE__ */ new Set(),
         scoreString: "",
         matchEnded: false,
         totalOvers: 0
@@ -6772,11 +6779,12 @@ function setupErrorHandler(app2) {
           const crexResult = await fetchCrexScorecard2(match.team1Short, match.team2Short);
           if (crexResult && (crexResult.namePointsMap.size > 0 || crexResult.scoreString)) {
             result.namePointsMap = crexResult.namePointsMap;
+            result.battedOrBowledPlayers = crexResult.battedOrBowledPlayers;
             result.scoreString = crexResult.scoreString || "";
             result.matchEnded = crexResult.matchEnded;
             result.totalOvers = crexResult.totalOvers;
             source = "Crex";
-            log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players, score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
+            log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players (${crexResult.battedOrBowledPlayers.size} batted/bowled), score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
           } else {
             log(`[Heartbeat:Score] Crex empty \u2014 will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
           }
@@ -6790,6 +6798,7 @@ function setupErrorHandler(app2) {
           const cbResult = await fetchCricbuzzScorecard2(match.team1Short, match.team2Short);
           if (cbResult && (cbResult.namePointsMap.size > 0 || cbResult.scoreString)) {
             result.namePointsMap = cbResult.namePointsMap;
+            result.battedOrBowledPlayers = cbResult.battedOrBowledPlayers;
             result.scoreString = cbResult.scoreString || "";
             result.matchEnded = cbResult.matchEnded;
             result.totalOvers = cbResult.totalOvers;
@@ -7128,6 +7137,7 @@ function setupErrorHandler(app2) {
           const {
             pointsMap,
             namePointsMap,
+            battedOrBowledPlayers,
             scoreString,
             matchEnded,
             totalOvers,
@@ -7171,6 +7181,27 @@ function setupErrorHandler(app2) {
               log(`[Heartbeat] firstScorecardAt recorded for ${matchLabel}`);
             } catch (fse) {
               console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
+            }
+          } else if (hasAnyScorecard && match.firstScorecardAt) {
+            try {
+              const impactCandidateSet = battedOrBowledPlayers.size > 0 ? battedOrBowledPlayers : null;
+              const allMatchPlayers = await storage.getPlayersForMatch(match.id);
+              for (const player of allMatchPlayers) {
+                if (player.isPlayingXI || player.isImpactPlayer) continue;
+                const normPlayerName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+                const appearedInMatch = impactCandidateSet ? impactCandidateSet.has(normPlayerName) : player.externalId ? pointsMap.has(player.externalId) : namePointsMap.has(normPlayerName);
+                if (appearedInMatch) {
+                  log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
+                  await storage.updatePlayer(player.id, { isImpactPlayer: true });
+                  await storage.upsertMatchPlayerStatus({
+                    matchId: match.id,
+                    playerId: player.id,
+                    officialImpactSubUsed: true
+                  });
+                }
+              }
+            } catch (impactErr) {
+              console.error(`[Heartbeat:Impact] Auto-detection failed for ${matchLabel}:`, impactErr);
             }
           }
           if (pointsMap.size > 0 || namePointsMap.size > 0) {
