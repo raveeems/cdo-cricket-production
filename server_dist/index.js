@@ -6746,6 +6746,29 @@ function setupErrorHandler(app2) {
             matchMethod: "exactName"
           };
         }
+        const dbWords = normName.split(" ");
+        const dbLastName = dbWords[dbWords.length - 1] || "";
+        const dbFirstInitial = dbWords[0]?.[0] || "";
+        if (dbLastName.length >= 5) {
+          const lastNameCandidates = [];
+          for (const [scorecardKey, pts] of namePointsMap.entries()) {
+            const scorecardWords = scorecardKey.split(" ");
+            const scorecardLast = scorecardWords[scorecardWords.length - 1] || "";
+            if (scorecardLast === dbLastName) {
+              lastNameCandidates.push([scorecardKey, pts]);
+            }
+          }
+          if (lastNameCandidates.length === 1) {
+            const [matchedKey, matchedPts] = lastNameCandidates[0];
+            const matchedFirstInitial = matchedKey.split(" ")[0]?.[0] || "";
+            if (!dbFirstInitial || !matchedFirstInitial || dbFirstInitial === matchedFirstInitial) {
+              return {
+                fantasyPts: matchedPts,
+                matchMethod: `lastName(${player.name}\u2192${matchedKey})`
+              };
+            }
+          }
+        }
       }
     }
     return { fantasyPts: void 0, matchMethod: "none" };

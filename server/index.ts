@@ -559,9 +559,36 @@ function setupErrorHandler(app: express.Application) {
               matchMethod: "exactName",
             };
           }
-          // NOTE: Fuzzy name matching removed — it caused false positives where bench players
-          // matched scorecard entries for different players with similar names (e.g. Deshpande).
-          // Players MUST match by externalId or exact normalized name only.
+
+          // Smart last-name matching — handles abbreviated first names (e.g. "R. Jadeja" ↔ "Ravindra Jadeja").
+          // Rules to prevent false positives:
+          //   1. Last name must be ≥ 5 characters (avoids matching common short surnames: Ali, Roy, Das)
+          //   2. Exactly ONE scorecard entry may share that last name (ambiguous = skip entirely)
+          //   3. First initial of DB name must match first initial of scorecard name (when both exist)
+          const dbWords = normName.split(" ");
+          const dbLastName = dbWords[dbWords.length - 1] || "";
+          const dbFirstInitial = dbWords[0]?.[0] || "";
+          if (dbLastName.length >= 5) {
+            const lastNameCandidates: Array<[string, number]> = [];
+            for (const [scorecardKey, pts] of namePointsMap.entries()) {
+              const scorecardWords = scorecardKey.split(" ");
+              const scorecardLast = scorecardWords[scorecardWords.length - 1] || "";
+              if (scorecardLast === dbLastName) {
+                lastNameCandidates.push([scorecardKey, pts]);
+              }
+            }
+            if (lastNameCandidates.length === 1) {
+              const [matchedKey, matchedPts] = lastNameCandidates[0];
+              const matchedFirstInitial = matchedKey.split(" ")[0]?.[0] || "";
+              // Accept if first initials match or one side has no initial to compare
+              if (!dbFirstInitial || !matchedFirstInitial || dbFirstInitial === matchedFirstInitial) {
+                return {
+                  fantasyPts: matchedPts,
+                  matchMethod: `lastName(${player.name}→${matchedKey})`,
+                };
+              }
+            }
+          }
         }
       }
 
