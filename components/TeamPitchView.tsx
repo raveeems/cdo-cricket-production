@@ -169,11 +169,14 @@ function BenchStrip({ primary, backup, captainType, vcType }: {
   const backupActivated = backup?.isImpactPlayer ?? false;
 
   function BenchCard({ player, label, isCaptain, isVC }: { player: PitchPlayer | null | undefined; label: string; isCaptain: boolean; isVC: boolean }) {
-    const pts = player?.points ?? 0;
-    let displayPts = pts;
-    if (isCaptain) displayPts = pts * 2;
-    else if (isVC) displayPts = Math.round(pts * 1.5);
     const isActivated = player?.isImpactPlayer ?? false;
+    const rawPts = player?.points ?? 0;
+    // When active, +4 impact bonus is added by the server on top of raw scorecard points.
+    // Show the true contribution (pts + 4) so the displayed number matches the team total.
+    const ptsWithBonus = isActivated ? rawPts + 4 : rawPts;
+    let displayPts = ptsWithBonus;
+    if (isCaptain) displayPts = ptsWithBonus * 2;
+    else if (isVC) displayPts = Math.round(ptsWithBonus * 1.5);
     const jerseyColor = getTeamColor(player?.teamShort);
     const playerImage = player ? getPlayerImage(player.externalId ?? player.id) : null;
     return (
@@ -205,6 +208,9 @@ function BenchStrip({ primary, backup, captainType, vcType }: {
         <Text style={[benchStyles.ptsText, isActivated ? { color: '#C084FC', fontFamily: 'Inter_700Bold' as const } : { color: colors.textTertiary }]}>
           {displayPts} pts
         </Text>
+        {isActivated && (
+          <Text style={benchStyles.bonusLabel}>+4 impact bonus</Text>
+        )}
       </View>
     );
   }
@@ -687,5 +693,12 @@ const benchStyles = StyleSheet.create({
   ptsText: {
     fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
+  },
+  bonusLabel: {
+    fontSize: 8,
+    fontFamily: 'Inter_400Regular',
+    color: '#9333EA',
+    opacity: 0.8,
+    textAlign: 'center',
   },
 });
