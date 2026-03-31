@@ -7184,18 +7184,22 @@ function setupErrorHandler(app2) {
             }
           } else if (hasAnyScorecard && match.firstScorecardAt) {
             try {
-              const impactCandidateSet = battedOrBowledPlayers.size > 0 ? battedOrBowledPlayers : null;
               const allMatchPlayers = await storage.getPlayersForMatch(match.id);
-              for (const player of allMatchPlayers) {
-                if (player.isPlayingXI || player.isImpactPlayer) continue;
-                const normPlayerName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-                const appearedInMatch = impactCandidateSet ? impactCandidateSet.has(normPlayerName) : player.externalId ? pointsMap.has(player.externalId) : namePointsMap.has(normPlayerName);
-                if (appearedInMatch) {
-                  log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
-                  await storage.updatePlayer(player.id, { isImpactPlayer: true });
+              const impactCandidates = allMatchPlayers.filter(
+                (p) => p.isImpactPlayer === true && p.isPlayingXI !== true
+              );
+              for (const candidate of impactCandidates) {
+                const existingStatus = await storage.getMatchPlayerStatus(match.id, candidate.id);
+                if (existingStatus?.officialImpactSubUsed) continue;
+                const normName2 = candidate.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+                const appearedStrict = battedOrBowledPlayers.size > 0 && battedOrBowledPlayers.has(normName2);
+                const appearedInMap = !appearedStrict && ((candidate.externalId ? pointsMap.has(candidate.externalId) : false) || namePointsMap.has(normName2));
+                if (appearedStrict || appearedInMap) {
+                  const via = appearedStrict ? "bat/bowl row" : "scorecard map";
+                  log(`[Heartbeat:Impact] Candidate confirmed active: ${candidate.name} (${candidate.teamShort}) via ${via} for ${matchLabel}`);
                   await storage.upsertMatchPlayerStatus({
                     matchId: match.id,
-                    playerId: player.id,
+                    playerId: candidate.id,
                     officialImpactSubUsed: true
                   });
                 }

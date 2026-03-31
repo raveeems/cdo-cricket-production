@@ -1131,27 +1131,43 @@ function setupErrorHandler(app: express.Application) {
                 console.error(`[Heartbeat] Failed to set firstScorecardAt for ${matchLabel}:`, fse);
               }
             } else if (hasAnyScorecard && (match as any).firstScorecardAt) {
-              // Auto-detect impact substitutes on subsequent scorecards.
-              // Uses battedOrBowledPlayers (Crex-only): players with their OWN batting/bowling row.
-              // This excludes substitute fielders who only appear in dismissal text — preventing
-              // non-playing players like Pretorius from being wrongly flagged as impact subs.
-              // Falls back to namePointsMap when battedOrBowledPlayers is empty (Cricbuzz/CricAPI).
+              // Auto-detect which admin-designated impact sub candidate actually contributed.
+              // ONLY checks players already marked isImpactPlayer=true by the admin (the 5 candidates).
+              // Checks:
+              //   1. battedOrBowledPlayers (Crex strict — own bat/bowl row, excludes dismissal-text fielders)
+              //   2. namePointsMap (catches fielding contributions like catches — only for pre-designated candidates,
+              //      so false-positive risk is negligible since admin picked them explicitly)
+              // Sets officialImpactSubUsed=true on first detection; admin override always takes precedence.
               try {
-                const impactCandidateSet = battedOrBowledPlayers.size > 0 ? battedOrBowledPlayers : null;
                 const allMatchPlayers = await storage.getPlayersForMatch(match.id);
-                for (const player of allMatchPlayers) {
-                  if (player.isPlayingXI || player.isImpactPlayer) continue;
-                  const normPlayerName = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
-                  // Use strict battedOrBowledPlayers set if available (Crex), else fall back to namePointsMap
-                  const appearedInMatch = impactCandidateSet
-                    ? impactCandidateSet.has(normPlayerName)
-                    : (player.externalId ? pointsMap.has(player.externalId) : namePointsMap.has(normPlayerName));
-                  if (appearedInMatch) {
-                    log(`[Heartbeat:Impact] Auto-detected impact sub: ${player.name} (${player.teamShort}) for ${matchLabel}`);
-                    await storage.updatePlayer(player.id, { isImpactPlayer: true });
+                // Only consider the admin-designated candidates (isImpactPlayer=true, not in XI)
+                const impactCandidates = allMatchPlayers.filter(
+                  (p) => p.isImpactPlayer === true && p.isPlayingXI !== true
+                );
+                for (const candidate of impactCandidates) {
+                  // Skip if already confirmed active — first detection wins
+                  const existingStatus = await storage.getMatchPlayerStatus(match.id, candidate.id);
+                  if (existingStatus?.officialImpactSubUsed) continue;
+
+                  const normName = candidate.name
+                    .toLowerCase()
+                    .replace(/[^a-z\s]/g, "")
+                    .replace(/\s+/g, " ")
+                    .trim();
+
+                  // Check strict bat/bowl set first (Crex), then namePointsMap (fielding / non-Crex sources)
+                  const appearedStrict = battedOrBowledPlayers.size > 0 && battedOrBowledPlayers.has(normName);
+                  const appearedInMap = !appearedStrict && (
+                    (candidate.externalId ? pointsMap.has(candidate.externalId) : false) ||
+                    (namePointsMap.has(normName))
+                  );
+
+                  if (appearedStrict || appearedInMap) {
+                    const via = appearedStrict ? "bat/bowl row" : "scorecard map";
+                    log(`[Heartbeat:Impact] Candidate confirmed active: ${candidate.name} (${candidate.teamShort}) via ${via} for ${matchLabel}`);
                     await storage.upsertMatchPlayerStatus({
                       matchId: match.id,
-                      playerId: player.id,
+                      playerId: candidate.id,
                       officialImpactSubUsed: true,
                     });
                   }
