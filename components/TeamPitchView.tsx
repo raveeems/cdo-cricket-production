@@ -235,12 +235,17 @@ function BenchStrip({ primary, backup, captainType, vcType }: {
 function PitchContent({ players, captainId, viceCaptainId, teamName, totalPoints, matchCompleted = false, team1Short, impactPlayer, backupPlayer, captainType, vcType }: Omit<TeamPitchViewProps, 'visible' | 'onClose' | 'isModal'>) {
   const { colors } = useTheme();
 
-  const xiAnnounced = players.some(p => p.isPlayingXI);
+  // Exclude impact sub players from the main XI grid — they appear only in the bench strip below.
+  // Without this, users with impact subs selected see 13 players on the pitch instead of 11.
+  const impactIds = new Set([impactPlayer?.id, backupPlayer?.id].filter(Boolean) as string[]);
+  const xiPlayers = players.filter(p => !impactIds.has(p.id));
 
-  const wk = players.filter(p => p.role === 'WK');
-  const bat = players.filter(p => p.role === 'BAT');
-  const ar = players.filter(p => p.role === 'AR');
-  const bowl = players.filter(p => p.role === 'BOWL');
+  const xiAnnounced = xiPlayers.some(p => p.isPlayingXI);
+
+  const wk = xiPlayers.filter(p => p.role === 'WK');
+  const bat = xiPlayers.filter(p => p.role === 'BAT');
+  const ar = xiPlayers.filter(p => p.role === 'AR');
+  const bowl = xiPlayers.filter(p => p.role === 'BOWL');
 
   const rows: { label: string; players: PitchPlayer[] }[] = [
     { label: 'WICKET-KEEPER', players: wk },
