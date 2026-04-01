@@ -4144,6 +4144,15 @@ async function registerRoutes(app2) {
             return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
           }
         }
+        if (validCaptainType === "player" && captainId && !playerIds.includes(captainId)) {
+          return res.status(400).json({ message: "Captain must be one of your selected 11 players." });
+        }
+        if (validVcType === "player" && viceCaptainId && !playerIds.includes(viceCaptainId)) {
+          return res.status(400).json({ message: "Vice-Captain must be one of your selected 11 players." });
+        }
+        if (validCaptainType === "player" && validVcType === "player" && captainId && viceCaptainId && captainId === viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain cannot be the same player." });
+        }
         let validBackupXi1 = null;
         let validBackupXi2 = null;
         if (!match.playingXIManual) {
@@ -4337,6 +4346,15 @@ async function registerRoutes(app2) {
           if (captainType === "impact_slot" && vcType === "impact_slot") {
             return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
           }
+        }
+        if (validCaptainType === "player" && captainId && !playerIds.includes(captainId)) {
+          return res.status(400).json({ message: "Captain must be one of your selected 11 players." });
+        }
+        if (validVcType === "player" && viceCaptainId && !playerIds.includes(viceCaptainId)) {
+          return res.status(400).json({ message: "Vice-Captain must be one of your selected 11 players." });
+        }
+        if (validCaptainType === "player" && validVcType === "player" && captainId && viceCaptainId && captainId === viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain cannot be the same player." });
         }
         let validBackupXi1Edit = team.backupXiPlayer1Id ?? null;
         let validBackupXi2Edit = team.backupXiPlayer2Id ?? null;

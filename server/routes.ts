@@ -1479,6 +1479,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // ── Captain / Vice-Captain integrity ─────────────────────────────────────
+        if (validCaptainType === "player" && captainId && !playerIds.includes(captainId)) {
+          return res.status(400).json({ message: "Captain must be one of your selected 11 players." });
+        }
+        if (validVcType === "player" && viceCaptainId && !playerIds.includes(viceCaptainId)) {
+          return res.status(400).json({ message: "Vice-Captain must be one of your selected 11 players." });
+        }
+        if (validCaptainType === "player" && validVcType === "player" && captainId && viceCaptainId && captainId === viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain cannot be the same player." });
+        }
+
         // ---- XI BACKUP VALIDATION ----
         // Backups are locked once official Playing XI is announced (playingXIManual = true)
         let validBackupXi1: string | null = null;
@@ -1692,6 +1703,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (captainType === "impact_slot" && vcType === "impact_slot") {
             return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
           }
+        }
+
+        // ── Captain / Vice-Captain integrity ─────────────────────────────────────
+        if (validCaptainType === "player" && captainId && !playerIds.includes(captainId)) {
+          return res.status(400).json({ message: "Captain must be one of your selected 11 players." });
+        }
+        if (validVcType === "player" && viceCaptainId && !playerIds.includes(viceCaptainId)) {
+          return res.status(400).json({ message: "Vice-Captain must be one of your selected 11 players." });
+        }
+        if (validCaptainType === "player" && validVcType === "player" && captainId && viceCaptainId && captainId === viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain cannot be the same player." });
         }
 
         // ---- XI BACKUP VALIDATION (edit) ----
