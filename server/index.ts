@@ -689,19 +689,18 @@ function setupErrorHandler(app: express.Application) {
             log(`[Heartbeat:Score] Crex empty — will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
           }
 
-          // CFLL: override score header if it has a valid score (faster, potentially fresher)
-          if (cfllResult?.scoreString) {
-            const cfllOvers = cfllResult.totalOvers || 0;
-            const crexOvers = result.totalOvers || 0;
-            if (!result.scoreString || cfllOvers >= crexOvers) {
-              result.scoreString = cfllResult.scoreString;
-              if (cfllResult.matchEnded) result.matchEnded = true;
-              if (cfllOvers > result.totalOvers) result.totalOvers = cfllOvers;
-              source = source ? `${source}+CFLL` : "CFLL";
-              log(`[Heartbeat:Score] CFLL score header applied: "${cfllResult.scoreString}"`);
-            } else {
-              log(`[Heartbeat:Score] CFLL score skipped (${cfllOvers} ov < Crex ${crexOvers} ov)`);
-            }
+          // CFLL: fallback score header only when Crex returned nothing
+          // Do NOT override a valid Crex score — CFLL's totalOvers uses a different
+          // scale (adds 20 for 2nd innings) vs Crex's HTML parser which may only
+          // return current-innings overs, making the freshness comparison unreliable.
+          if (cfllResult?.scoreString && !result.scoreString) {
+            result.scoreString = cfllResult.scoreString;
+            if (cfllResult.matchEnded) result.matchEnded = true;
+            result.totalOvers = cfllResult.totalOvers;
+            source = "CFLL";
+            log(`[Heartbeat:Score] CFLL score header applied (Crex had no score): "${cfllResult.scoreString}"`);
+          } else if (cfllResult?.scoreString) {
+            log(`[Heartbeat:Score] CFLL score skipped — Crex score present: "${result.scoreString}"`);
           }
         }
 

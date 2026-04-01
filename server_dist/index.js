@@ -7198,18 +7198,14 @@ function setupErrorHandler(app2) {
         } else {
           log(`[Heartbeat:Score] Crex empty \u2014 will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
         }
-        if (cfllResult?.scoreString) {
-          const cfllOvers = cfllResult.totalOvers || 0;
-          const crexOvers = result.totalOvers || 0;
-          if (!result.scoreString || cfllOvers >= crexOvers) {
-            result.scoreString = cfllResult.scoreString;
-            if (cfllResult.matchEnded) result.matchEnded = true;
-            if (cfllOvers > result.totalOvers) result.totalOvers = cfllOvers;
-            source = source ? `${source}+CFLL` : "CFLL";
-            log(`[Heartbeat:Score] CFLL score header applied: "${cfllResult.scoreString}"`);
-          } else {
-            log(`[Heartbeat:Score] CFLL score skipped (${cfllOvers} ov < Crex ${crexOvers} ov)`);
-          }
+        if (cfllResult?.scoreString && !result.scoreString) {
+          result.scoreString = cfllResult.scoreString;
+          if (cfllResult.matchEnded) result.matchEnded = true;
+          result.totalOvers = cfllResult.totalOvers;
+          source = "CFLL";
+          log(`[Heartbeat:Score] CFLL score header applied (Crex had no score): "${cfllResult.scoreString}"`);
+        } else if (cfllResult?.scoreString) {
+          log(`[Heartbeat:Score] CFLL score skipped \u2014 Crex score present: "${result.scoreString}"`);
         }
       }
       if (!source && process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
