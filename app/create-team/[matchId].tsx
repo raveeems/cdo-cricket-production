@@ -1313,49 +1313,46 @@ export default function CreateTeamScreen() {
 
         return (
           <>
-            <View style={[styles.captainInfo, { backgroundColor: colors.surfaceElevated }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
-                <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>XI Backup Picks (Optional)</Text>
-              </View>
-              <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, lineHeight: 18 }}>
-                If you may be unavailable, select up to 2 backup players. They will replace missing main XI picks in priority order if those players are not in the official Playing XI.
+            {/* Compact helper line — replaces the heavy info card */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Ionicons name="shield-checkmark-outline" size={13} color={colors.textTertiary} />
+              <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, flex: 1 }}>
+                Optional · up to 2 · replaces absent XI players in priority order
               </Text>
-              {xiBackupLocked && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, padding: 8, backgroundColor: '#F59E0B20', borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B40' }}>
-                  <Ionicons name="lock-closed" size={14} color="#F59E0B" />
-                  <Text style={{ color: '#F59E0B', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>
-                    Official Playing XI announced — backups are locked and cannot be changed.
-                  </Text>
-                </View>
-              )}
             </View>
 
-            {/* Selected backup slots */}
-            <View style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
+            {xiBackupLocked && (
+              <View style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 10, backgroundColor: '#F59E0B18', borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B40' }}>
+                <Ionicons name="lock-closed" size={13} color="#F59E0B" />
+                <Text style={{ color: '#F59E0B', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>XI announced — backups locked</Text>
+              </View>
+            )}
+
+            {/* B1 / B2 compact side-by-side chips */}
+            <View style={{ paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', gap: 8 }}>
               {[
-                { label: 'Backup 1', player: backup1Player, clear: () => { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); }, priority: '1st priority' },
-                { label: 'Backup 2', player: backup2Player, clear: () => setBackupXiPlayer2Id(null), priority: '2nd priority' },
+                { num: 1, player: backup1Player, clear: () => { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); } },
+                { num: 2, player: backup2Player, clear: () => setBackupXiPlayer2Id(null) },
               ].map(slot => (
-                <View key={slot.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, backgroundColor: slot.player ? colors.primary + '12' : colors.surfaceElevated, borderColor: slot.player ? colors.primary + '40' : colors.border }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: slot.player ? colors.primary : colors.border, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: slot.player ? '#FFF' : colors.textTertiary, fontSize: 13, fontFamily: 'Inter_700Bold' as const }}>{slot.label.split(' ')[1]}</Text>
+                <View key={slot.num} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, backgroundColor: slot.player ? colors.primary + '14' : colors.surfaceElevated, borderColor: slot.player ? colors.primary + '55' : colors.border, minHeight: 50 }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: slot.player ? colors.primary : colors.surfaceElevated, borderWidth: slot.player ? 0 : 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Text style={{ color: slot.player ? '#FFF' : colors.textTertiary, fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>{slot.num}</Text>
                   </View>
                   {slot.player ? (
                     <>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>{slot.player.name}</Text>
-                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>{slot.player.teamShort} · {slot.player.role} · {slot.priority}</Text>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>{slot.player.name}</Text>
+                        <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>{slot.player.teamShort} · {slot.player.role}</Text>
                       </View>
                       {!xiBackupLocked && (
-                        <Pressable onPress={slot.clear} style={{ padding: 4 }}>
-                          <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
+                        <Pressable onPress={slot.clear} hitSlop={8}>
+                          <Ionicons name="close-circle" size={17} color={colors.textTertiary} />
                         </Pressable>
                       )}
                     </>
                   ) : (
-                    <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const }}>
-                      {!backup1Player && slot.label === 'Backup 2' ? 'Set Backup 1 first' : xiBackupLocked ? 'Not set' : `Tap a player below to add ${slot.label}`}
+                    <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                      {slot.num === 2 && !backup1Player ? 'Set B1 first' : xiBackupLocked ? 'Not set' : `Tap to add B${slot.num}`}
                     </Text>
                   )}
                 </View>
@@ -1367,30 +1364,36 @@ export default function CreateTeamScreen() {
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
                 showsVerticalScrollIndicator={false}
               >
+                <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold' as const, color: colors.textTertiary, letterSpacing: 0.7, marginBottom: 8, textTransform: 'uppercase' as const }}>
+                  Available Players
+                </Text>
                 {eligibleForList.length === 0 && !backupXiPlayer2Id ? (
                   <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 20 }}>
                     {backupXiPlayer1Id && backupXiPlayer2Id ? 'Both backup slots filled.' : 'No additional players available.'}
                   </Text>
                 ) : (
-                  eligibleForList.map(player => (
-                    <Pressable
-                      key={player.id}
-                      onPress={() => handlePickPlayer(player.id)}
-                      disabled={!backup1Player && player.id === backupXiPlayer2Id}
-                      style={[styles.captainItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                    >
-                      <View style={styles.captainLeft}>
-                        <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-                          <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>{player.role}</Text>
+                  eligibleForList.map(player => {
+                    const roleColor = getRoleColor(player.role, isDark);
+                    return (
+                      <Pressable
+                        key={player.id}
+                        onPress={() => handlePickPlayer(player.id)}
+                        disabled={!backup1Player && player.id === backupXiPlayer2Id}
+                        style={[styles.captainItem, { backgroundColor: colors.card, borderColor: colors.cardBorder, padding: 10 }]}
+                      >
+                        <View style={styles.captainLeft}>
+                          <View style={{ backgroundColor: roleColor, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, minWidth: 38, alignItems: 'center' }}>
+                            <Text style={{ color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
+                          </View>
+                          <View>
+                            <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
+                            <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} · {player.credits} Cr</Text>
+                          </View>
                         </View>
-                        <View>
-                          <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
-                          <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} | {player.credits} Cr</Text>
-                        </View>
-                      </View>
-                      <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
-                    </Pressable>
-                  ))
+                        <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
+                      </Pressable>
+                    );
+                  })
                 )}
               </ScrollView>
             )}
@@ -1427,25 +1430,41 @@ export default function CreateTeamScreen() {
 
       {step === 'impact' && impactEnabled && (
         <>
-          <View style={[styles.captainInfo, { backgroundColor: colors.surfaceElevated }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <MaterialCommunityIcons name="lightning-bolt" size={22} color={colors.warning} />
-              <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>Primary Impact Pick</Text>
-            </View>
-            <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, lineHeight: 18 }}>
-              Pick one player not in your Main XI. If they enter as Impact Sub, they score for you! You'll choose a backup on the next page.
+          {/* Compact helper line */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <MaterialCommunityIcons name="lightning-bolt" size={13} color={colors.warning} />
+            <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, flex: 1 }}>
+              Scores for you if they enter as Impact Sub · backup choice on next page
             </Text>
           </View>
+
+          {/* Selected player chip */}
+          {primaryImpactId && (() => {
+            const sel = impactEligiblePlayers.find(p => p.id === primaryImpactId);
+            return sel ? (
+              <View style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: colors.warning + '18', borderRadius: 10, borderWidth: 1, borderColor: colors.warning + '50' }}>
+                <MaterialCommunityIcons name="lightning-bolt" size={14} color={colors.warning} />
+                <Text style={{ color: colors.warning, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const, flex: 1 }} numberOfLines={1}>{sel.name}</Text>
+                <Pressable onPress={() => { setPrimaryImpactId(null); setBackupImpactId(null); }} hitSlop={8}>
+                  <Ionicons name="close-circle" size={17} color={colors.warning + 'AA'} />
+                </Pressable>
+              </View>
+            ) : null;
+          })()}
 
           <ScrollView
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
             showsVerticalScrollIndicator={false}
           >
+            <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold' as const, color: colors.textTertiary, letterSpacing: 0.7, marginBottom: 8, textTransform: 'uppercase' as const }}>
+              Pick One Player
+            </Text>
             {impactEligiblePlayers.length === 0 ? (
               <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 40 }}>No eligible players available</Text>
             ) : (
               impactEligiblePlayers.map(player => {
                 const isSelected = primaryImpactId === player.id;
+                const roleColor = getRoleColor(player.role, isDark);
                 return (
                   <Pressable
                     key={player.id}
@@ -1464,18 +1483,23 @@ export default function CreateTeamScreen() {
                         }
                       }
                     }}
-                    style={[styles.captainItem, { backgroundColor: isSelected ? colors.warning + '15' : colors.card, borderColor: isSelected ? colors.warning + '40' : colors.cardBorder }]}
+                    style={[styles.captainItem, {
+                      backgroundColor: isSelected ? colors.warning + '18' : colors.card,
+                      borderColor: isSelected ? colors.warning : colors.cardBorder,
+                      borderWidth: isSelected ? 1.5 : 1,
+                      padding: 10,
+                    }]}
                   >
                     <View style={styles.captainLeft}>
-                      <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-                        <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>{player.role}</Text>
+                      <View style={{ backgroundColor: roleColor, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, minWidth: 38, alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
                       </View>
                       <View>
                         <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
-                        <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} | {player.credits} Cr</Text>
+                        <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} · {player.credits} Cr</Text>
                       </View>
                     </View>
-                    <View style={[styles.checkCircle, { borderColor: isSelected ? colors.warning : colors.border, backgroundColor: isSelected ? colors.warning : 'transparent' }]}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: isSelected ? colors.warning : 'transparent', borderWidth: isSelected ? 0 : 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}>
                       {isSelected && <Ionicons name="checkmark" size={14} color="#000" />}
                     </View>
                   </Pressable>
@@ -1520,24 +1544,19 @@ export default function CreateTeamScreen() {
 
       {step === 'backup' && impactEnabled && (
         <>
-          <View style={[styles.captainInfo, { backgroundColor: colors.surfaceElevated }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <MaterialCommunityIcons name="lightning-bolt" size={22} color={colors.primary} />
-              <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>Backup Impact Pick</Text>
-            </View>
-            <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, lineHeight: 18 }}>
-              {primaryImpactPlayer
-                ? `Choose a backup from ${primaryImpactPlayer.teamShort} (same franchise as ${primaryImpactPlayer.name}). Used if your primary pick isn't available.`
-                : 'Choose a backup player from the same franchise as your primary pick.'}
+          {/* Compact helper + primary pick pill in one row */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <MaterialCommunityIcons name="lightning-bolt" size={13} color={colors.textTertiary} />
+            <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, flex: 1 }}>
+              Same franchise as primary · used if primary isn't available
             </Text>
           </View>
 
+          {/* Primary pick pill */}
           {primaryImpactPlayer && (
-            <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 4, padding: 10, borderRadius: 10, backgroundColor: colors.warning + '12', borderWidth: 1, borderColor: colors.warning + '30', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <MaterialCommunityIcons name="lightning-bolt" size={16} color={colors.warning} />
-              <Text style={{ color: colors.warning, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }}>
-                Primary: {primaryImpactPlayer.name}
-              </Text>
+            <View style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 10, backgroundColor: colors.warning + '18', borderRadius: 8, borderWidth: 1, borderColor: colors.warning + '40', alignSelf: 'flex-start' as const }}>
+              <MaterialCommunityIcons name="lightning-bolt" size={12} color={colors.warning} />
+              <Text style={{ color: colors.warning, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>Primary: {primaryImpactPlayer.name}</Text>
             </View>
           )}
 
@@ -1545,6 +1564,9 @@ export default function CreateTeamScreen() {
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
             showsVerticalScrollIndicator={false}
           >
+            <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold' as const, color: colors.textTertiary, letterSpacing: 0.7, marginBottom: 8, textTransform: 'uppercase' as const }}>
+              {primaryImpactPlayer ? `${primaryImpactPlayer.teamShort} Players` : 'Pick One Player'}
+            </Text>
             {backupEligiblePlayers.length === 0 ? (
               <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 40 }}>
                 No eligible backup players from {primaryImpactPlayer?.teamShort}
@@ -1552,6 +1574,7 @@ export default function CreateTeamScreen() {
             ) : (
               backupEligiblePlayers.map(player => {
                 const isSelected = backupImpactId === player.id;
+                const roleColor = getRoleColor(player.role, isDark);
                 return (
                   <Pressable
                     key={player.id}
@@ -1559,18 +1582,23 @@ export default function CreateTeamScreen() {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setBackupImpactId(isSelected ? null : player.id);
                     }}
-                    style={[styles.captainItem, { backgroundColor: isSelected ? colors.primary + '15' : colors.card, borderColor: isSelected ? colors.primary + '40' : colors.cardBorder }]}
+                    style={[styles.captainItem, {
+                      backgroundColor: isSelected ? colors.primary + '18' : colors.card,
+                      borderColor: isSelected ? colors.primary : colors.cardBorder,
+                      borderWidth: isSelected ? 1.5 : 1,
+                      padding: 10,
+                    }]}
                   >
                     <View style={styles.captainLeft}>
-                      <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
-                        <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>{player.role}</Text>
+                      <View style={{ backgroundColor: roleColor, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, minWidth: 38, alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
                       </View>
                       <View>
                         <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
-                        <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} | {player.credits} Cr</Text>
+                        <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} · {player.credits} Cr</Text>
                       </View>
                     </View>
-                    <View style={[styles.checkCircle, { borderColor: isSelected ? colors.primary : colors.border, backgroundColor: isSelected ? colors.primary : 'transparent' }]}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: isSelected ? colors.primary : 'transparent', borderWidth: isSelected ? 0 : 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}>
                       {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
                     </View>
                   </Pressable>

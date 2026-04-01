@@ -273,12 +273,12 @@ export function canEditTeam(startTime: string, status?: string, revisedStartTime
   return Date.now() < lockMs;
 }
 
-export function getRoleColor(role: string, isDark: boolean): string {
+export function getRoleColor(role: string, _isDark: boolean): string {
   const colors: Record<string, string> = {
-    WK: isDark ? '#1E3A5F' : '#2C5282',
-    BAT: isDark ? '#1E3A5F' : '#2C5282',
-    AR: isDark ? '#1E3A5F' : '#2C5282',
-    BOWL: isDark ? '#1E3A5F' : '#2C5282',
+    WK:   '#F59E0B',
+    BAT:  '#3B82F6',
+    AR:   '#10B981',
+    BOWL: '#A78BFA',
   };
   return colors[role] || '#888';
 }
