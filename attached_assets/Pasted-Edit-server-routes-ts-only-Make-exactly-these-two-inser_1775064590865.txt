@@ -1,0 +1,70 @@
+Edit server/routes.ts only.
+
+Make exactly these two insertions and nothing else.
+
+INSERTION 1 — In POST /api/teams:
+Find this exact text:
+          if (captainType === "impact_slot" && vcType === "impact_slot") {
+            return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+          }
+        }
+
+        // ---- XI BACKUP VALIDATION ----
+
+Insert between those two blocks so it reads:
+
+          if (captainType === "impact_slot" && vcType === "impact_slot") {
+            return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+          }
+        }
+
+        // ── Captain / Vice-Captain integrity ─────────────────────────────────────
+        if (validCaptainType === "player" && captainId && !playerIds.includes(captainId)) {
+          return res.status(400).json({ message: "Captain must be one of your selected 11 players." });
+        }
+        if (validVcType === "player" && viceCaptainId && !playerIds.includes(viceCaptainId)) {
+          return res.status(400).json({ message: "Vice-Captain must be one of your selected 11 players." });
+        }
+        if (validCaptainType === "player" && validVcType === "player" && captainId && viceCaptainId && captainId === viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain cannot be the same player." });
+        }
+
+        // ---- XI BACKUP VALIDATION ----
+
+INSERTION 2 — In PUT /api/teams/:id:
+Find this exact text:
+          if (captainType === "impact_slot" && vcType === "impact_slot") {
+            return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+          }
+        }
+
+        // ---- XI BACKUP VALIDATION (edit) ----
+
+Insert between those two blocks so it reads:
+
+          if (captainType === "impact_slot" && vcType === "impact_slot") {
+            return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
+          }
+        }
+
+        // ── Captain / Vice-Captain integrity ─────────────────────────────────────
+        if (validCaptainType === "player" && captainId && !playerIds.includes(captainId)) {
+          return res.status(400).json({ message: "Captain must be one of your selected 11 players." });
+        }
+        if (validVcType === "player" && viceCaptainId && !playerIds.includes(viceCaptainId)) {
+          return res.status(400).json({ message: "Vice-Captain must be one of your selected 11 players." });
+        }
+        if (validCaptainType === "player" && validVcType === "player" && captainId && viceCaptainId && captainId === viceCaptainId) {
+          return res.status(400).json({ message: "Captain and Vice-Captain cannot be the same player." });
+        }
+
+        // ---- XI BACKUP VALIDATION (edit) ----
+
+Rules:
+- Change only server/routes.ts
+- Do not touch any other file
+- Do not refactor anything else
+- After editing, show me:
+  1. exact diff
+  2. changed files list
+  3. confirmation that only server/routes.ts changed
