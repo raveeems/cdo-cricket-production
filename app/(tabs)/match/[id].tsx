@@ -499,8 +499,39 @@ export default function MatchDetailScreen() {
       {previewTeamId && (() => {
         const previewTeam = userTeams.find(t => t.id === previewTeamId);
         if (!previewTeam) return null;
-        const previewPitchPlayers: PitchPlayer[] = previewTeam.playerIds
-          .map(pid => players.find(pl => pl.id === pid))
+
+        // Compute effective XI — apply backup substitution when XI is announced.
+        // Mirrors resolveEffectiveXI on the server so the displayed layout matches scoring.
+        const previewPlayerMap = new Map(players.map(p => [p.id, p]));
+        const xiAnnounced = players.some(p => p.isPlayingXI);
+        let effectivePreviewIds = [...previewTeam.playerIds];
+        let effectivePreviewCaptainId = previewTeam.captainId;
+        let effectivePreviewVcId = previewTeam.viceCaptainId;
+        if (xiAnnounced) {
+          const b1Id = (previewTeam as any).backupXiPlayer1Id as string | null | undefined;
+          const b2Id = (previewTeam as any).backupXiPlayer2Id as string | null | undefined;
+          const availBk = [b1Id, b2Id]
+            .filter((id): id is string => !!id)
+            .map(id => previewPlayerMap.get(id))
+            .filter((p): p is Player => !!p && p.isPlayingXI === true);
+          if (availBk.length > 0) {
+            let bCur = 0;
+            for (let i = 0; i < effectivePreviewIds.length; i++) {
+              if (bCur >= availBk.length) break;
+              const pid = effectivePreviewIds[i];
+              const fp = previewPlayerMap.get(pid);
+              if (fp && fp.isPlayingXI !== true) {
+                const bk = availBk[bCur++];
+                effectivePreviewIds[i] = bk.id;
+                if (pid === effectivePreviewCaptainId) effectivePreviewCaptainId = bk.id;
+                if (pid === effectivePreviewVcId) effectivePreviewVcId = bk.id;
+              }
+            }
+          }
+        }
+
+        const previewPitchPlayers: PitchPlayer[] = effectivePreviewIds
+          .map(pid => previewPlayerMap.get(pid))
           .filter((p): p is Player => !!p)
           .map(p => ({
             id: p.id,
@@ -528,8 +559,8 @@ export default function MatchDetailScreen() {
             isModal={true}
             visible={true}
             players={previewPitchPlayers}
-            captainId={previewTeam.captainId}
-            viceCaptainId={previewTeam.viceCaptainId}
+            captainId={effectivePreviewCaptainId}
+            viceCaptainId={effectivePreviewVcId}
             teamName={previewTeam.name}
             totalPoints={previewTeam.totalPoints > 0 ? previewTeam.totalPoints : undefined}
             matchCompleted={match.status === 'completed'}

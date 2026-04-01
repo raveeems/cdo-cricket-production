@@ -1205,6 +1205,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
 
+            // Apply XI backup substitution — mirrors resolveEffectiveXI in server/index.ts.
+            // Only active when XI is announced. Replaces absent players (isPlayingXI=false) with
+            // backups that ARE in the official XI. C/VC roles transfer with the replaced slot.
+            // NOTE: C/VC inheritance is position-based — the first absent player encountered in
+            // the playerIds order gets Backup 1; the role (C or VC) follows the replaced slot,
+            // not the backup slot number. If the captain's position comes before the VC's
+            // position in the array, Backup 1 inherits the C role; otherwise it inherits VC.
+            const xiAnnouncedInMatch = matchPlayersForResponse.some(p => p.isPlayingXI);
+            let effectiveCaptainId: string | null = t.captainId ?? null;
+            let effectiveVcId: string | null = t.viceCaptainId ?? null;
+            if (xiAnnouncedInMatch && ((t as any).backupXiPlayer1Id || (t as any).backupXiPlayer2Id)) {
+              const backup1P = (t as any).backupXiPlayer1Id ? playerById.get((t as any).backupXiPlayer1Id as string) : null;
+              const backup2P = (t as any).backupXiPlayer2Id ? playerById.get((t as any).backupXiPlayer2Id as string) : null;
+              const availableBackupsForDisplay = [backup1P, backup2P].filter(
+                (p): p is NonNullable<typeof p> => !!p && p.isPlayingXI === true
+              );
+              if (availableBackupsForDisplay.length > 0) {
+                let bCursor = 0;
+                for (let i = 0; i < resolvedPlayers.length; i++) {
+                  if (bCursor >= availableBackupsForDisplay.length) break;
+                  const rp = resolvedPlayers[i];
+                  const fullP = playerById.get(rp.id);
+                  if (fullP && fullP.isPlayingXI !== true) {
+                    const bk = availableBackupsForDisplay[bCursor++];
+                    if (rp.id === effectiveCaptainId) effectiveCaptainId = bk.id;
+                    if (rp.id === effectiveVcId) effectiveVcId = bk.id;
+                    resolvedPlayers[i] = {
+                      id: bk.id,
+                      name: bk.name,
+                      role: bk.role,
+                      points: bk.points || 0,
+                      teamShort: bk.teamShort,
+                      externalId: bk.externalId,
+                      isPlayingXI: true,
+                      isImpactPlayer: bk.isImpactPlayer ?? false,
+                    };
+                  }
+                }
+              }
+            }
+
             return {
               teamId: t.id,
               teamName: t.name,
@@ -1213,8 +1254,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               userTeamName: allUsers[t.userId]?.teamName || "",
               totalPoints: t.totalPoints || 0,
               playerIds: t.playerIds,
-              captainId: t.captainId,
-              viceCaptainId: t.viceCaptainId,
+              captainId: effectiveCaptainId,
+              viceCaptainId: effectiveVcId,
               primaryImpactId: t.primaryImpactId || null,
               backupImpactId: t.backupImpactId || null,
               captainType: t.captainType || null,
@@ -3198,6 +3239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               teamCount: teams.length,
               potProcessed: m.potProcessed,
               potMode: (m as any).potMode || "entries_only",
+              entrantUserIds: [...new Set(teams.map(t => t.userId))],
             });
           }
         }

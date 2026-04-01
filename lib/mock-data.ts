@@ -60,6 +60,18 @@ export interface ContestTeam {
   predictionPoints?: number;
   totalPoints: number;
   createdAt: string;
+  backupXiPlayer1Id?: string | null;
+  backupXiPlayer2Id?: string | null;
+  resolvedPlayers?: Array<{
+    id: string;
+    name: string;
+    role: string;
+    points: number;
+    teamShort: string;
+    externalId: string | null;
+    isPlayingXI?: boolean;
+    isImpactPlayer?: boolean;
+  }>;
 }
 
 export interface UserTeam {

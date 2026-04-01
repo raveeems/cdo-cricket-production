@@ -925,6 +925,18 @@ function setupErrorHandler(app: express.Application) {
       //   - Backup 1 is tried first, Backup 2 second — max 2 substitutions
       //   - If the replaced player was C or VC, the backup inherits that role
       //   - Backup player gets full points (their p.points already includes +4 XI base if in XI)
+      //
+      // C/VC INHERITANCE ORDER (position-based, not backup-priority-based):
+      //   The scoring loop walks playerIds in submission order. The first absent player
+      //   encountered gets Backup 1; the second absent player gets Backup 2.
+      //   The C/VC role transfers with the REPLACED SLOT, not with the backup number.
+      //   Example: if Captain is at index 3 and VC is at index 7:
+      //     → Backup 1 replaces Captain (index 3) → inherits 2× multiplier
+      //     → Backup 2 replaces VC (index 7) → inherits 1.5× multiplier
+      //   Example: if VC is at index 3 and Captain is at index 7:
+      //     → Backup 1 replaces VC (index 3) → inherits 1.5× multiplier
+      //     → Backup 2 replaces Captain (index 7) → inherits 2× multiplier
+      //   This is deterministic and tied to how the user ordered their 11 picks at team creation.
       function resolveEffectiveXI(team: typeof allTeams[0]): {
         effectivePlayerIds: string[];
         effectiveCaptainId: string | null;

@@ -120,7 +120,7 @@ export default function AdminScreen() {
   const [potSelectedTournament, setPotSelectedTournament] = useState<string>('');
   const [potNewTournament, setPotNewTournament] = useState('');
   const [potShowNewInput, setPotShowNewInput] = useState(false);
-  const [potUnprocessedMatches, setPotUnprocessedMatches] = useState<{id:string;team1Short:string;team2Short:string;startTime:string;potProcessed?:boolean}[]>([]);
+  const [potUnprocessedMatches, setPotUnprocessedMatches] = useState<{id:string;team1Short:string;team2Short:string;startTime:string;potProcessed?:boolean;entrantUserIds?:string[]}[]>([]);
   const [potSelectedMatchId, setPotSelectedMatchId] = useState<string>('');
   const [potStake, setPotStake] = useState('30');
   const [potProcessing, setPotProcessing] = useState(false);
@@ -2392,7 +2392,7 @@ export default function AdminScreen() {
                       return (
                         <Pressable
                           key={m.id}
-                          onPress={() => setPotSelectedMatchId(m.id)}
+                          onPress={() => { setPotSelectedMatchId(m.id); setPotPenaltyUserIds([]); }}
                           style={{
                             borderRadius: 12,
                             paddingHorizontal: 16,
@@ -2473,46 +2473,57 @@ export default function AdminScreen() {
                       <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
                       <View style={{ gap: 6 }}>
-                        {allUsers.map(u => {
-                          const isSelected = potPenaltyUserIds.includes(u.id);
-                          return (
-                            <Pressable
-                              key={u.id}
-                              onPress={() => {
-                                setPotPenaltyUserIds(prev =>
-                                  prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
-                                );
-                              }}
-                              style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 10,
-                                padding: 10,
-                                borderRadius: 10,
-                                borderWidth: 1,
-                                backgroundColor: isSelected ? colors.error + '12' : colors.surfaceElevated,
-                                borderColor: isSelected ? colors.error + '50' : colors.border,
-                              }}
-                            >
-                              <View style={{
-                                width: 22, height: 22, borderRadius: 11,
-                                borderWidth: 1.5,
-                                borderColor: isSelected ? colors.error : colors.border,
-                                backgroundColor: isSelected ? colors.error : 'transparent',
-                                alignItems: 'center', justifyContent: 'center',
-                              }}>
-                                {isSelected && <Ionicons name="checkmark" size={13} color="#FFF" />}
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{u.username}</Text>
-                                {u.teamName && <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11 }}>{u.teamName}</Text>}
-                              </View>
-                              {isSelected && (
-                                <Text style={{ color: colors.error, fontFamily: 'Inter_700Bold', fontSize: 12 }}>-₹{potStake || '?'}</Text>
-                              )}
-                            </Pressable>
-                          );
-                        })}
+                        {(() => {
+                          const selectedMatchData = potUnprocessedMatches.find(m => m.id === potSelectedMatchId);
+                          const entrantIds = new Set(selectedMatchData?.entrantUserIds || []);
+                          return allUsers.map(u => {
+                            const isSelected = potPenaltyUserIds.includes(u.id);
+                            const isEntrant = entrantIds.has(u.id);
+                            return (
+                              <Pressable
+                                key={u.id}
+                                onPress={() => {
+                                  if (isEntrant) return;
+                                  setPotPenaltyUserIds(prev =>
+                                    prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                                  );
+                                }}
+                                style={{
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  padding: 10,
+                                  borderRadius: 10,
+                                  borderWidth: 1,
+                                  backgroundColor: isEntrant ? colors.surfaceElevated : isSelected ? colors.error + '12' : colors.surfaceElevated,
+                                  borderColor: isEntrant ? colors.border : isSelected ? colors.error + '50' : colors.border,
+                                  opacity: isEntrant ? 0.45 : 1,
+                                }}
+                              >
+                                <View style={{
+                                  width: 22, height: 22, borderRadius: 11,
+                                  borderWidth: 1.5,
+                                  borderColor: isEntrant ? colors.border : isSelected ? colors.error : colors.border,
+                                  backgroundColor: isEntrant ? 'transparent' : isSelected ? colors.error : 'transparent',
+                                  alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                  {isSelected && !isEntrant && <Ionicons name="checkmark" size={13} color="#FFF" />}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ color: isEntrant ? colors.textTertiary : colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{u.username}</Text>
+                                  {isEntrant ? (
+                                    <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11 }}>Already entered contest</Text>
+                                  ) : u.teamName ? (
+                                    <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11 }}>{u.teamName}</Text>
+                                  ) : null}
+                                </View>
+                                {isSelected && !isEntrant && (
+                                  <Text style={{ color: colors.error, fontFamily: 'Inter_700Bold', fontSize: 12 }}>-₹{potStake || '?'}</Text>
+                                )}
+                              </Pressable>
+                            );
+                          });
+                        })()}
                         {allUsers.length === 0 && (
                           <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' }}>No users found.</Text>
                         )}

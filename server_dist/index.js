@@ -3719,6 +3719,39 @@ async function registerRoutes(app2) {
               resolvedPlayers.push({ id: impP.id, name: impP.name, role: impP.role, points: impP.points || 0, teamShort: impP.teamShort, externalId: impP.externalId, isPlayingXI: false, isImpactPlayer: true });
             }
           }
+          const xiAnnouncedInMatch = matchPlayersForResponse.some((p) => p.isPlayingXI);
+          let effectiveCaptainId = t.captainId ?? null;
+          let effectiveVcId = t.viceCaptainId ?? null;
+          if (xiAnnouncedInMatch && (t.backupXiPlayer1Id || t.backupXiPlayer2Id)) {
+            const backup1P = t.backupXiPlayer1Id ? playerById.get(t.backupXiPlayer1Id) : null;
+            const backup2P = t.backupXiPlayer2Id ? playerById.get(t.backupXiPlayer2Id) : null;
+            const availableBackupsForDisplay = [backup1P, backup2P].filter(
+              (p) => !!p && p.isPlayingXI === true
+            );
+            if (availableBackupsForDisplay.length > 0) {
+              let bCursor = 0;
+              for (let i = 0; i < resolvedPlayers.length; i++) {
+                if (bCursor >= availableBackupsForDisplay.length) break;
+                const rp = resolvedPlayers[i];
+                const fullP = playerById.get(rp.id);
+                if (fullP && fullP.isPlayingXI !== true) {
+                  const bk = availableBackupsForDisplay[bCursor++];
+                  if (rp.id === effectiveCaptainId) effectiveCaptainId = bk.id;
+                  if (rp.id === effectiveVcId) effectiveVcId = bk.id;
+                  resolvedPlayers[i] = {
+                    id: bk.id,
+                    name: bk.name,
+                    role: bk.role,
+                    points: bk.points || 0,
+                    teamShort: bk.teamShort,
+                    externalId: bk.externalId,
+                    isPlayingXI: true,
+                    isImpactPlayer: bk.isImpactPlayer ?? false
+                  };
+                }
+              }
+            }
+          }
           return {
             teamId: t.id,
             teamName: t.name,
@@ -3727,8 +3760,8 @@ async function registerRoutes(app2) {
             userTeamName: allUsers[t.userId]?.teamName || "",
             totalPoints: t.totalPoints || 0,
             playerIds: t.playerIds,
-            captainId: t.captainId,
-            viceCaptainId: t.viceCaptainId,
+            captainId: effectiveCaptainId,
+            viceCaptainId: effectiveVcId,
             primaryImpactId: t.primaryImpactId || null,
             backupImpactId: t.backupImpactId || null,
             captainType: t.captainType || null,
@@ -5451,7 +5484,8 @@ async function registerRoutes(app2) {
               startTime: m.startTime,
               teamCount: teams.length,
               potProcessed: m.potProcessed,
-              potMode: m.potMode || "entries_only"
+              potMode: m.potMode || "entries_only",
+              entrantUserIds: [...new Set(teams.map((t) => t.userId))]
             });
           }
         }
