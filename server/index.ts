@@ -411,13 +411,15 @@ function setupErrorHandler(app: express.Application) {
 
   const port = Number(process.env.PORT) || 3000;
 
-  server.listen(port, "0.0.0.0", () => {
-    log(`express server listening on port ${port}`);
-  });
-
+  // Connect to DB FIRST so the session store is ready before we accept connections.
+  // This prevents the healthcheck from hitting a 500 during startup.
   await connectWithRetry(10, 3000);
   markServerReady();
-  log(`express server fully ready on port ${port}`);
+
+  server.listen(port, "0.0.0.0", () => {
+    log(`express server listening on port ${port}`);
+    log(`express server fully ready on port ${port}`);
+  });
 
   seedReferenceCodes().catch((err) => {
     console.error("Reference code seeding failed:", err);

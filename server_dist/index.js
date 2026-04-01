@@ -6789,12 +6789,12 @@ function setupErrorHandler(app2) {
     }
   }
   const port = Number(process.env.PORT) || 3e3;
-  server.listen(port, "0.0.0.0", () => {
-    log(`express server listening on port ${port}`);
-  });
   await connectWithRetry(10, 3e3);
   markServerReady();
-  log(`express server fully ready on port ${port}`);
+  server.listen(port, "0.0.0.0", () => {
+    log(`express server listening on port ${port}`);
+    log(`express server fully ready on port ${port}`);
+  });
   seedReferenceCodes().catch((err) => {
     console.error("Reference code seeding failed:", err);
   });
