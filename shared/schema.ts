@@ -69,6 +69,9 @@ export const matches = pgTable("matches", {
   revisedStartTime: timestamp("revised_start_time"),
   adminUnlockOverride: boolean("admin_unlock_override").notNull().default(false),
   firstScorecardAt: timestamp("first_scorecard_at"),
+  // Tournament Pot penalty mode fields
+  potMode: varchar("pot_mode", { length: 30 }).notNull().default("entries_only"),
+  potPenaltyUserIds: jsonb("pot_penalty_user_ids").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -108,6 +111,9 @@ export const userTeams = pgTable("user_teams", {
   vcType: varchar("vc_type", { length: 20 }).notNull().default("player"),
   invisibleMode: boolean("invisible_mode").notNull().default(false),
   predictionPoints: integer("prediction_points").notNull().default(0),
+  // XI Backup system: up to 2 global priority backups replacing absent main XI picks
+  backupXiPlayer1Id: varchar("backup_xi_player_1_id"),
+  backupXiPlayer2Id: varchar("backup_xi_player_2_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -233,6 +239,8 @@ export const insertUserTeamSchema = z.object({
   captainType: z.enum(["player", "impact_slot"]).default("player"),
   vcType: z.enum(["player", "impact_slot"]).default("player"),
   invisibleMode: z.boolean().default(false),
+  backupXiPlayer1Id: z.string().nullable().optional(),
+  backupXiPlayer2Id: z.string().nullable().optional(),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

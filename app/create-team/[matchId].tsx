@@ -36,7 +36,7 @@ import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
 import { SkeletonBox } from '@/components/SkeletonBox';
 
-type Step = 'select' | 'impact' | 'backup' | 'captain' | 'preview' | 'success';
+type Step = 'select' | 'xi_backup' | 'impact' | 'backup' | 'captain' | 'preview' | 'success';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
 
 const SPLASH_MESSAGES = [
@@ -359,6 +359,9 @@ export default function CreateTeamScreen() {
   const [captainType, setCaptainType] = useState<'player' | 'impact_slot'>(() => editingTeam?.captainType === 'impact_slot' ? 'impact_slot' : 'player');
   const [vcType, setVcType] = useState<'player' | 'impact_slot'>(() => editingTeam?.vcType === 'impact_slot' ? 'impact_slot' : 'player');
   const [invisibleMode, setInvisibleMode] = useState<boolean>(() => editingTeam?.invisibleMode || false);
+  // XI Backup system
+  const [backupXiPlayer1Id, setBackupXiPlayer1Id] = useState<string | null>(() => (editingTeam as any)?.backupXiPlayer1Id || null);
+  const [backupXiPlayer2Id, setBackupXiPlayer2Id] = useState<string | null>(() => (editingTeam as any)?.backupXiPlayer2Id || null);
   const [filter, setFilter] = useState<RoleFilter>('ALL');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -598,6 +601,17 @@ export default function CreateTeamScreen() {
       (p.teamShort || p.team || '') === (primaryImpactPlayer.teamShort || primaryImpactPlayer.team || '')
     );
   }, [impactEligiblePlayers, primaryImpactId, primaryImpactPlayer, impactEnabled]);
+
+  // XI Backup — players eligible to be backup picks
+  const xiBackupLocked = match?.playingXIManual === true;
+  const xiBackupEligible = useMemo(() => {
+    // Any player NOT in the main XI selection, NOT already an impact pick
+    const impactIds = new Set([primaryImpactId, backupImpactId].filter(Boolean));
+    return allPlayers.filter(p =>
+      !selectedIds.has(p.id) &&
+      !impactIds.has(p.id)
+    );
+  }, [allPlayers, selectedIds, primaryImpactId, backupImpactId]);
 
   const isDuplicateTeam = (cId: string | null, vId: string | null) => {
     if (selectedIds.size !== 11) return false;
@@ -844,6 +858,12 @@ export default function CreateTeamScreen() {
         invisibleMode,
       } : {};
 
+      // XI Backup fields: only send if backups are not locked (XI not announced)
+      const xiBackupFields = !xiBackupLocked ? {
+        backupXiPlayer1Id: backupXiPlayer1Id || null,
+        backupXiPlayer2Id: backupXiPlayer2Id || null,
+      } : {};
+
       if (isEditMode && editTeamId) {
         await updateTeam({
           teamId: editTeamId,
@@ -851,6 +871,7 @@ export default function CreateTeamScreen() {
           captainId,
           viceCaptainId: vcId,
           ...impactFields,
+          ...xiBackupFields,
         });
       } else {
         const baseName = user?.teamName || 'Team';
@@ -866,6 +887,7 @@ export default function CreateTeamScreen() {
           captainId,
           viceCaptainId: vcId,
           ...impactFields,
+          ...xiBackupFields,
         });
       }
 
@@ -961,14 +983,17 @@ export default function CreateTeamScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'impact' ? 'Primary Impact Pick' : step === 'backup' ? 'Backup Impact Pick' : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
+          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'xi_backup' ? 'XI Backup Picks' : step === 'impact' ? 'Primary Impact Pick' : step === 'backup' ? 'Backup Impact Pick' : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
 
       {step !== 'success' && (
         <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, gap: 4 }}>
-          {(impactEnabled ? ['select', 'impact', 'backup', 'captain', 'preview'] : ['select', 'captain', 'preview']).map((s, i, arr) => {
+          {(impactEnabled
+            ? ['select', 'xi_backup', 'impact', 'backup', 'captain', 'preview']
+            : ['select', 'xi_backup', 'captain', 'preview']
+          ).map((s, i, arr) => {
             const stepIndex = arr.indexOf(step);
             const isActive = i <= stepIndex;
             return (
@@ -1227,7 +1252,7 @@ export default function CreateTeamScreen() {
                 if (isValidTeam) {
                   setDuplicateError(null);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setStep(impactEnabled ? 'impact' : 'captain');
+                  setStep('xi_backup');
                 }
               }}
               disabled={!isValidTeam}
@@ -1240,7 +1265,7 @@ export default function CreateTeamScreen() {
                 style={styles.nextBtnGradient}
               >
                 <Text style={[styles.nextBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                  {impactEnabled ? 'Next: Impact Picks' : 'Next: Choose Captain'}
+                  Next: XI Backups
                 </Text>
                 <Ionicons name="arrow-forward" size={20} color="#000" />
               </LinearGradient>
@@ -1248,6 +1273,145 @@ export default function CreateTeamScreen() {
           </View>
         </>
       )}
+
+      {step === 'xi_backup' && (() => {
+        // Track which backup slot is currently being filled (1 or 2)
+        const backup1Player = allPlayers.find(p => p.id === backupXiPlayer1Id) || null;
+        const backup2Player = allPlayers.find(p => p.id === backupXiPlayer2Id) || null;
+        const nextStep = impactEnabled ? 'impact' : 'captain';
+
+        const handlePickPlayer = (playerId: string) => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          if (backupXiPlayer1Id === playerId) {
+            setBackupXiPlayer1Id(null);
+            if (backupXiPlayer2Id) { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); }
+            return;
+          }
+          if (backupXiPlayer2Id === playerId) {
+            setBackupXiPlayer2Id(null);
+            return;
+          }
+          if (!backupXiPlayer1Id) { setBackupXiPlayer1Id(playerId); return; }
+          if (!backupXiPlayer2Id) { setBackupXiPlayer2Id(playerId); return; }
+        };
+
+        const eligibleForList = xiBackupEligible.filter(p =>
+          p.id !== backupXiPlayer1Id && p.id !== backupXiPlayer2Id
+        );
+
+        return (
+          <>
+            <View style={[styles.captainInfo, { backgroundColor: colors.surfaceElevated }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
+                <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>XI Backup Picks (Optional)</Text>
+              </View>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, lineHeight: 18 }}>
+                If you may be unavailable, select up to 2 backup players. They will replace missing main XI picks in priority order if those players are not in the official Playing XI.
+              </Text>
+              {xiBackupLocked && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, padding: 8, backgroundColor: '#F59E0B20', borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B40' }}>
+                  <Ionicons name="lock-closed" size={14} color="#F59E0B" />
+                  <Text style={{ color: '#F59E0B', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>
+                    Official Playing XI announced — backups are locked and cannot be changed.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Selected backup slots */}
+            <View style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
+              {[
+                { label: 'Backup 1', player: backup1Player, clear: () => { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); }, priority: '1st priority' },
+                { label: 'Backup 2', player: backup2Player, clear: () => setBackupXiPlayer2Id(null), priority: '2nd priority' },
+              ].map(slot => (
+                <View key={slot.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, backgroundColor: slot.player ? colors.primary + '12' : colors.surfaceElevated, borderColor: slot.player ? colors.primary + '40' : colors.border }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: slot.player ? colors.primary : colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: slot.player ? '#FFF' : colors.textTertiary, fontSize: 13, fontFamily: 'Inter_700Bold' as const }}>{slot.label.split(' ')[1]}</Text>
+                  </View>
+                  {slot.player ? (
+                    <>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>{slot.player.name}</Text>
+                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>{slot.player.teamShort} · {slot.player.role} · {slot.priority}</Text>
+                      </View>
+                      {!xiBackupLocked && (
+                        <Pressable onPress={slot.clear} style={{ padding: 4 }}>
+                          <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
+                        </Pressable>
+                      )}
+                    </>
+                  ) : (
+                    <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const }}>
+                      {!backup1Player && slot.label === 'Backup 2' ? 'Set Backup 1 first' : xiBackupLocked ? 'Not set' : `Tap a player below to add ${slot.label}`}
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </View>
+
+            {!xiBackupLocked && (
+              <ScrollView
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {eligibleForList.length === 0 && !backupXiPlayer2Id ? (
+                  <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 20 }}>
+                    {backupXiPlayer1Id && backupXiPlayer2Id ? 'Both backup slots filled.' : 'No additional players available.'}
+                  </Text>
+                ) : (
+                  eligibleForList.map(player => (
+                    <Pressable
+                      key={player.id}
+                      onPress={() => handlePickPlayer(player.id)}
+                      disabled={!backup1Player && player.id === backupXiPlayer2Id}
+                      style={[styles.captainItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    >
+                      <View style={styles.captainLeft}>
+                        <View style={[styles.rolePill, { backgroundColor: getRoleColor(player.role, isDark) + '20' }]}>
+                          <Text style={[styles.rolePillText, { color: getRoleColor(player.role, isDark), fontFamily: 'Inter_700Bold' }]}>{player.role}</Text>
+                        </View>
+                        <View>
+                          <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
+                          <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} | {player.credits} Cr</Text>
+                        </View>
+                      </View>
+                      <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
+                    </Pressable>
+                  ))
+                )}
+              </ScrollView>
+            )}
+
+            <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
+              <View style={styles.bottomBarRow}>
+                <Pressable onPress={() => setStep('select')} style={[styles.backStepBtn, { borderColor: colors.border }]}>
+                  <Ionicons name="arrow-back" size={20} color={colors.text} />
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setStep(nextStep as Step);
+                  }}
+                  style={[styles.saveBtn, { flex: 1 }]}
+                >
+                  <LinearGradient
+                    colors={[colors.accent, colors.accentDark]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.saveBtnGradient}
+                  >
+                    <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                      {backupXiPlayer1Id ? 'Next' : 'Skip — No Backups'}
+                    </Text>
+                    <Ionicons name="arrow-forward" size={20} color="#000" />
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </View>
+          </>
+        );
+      })()}
 
       {step === 'impact' && impactEnabled && (
         <>

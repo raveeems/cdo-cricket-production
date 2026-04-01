@@ -96,6 +96,9 @@ var init_schema = __esm({
       revisedStartTime: timestamp("revised_start_time"),
       adminUnlockOverride: boolean("admin_unlock_override").notNull().default(false),
       firstScorecardAt: timestamp("first_scorecard_at"),
+      // Tournament Pot penalty mode fields
+      potMode: varchar("pot_mode", { length: 30 }).notNull().default("entries_only"),
+      potPenaltyUserIds: jsonb("pot_penalty_user_ids").$type().notNull().default([]),
       createdAt: timestamp("created_at").notNull().defaultNow()
     });
     players = pgTable("players", {
@@ -129,6 +132,9 @@ var init_schema = __esm({
       vcType: varchar("vc_type", { length: 20 }).notNull().default("player"),
       invisibleMode: boolean("invisible_mode").notNull().default(false),
       predictionPoints: integer("prediction_points").notNull().default(0),
+      // XI Backup system: up to 2 global priority backups replacing absent main XI picks
+      backupXiPlayer1Id: varchar("backup_xi_player_1_id"),
+      backupXiPlayer2Id: varchar("backup_xi_player_2_id"),
       createdAt: timestamp("created_at").notNull().defaultNow()
     });
     codeVerifications = pgTable("code_verifications", {
@@ -224,7 +230,9 @@ var init_schema = __esm({
       backupImpactId: z.string().optional(),
       captainType: z.enum(["player", "impact_slot"]).default("player"),
       vcType: z.enum(["player", "impact_slot"]).default("player"),
-      invisibleMode: z.boolean().default(false)
+      invisibleMode: z.boolean().default(false),
+      backupXiPlayer1Id: z.string().nullable().optional(),
+      backupXiPlayer2Id: z.string().nullable().optional()
     });
   }
 });
@@ -484,6 +492,8 @@ var init_storage = __esm({
         if (data.captainType !== void 0) updateData.captainType = data.captainType;
         if (data.vcType !== void 0) updateData.vcType = data.vcType;
         if (data.invisibleMode !== void 0) updateData.invisibleMode = data.invisibleMode;
+        if (data.backupXiPlayer1Id !== void 0) updateData.backupXiPlayer1Id = data.backupXiPlayer1Id;
+        if (data.backupXiPlayer2Id !== void 0) updateData.backupXiPlayer2Id = data.backupXiPlayer2Id;
         const [updated] = await db.update(userTeams).set(updateData).where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId))).returning();
         return updated;
       }
@@ -610,6 +620,9 @@ var init_storage = __esm({
       async createLedgerEntry(data) {
         const [entry] = await db.insert(tournamentLedger).values(data).returning();
         return entry;
+      }
+      async deleteLedgerEntriesForMatch(matchId) {
+        await db.delete(tournamentLedger).where(eq(tournamentLedger.matchId, matchId));
       }
       async getDistinctTournamentNames() {
         const result = await db.selectDistinct({ name: tournamentLedger.tournamentName }).from(tournamentLedger);
@@ -3761,7 +3774,7 @@ async function registerRoutes(app2) {
     isAuthenticated,
     async (req, res) => {
       try {
-        const { matchId, name, playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode } = req.body;
+        const { matchId, name, playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode, backupXiPlayer1Id, backupXiPlayer2Id } = req.body;
         console.log("Receiving Team:", JSON.stringify({ matchId, name, playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType }));
         console.log("Player IDs count:", playerIds?.length, "IDs:", playerIds);
         const match = await storage.getMatch(matchId);
@@ -3884,6 +3897,28 @@ async function registerRoutes(app2) {
             return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
           }
         }
+        let validBackupXi1 = null;
+        let validBackupXi2 = null;
+        if (!match.playingXIManual) {
+          const impactSet = new Set([validPrimaryImpactId, validBackupImpactId].filter(Boolean));
+          for (const [slot, rawId] of [["Backup 1", backupXiPlayer1Id], ["Backup 2", backupXiPlayer2Id]]) {
+            if (!rawId) continue;
+            if (playerIds.includes(rawId)) {
+              return res.status(400).json({ message: `${slot} cannot be one of your main XI players.` });
+            }
+            if (impactSet.has(rawId)) {
+              return res.status(400).json({ message: `${slot} cannot overlap with your Impact picks.` });
+            }
+            if (!playerMap.get(rawId)) {
+              return res.status(400).json({ message: `${slot} player not found in this match.` });
+            }
+          }
+          if (backupXiPlayer1Id && backupXiPlayer2Id && backupXiPlayer1Id === backupXiPlayer2Id) {
+            return res.status(400).json({ message: "Backup 1 and Backup 2 must be different players." });
+          }
+          validBackupXi1 = backupXiPlayer1Id || null;
+          validBackupXi2 = backupXiPlayer2Id || null;
+        }
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           const sortedExisting = [...et.playerIds || []].sort();
@@ -3921,7 +3956,9 @@ async function registerRoutes(app2) {
           backupImpactId: validBackupImpactId,
           captainType: validCaptainType,
           vcType: validVcType,
-          invisibleMode: useInvisible
+          invisibleMode: useInvisible,
+          backupXiPlayer1Id: validBackupXi1,
+          backupXiPlayer2Id: validBackupXi2
         });
         return res.json({ team, weeklyUsage: { maxTeams, teamsCreated: existingTeams.length + 1 } });
       } catch (err) {
@@ -3957,7 +3994,7 @@ async function registerRoutes(app2) {
         if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
           return res.status(400).json({ message: "Match has already started" });
         }
-        const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode } = req.body;
+        const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode, backupXiPlayer1Id, backupXiPlayer2Id } = req.body;
         if (!playerIds || playerIds.length !== 11) {
           return res.status(400).json({ message: "Must select exactly 11 players" });
         }
@@ -4047,6 +4084,26 @@ async function registerRoutes(app2) {
             return res.status(400).json({ message: "Both Captain and Vice-Captain cannot be on the Impact Slot." });
           }
         }
+        let validBackupXi1Edit = team.backupXiPlayer1Id ?? null;
+        let validBackupXi2Edit = team.backupXiPlayer2Id ?? null;
+        if (!match.playingXIManual) {
+          const impactSetE = new Set([validPrimaryImpactId, validBackupImpactId].filter(Boolean));
+          const playerMapE = new Map((await storage.getPlayersForMatch(team.matchId)).map((p) => [p.id, p]));
+          for (const [slot, rawId] of [["Backup 1", backupXiPlayer1Id], ["Backup 2", backupXiPlayer2Id]]) {
+            if (rawId === void 0) continue;
+            if (!rawId) {
+              continue;
+            }
+            if (playerIds.includes(rawId)) return res.status(400).json({ message: `${slot} cannot be one of your main XI players.` });
+            if (impactSetE.has(rawId)) return res.status(400).json({ message: `${slot} cannot overlap with your Impact picks.` });
+            if (!playerMapE.get(rawId)) return res.status(400).json({ message: `${slot} player not found in this match.` });
+          }
+          if (backupXiPlayer1Id !== void 0) validBackupXi1Edit = backupXiPlayer1Id || null;
+          if (backupXiPlayer2Id !== void 0) validBackupXi2Edit = backupXiPlayer2Id || null;
+          if (validBackupXi1Edit && validBackupXi2Edit && validBackupXi1Edit === validBackupXi2Edit) {
+            return res.status(400).json({ message: "Backup 1 and Backup 2 must be different players." });
+          }
+        }
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId, team.matchId);
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
@@ -4083,7 +4140,9 @@ async function registerRoutes(app2) {
           backupImpactId: validBackupImpactId,
           captainType: validCaptainType,
           vcType: validVcType,
-          invisibleMode: useInvisible
+          invisibleMode: useInvisible,
+          backupXiPlayer1Id: validBackupXi1Edit,
+          backupXiPlayer2Id: validBackupXi2Edit
         });
         return res.json({ team: updated });
       } catch (err) {
@@ -5268,7 +5327,7 @@ async function registerRoutes(app2) {
     isAdmin,
     async (req, res) => {
       try {
-        const { matchId, tournamentName, stake } = req.body;
+        const { matchId, tournamentName, stake, mode, penaltyUserIds } = req.body;
         if (!matchId || !tournamentName || !stake) {
           return res.status(400).json({ message: "matchId, tournamentName, and stake are required" });
         }
@@ -5277,27 +5336,40 @@ async function registerRoutes(app2) {
         if (match.status !== "completed") {
           return res.status(400).json({ message: "Match must be COMPLETED before processing pot" });
         }
-        if (match.potProcessed) {
-          return res.status(400).json({ message: "Pot already processed for this match (idempotency lock)" });
-        }
         const allTeams = await storage.getAllTeamsForMatch(matchId);
         if (allTeams.length < 2) {
           return res.status(400).json({ message: `Not enough players. Found ${allTeams.length} team(s), need at least 2.` });
         }
         const entryStake = Number(stake) || 30;
+        const potMode = mode === "entries_plus_penalty" ? "entries_plus_penalty" : "entries_only";
+        const rawPenaltyIds = Array.isArray(penaltyUserIds) ? penaltyUserIds : [];
+        const contestUserIds = new Set(allTeams.map((t) => t.userId));
+        const validatedPenaltyIds = rawPenaltyIds.filter((uid) => !contestUserIds.has(uid));
+        const penaltyCount = potMode === "entries_plus_penalty" ? validatedPenaltyIds.length : 0;
         const uniquePointTiers = [...new Set(allTeams.map((t) => t.totalPoints || 0))].sort((a, b) => b - a);
         const rank1Points = uniquePointTiers[0] ?? 0;
         const rank2Points = uniquePointTiers[1] ?? null;
         const winningTeams = allTeams.filter((t) => (t.totalPoints || 0) === rank1Points);
         const neutralTeams = rank2Points !== null ? allTeams.filter((t) => (t.totalPoints || 0) === rank2Points) : [];
         const losingTeams = allTeams.filter((t) => (t.totalPoints || 0) < (rank2Points ?? rank1Points));
-        const totalPot = losingTeams.length * entryStake;
-        const winnerPointsEach = losingTeams.length > 0 ? Math.round(totalPot / winningTeams.length) : 0;
+        const losersContribution = losingTeams.length * entryStake;
+        const penaltyContribution = penaltyCount * entryStake;
+        const totalPot = losersContribution + penaltyContribution;
+        const winnerPointsEach = totalPot > 0 && winningTeams.length > 0 ? Math.round(totalPot / winningTeams.length) : 0;
+        if (match.potProcessed) {
+          await storage.deleteLedgerEntriesForMatch(matchId);
+        }
         const userMap = /* @__PURE__ */ new Map();
         for (const t of allTeams) {
           if (!userMap.has(t.userId)) {
             const u = await storage.getUser(t.userId);
             userMap.set(t.userId, u?.teamName || u?.username || "Unknown");
+          }
+        }
+        for (const uid of validatedPenaltyIds) {
+          if (!userMap.has(uid)) {
+            const u = await storage.getUser(uid);
+            userMap.set(uid, u?.teamName || u?.username || "Unknown");
           }
         }
         for (const t of losingTeams) {
@@ -5308,6 +5380,17 @@ async function registerRoutes(app2) {
             tournamentName,
             pointsChange: -entryStake
           });
+        }
+        if (penaltyCount > 0) {
+          for (const uid of validatedPenaltyIds) {
+            await storage.createLedgerEntry({
+              userId: uid,
+              userName: userMap.get(uid) || "Unknown",
+              matchId,
+              tournamentName,
+              pointsChange: -entryStake
+            });
+          }
         }
         if (winnerPointsEach > 0) {
           for (const t of winningTeams) {
@@ -5323,14 +5406,18 @@ async function registerRoutes(app2) {
         await storage.updateMatch(matchId, {
           tournamentName,
           entryStake,
-          potProcessed: true
+          potProcessed: true,
+          potMode,
+          potPenaltyUserIds: potMode === "entries_plus_penalty" ? validatedPenaltyIds : []
         });
-        console.log(`[Tournament Pot] Processed for ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} winner(s) (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} loser(s) (-${entryStake}), totalPot=${totalPot}`);
+        console.log(`[Tournament Pot] ${potMode} | ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} (-${entryStake}), penalty=${penaltyCount} (-${entryStake} each), totalPot=${totalPot}`);
         return res.json({
           message: "Pot processed successfully",
+          mode: potMode,
           winners: winningTeams.length,
           neutral: neutralTeams.length,
           losers: losingTeams.length,
+          penaltyUsers: penaltyCount,
           winnerPoints: winnerPointsEach,
           loserPoints: losingTeams.length > 0 ? -entryStake : 0,
           totalPot,
@@ -5351,7 +5438,7 @@ async function registerRoutes(app2) {
         const allMatches = await storage.getAllMatches();
         const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1e3);
         const completed = allMatches.filter(
-          (m) => m.status === "completed" && !m.potProcessed && new Date(m.startTime) >= tenDaysAgo
+          (m) => m.status === "completed" && new Date(m.startTime) >= tenDaysAgo
         );
         const withParticipation = [];
         for (const m of completed) {
@@ -5362,7 +5449,9 @@ async function registerRoutes(app2) {
               team1Short: m.team1Short,
               team2Short: m.team2Short,
               startTime: m.startTime,
-              teamCount: teams.length
+              teamCount: teams.length,
+              potProcessed: m.potProcessed,
+              potMode: m.potMode || "entries_only"
             });
           }
         }
@@ -5370,6 +5459,26 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Unprocessed matches error:", err);
         return res.status(500).json({ message: "Failed to fetch unprocessed matches" });
+      }
+    }
+  );
+  app2.get(
+    "/api/admin/users",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const allUsers = await storage.getAllUsers();
+        return res.json({
+          users: allUsers.map((u) => ({
+            id: u.id,
+            username: u.username,
+            teamName: u.teamName
+          }))
+        });
+      } catch (err) {
+        console.error("Admin users error:", err);
+        return res.status(500).json({ message: "Failed to fetch users" });
       }
     }
   );
@@ -7018,19 +7127,52 @@ function setupErrorHandler(app2) {
     const allTeams = await storage.getAllTeamsForMatch(matchId);
     const impactEnabled = match.impactFeaturesEnabled === true;
     const teamUpdates = [];
+    function resolveEffectiveXI(team) {
+      const backup1Id = team.backupXiPlayer1Id;
+      const backup2Id = team.backupXiPlayer2Id;
+      const effectivePlayerIds = [...team.playerIds];
+      let effectiveCaptainId = team.captainId ?? null;
+      let effectiveVcId = team.viceCaptainId ?? null;
+      const substitutions = [];
+      const xiAnnounced = Array.from(playerById.values()).some((p) => p.isPlayingXI === true);
+      if (!xiAnnounced || !backup1Id && !backup2Id) {
+        return { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions };
+      }
+      const availableBackups = [backup1Id, backup2Id].filter((id) => !!id).map((id) => playerById.get(id) || playerByExtId.get(id)).filter((p) => !!p && p.isPlayingXI === true);
+      if (availableBackups.length === 0) {
+        return { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions };
+      }
+      let backupCursor = 0;
+      for (let i = 0; i < effectivePlayerIds.length; i++) {
+        if (backupCursor >= availableBackups.length) break;
+        const pid = effectivePlayerIds[i];
+        const p = playerById.get(pid) || playerByExtId.get(pid);
+        if (p && p.isPlayingXI !== true) {
+          const backup = availableBackups[backupCursor++];
+          effectivePlayerIds[i] = backup.id;
+          substitutions.push({ outId: pid, inId: backup.id });
+          if (pid === effectiveCaptainId) effectiveCaptainId = backup.id;
+          if (pid === effectiveVcId) effectiveVcId = backup.id;
+        }
+      }
+      return { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions };
+    }
     for (const team of allTeams) {
       try {
-        const teamPlayerIds = team.playerIds;
+        const { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions } = resolveEffectiveXI(team);
+        if (substitutions.length > 0) {
+          console.log(`[Heartbeat:Teams] XI Backups applied for team ${team.id}:`, substitutions.map((s) => `${s.outId} \u2192 ${s.inId}`).join(", "));
+        }
         let totalPoints = 0;
-        for (const pid of teamPlayerIds) {
+        for (const pid of effectivePlayerIds) {
           try {
             const p = playerById.get(pid) || playerByExtId.get(pid);
             if (!p) continue;
             let basePts = p.points || 0;
             let multiplier = 1;
-            if (pid === team.captainId && (!team.captainType || team.captainType === "player")) {
+            if (pid === effectiveCaptainId && (!team.captainType || team.captainType === "player")) {
               multiplier = 2;
-            } else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) {
+            } else if (pid === effectiveVcId && (!team.vcType || team.vcType === "player")) {
               multiplier = 1.5;
             }
             const finalPts = Math.round(basePts * multiplier);

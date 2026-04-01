@@ -917,12 +917,72 @@ function setupErrorHandler(app: express.Application) {
         newTotal: number;
       }> = [];
 
+      // ---- XI BACKUP RESOLUTION ----
+      // resolveEffectiveXI: given a team and the current playerById map, returns the
+      // effective player list and captain/VC IDs after applying XI backup substitution.
+      // Rules:
+      //   - Only runs when official XI has been announced (at least one player isPlayingXI=true)
+      //   - Backup 1 is tried first, Backup 2 second — max 2 substitutions
+      //   - If the replaced player was C or VC, the backup inherits that role
+      //   - Backup player gets full points (their p.points already includes +4 XI base if in XI)
+      function resolveEffectiveXI(team: typeof allTeams[0]): {
+        effectivePlayerIds: string[];
+        effectiveCaptainId: string | null;
+        effectiveVcId: string | null;
+        substitutions: Array<{ outId: string; inId: string }>;
+      } {
+        const backup1Id = (team as any).backupXiPlayer1Id as string | null | undefined;
+        const backup2Id = (team as any).backupXiPlayer2Id as string | null | undefined;
+        const effectivePlayerIds = [...(team.playerIds as string[])];
+        let effectiveCaptainId: string | null = team.captainId ?? null;
+        let effectiveVcId: string | null = team.viceCaptainId ?? null;
+        const substitutions: Array<{ outId: string; inId: string }> = [];
+
+        // Only resolve if XI has been announced
+        const xiAnnounced = Array.from(playerById.values()).some(p => p.isPlayingXI === true);
+        if (!xiAnnounced || (!backup1Id && !backup2Id)) {
+          return { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions };
+        }
+
+        // Build available backup list in priority order — only include backups that ARE in official XI
+        const availableBackups = [backup1Id, backup2Id]
+          .filter((id): id is string => !!id)
+          .map(id => playerById.get(id) || playerByExtId.get(id))
+          .filter((p): p is NonNullable<typeof p> => !!p && p.isPlayingXI === true);
+
+        if (availableBackups.length === 0) {
+          return { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions };
+        }
+
+        let backupCursor = 0;
+        for (let i = 0; i < effectivePlayerIds.length; i++) {
+          if (backupCursor >= availableBackups.length) break;
+          const pid = effectivePlayerIds[i];
+          const p = playerById.get(pid) || playerByExtId.get(pid);
+          // Replace if player is NOT in official XI
+          if (p && p.isPlayingXI !== true) {
+            const backup = availableBackups[backupCursor++];
+            effectivePlayerIds[i] = backup.id;
+            substitutions.push({ outId: pid, inId: backup.id });
+            // Transfer C/VC role to the backup if the absent player held it
+            if (pid === effectiveCaptainId) effectiveCaptainId = backup.id;
+            if (pid === effectiveVcId) effectiveVcId = backup.id;
+          }
+        }
+
+        return { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions };
+      }
+
       for (const team of allTeams) {
         try {
-          const teamPlayerIds = team.playerIds as string[];
+          // Apply XI backup resolution: substitute absent XI picks with eligible backups
+          const { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions } = resolveEffectiveXI(team);
+          if (substitutions.length > 0) {
+            console.log(`[Heartbeat:Teams] XI Backups applied for team ${team.id}:`, substitutions.map(s => `${s.outId} → ${s.inId}`).join(', '));
+          }
           let totalPoints = 0;
 
-          for (const pid of teamPlayerIds) {
+          for (const pid of effectivePlayerIds) {
             try {
               const p = playerById.get(pid) || playerByExtId.get(pid);
               if (!p) continue;
@@ -930,9 +990,9 @@ function setupErrorHandler(app: express.Application) {
               let basePts = p.points || 0;
               let multiplier = 1;
 
-              if (pid === team.captainId && (!team.captainType || team.captainType === "player")) {
+              if (pid === effectiveCaptainId && (!team.captainType || team.captainType === "player")) {
                 multiplier = 2;
-              } else if (pid === team.viceCaptainId && (!team.vcType || team.vcType === "player")) {
+              } else if (pid === effectiveVcId && (!team.vcType || team.vcType === "player")) {
                 multiplier = 1.5;
               }
 

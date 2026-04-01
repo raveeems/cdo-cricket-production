@@ -120,11 +120,16 @@ export default function AdminScreen() {
   const [potSelectedTournament, setPotSelectedTournament] = useState<string>('');
   const [potNewTournament, setPotNewTournament] = useState('');
   const [potShowNewInput, setPotShowNewInput] = useState(false);
-  const [potUnprocessedMatches, setPotUnprocessedMatches] = useState<{id:string;team1Short:string;team2Short:string;startTime:string}[]>([]);
+  const [potUnprocessedMatches, setPotUnprocessedMatches] = useState<{id:string;team1Short:string;team2Short:string;startTime:string;potProcessed?:boolean}[]>([]);
   const [potSelectedMatchId, setPotSelectedMatchId] = useState<string>('');
   const [potStake, setPotStake] = useState('30');
   const [potProcessing, setPotProcessing] = useState(false);
   const [potLoadingMatches, setPotLoadingMatches] = useState(false);
+  // Penalty mode
+  const [potMode, setPotMode] = useState<'entries_only' | 'entries_plus_penalty'>('entries_only');
+  const [potPenaltyUserIds, setPotPenaltyUserIds] = useState<string[]>([]);
+  const [allUsers, setAllUsers] = useState<{id:string;username:string;teamName?:string}[]>([]);
+  const [potUsersLoading, setPotUsersLoading] = useState(false);
 
   const [impactMatchId, setImpactMatchId] = useState<string | null>(null);
   const [impactTogglingId, setImpactTogglingId] = useState<string | null>(null);
@@ -721,6 +726,7 @@ export default function AdminScreen() {
     loadRewards();
     loadPotTournamentNames();
     loadPotUnprocessedMatches();
+    loadAllUsers();
   }, []);
 
   const loadApiCalls = async () => {
@@ -1242,6 +1248,20 @@ export default function AdminScreen() {
     }
   };
 
+  const loadAllUsers = async () => {
+    if (allUsers.length > 0) return;
+    setPotUsersLoading(true);
+    try {
+      const res = await apiRequest('GET', '/api/admin/users');
+      const data = await res.json();
+      setAllUsers(data.users || []);
+    } catch (e) {
+      console.error('Failed to load users:', e);
+    } finally {
+      setPotUsersLoading(false);
+    }
+  };
+
   const handleProcessAndDistribute = async () => {
     const effectiveTournament = potSelectedTournament || potNewTournament.trim();
     if (!effectiveTournament) {
@@ -1256,18 +1276,23 @@ export default function AdminScreen() {
       Alert.alert('Error', 'Entry stake must be greater than 0');
       return;
     }
+    const isReprocessing = potUnprocessedMatches.find(m => m.id === potSelectedMatchId)?.potProcessed;
     setPotProcessing(true);
     try {
       const res = await apiRequest('POST', '/api/tournament/process', {
         matchId: potSelectedMatchId,
         tournamentName: effectiveTournament,
         stake: parseInt(potStake),
+        mode: potMode,
+        penaltyUserIds: potMode === 'entries_plus_penalty' ? potPenaltyUserIds : [],
       });
       const data = await res.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Pot Distributed!', data.message || 'Tournament pot processed successfully');
+      Alert.alert(isReprocessing ? 'Pot Re-processed!' : 'Pot Distributed!', data.message || 'Tournament pot processed successfully');
       setPotSelectedMatchId('');
       setPotStake('30');
+      setPotMode('entries_only');
+      setPotPenaltyUserIds([]);
       loadPotUnprocessedMatches();
       loadPotTournamentNames();
     } catch (e: any) {
@@ -1317,7 +1342,7 @@ export default function AdminScreen() {
           {(() => {
             const liveCount = matches.filter(m => m.status === 'live').length;
             const pendingCount = pendingUsers.length;
-            const unprocessedCount = potUnprocessedMatches.length;
+            const unprocessedCount = potUnprocessedMatches.filter(m => !m.potProcessed).length;
             const vaultCount = rewardsAvailable.length;
             const callsToday = apiCallData?.today ?? null;
             const callsLimit = apiCallData?.dailyLimit ?? 2000;
@@ -2268,9 +2293,9 @@ export default function AdminScreen() {
               <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0, borderLeftColor: colors.accent }]}>
                 Tournament Pot Management
               </Text>
-              {potUnprocessedMatches.length > 0 && (
+              {potUnprocessedMatches.filter(m => !m.potProcessed).length > 0 && (
                 <View style={{ backgroundColor: '#F59E0B20', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1, borderWidth: 1, borderColor: '#F59E0B40' }}>
-                  <Text style={{ color: '#F59E0B', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{potUnprocessedMatches.length}</Text>
+                  <Text style={{ color: '#F59E0B', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{potUnprocessedMatches.filter(m => !m.potProcessed).length}</Text>
                 </View>
               )}
             </View>
@@ -2351,7 +2376,7 @@ export default function AdminScreen() {
                 <View style={{ paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.surfaceElevated, borderRadius: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                   <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 13 }}>
-                    All completed matches have been processed
+                    No completed matches found
                   </Text>
                 </View>
               ) : (
@@ -2359,6 +2384,7 @@ export default function AdminScreen() {
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {potUnprocessedMatches.map(m => {
                       const isSelected = m.id === potSelectedMatchId;
+                      const isProcessed = !!m.potProcessed;
                       const matchDate = new Date(m.startTime);
                       const formatted = matchDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                       const fullMatch = matches.find(fm => fm.id === m.id);
@@ -2373,7 +2399,7 @@ export default function AdminScreen() {
                             paddingVertical: 10,
                             borderWidth: 1.5,
                             backgroundColor: isSelected ? colors.primary : colors.surfaceElevated,
-                            borderColor: isSelected ? colors.primary : colors.border,
+                            borderColor: isSelected ? colors.primary : isProcessed ? colors.success + '50' : colors.border,
                             alignItems: 'center',
                           }}
                         >
@@ -2390,7 +2416,7 @@ export default function AdminScreen() {
                             fontSize: 11,
                             marginTop: 2,
                           }}>
-                            {formatted}{stake ? ` · ₹${stake}` : ''}
+                            {formatted}{stake ? ` · ₹${stake}` : ''}{isProcessed ? ' · ✓' : ''}
                           </Text>
                         </Pressable>
                       );
@@ -2408,6 +2434,116 @@ export default function AdminScreen() {
                 placeholderTextColor={colors.textTertiary}
                 keyboardType="numeric"
               />
+
+              {/* Penalty Mode */}
+              <Text style={[styles.formFieldLabel, { color: colors.textTertiary, marginBottom: 6, marginTop: 12 }]}>POT MODE</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                {([['entries_only', 'Entries Only'], ['entries_plus_penalty', 'Entries + Penalty']] as const).map(([mode, label]) => (
+                  <Pressable
+                    key={mode}
+                    onPress={() => {
+                      setPotMode(mode);
+                      if (mode === 'entries_only') setPotPenaltyUserIds([]);
+                    }}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      borderWidth: 1.5,
+                      backgroundColor: potMode === mode ? colors.error + '15' : colors.surfaceElevated,
+                      borderColor: potMode === mode ? colors.error : colors.border,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: potMode === mode ? colors.error : colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {potMode === 'entries_plus_penalty' && (() => {
+                return (
+                  <View style={{ marginBottom: 8 }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17, marginBottom: 8 }}>
+                      Select users who receive a penalty (₹{potStake || '?'} deducted — same as stake). These users are NOT contest entrants.
+                    </Text>
+                    {potUsersLoading ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <View style={{ gap: 6 }}>
+                        {allUsers.map(u => {
+                          const isSelected = potPenaltyUserIds.includes(u.id);
+                          return (
+                            <Pressable
+                              key={u.id}
+                              onPress={() => {
+                                setPotPenaltyUserIds(prev =>
+                                  prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                                );
+                              }}
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: 10,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                backgroundColor: isSelected ? colors.error + '12' : colors.surfaceElevated,
+                                borderColor: isSelected ? colors.error + '50' : colors.border,
+                              }}
+                            >
+                              <View style={{
+                                width: 22, height: 22, borderRadius: 11,
+                                borderWidth: 1.5,
+                                borderColor: isSelected ? colors.error : colors.border,
+                                backgroundColor: isSelected ? colors.error : 'transparent',
+                                alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                {isSelected && <Ionicons name="checkmark" size={13} color="#FFF" />}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{u.username}</Text>
+                                {u.teamName && <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11 }}>{u.teamName}</Text>}
+                              </View>
+                              {isSelected && (
+                                <Text style={{ color: colors.error, fontFamily: 'Inter_700Bold', fontSize: 12 }}>-₹{potStake || '?'}</Text>
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                        {allUsers.length === 0 && (
+                          <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' }}>No users found.</Text>
+                        )}
+                      </View>
+                    )}
+                    {potPenaltyUserIds.length > 0 && (
+                      <View style={{ marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: colors.error + '10', borderWidth: 1, borderColor: colors.error + '30' }}>
+                        <Text style={{ color: colors.error, fontFamily: 'Inter_700Bold', fontSize: 12, marginBottom: 2 }}>
+                          Penalty Summary
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12 }}>
+                          {potPenaltyUserIds.length} {potPenaltyUserIds.length === 1 ? 'user' : 'users'} × ₹{potStake || '?'} = ₹{potPenaltyUserIds.length * (parseInt(potStake) || 0)} added to pot
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
+
+              {(() => {
+                const selectedMatch = potUnprocessedMatches.find(m => m.id === potSelectedMatchId);
+                if (!selectedMatch?.potProcessed) return null;
+                return (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, padding: 8, backgroundColor: '#F59E0B10', borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B30' }}>
+                    <Ionicons name="refresh-circle-outline" size={16} color="#F59E0B" />
+                    <Text style={{ color: '#F59E0B', fontSize: 12, fontFamily: 'Inter_500Medium', flex: 1 }}>
+                      This match was already processed. Submitting will re-process and replace previous entries.
+                    </Text>
+                  </View>
+                );
+              })()}
 
               <Pressable
                 onPress={handleProcessAndDistribute}

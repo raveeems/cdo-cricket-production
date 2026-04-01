@@ -237,6 +237,8 @@ export class DatabaseStorage {
     captainType?: string;
     vcType?: string;
     invisibleMode?: boolean;
+    backupXiPlayer1Id?: string | null;
+    backupXiPlayer2Id?: string | null;
   }): Promise<UserTeam> {
     const [team] = await db.insert(userTeams).values(data).returning();
     return team;
@@ -252,6 +254,8 @@ export class DatabaseStorage {
     captainType?: string;
     vcType?: string;
     invisibleMode?: boolean;
+    backupXiPlayer1Id?: string | null;
+    backupXiPlayer2Id?: string | null;
   }): Promise<UserTeam> {
     const updateData: Record<string, any> = {
       playerIds: data.playerIds,
@@ -264,6 +268,8 @@ export class DatabaseStorage {
     if (data.captainType !== undefined) updateData.captainType = data.captainType;
     if (data.vcType !== undefined) updateData.vcType = data.vcType;
     if (data.invisibleMode !== undefined) updateData.invisibleMode = data.invisibleMode;
+    if (data.backupXiPlayer1Id !== undefined) updateData.backupXiPlayer1Id = data.backupXiPlayer1Id;
+    if (data.backupXiPlayer2Id !== undefined) updateData.backupXiPlayer2Id = data.backupXiPlayer2Id;
     const [updated] = await db.update(userTeams)
       .set(updateData)
       .where(and(eq(userTeams.id, teamId), eq(userTeams.userId, userId)))
@@ -463,6 +469,10 @@ export class DatabaseStorage {
   async createLedgerEntry(data: { userId: string; userName: string; matchId: string; tournamentName: string; pointsChange: number }): Promise<TournamentLedger> {
     const [entry] = await db.insert(tournamentLedger).values(data).returning();
     return entry;
+  }
+
+  async deleteLedgerEntriesForMatch(matchId: string): Promise<void> {
+    await db.delete(tournamentLedger).where(eq(tournamentLedger.matchId, matchId));
   }
 
   async getDistinctTournamentNames(): Promise<string[]> {

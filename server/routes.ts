@@ -1266,7 +1266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAuthenticated,
     async (req: Request, res: Response) => {
       try {
-        const { matchId, name, playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode } = req.body;
+        const { matchId, name, playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode, backupXiPlayer1Id, backupXiPlayer2Id } = req.body;
         console.log("Receiving Team:", JSON.stringify({ matchId, name, playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType }));
         console.log("Player IDs count:", playerIds?.length, "IDs:", playerIds);
 
@@ -1411,6 +1411,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // ---- XI BACKUP VALIDATION ----
+        // Backups are locked once official Playing XI is announced (playingXIManual = true)
+        let validBackupXi1: string | null = null;
+        let validBackupXi2: string | null = null;
+        if (!match.playingXIManual) {
+          const impactSet = new Set([validPrimaryImpactId, validBackupImpactId].filter(Boolean) as string[]);
+          for (const [slot, rawId] of [['Backup 1', backupXiPlayer1Id], ['Backup 2', backupXiPlayer2Id]] as const) {
+            if (!rawId) continue;
+            if (playerIds.includes(rawId)) {
+              return res.status(400).json({ message: `${slot} cannot be one of your main XI players.` });
+            }
+            if (impactSet.has(rawId)) {
+              return res.status(400).json({ message: `${slot} cannot overlap with your Impact picks.` });
+            }
+            if (!playerMap.get(rawId)) {
+              return res.status(400).json({ message: `${slot} player not found in this match.` });
+            }
+          }
+          if (backupXiPlayer1Id && backupXiPlayer2Id && backupXiPlayer1Id === backupXiPlayer2Id) {
+            return res.status(400).json({ message: "Backup 1 and Backup 2 must be different players." });
+          }
+          validBackupXi1 = backupXiPlayer1Id || null;
+          validBackupXi2 = backupXiPlayer2Id || null;
+        }
+        // If XI announced, silently ignore backup IDs (they're locked — UI should already block this)
+
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           const sortedExisting = [...(et.playerIds || [])].sort();
@@ -1454,6 +1480,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           captainType: validCaptainType,
           vcType: validVcType,
           invisibleMode: useInvisible,
+          backupXiPlayer1Id: validBackupXi1,
+          backupXiPlayer2Id: validBackupXi2,
         });
 
         return res.json({ team, weeklyUsage: { maxTeams, teamsCreated: existingTeams.length + 1 } });
@@ -1492,7 +1520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Match has already started" });
         }
 
-        const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode } = req.body;
+        const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode, backupXiPlayer1Id, backupXiPlayer2Id } = req.body;
         if (!playerIds || playerIds.length !== 11) {
           return res.status(400).json({ message: "Must select exactly 11 players" });
         }
@@ -1587,6 +1615,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // ---- XI BACKUP VALIDATION (edit) ----
+        // If XI announced, preserve existing backups and ignore any new ones from the request.
+        let validBackupXi1Edit: string | null = team.backupXiPlayer1Id ?? null;
+        let validBackupXi2Edit: string | null = team.backupXiPlayer2Id ?? null;
+        if (!match.playingXIManual) {
+          const impactSetE = new Set([validPrimaryImpactId, validBackupImpactId].filter(Boolean) as string[]);
+          const playerMapE = new Map((await storage.getPlayersForMatch(team.matchId)).map(p => [p.id, p]));
+          for (const [slot, rawId] of [['Backup 1', backupXiPlayer1Id], ['Backup 2', backupXiPlayer2Id]] as const) {
+            if (rawId === undefined) continue; // not sent — keep existing
+            if (!rawId) { /* clearing */ continue; }
+            if (playerIds.includes(rawId)) return res.status(400).json({ message: `${slot} cannot be one of your main XI players.` });
+            if (impactSetE.has(rawId)) return res.status(400).json({ message: `${slot} cannot overlap with your Impact picks.` });
+            if (!playerMapE.get(rawId)) return res.status(400).json({ message: `${slot} player not found in this match.` });
+          }
+          if (backupXiPlayer1Id !== undefined) validBackupXi1Edit = backupXiPlayer1Id || null;
+          if (backupXiPlayer2Id !== undefined) validBackupXi2Edit = backupXiPlayer2Id || null;
+          if (validBackupXi1Edit && validBackupXi2Edit && validBackupXi1Edit === validBackupXi2Edit) {
+            return res.status(400).json({ message: "Backup 1 and Backup 2 must be different players." });
+          }
+        }
+
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId!, team.matchId);
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
@@ -1628,6 +1677,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           captainType: validCaptainType,
           vcType: validVcType,
           invisibleMode: useInvisible,
+          backupXiPlayer1Id: validBackupXi1Edit,
+          backupXiPlayer2Id: validBackupXi2Edit,
         });
         return res.json({ team: updated });
       } catch (err: any) {
@@ -2989,7 +3040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAdmin,
     async (req: Request, res: Response) => {
       try {
-        const { matchId, tournamentName, stake } = req.body;
+        const { matchId, tournamentName, stake, mode, penaltyUserIds } = req.body;
         if (!matchId || !tournamentName || !stake) {
           return res.status(400).json({ message: "matchId, tournamentName, and stake are required" });
         }
@@ -2998,17 +3049,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (match.status !== "completed") {
           return res.status(400).json({ message: "Match must be COMPLETED before processing pot" });
         }
-        if (match.potProcessed) {
-          return res.status(400).json({ message: "Pot already processed for this match (idempotency lock)" });
-        }
         const allTeams = await storage.getAllTeamsForMatch(matchId);
         if (allTeams.length < 2) {
           return res.status(400).json({ message: `Not enough players. Found ${allTeams.length} team(s), need at least 2.` });
         }
         const entryStake = Number(stake) || 30;
 
-        // Rank players by points (descending). Ties share the same rank.
-        // Unique sorted point values to determine rank tiers.
+        // Penalty mode setup
+        const potMode = mode === "entries_plus_penalty" ? "entries_plus_penalty" : "entries_only";
+        const rawPenaltyIds: string[] = Array.isArray(penaltyUserIds) ? penaltyUserIds : [];
+
+        // Penalty users must NOT already be contest participants (prevent double-counting)
+        const contestUserIds = new Set(allTeams.map(t => t.userId));
+        const validatedPenaltyIds = rawPenaltyIds.filter(uid => !contestUserIds.has(uid));
+
+        const penaltyCount = potMode === "entries_plus_penalty" ? validatedPenaltyIds.length : 0;
+
+        // Rank contest participants by points (descending). Ties share the same rank.
         const uniquePointTiers = [...new Set(allTeams.map(t => t.totalPoints || 0))].sort((a, b) => b - a);
 
         const rank1Points = uniquePointTiers[0] ?? 0; // Highest — winner(s)
@@ -3019,11 +3076,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const neutralTeams = rank2Points !== null ? allTeams.filter(t => (t.totalPoints || 0) === rank2Points) : [];
         const losingTeams = allTeams.filter(t => (t.totalPoints || 0) < (rank2Points ?? rank1Points));
 
-        // Total pot = only from Rank 3+ losers
-        const totalPot = losingTeams.length * entryStake;
-        const winnerPointsEach = losingTeams.length > 0
+        // Total pot:
+        //   Mode 1 (entries_only):         losers × stake
+        //   Mode 2 (entries_plus_penalty): losers × stake + penaltyUsers × stake
+        const losersContribution = losingTeams.length * entryStake;
+        const penaltyContribution = penaltyCount * entryStake;
+        const totalPot = losersContribution + penaltyContribution;
+        const winnerPointsEach = totalPot > 0 && winningTeams.length > 0
           ? Math.round(totalPot / winningTeams.length)
           : 0;
+
+        // If re-processing, delete previous ledger entries first (replace, not stack)
+        if (match.potProcessed) {
+          await storage.deleteLedgerEntriesForMatch(matchId);
+        }
 
         const userMap = new Map<string, string>();
         for (const t of allTeams) {
@@ -3032,7 +3098,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userMap.set(t.userId, u?.teamName || u?.username || "Unknown");
           }
         }
-        // Rank 3+ lose their stake
+        // For penalty users, look them up too
+        for (const uid of validatedPenaltyIds) {
+          if (!userMap.has(uid)) {
+            const u = await storage.getUser(uid);
+            userMap.set(uid, u?.teamName || u?.username || "Unknown");
+          }
+        }
+
+        // Rank 3+ contest participants lose their stake
         for (const t of losingTeams) {
           await storage.createLedgerEntry({
             userId: t.userId,
@@ -3042,7 +3116,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             pointsChange: -entryStake,
           });
         }
-        // Rank 1 winner(s) gain the pot (split equally if tied)
+
+        // Penalty users: deducted from pot only — they are NOT participants and NOT in leaderboard
+        // Their deduction entry is recorded for auditability but flagged via negative pointsChange
+        if (penaltyCount > 0) {
+          for (const uid of validatedPenaltyIds) {
+            await storage.createLedgerEntry({
+              userId: uid,
+              userName: userMap.get(uid) || "Unknown",
+              matchId,
+              tournamentName,
+              pointsChange: -entryStake,
+            });
+          }
+        }
+
+        // Rank 1 winner(s) gain the full pot (split equally if tied)
         if (winnerPointsEach > 0) {
           for (const t of winningTeams) {
             await storage.createLedgerEntry({
@@ -3054,18 +3143,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         }
+
         // Rank 2 — no ledger entry, completely neutral
         await storage.updateMatch(matchId, {
           tournamentName,
           entryStake,
           potProcessed: true,
-        });
-        console.log(`[Tournament Pot] Processed for ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} winner(s) (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} loser(s) (-${entryStake}), totalPot=${totalPot}`);
+          potMode,
+          potPenaltyUserIds: potMode === "entries_plus_penalty" ? validatedPenaltyIds : [],
+        } as any);
+        console.log(`[Tournament Pot] ${potMode} | ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} (-${entryStake}), penalty=${penaltyCount} (-${entryStake} each), totalPot=${totalPot}`);
         return res.json({
           message: "Pot processed successfully",
+          mode: potMode,
           winners: winningTeams.length,
           neutral: neutralTeams.length,
           losers: losingTeams.length,
+          penaltyUsers: penaltyCount,
           winnerPoints: winnerPointsEach,
           loserPoints: losingTeams.length > 0 ? -entryStake : 0,
           totalPot,
@@ -3078,7 +3172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // ---- ADMIN: GET COMPLETED UNPROCESSED MATCHES ----
+  // ---- ADMIN: GET COMPLETED MATCHES FOR POT MANAGEMENT (unprocessed + re-processable) ----
   app.get(
     "/api/admin/matches/unprocessed",
     isAuthenticated,
@@ -3087,9 +3181,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const allMatches = await storage.getAllMatches();
         const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+        // Include ALL completed matches in window (both unprocessed and already-processed for re-processing)
         const completed = allMatches.filter(m =>
           m.status === "completed" &&
-          !m.potProcessed &&
           new Date(m.startTime) >= tenDaysAgo
         );
         const withParticipation = [];
@@ -3102,6 +3196,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               team2Short: m.team2Short,
               startTime: m.startTime,
               teamCount: teams.length,
+              potProcessed: m.potProcessed,
+              potMode: (m as any).potMode || "entries_only",
             });
           }
         }
@@ -3109,6 +3205,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("Unprocessed matches error:", err);
         return res.status(500).json({ message: "Failed to fetch unprocessed matches" });
+      }
+    }
+  );
+
+  // ---- ADMIN: GET ALL USERS (for penalty user selection) ----
+  app.get(
+    "/api/admin/users",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const allUsers = await storage.getAllUsers();
+        return res.json({
+          users: allUsers.map(u => ({
+            id: u.id,
+            username: u.username,
+            teamName: u.teamName,
+          })),
+        });
+      } catch (err: any) {
+        console.error("Admin users error:", err);
+        return res.status(500).json({ message: "Failed to fetch users" });
       }
     }
   );
