@@ -498,6 +498,24 @@ export default function MatchDetailScreen() {
                 const b2Name = team.backupXiPlayer2Id ? (players.find(p => p.id === team.backupXiPlayer2Id!)?.name || null) : null;
                 const hasBackups = !!(b1Name || b2Name);
                 const backupLocked = !canEdit || !!match.playingXIManual;
+
+                // ── State colours ──────────────────────────────────────────
+                // Empty+open: primary-tinted border + bg, primary text → clear CTA
+                // Filled:     stronger primary accent
+                // Locked:     muted but still legible
+                const rowBg = backupLocked
+                  ? colors.surfaceElevated
+                  : hasBackups
+                    ? colors.primary + '14'
+                    : colors.primary + '12';
+                const rowBorder = backupLocked
+                  ? colors.border
+                  : hasBackups
+                    ? colors.primary + '55'
+                    : colors.primary + '50';
+                const iconColor = backupLocked ? colors.textTertiary : colors.primary;
+                const labelColor = backupLocked ? colors.textSecondary : colors.primary;
+
                 return (
                   <Pressable
                     onPress={() => {
@@ -505,31 +523,41 @@ export default function MatchDetailScreen() {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       router.push({ pathname: '/create-team/[matchId]', params: { matchId: match.id, editTeamId: team.id, openBackup: 'true' } });
                     }}
-                    style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: hasBackups ? colors.primary + '35' : colors.border, backgroundColor: hasBackups ? colors.primary + '08' : colors.surfaceElevated }}
+                    style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5, borderColor: rowBorder, backgroundColor: rowBg }}
                   >
-                    <Ionicons name="shield-checkmark-outline" size={13} color={hasBackups ? colors.primary : colors.textTertiary} />
+                    {/* Left icon */}
+                    <Ionicons name="shield-checkmark-outline" size={16} color={iconColor} />
+
+                    {/* Centre text */}
                     {hasBackups ? (
-                      <Text style={{ flex: 1, color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
-                        <Text style={{ fontFamily: 'Inter_600SemiBold' as const, color: colors.primary }}>B1</Text>
-                        {' '}{b1Name || '—'}
+                      <Text style={{ flex: 1, color: colors.text, fontSize: 12, fontFamily: 'Inter_400Regular' as const }}>
+                        <Text style={{ fontFamily: 'Inter_700Bold' as const, color: colors.primary }}>B1 </Text>
+                        <Text style={{ color: colors.text }}>{b1Name || '—'}</Text>
                         {b2Name ? (
                           <>
-                            {'  '}
-                            <Text style={{ fontFamily: 'Inter_600SemiBold' as const, color: colors.primary }}>B2</Text>
-                            {' '}{b2Name}
+                            <Text style={{ color: colors.textTertiary }}>{'   '}</Text>
+                            <Text style={{ fontFamily: 'Inter_700Bold' as const, color: colors.primary }}>B2 </Text>
+                            <Text style={{ color: colors.text }}>{b2Name}</Text>
                           </>
                         ) : null}
                       </Text>
                     ) : (
-                      <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                      <Text style={{ flex: 1, color: labelColor, fontSize: 12, fontFamily: backupLocked ? 'Inter_400Regular' as const : 'Inter_600SemiBold' as const }}>
                         {backupLocked ? 'XI Backups locked' : 'Add XI Backups'}
                       </Text>
                     )}
-                    {!backupLocked && (
-                      <Ionicons name={hasBackups ? 'pencil' : 'add'} size={13} color={colors.primary} />
-                    )}
-                    {backupLocked && (
-                      <Ionicons name="lock-closed-outline" size={12} color={colors.textTertiary} />
+
+                    {/* Right affordance */}
+                    {backupLocked ? (
+                      <Ionicons name="lock-closed" size={13} color={colors.textTertiary} />
+                    ) : hasBackups ? (
+                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.primary + '20', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="pencil" size={12} color={colors.primary} />
+                      </View>
+                    ) : (
+                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="add" size={16} color="#fff" />
+                      </View>
                     )}
                   </Pressable>
                 );
