@@ -4166,6 +4166,13 @@ async function registerRoutes(app2) {
           validBackupXi1 = backupXiPlayer1Id || null;
           validBackupXi2 = backupXiPlayer2Id || null;
         }
+        const playerIdSet = new Set(playerIds);
+        if (validBackupXi1 && playerIdSet.has(validBackupXi1)) {
+          validBackupXi1 = null;
+        }
+        if (validBackupXi2 && playerIdSet.has(validBackupXi2)) {
+          validBackupXi2 = null;
+        }
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           const sortedExisting = [...et.playerIds || []].sort();
@@ -4350,6 +4357,13 @@ async function registerRoutes(app2) {
           if (validBackupXi1Edit && validBackupXi2Edit && validBackupXi1Edit === validBackupXi2Edit) {
             return res.status(400).json({ message: "Backup 1 and Backup 2 must be different players." });
           }
+        }
+        const playerIdSetE = new Set(playerIds);
+        if (validBackupXi1Edit && playerIdSetE.has(validBackupXi1Edit)) {
+          validBackupXi1Edit = null;
+        }
+        if (validBackupXi2Edit && playerIdSetE.has(validBackupXi2Edit)) {
+          validBackupXi2Edit = null;
         }
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId, team.matchId);
         const sortedNewIds = [...playerIds].sort();

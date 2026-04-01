@@ -1505,6 +1505,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         // If XI announced, silently ignore backup IDs (they're locked — UI should already block this)
 
+        // Cross-validation: final backup values must never overlap with the final main XI.
+        // This catches the case where a user previously saved valid backups, then edited their
+        // XI to include one of those backup players without clearing the backup field.
+        const playerIdSet = new Set(playerIds as string[]);
+        if (validBackupXi1 && playerIdSet.has(validBackupXi1)) {
+          validBackupXi1 = null; // auto-clear silently — safer than 400 which blocks team save
+        }
+        if (validBackupXi2 && playerIdSet.has(validBackupXi2)) {
+          validBackupXi2 = null;
+        }
+
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
           const sortedExisting = [...(et.playerIds || [])].sort();
@@ -1702,6 +1713,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (validBackupXi1Edit && validBackupXi2Edit && validBackupXi1Edit === validBackupXi2Edit) {
             return res.status(400).json({ message: "Backup 1 and Backup 2 must be different players." });
           }
+        }
+
+        // Cross-validation: the final backup values (whether newly submitted or carried over from
+        // the existing saved team) must never overlap with the final main XI playerIds.
+        // This is the exact gap that created the duplicate-player bug: a user could save B1=D.Miller
+        // (valid at the time), then edit their XI to include D.Miller without changing B1, and the
+        // carried-over backup value was never re-checked against the updated player list.
+        const playerIdSetE = new Set(playerIds as string[]);
+        if (validBackupXi1Edit && playerIdSetE.has(validBackupXi1Edit)) {
+          validBackupXi1Edit = null; // auto-clear: carried-over backup now conflicts with new XI
+        }
+        if (validBackupXi2Edit && playerIdSetE.has(validBackupXi2Edit)) {
+          validBackupXi2Edit = null;
         }
 
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId!, team.matchId);
