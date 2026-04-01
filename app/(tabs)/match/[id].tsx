@@ -126,12 +126,12 @@ export default function MatchDetailScreen() {
     }
   }, []);
 
-  const { data: matchData, isLoading: matchLoading, isError: matchError, refetch: refetchMatch } = useQuery<{ match: Match }>({
+  const { data: matchData, isLoading: matchLoading, isPending: matchPending, isError: matchError, refetch: refetchMatch } = useQuery<{ match: Match }>({
     queryKey: ['/api/matches', id],
     enabled: !!id && !isMockId,
     initialData: (isMockId && mockMatchFromDev) ? { match: mockMatchFromDev } : undefined,
     retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
     staleTime: 5000,
     refetchInterval: (query) => {
       const status = query.state.data?.match?.status;
@@ -296,7 +296,7 @@ export default function MatchDetailScreen() {
   }
   // ── END DIAGNOSTIC BLOCK ──────────────────────────────────────────────────
 
-  if (!id || matchLoading || playersLoading) {
+  if (!id || matchPending || playersLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16, paddingBottom: 28, backgroundColor: colors.primary + 'CC' }}>
@@ -337,18 +337,19 @@ export default function MatchDetailScreen() {
   if (matchError || !match) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', gap: 12 }]}>
-        <Ionicons name="cloud-offline-outline" size={40} color={matchError ? colors.error : colors.textTertiary} />
+        <Ionicons name="cloud-offline-outline" size={40} color={colors.textTertiary} />
         <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 16 }}>
-          {matchError ? 'Connection error' : 'Match not found'}
+          {matchError ? 'Connection error' : 'Could not load match'}
         </Text>
-        {matchError && (
-          <Pressable
-            onPress={() => refetchMatch()}
-            style={{ backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}
-          >
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Retry</Text>
-          </Pressable>
-        )}
+        <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', paddingHorizontal: 32 }}>
+          This can happen during a server restart. Tap retry to reload.
+        </Text>
+        <Pressable
+          onPress={() => refetchMatch()}
+          style={{ backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, marginTop: 4 }}
+        >
+          <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Retry</Text>
+        </Pressable>
       </View>
     );
   }
