@@ -459,15 +459,18 @@ export default function CreateTeamScreen() {
         const xiPlayers = teamPlayers
           .filter((p) => p.isPlayingXI)
           .sort((a, b) => b.credits - a.credits);
-        const impactPlayer = teamPlayers.find((p) => p.isImpactPlayer && !p.isPlayingXI) ?? null;
+        // ALL admin-designated impact players (not just one)
+        const impactPlayers = teamPlayers
+          .filter((p) => p.isImpactPlayer && !p.isPlayingXI)
+          .sort((a, b) => b.credits - a.credits);
         const seenIds = new Set([
           ...xiPlayers.map((p) => p.id),
-          ...(impactPlayer ? [impactPlayer.id] : []),
+          ...impactPlayers.map((p) => p.id),
         ]);
         const rest = teamPlayers
           .filter((p) => !seenIds.has(p.id))
           .sort((a, b) => b.credits - a.credits);
-        return { xi: xiPlayers, impact: impactPlayer, rest, source: 'currentXI' as const };
+        return { xi: xiPlayers, impact: impactPlayers, rest, source: 'currentXI' as const };
       }
 
       // Priority 2: use last-match XI names from backend (prediction hint pre-announcement)
@@ -481,20 +484,21 @@ export default function CreateTeamScreen() {
         const impactPlayer = impactName
           ? teamPlayers.find((p) => p.name === impactName && !xiNames.has(p.name))
           : null;
+        const impactPlayers = impactPlayer ? [impactPlayer] : [];
         const seenIds = new Set([
           ...xiPlayers.map((p) => p.id),
-          ...(impactPlayer ? [impactPlayer.id] : []),
+          ...impactPlayers.map((p) => p.id),
         ]);
         const rest = teamPlayers
           .filter((p) => !seenIds.has(p.id))
           .sort((a, b) => b.credits - a.credits);
-        return { xi: xiPlayers, impact: impactPlayer, rest, source: 'lastMatch' as const };
+        return { xi: xiPlayers, impact: impactPlayers, rest, source: 'lastMatch' as const };
       }
 
       // Fallback: first match of tournament or no data — no section headers, just credits sort
       return {
         xi: [],
-        impact: null,
+        impact: [] as Player[],
         rest: [...teamPlayers].sort((a, b) => b.credits - a.credits),
         source: 'fallback' as const,
       };
@@ -1153,24 +1157,26 @@ export default function CreateTeamScreen() {
                             ))}
                           </>
                         )}
-                        {/* IMPACT PLAYER section — only shown when impact feature is enabled */}
-                        {impactEnabled && sections.impact && (
+                        {/* IMPACT OPTIONS section — shows ALL admin-designated impact players */}
+                        {impactEnabled && sections.impact.length > 0 && (
                           <>
                             <View style={[styles.sectionLabel, { backgroundColor: colors.surfaceElevated }]}>
                               <Text style={[styles.sectionLabelText, { color: '#F59E0B' }]}>
                                 {sections.source === 'currentXI' ? '⚡ IMPACT OPTIONS' : '⚡ IMPACT PLAYER'}
                               </Text>
                             </View>
-                            <CompactPlayerItem
-                              key={sections.impact.id}
-                              player={sections.impact}
-                              isSelected={selectedIds.has(sections.impact.id)}
-                              onToggle={() => togglePlayer(sections.impact!)}
-                              colors={colors}
-                              isDark={isDark}
-                              showPlayingXI={hasPlayingXIData}
-                              isDisabled={!canSelectPlayer(sections.impact)}
-                            />
+                            {sections.impact.map(impP => (
+                              <CompactPlayerItem
+                                key={impP.id}
+                                player={impP}
+                                isSelected={selectedIds.has(impP.id)}
+                                onToggle={() => togglePlayer(impP)}
+                                colors={colors}
+                                isDark={isDark}
+                                showPlayingXI={hasPlayingXIData}
+                                isDisabled={!canSelectPlayer(impP)}
+                              />
+                            ))}
                           </>
                         )}
                         {/* REST OF SQUAD section */}
