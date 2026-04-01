@@ -595,7 +595,16 @@ export default function MatchDetailScreen() {
               const pid = effectivePreviewIds[i];
               const fp = previewPlayerMap.get(pid);
               if (fp && fp.isPlayingXI !== true) {
-                const bk = availBk[bCur++];
+                // Skip any backup already in effectivePreviewIds to prevent duplicates
+                let bk: typeof availBk[0] | null = null;
+                while (bCur < availBk.length) {
+                  const candidate = availBk[bCur++];
+                  if (!effectivePreviewIds.includes(candidate.id)) {
+                    bk = candidate;
+                    break;
+                  }
+                }
+                if (!bk) break;
                 effectivePreviewIds[i] = bk.id;
                 if (pid === effectivePreviewCaptainId) effectivePreviewCaptainId = bk.id;
                 if (pid === effectivePreviewVcId) effectivePreviewVcId = bk.id;

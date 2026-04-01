@@ -3941,7 +3941,15 @@ async function registerRoutes(app2) {
                 const rp = resolvedPlayers[i];
                 const fullP = playerById.get(rp.id);
                 if (fullP && fullP.isPlayingXI !== true) {
-                  const bk = availableBackupsForDisplay[bCursor++];
+                  let bk = null;
+                  while (bCursor < availableBackupsForDisplay.length) {
+                    const candidate = availableBackupsForDisplay[bCursor++];
+                    if (!resolvedPlayers.some((p) => p.id === candidate.id)) {
+                      bk = candidate;
+                      break;
+                    }
+                  }
+                  if (!bk) break;
                   if (rp.id === effectiveCaptainId) effectiveCaptainId = bk.id;
                   if (rp.id === effectiveVcId) effectiveVcId = bk.id;
                   resolvedPlayers[i] = {
@@ -7404,12 +7412,28 @@ function setupErrorHandler(app2) {
         const pid = effectivePlayerIds[i];
         const p = playerById.get(pid) || playerByExtId.get(pid);
         if (p && p.isPlayingXI !== true) {
-          const backup = availableBackups[backupCursor++];
+          let backup;
+          while (backupCursor < availableBackups.length) {
+            const candidate = availableBackups[backupCursor++];
+            if (!effectivePlayerIds.includes(candidate.id)) {
+              backup = candidate;
+              break;
+            }
+            console.warn(`[resolveEffectiveXI] Skipping backup ${candidate.id} \u2014 already in XI`);
+          }
+          if (!backup) break;
           effectivePlayerIds[i] = backup.id;
           substitutions.push({ outId: pid, inId: backup.id });
           if (pid === effectiveCaptainId) effectiveCaptainId = backup.id;
           if (pid === effectiveVcId) effectiveVcId = backup.id;
         }
+      }
+      const seenIds = /* @__PURE__ */ new Set();
+      for (const id of effectivePlayerIds) {
+        if (seenIds.has(id)) {
+          console.error(`[resolveEffectiveXI] DUPLICATE player ID in final XI for team ${team.id}: ${id} \u2014 this is a bug`);
+        }
+        seenIds.add(id);
       }
       return { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions };
     }

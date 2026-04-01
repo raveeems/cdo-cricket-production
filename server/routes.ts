@@ -1246,7 +1246,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   const rp = resolvedPlayers[i];
                   const fullP = playerById.get(rp.id);
                   if (fullP && fullP.isPlayingXI !== true) {
-                    const bk = availableBackupsForDisplay[bCursor++];
+                    // Skip any backup already present in resolvedPlayers to prevent duplicate IDs
+                    let bk: (typeof availableBackupsForDisplay)[0] | null = null;
+                    while (bCursor < availableBackupsForDisplay.length) {
+                      const candidate = availableBackupsForDisplay[bCursor++];
+                      if (!resolvedPlayers.some(p => p.id === candidate.id)) {
+                        bk = candidate;
+                        break;
+                      }
+                    }
+                    if (!bk) break; // no eligible backup remaining
                     if (rp.id === effectiveCaptainId) effectiveCaptainId = bk.id;
                     if (rp.id === effectiveVcId) effectiveVcId = bk.id;
                     resolvedPlayers[i] = {

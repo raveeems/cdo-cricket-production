@@ -1000,13 +1000,34 @@ function setupErrorHandler(app: express.Application) {
           const p = playerById.get(pid) || playerByExtId.get(pid);
           // Replace if player is NOT in official XI
           if (p && p.isPlayingXI !== true) {
-            const backup = availableBackups[backupCursor++];
+            // Skip any backup candidate already present in effectivePlayerIds —
+            // inserting a duplicate would corrupt both display and scoring.
+            let backup: (typeof availableBackups)[0] | undefined;
+            while (backupCursor < availableBackups.length) {
+              const candidate = availableBackups[backupCursor++];
+              if (!effectivePlayerIds.includes(candidate.id)) {
+                backup = candidate;
+                break;
+              }
+              console.warn(`[resolveEffectiveXI] Skipping backup ${candidate.id} — already in XI`);
+            }
+            if (!backup) break; // no eligible backup remaining
             effectivePlayerIds[i] = backup.id;
             substitutions.push({ outId: pid, inId: backup.id });
             // Transfer C/VC role to the backup if the absent player held it
             if (pid === effectiveCaptainId) effectiveCaptainId = backup.id;
             if (pid === effectiveVcId) effectiveVcId = backup.id;
           }
+        }
+
+        // Hard safety net: effectivePlayerIds must never contain duplicates.
+        // This should be unreachable after the guard above, but log loudly if it ever fires.
+        const seenIds = new Set<string>();
+        for (const id of effectivePlayerIds) {
+          if (seenIds.has(id)) {
+            console.error(`[resolveEffectiveXI] DUPLICATE player ID in final XI for team ${(team as any).id}: ${id} — this is a bug`);
+          }
+          seenIds.add(id);
         }
 
         return { effectivePlayerIds, effectiveCaptainId, effectiveVcId, substitutions };
