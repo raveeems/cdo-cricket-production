@@ -1750,6 +1750,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           validBackupXi2Edit = null;
         }
 
+        // ── Carried-forward backup XI vs impact picks integrity ───────────────────
+        // The impactSetE check above only runs for newly submitted backup IDs
+        // (rawId !== undefined). Carried-forward values skip that block entirely.
+        // This guard closes that gap by re-checking the final resolved backup XI
+        // values against the final resolved impact picks before the DB write.
+        const finalImpactSetE = new Set(
+          [validPrimaryImpactId, validBackupImpactId].filter(Boolean) as string[]
+        );
+        if (validBackupXi1Edit && finalImpactSetE.has(validBackupXi1Edit)) {
+          return res.status(400).json({ message: "Backup 1 overlaps with your Impact picks. Please update or clear Backup 1 before saving." });
+        }
+        if (validBackupXi2Edit && finalImpactSetE.has(validBackupXi2Edit)) {
+          return res.status(400).json({ message: "Backup 2 overlaps with your Impact picks. Please update or clear Backup 2 before saving." });
+        }
+
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId!, team.matchId);
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {

@@ -4383,6 +4383,15 @@ async function registerRoutes(app2) {
         if (validBackupXi2Edit && playerIdSetE.has(validBackupXi2Edit)) {
           validBackupXi2Edit = null;
         }
+        const finalImpactSetE = new Set(
+          [validPrimaryImpactId, validBackupImpactId].filter(Boolean)
+        );
+        if (validBackupXi1Edit && finalImpactSetE.has(validBackupXi1Edit)) {
+          return res.status(400).json({ message: "Backup 1 overlaps with your Impact picks. Please update or clear Backup 1 before saving." });
+        }
+        if (validBackupXi2Edit && finalImpactSetE.has(validBackupXi2Edit)) {
+          return res.status(400).json({ message: "Backup 2 overlaps with your Impact picks. Please update or clear Backup 2 before saving." });
+        }
         const existingTeams = await storage.getUserTeamsForMatch(req.session.userId, team.matchId);
         const sortedNewIds = [...playerIds].sort();
         for (const et of existingTeams) {
