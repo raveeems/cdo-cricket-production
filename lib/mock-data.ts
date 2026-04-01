@@ -39,6 +39,7 @@ export interface Match {
   revisedStartTime?: string | null;
   adminUnlockOverride?: boolean;
   firstScorecardAt?: string | null;
+  playingXIManual?: boolean;
 }
 
 export interface ContestTeam {

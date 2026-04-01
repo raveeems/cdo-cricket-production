@@ -332,7 +332,7 @@ function CaptainItem({
 }
 
 export default function CreateTeamScreen() {
-  const params = useLocalSearchParams<{ matchId: string; editTeamId?: string }>();
+  const params = useLocalSearchParams<{ matchId: string; editTeamId?: string; openBackup?: string }>();
   const matchId = params.matchId;
   const editTeamId = params.editTeamId;
   const { colors, isDark } = useTheme();
@@ -347,7 +347,7 @@ export default function CreateTeamScreen() {
   const isEditMode = !!editTeamId;
   const editingTeam = isEditMode ? getTeamById(editTeamId!) : undefined;
 
-  const [step, setStep] = useState<Step>('select');
+  const [step, setStep] = useState<Step>(() => params.openBackup === 'true' && !!editTeamId ? 'preview' : 'select');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
     if (editingTeam) return new Set(editingTeam.playerIds);
     return new Set();
@@ -362,7 +362,7 @@ export default function CreateTeamScreen() {
   // XI Backup system
   const [backupXiPlayer1Id, setBackupXiPlayer1Id] = useState<string | null>(() => (editingTeam as any)?.backupXiPlayer1Id || null);
   const [backupXiPlayer2Id, setBackupXiPlayer2Id] = useState<string | null>(() => (editingTeam as any)?.backupXiPlayer2Id || null);
-  const [showBackupPicker, setShowBackupPicker] = useState(false);
+  const [showBackupPicker, setShowBackupPicker] = useState(() => params.openBackup === 'true' && !!editTeamId);
   const [filter, setFilter] = useState<RoleFilter>('ALL');
   const [isSaving, setIsSaving] = useState(false);
 

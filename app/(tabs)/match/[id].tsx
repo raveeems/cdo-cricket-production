@@ -491,6 +491,50 @@ export default function MatchDetailScreen() {
                   </Text>
                 </View>
               )}
+
+              {/* ── XI Backup row ── */}
+              {(() => {
+                const b1Name = team.backupXiPlayer1Id ? (players.find(p => p.id === team.backupXiPlayer1Id!)?.name || null) : null;
+                const b2Name = team.backupXiPlayer2Id ? (players.find(p => p.id === team.backupXiPlayer2Id!)?.name || null) : null;
+                const hasBackups = !!(b1Name || b2Name);
+                const backupLocked = !canEdit || !!match.playingXIManual;
+                return (
+                  <Pressable
+                    onPress={() => {
+                      if (backupLocked) return;
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({ pathname: '/create-team/[matchId]', params: { matchId: match.id, editTeamId: team.id, openBackup: 'true' } });
+                    }}
+                    style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: hasBackups ? colors.primary + '35' : colors.border, backgroundColor: hasBackups ? colors.primary + '08' : colors.surfaceElevated }}
+                  >
+                    <Ionicons name="shield-checkmark-outline" size={13} color={hasBackups ? colors.primary : colors.textTertiary} />
+                    {hasBackups ? (
+                      <Text style={{ flex: 1, color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                        <Text style={{ fontFamily: 'Inter_600SemiBold' as const, color: colors.primary }}>B1</Text>
+                        {' '}{b1Name || '—'}
+                        {b2Name ? (
+                          <>
+                            {'  '}
+                            <Text style={{ fontFamily: 'Inter_600SemiBold' as const, color: colors.primary }}>B2</Text>
+                            {' '}{b2Name}
+                          </>
+                        ) : null}
+                      </Text>
+                    ) : (
+                      <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                        {backupLocked ? 'XI Backups locked' : 'Add XI Backups'}
+                      </Text>
+                    )}
+                    {!backupLocked && (
+                      <Ionicons name={hasBackups ? 'pencil' : 'add'} size={13} color={colors.primary} />
+                    )}
+                    {backupLocked && (
+                      <Ionicons name="lock-closed-outline" size={12} color={colors.textTertiary} />
+                    )}
+                  </Pressable>
+                );
+              })()}
+
             </View>
           </View>
         ))
