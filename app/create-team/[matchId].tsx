@@ -589,11 +589,17 @@ export default function CreateTeamScreen() {
   const impactEligiblePlayers = useMemo(() => {
     if (!impactEnabled) return [];
     const xiBackupIds = new Set([backupXiPlayer1Id, backupXiPlayer2Id].filter(Boolean) as string[]);
-    // Only show players the admin has designated as impact sub candidates
+    // Post-toss: admin has designated official impact candidates — show only those.
+    // Pre-toss: no designations yet — show all players outside the main XI and XI backups.
+    if (hasPlayingXIData) {
+      return allPlayers.filter(
+        p => p.isImpactPlayer === true && !selectedIds.has(p.id) && !xiBackupIds.has(p.id)
+      );
+    }
     return allPlayers.filter(
-      p => p.isImpactPlayer === true && !selectedIds.has(p.id) && !xiBackupIds.has(p.id)
+      p => !selectedIds.has(p.id) && !xiBackupIds.has(p.id)
     );
-  }, [allPlayers, selectedIds, impactEnabled, backupXiPlayer1Id, backupXiPlayer2Id]);
+  }, [allPlayers, selectedIds, impactEnabled, backupXiPlayer1Id, backupXiPlayer2Id, hasPlayingXIData]);
 
   const primaryImpactPlayer = useMemo(() => {
     if (!primaryImpactId) return null;
