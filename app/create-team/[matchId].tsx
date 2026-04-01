@@ -584,14 +584,16 @@ export default function CreateTeamScreen() {
 
   const impactEligiblePlayers = useMemo(() => {
     if (!impactEnabled) return [];
-    // Exclude main XI players AND any players already chosen as XI backups (B1/B2).
-    // A player cannot be both a backup XI pick and an Impact pick — they serve
-    // different roles and the same player in both creates scoring ambiguity.
+    // Any non-XI, non-backup squad member is eligible per IPL Impact Player rules.
+    // Admin-designated players (isImpactPlayer=true) are sorted to the top as
+    // recommended picks, but the pool is never hard-restricted to only those players.
     const xiBackupIds = new Set([backupXiPlayer1Id, backupXiPlayer2Id].filter(Boolean) as string[]);
-    const nonXIPlayers = allPlayers.filter(p => !selectedIds.has(p.id) && !xiBackupIds.has(p.id));
-    // If admin has designated specific impact bench players, restrict to only those
-    const adminDesignated = nonXIPlayers.filter(p => p.isImpactPlayer === true);
-    return adminDesignated.length > 0 ? adminDesignated : nonXIPlayers;
+    const pool = allPlayers.filter(p => !selectedIds.has(p.id) && !xiBackupIds.has(p.id));
+    return [...pool].sort((a, b) => {
+      const aDesig = a.isImpactPlayer === true ? 0 : 1;
+      const bDesig = b.isImpactPlayer === true ? 0 : 1;
+      return aDesig - bDesig;
+    });
   }, [allPlayers, selectedIds, impactEnabled, backupXiPlayer1Id, backupXiPlayer2Id]);
 
   const primaryImpactPlayer = useMemo(() => {
