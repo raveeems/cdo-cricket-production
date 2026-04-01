@@ -130,7 +130,8 @@ export default function MatchDetailScreen() {
     queryKey: ['/api/matches', id],
     enabled: !!id && !isMockId,
     initialData: (isMockId && mockMatchFromDev) ? { match: mockMatchFromDev } : undefined,
-    retry: 1,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
     staleTime: 5000,
     refetchInterval: (query) => {
       const status = query.state.data?.match?.status;
@@ -295,7 +296,7 @@ export default function MatchDetailScreen() {
   }
   // ── END DIAGNOSTIC BLOCK ──────────────────────────────────────────────────
 
-  if (matchLoading || playersLoading) {
+  if (!id || matchLoading || playersLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={{ paddingTop: insets.top + webTopInset + 8, paddingHorizontal: 16, paddingBottom: 28, backgroundColor: colors.primary + 'CC' }}>
