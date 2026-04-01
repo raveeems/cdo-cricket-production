@@ -1,0 +1,333 @@
+Act as a senior product-minded full-stack engineer. I need you to implement two new features in my fantasy cricket app carefully, without breaking the existing gameplay.
+
+IMPORTANT
+Do not assume.
+Do a code-aware implementation.
+Preserve all current working flows:
+- Playing XI + Impact selection
+- create-team
+- Impact backup logic
+- winner prediction
+- pot management current flow
+- scoring integrity
+
+I want these 2 new features:
+
+==================================================
+FEATURE 1 — PLAYING XI BACKUP SYSTEM
+==================================================
+
+BUSINESS GOAL
+Some users may be busy for 2–3 days and may not be able to react before every match. I want to allow them to still remain active by selecting backup players in advance.
+
+This backup feature is only for users who want protection if one or more of their selected Playing XI players do not make the official Playing XI.
+
+IMPORTANT PRODUCT RULE
+User can select backups only BEFORE official Playing XI is announced / before entry lock.
+Once admin sets official Playing XI (or once entry lock condition is reached), backups cannot be edited.
+
+SCOPE
+This feature is for MAIN PLAYING XI only.
+Do NOT redesign the whole game.
+Do NOT change pot logic automatically.
+Do NOT link this directly to weekly penalty logic.
+This is only a team-protection feature.
+
+BACKUP MODEL TO IMPLEMENT
+Use the simpler and safer model:
+
+- User selects main team as normal
+- User can additionally select up to 2 Playing XI backup players
+- These 2 backups are global priority backups, not mapped player-to-player backups
+
+Meaning:
+- Backup 1 = first replacement priority
+- Backup 2 = second replacement priority
+
+NOT this:
+- Raja -> Dhoni
+- David -> Samson
+
+I do NOT want per-player replacement mapping.
+
+HOW REPLACEMENT SHOULD WORK
+At resolution time, after official Playing XI is known:
+
+1. Find selected main-team players who are NOT in the official Playing XI
+2. Use Backup 1 first if it is valid and in official Playing XI
+3. Use Backup 2 next if needed and valid
+4. Maximum 2 replacements only
+5. If backups are also not in official XI, no replacement for those slots
+6. If no selected main player misses, backups are ignored
+
+IMPORTANT RULES
+- Backup player cannot already be in main XI
+- Backup player cannot duplicate another backup
+- Backup player cannot overlap with main Impact player or Impact backup(s)
+- Backups can be edited only before official Playing XI announcement / entry lock
+- Maximum 2 XI backups only
+- If 3 or more selected players miss, only first 2 valid replacements happen
+- Do NOT auto-transfer captain/vice-captain if captain or vice-captain misses
+- Backup replaces only the player slot, not captaincy or vice-captaincy
+
+UI / UX REQUIREMENT
+In create-team flow, after main XI selection, add a clearly labeled section:
+
+Playing XI Backups (Optional)
+
+Text:
+“If you may be unavailable, choose up to 2 backup players. These will replace missing main XI picks in priority order if those players are not in the official Playing XI.”
+
+UI behavior:
+- Show only eligible remaining players
+- Let user select:
+  - Backup 1
+  - Backup 2
+- Priority must be visually obvious
+- Disable or block invalid selections
+- Keep this simple and clean
+- Do not clutter the main team selection experience
+
+DATA / BACKEND REQUIREMENTS
+Add storage for:
+- backup_player_1_id
+- backup_player_2_id
+
+Integrate into:
+- team save flow
+- team edit flow
+- validation
+- resolution logic used before scoring / entry finalization
+
+LOCK RULE
+Backups must not be editable:
+- once official Playing XI is announced
+- OR once normal fantasy entry lock applies
+Use the same effective lock logic already used for team editing where appropriate.
+
+RESOLUTION LOGIC
+Implement safe resolution using official Playing XI data already stored by admin.
+
+Need a deterministic function for:
+- selected main XI
+- backup1
+- backup2
+- official current match XI
+→ resolved effective XI
+
+This resolved team must then be used safely in scoring flow.
+
+==================================================
+FEATURE 2 — POT MANAGEMENT PENALTY MODE
+==================================================
+
+BUSINESS GOAL
+Some users participate irregularly. I want a way for admin to manually penalize users in pot calculation when needed, without the app trying to fully automate weekly attendance detection.
+
+IMPORTANT PRODUCT RULE
+The app does NOT need to automatically detect:
+- how many matches a user missed in the week
+- whether the user deserves penalty
+- weekly attendance policy
+
+Admin will track that externally/manually.
+
+The app only needs to support a structured manual penalty mechanism in Pot Management.
+
+REQUIRED POT MANAGEMENT MODES
+
+MODE 1
+As per contest entries
+- current behavior
+- only users who entered that contest count toward pot
+
+MODE 2
+Contest entries + penalty users
+- all actual contest entrants count normally
+- admin can additionally select users to add a fixed penalty contribution
+- these penalty users affect POT ONLY
+- they do NOT become contest participants
+- they do NOT appear in leaderboard/standings for that match
+- they do NOT become eligible for winnings for that match
+
+IMPORTANT
+Penalty users are financial contributors only.
+They are NOT participants.
+
+UI REQUIREMENT
+In Pot Management, add:
+
+1. Calculation mode selector
+- As per contest entries
+- Contest entries + penalty users
+
+2. If penalty mode selected:
+- show penalty amount per user (default 30, editable if needed)
+- show list of users for admin to select penalty users
+
+3. Very important:
+Users already counted via contest entry should NOT be selectable as penalty users
+Best behavior:
+- disable them in list
+- show note like “Already included via contest entry”
+
+4. Show clear preview
+Example:
+- Contest entries: 7 × 30 = 210
+- Penalty users: 2 × 30 = 60
+- Total pot = 270
+
+This preview is mandatory.
+
+DATA MODEL REQUIREMENT
+Store enough information for auditability.
+
+Preferred approach:
+Create a linked structure/table for penalty users rather than just raw JSON if current architecture supports that cleanly.
+
+Need to store:
+- calculation_mode
+- penalty_amount_per_user
+- penalty user IDs
+- who saved it / when, if current architecture already supports audit-like fields
+
+FORMULA
+Mode 1:
+pot = contest_entry_count × per_user_amount
+
+Mode 2:
+pot = (contest_entry_count × per_user_amount) + (penalty_user_count × penalty_amount)
+
+IMPORTANT
+Penalty users should not affect:
+- match participants list
+- leaderboard
+- prize eligibility
+
+They affect pot total only.
+
+==================================================
+IMPLEMENTATION GUIDELINES
+==================================================
+
+GENERAL PRINCIPLES
+1. These two features must remain independent
+   - XI backup = user gameplay support
+   - penalty mode = admin pot accounting support
+
+2. Do NOT automatically connect:
+   - using backup
+   - missing a match
+   - applying penalty
+   These decisions remain manual/admin-driven.
+
+3. Do NOT break any current logic:
+   - Impact player logic
+   - Impact backup logic
+   - create-team save/edit
+   - scoring
+   - admin Playing XI / Impact setup
+   - pot processing current mode
+
+4. Keep UX understandable
+   - simple labels
+   - clear validation
+   - no hidden rule complexity
+
+==================================================
+TASKS
+==================================================
+
+PART A — AUDIT FIRST
+Before implementing, inspect current codebase and confirm:
+1. Where user team data is stored
+2. Where captain/vice-captain and Impact backup are stored
+3. Where official Playing XI is resolved during scoring
+4. Where pot management calculation currently happens
+5. What is the safest table/model extension for:
+   - XI backups
+   - penalty users
+
+PART B — IMPLEMENT FEATURE 1
+Implement Playing XI backups:
+- DB/model changes
+- API/save/edit changes
+- validation
+- lock behavior
+- resolution logic
+- UI in create-team flow
+
+PART C — IMPLEMENT FEATURE 2
+Implement new Pot Management mode:
+- mode selector
+- penalty amount field
+- selectable penalty users
+- prevention of double counting
+- pot preview
+- persistence
+- pot calculation integration
+
+PART D — TESTING / VERIFICATION
+I want exact verification for both features.
+
+==================================================
+OUTPUT FORMAT I WANT AFTER IMPLEMENTATION
+==================================================
+
+A. Architecture summary
+- where XI backups are stored
+- where penalty users are stored
+- why this design is safest
+
+B. Exact files changed
+- file path
+- functions/components changed
+
+C. Playing XI backup behavior
+- exact UI flow
+- exact validation rules
+- exact lock rule
+- exact resolution logic
+- captain/vice-captain behavior if missing
+
+D. Pot management penalty behavior
+- exact UI flow
+- exact mode behavior
+- how penalty users are excluded from participants/leaderboard
+- exact pot formula
+
+E. Edge cases handled
+Examples:
+- backup overlaps main XI
+- backup overlaps impact
+- only 1 backup valid
+- both backups invalid
+- entrant selected again as penalty user
+- no penalty users selected in penalty mode
+
+F. Manual test cases completed
+For XI backup:
+- 1 missing player replaced
+- 2 missing players replaced
+- backup blocked after official XI
+- captain missing but no captain transfer
+For pot mode:
+- entries only
+- entries + penalty users
+- penalty users not shown in contest participants
+- total pot correct
+
+G. Anything still not implemented
+- list honestly
+
+==================================================
+IMPORTANT
+==================================================
+
+Do not give me only a theoretical answer.
+Implement carefully and report exact changes.
+
+Do not overcomplicate XI backups with per-player mapping.
+Do not automate weekly penalty detection.
+Do not break current gameplay.
+Keep both features practical, understandable, and admin-friendly.
