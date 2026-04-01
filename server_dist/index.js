@@ -1,5 +1,11 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -837,6 +843,7 @@ var init_storage = __esm({
 var cricket_api_exports = {};
 __export(cricket_api_exports, {
   ensureIPLPreviewMatches: () => ensureIPLPreviewMatches,
+  fetchCFLLScoreHeader: () => fetchCFLLScoreHeader,
   fetchCrexScorecard: () => fetchCrexScorecard,
   fetchCricbuzzLiveScorecard: () => fetchCricbuzzLiveScorecard,
   fetchCricbuzzScorecard: () => fetchCricbuzzScorecard,
@@ -2401,6 +2408,160 @@ async function fetchCricbuzzLiveScorecard(team1Short, team2Short) {
     return null;
   }
 }
+async function fetchCFLLPage(url) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12e3);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5"
+      }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    return res.text();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+function parseCFLLNextData(html) {
+  const m = html.match(
+    /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/
+  );
+  if (!m) return null;
+  try {
+    const json = JSON.parse(m[1]);
+    const postData = json.props?.pageProps?.postData;
+    if (!postData) return null;
+    try {
+      const zlib = __require("zlib");
+      const decoded = JSON.parse(
+        zlib.inflateSync(Buffer.from(postData, "base64")).toString("utf8")
+      );
+      return Array.isArray(decoded) ? decoded[0] : decoded;
+    } catch {
+      const decoded = JSON.parse(postData);
+      return Array.isArray(decoded) ? decoded[0] : decoded;
+    }
+  } catch {
+    return null;
+  }
+}
+async function findCFLLMatchUrl(team1Short, team2Short) {
+  const now = Date.now();
+  if (!cfllScheduleCache || now - cfllScheduleCache.fetchedAt > CFLL_SCHEDULE_TTL_MS) {
+    console.log("[CFLL] Refreshing IPL 2026 schedule cache");
+    try {
+      const html = await fetchCFLLPage(CFLL_IPL_SCHEDULE_URL);
+      const data = parseCFLLNextData(html);
+      if (!data) throw new Error("No NEXT_DATA from CFLL schedule page");
+      const allMatches = [
+        ...data.upcommingMatchData || [],
+        ...data.liveMatchesData || [],
+        ...data.completedMatchData || []
+      ];
+      const toSlug = (s) => s.toLowerCase().replace(/\s+/g, "-");
+      const entries = [];
+      for (const match of allMatches) {
+        const t12 = (match.t1_id || match.teams?.a?.key || "").toString();
+        const t22 = (match.t2_id || match.teams?.b?.key || "").toString();
+        const key = (match.key || match.match_id || "").toString();
+        const matchNum = toSlug(match.related_name || "");
+        const format = (match.format || "t20").toLowerCase();
+        if (!t12 || !t22 || !key || !matchNum) continue;
+        const slug = `${t12}-vs-${t22}-${matchNum}-${format}-indian-premier-league-2026`;
+        const url = `https://cricketfastliveline.in/live-score/${slug}/${key}`;
+        entries.push({ team1: t12, team2: t22, url });
+      }
+      cfllScheduleCache = { entries, fetchedAt: now };
+      console.log(`[CFLL] Cached ${entries.length} IPL 2026 match URLs`);
+    } catch (e) {
+      console.error("[CFLL] Schedule fetch failed:", e);
+      return null;
+    }
+  }
+  const t1 = team1Short.toLowerCase();
+  const t2 = team2Short.toLowerCase();
+  const entry = cfllScheduleCache.entries.find(
+    (e) => e.team1 === t1 && e.team2 === t2 || e.team1 === t2 && e.team2 === t1
+  );
+  if (entry) {
+    console.log(`[CFLL] URL for ${team1Short} vs ${team2Short}: ${entry.url}`);
+    return entry.url;
+  }
+  console.log(
+    `[CFLL] No URL for ${team1Short} vs ${team2Short} (${cfllScheduleCache.entries.length} cached)`
+  );
+  return null;
+}
+function parseCFLLScore(data) {
+  const sd = data?.statesdata || {};
+  const comm = data?.commentrydata || [];
+  const bsn = String(sd.bsn || sd.tm1_sn || "");
+  const bosn = String(sd.bosn || sd.tm2_sn || "");
+  const status = String(sd.status || "");
+  const result = String(sd.result || "").trim();
+  const inningId = String(sd.inning_id || "1");
+  const run = String(sd.run || "0");
+  const wicket = String(sd.wicket || "0");
+  const over = parseFloat(String(sd.over || "0"));
+  const matchEnded = status === "completed" || !!result;
+  const scoreParts = [];
+  if (inningId === "1") {
+    if (bsn && (parseInt(run) > 0 || over > 0)) {
+      scoreParts.push(`${bsn}: ${run}/${wicket} (${over} ov)`);
+    }
+  } else {
+    const inn1Entries = comm.filter((e) => String(e.inning) === "1");
+    const lastInn1 = inn1Entries.length > 0 ? inn1Entries.reduce((best, e) => {
+      const bo = parseFloat(String(e.over || "0"));
+      const bestO = parseFloat(String(best.over || "0"));
+      return bo > bestO ? e : best;
+    }, inn1Entries[0]) : null;
+    let inn1Score = "";
+    if (lastInn1) {
+      const w = String(lastInn1.wickets || "?");
+      const r = String(lastInn1.score || lastInn1.run || "");
+      const o = parseFloat(String(lastInn1.over || "20"));
+      const finalOv = o >= 19 ? "20.0" : String(o);
+      if (r) inn1Score = `${bosn}: ${r}/${w} (${finalOv} ov)`;
+    } else if (sd.target) {
+      const target = parseInt(String(sd.target), 10);
+      if (target > 1) inn1Score = `${bosn}: ${target - 1}/? (?ov)`;
+    }
+    if (inn1Score) scoreParts.push(inn1Score);
+    if (bsn && (parseInt(run) > 0 || over > 0)) {
+      scoreParts.push(`${bsn}: ${run}/${wicket} (${over} ov)`);
+    }
+  }
+  let scoreString = scoreParts.join(" | ");
+  if (matchEnded && result) scoreString += ` \u2014 ${result}`;
+  const totalOvers = over + (inningId === "2" ? 20 : 0);
+  return { scoreString, matchEnded, totalOvers };
+}
+async function fetchCFLLScoreHeader(team1Short, team2Short) {
+  try {
+    const url = await findCFLLMatchUrl(team1Short, team2Short);
+    if (!url) return null;
+    const html = await fetchCFLLPage(url);
+    const data = parseCFLLNextData(html);
+    if (!data) return null;
+    const result = parseCFLLScore(data);
+    if (!result.scoreString) return null;
+    console.log(
+      `[CFLL] ${team1Short} vs ${team2Short}: score="${result.scoreString}", ended=${result.matchEnded}`
+    );
+    return result;
+  } catch (err) {
+    console.error(
+      `[CFLL] fetchCFLLScoreHeader failed for ${team1Short} vs ${team2Short}:`,
+      err
+    );
+    return null;
+  }
+}
 async function fetchCrexPage(url) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15e3);
@@ -2635,7 +2796,7 @@ ${sorted.map(([n, p]) => `  ${n}: ${p}`).join("\n")}`
     return null;
   }
 }
-var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, KNOWN_TEAM_CODES, IPL_2026_SERIES_ID_PREVIEW, IPL_2026_HARDCODED, _iplPreviewCache, IPL_PREVIEW_TTL_MS, lastStatusRefresh, STATUS_REFRESH_INTERVAL, CRICBUZZ_HOST, crexScheduleCache, CREX_IPL_SCHEDULE_URL, CREX_SCHEDULE_TTL_MS;
+var CRICKET_API_BASE, dailyApiCalls, dailyApiCallDate, tier1BlockedUntil, scorecardStateCache, DELAY_KEYWORDS, TEAM_COLORS, KNOWN_TEAM_CODES, IPL_2026_SERIES_ID_PREVIEW, IPL_2026_HARDCODED, _iplPreviewCache, IPL_PREVIEW_TTL_MS, lastStatusRefresh, STATUS_REFRESH_INTERVAL, CRICBUZZ_HOST, CFLL_IPL_SCHEDULE_URL, CFLL_SCHEDULE_TTL_MS, cfllScheduleCache, crexScheduleCache, CREX_IPL_SCHEDULE_URL, CREX_SCHEDULE_TTL_MS;
 var init_cricket_api = __esm({
   "server/cricket-api.ts"() {
     "use strict";
@@ -2735,6 +2896,9 @@ var init_cricket_api = __esm({
     lastStatusRefresh = 0;
     STATUS_REFRESH_INTERVAL = 5 * 60 * 1e3;
     CRICBUZZ_HOST = "cricbuzz-cricket.p.rapidapi.com";
+    CFLL_IPL_SCHEDULE_URL = "https://cricketfastliveline.in/series/indian-premier-league-2026/schedule/a-rz--cricket--bcci--iplt20--2026-ZGwl";
+    CFLL_SCHEDULE_TTL_MS = 24 * 60 * 60 * 1e3;
+    cfllScheduleCache = null;
     crexScheduleCache = null;
     CREX_IPL_SCHEDULE_URL = "https://crex.com/series/indian-premier-league-2026-1PW/matches";
     CREX_SCHEDULE_TTL_MS = 24 * 60 * 60 * 1e3;
@@ -6975,7 +7139,7 @@ function setupErrorHandler(app2) {
     };
     if (!match.externalId) return empty;
     try {
-      const { fetchMatchScorecardWithScore: fetchMatchScorecardWithScore2, fetchMatchInfo: fetchMatchInfo2, fetchCricbuzzScorecard: fetchCricbuzzScorecard2, fetchCrexScorecard: fetchCrexScorecard2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+      const { fetchMatchScorecardWithScore: fetchMatchScorecardWithScore2, fetchMatchInfo: fetchMatchInfo2, fetchCricbuzzScorecard: fetchCricbuzzScorecard2, fetchCrexScorecard: fetchCrexScorecard2, fetchCFLLScoreHeader: fetchCFLLScoreHeader2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
       const result = {
         pointsMap: /* @__PURE__ */ new Map(),
         namePointsMap: /* @__PURE__ */ new Map(),
@@ -6987,22 +7151,42 @@ function setupErrorHandler(app2) {
       };
       let source = "";
       if (match.team1Short && match.team2Short) {
-        try {
-          log(`[Heartbeat:Score] Crex (primary) for ${match.team1Short} vs ${match.team2Short}`);
-          const crexResult = await fetchCrexScorecard2(match.team1Short, match.team2Short);
-          if (crexResult && (crexResult.namePointsMap.size > 0 || crexResult.scoreString)) {
-            result.namePointsMap = crexResult.namePointsMap;
-            result.battedOrBowledPlayers = crexResult.battedOrBowledPlayers;
-            result.scoreString = crexResult.scoreString || "";
-            result.matchEnded = crexResult.matchEnded;
-            result.totalOvers = crexResult.totalOvers;
-            source = "Crex";
-            log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players (${crexResult.battedOrBowledPlayers.size} batted/bowled), score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
+        log(`[Heartbeat:Score] Fetching Crex (scorecard) + CFLL (score header) in parallel for ${match.team1Short} vs ${match.team2Short}`);
+        const [crexSettled, cfllSettled] = await Promise.allSettled([
+          fetchCrexScorecard2(match.team1Short, match.team2Short),
+          fetchCFLLScoreHeader2(match.team1Short, match.team2Short)
+        ]);
+        const crexResult = crexSettled.status === "fulfilled" ? crexSettled.value : null;
+        const cfllResult = cfllSettled.status === "fulfilled" ? cfllSettled.value : null;
+        if (crexSettled.status === "rejected") {
+          log(`[Heartbeat:Score] Crex error: ${crexSettled.reason}`);
+        }
+        if (cfllSettled.status === "rejected") {
+          log(`[Heartbeat:Score] CFLL error: ${cfllSettled.reason}`);
+        }
+        if (crexResult && (crexResult.namePointsMap.size > 0 || crexResult.scoreString)) {
+          result.namePointsMap = crexResult.namePointsMap;
+          result.battedOrBowledPlayers = crexResult.battedOrBowledPlayers;
+          result.scoreString = crexResult.scoreString || "";
+          result.matchEnded = crexResult.matchEnded;
+          result.totalOvers = crexResult.totalOvers;
+          source = "Crex";
+          log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players (${crexResult.battedOrBowledPlayers.size} batted/bowled), score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
+        } else {
+          log(`[Heartbeat:Score] Crex empty \u2014 will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
+        }
+        if (cfllResult?.scoreString) {
+          const cfllOvers = cfllResult.totalOvers || 0;
+          const crexOvers = result.totalOvers || 0;
+          if (!result.scoreString || cfllOvers >= crexOvers) {
+            result.scoreString = cfllResult.scoreString;
+            if (cfllResult.matchEnded) result.matchEnded = true;
+            if (cfllOvers > result.totalOvers) result.totalOvers = cfllOvers;
+            source = source ? `${source}+CFLL` : "CFLL";
+            log(`[Heartbeat:Score] CFLL score header applied: "${cfllResult.scoreString}"`);
           } else {
-            log(`[Heartbeat:Score] Crex empty \u2014 will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
+            log(`[Heartbeat:Score] CFLL score skipped (${cfllOvers} ov < Crex ${crexOvers} ov)`);
           }
-        } catch (crexErr) {
-          log(`[Heartbeat:Score] Crex error for ${match.team1Short} vs ${match.team2Short}: ${crexErr}`);
         }
       }
       if (!source && process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
@@ -7393,7 +7577,7 @@ function setupErrorHandler(app2) {
           const existingOvers = extractTotalOversFromScoreString(existingScoreStr);
           const existingInningsCount = (existingScoreStr.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length;
           const incomingInningsCount = scoreString ? (scoreString.match(/\(\d+(?:\.\d+)?\s*ov\)/g) || []).length : 0;
-          const isStaleScore = source !== "Crex" && totalOvers > 0 && totalOvers < existingOvers && incomingInningsCount <= existingInningsCount;
+          const isStaleScore = !source.includes("Crex") && !source.includes("CFLL") && totalOvers > 0 && totalOvers < existingOvers && incomingInningsCount <= existingInningsCount;
           if (isStaleScore) {
             log(
               `[Heartbeat] STALE SCORE skipped for ${matchLabel}: incoming ${totalOvers} ov < existing ${existingOvers} ov \u2014 points still processed`
