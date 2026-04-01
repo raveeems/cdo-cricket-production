@@ -3925,13 +3925,6 @@ async function registerRoutes(app2) {
               externalId: p.externalId
             }));
           }
-          const impactCandidateIds = [t.primaryImpactId, t.backupImpactId].filter(Boolean);
-          for (const impId of impactCandidateIds) {
-            const impP = playerById.get(impId);
-            if (impP?.isImpactPlayer && !resolvedPlayers.find((rp) => rp.id === impP.id)) {
-              resolvedPlayers.push({ id: impP.id, name: impP.name, role: impP.role, points: impP.points || 0, teamShort: impP.teamShort, externalId: impP.externalId, isPlayingXI: false, isImpactPlayer: true });
-            }
-          }
           const xiAnnouncedInMatch = matchPlayersForResponse.some((p) => p.isPlayingXI);
           let effectiveCaptainId = t.captainId ?? null;
           let effectiveVcId = t.viceCaptainId ?? null;

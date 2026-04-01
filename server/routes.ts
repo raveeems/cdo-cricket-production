@@ -1223,15 +1223,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }));
             }
 
-            // Include activated impact player in resolvedPlayers if not already there
-            const impactCandidateIds = [t.primaryImpactId, t.backupImpactId].filter(Boolean) as string[];
-            for (const impId of impactCandidateIds) {
-              const impP = playerById.get(impId);
-              if (impP?.isImpactPlayer && !resolvedPlayers.find(rp => rp.id === impP.id)) {
-                resolvedPlayers.push({ id: impP.id, name: impP.name, role: impP.role, points: impP.points || 0, teamShort: impP.teamShort, externalId: impP.externalId, isPlayingXI: false, isImpactPlayer: true });
-              }
-            }
-
             // Apply XI backup substitution — mirrors resolveEffectiveXI in server/index.ts.
             // Only active when XI is announced. Replaces absent players (isPlayingXI=false) with
             // backups that ARE in the official XI. C/VC roles transfer with the replaced slot.
