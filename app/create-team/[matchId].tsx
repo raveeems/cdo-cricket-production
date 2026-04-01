@@ -583,11 +583,15 @@ export default function CreateTeamScreen() {
 
   const impactEligiblePlayers = useMemo(() => {
     if (!impactEnabled) return [];
-    const nonXIPlayers = allPlayers.filter(p => !selectedIds.has(p.id));
+    // Exclude main XI players AND any players already chosen as XI backups (B1/B2).
+    // A player cannot be both a backup XI pick and an Impact pick — they serve
+    // different roles and the same player in both creates scoring ambiguity.
+    const xiBackupIds = new Set([backupXiPlayer1Id, backupXiPlayer2Id].filter(Boolean) as string[]);
+    const nonXIPlayers = allPlayers.filter(p => !selectedIds.has(p.id) && !xiBackupIds.has(p.id));
     // If admin has designated specific impact bench players, restrict to only those
     const adminDesignated = nonXIPlayers.filter(p => p.isImpactPlayer === true);
     return adminDesignated.length > 0 ? adminDesignated : nonXIPlayers;
-  }, [allPlayers, selectedIds, impactEnabled]);
+  }, [allPlayers, selectedIds, impactEnabled, backupXiPlayer1Id, backupXiPlayer2Id]);
 
   const primaryImpactPlayer = useMemo(() => {
     if (!primaryImpactId) return null;
@@ -1290,6 +1294,14 @@ export default function CreateTeamScreen() {
           if (backupXiPlayer2Id === playerId) {
             setBackupXiPlayer2Id(null);
             return;
+          }
+          // If this player was already chosen as an Impact pick, clear those slots
+          // (a player cannot serve as both XI Backup and Impact pick)
+          if (primaryImpactId === playerId) {
+            setPrimaryImpactId(null);
+            setBackupImpactId(null);
+          } else if (backupImpactId === playerId) {
+            setBackupImpactId(null);
           }
           if (!backupXiPlayer1Id) { setBackupXiPlayer1Id(playerId); return; }
           if (!backupXiPlayer2Id) { setBackupXiPlayer2Id(playerId); return; }
