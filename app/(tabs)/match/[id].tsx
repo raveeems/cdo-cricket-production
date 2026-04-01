@@ -1376,7 +1376,10 @@ export default function MatchDetailScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>
+                    {(entry as any).invisibleHidden && (
+                      <Ionicons name="eye-off-outline" size={13} color={colors.textTertiary} />
+                    )}
+                    <Text style={{ color: (entry as any).invisibleHidden ? colors.textTertiary : colors.text, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>
                       {entry.teamName}
                     </Text>
                     {isMatchCompleted && entry.rank === 1 && (
@@ -1451,9 +1454,10 @@ export default function MatchDetailScreen() {
                 }
                 if (pitchPlayers.length === 0) {
                   return (
-                    <View style={{ marginTop: 10, width: '100%', padding: 16, alignItems: 'center' }}>
-                      <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const }}>
-                        Player data unavailable for this team
+                    <View style={{ marginTop: 10, width: '100%', padding: 16, alignItems: 'center', gap: 6 }}>
+                      <Ionicons name={(entry as any).invisibleHidden ? 'eye-off-outline' : 'help-circle-outline'} size={20} color={colors.textTertiary} />
+                      <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, textAlign: 'center' }}>
+                        {(entry as any).invisibleHidden ? 'Hidden until match ends' : 'Player data unavailable for this team'}
                       </Text>
                     </View>
                   );

@@ -3808,7 +3808,7 @@ async function registerRoutes(app2) {
               id: t.id,
               userId: t.userId,
               matchId: t.matchId,
-              name: t.name,
+              name: "Hidden Team",
               username: allUsers[t.userId]?.username || "Unknown",
               userTeamName: allUsers[t.userId]?.teamName || "",
               invisibleMode: true,
@@ -3868,6 +3868,7 @@ async function registerRoutes(app2) {
       if (!isLive) {
         return res.json({ standings: [], isLive: false, message: "Match has not started yet" });
       }
+      const isCompleted = match.status === "completed";
       try {
         const allTeams = await storage.getAllTeamsForMatch(matchId);
         const allUsers = {};
@@ -3883,6 +3884,28 @@ async function registerRoutes(app2) {
         const matchPlayersForResponse = await storage.getPlayersForMatch(matchId);
         const playerById = new Map(matchPlayersForResponse.map((p) => [p.id, p]));
         const standings = allTeams.map((t) => {
+          const isOwn = t.userId === req.session.userId;
+          const shouldHide = t.invisibleMode === true && !isOwn && !isCompleted;
+          if (shouldHide) {
+            return {
+              teamId: t.id,
+              teamName: "Hidden Team",
+              userId: t.userId,
+              username: allUsers[t.userId]?.username || "Unknown",
+              userTeamName: allUsers[t.userId]?.teamName || "",
+              totalPoints: t.totalPoints || 0,
+              playerIds: [],
+              captainId: null,
+              viceCaptainId: null,
+              primaryImpactId: null,
+              backupImpactId: null,
+              captainType: null,
+              vcType: null,
+              resolvedPlayers: [],
+              invisibleHidden: true,
+              rank: 0
+            };
+          }
           let resolvedPlayers = t.playerIds.map((pid) => {
             const p = playerById.get(pid);
             if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort, externalId: p.externalId, isPlayingXI: p.isPlayingXI ?? false, isImpactPlayer: p.isImpactPlayer ?? false };
