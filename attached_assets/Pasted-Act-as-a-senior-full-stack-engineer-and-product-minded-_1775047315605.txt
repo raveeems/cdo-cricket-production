@@ -1,0 +1,279 @@
+Act as a senior full-stack engineer and product-minded UX engineer working on the real fantasy cricket app codebase.
+
+I need you to REWORK the Playing XI Backup feature based on the final product decision below.
+
+IMPORTANT
+Do not implement from assumptions.
+Work from the real current codebase.
+Do not break existing working flows:
+- Main XI selection
+- Captain / Vice-Captain
+- Impact
+- Impact backup
+- Winner prediction
+- Existing create-team save/edit flow
+- Admin Playing XI / Impact setup
+- Scoring
+- Team preview / layout
+- Pot management
+
+==================================================
+FINAL PRODUCT DECISION
+==================================================
+
+The XI Backup feature should NOT be part of the main linear team creation step flow.
+
+It should NOT appear as:
+XI → B1/B2 → Impact → Impact Backup
+or
+XI → Impact → Impact Backup → B1/B2 in the main step flow
+
+Instead:
+
+Main flow remains:
+- XI
+- Impact
+- Impact Backup
+
+Then, in the TEAM SUMMARY CARD, user can optionally click a Backup icon/button to add:
+- Backup 1
+- Backup 2
+
+This is the final product decision.
+
+XI Backup is an optional protection feature, not a core mandatory pick.
+
+==================================================
+CORE UX REQUIREMENT
+==================================================
+
+After user creates/selects:
+- XI
+- Impact
+- Impact Backup
+
+and reaches the team summary card, show a clear optional action in the card itself:
+- Add Backups
+or
+- Backup icon/button
+
+This should be similar in spirit to Dream11’s backup UX, but only for:
+- B1
+- B2
+
+NOT 4 backups.
+
+When user clicks the backup action from the team summary card:
+- open a dedicated XI Backup picker
+- top shows two clear slots: B1 and B2
+- user selects B1 first, then B2
+- selected backups appear in those slots immediately
+- user can remove/replace easily
+- mobile-first, premium, touch-friendly UX
+
+==================================================
+CRITICAL OVERLAP RULES
+==================================================
+
+No player can exist simultaneously in:
+- Main XI
+- Primary Impact
+- Backup Impact
+- Backup 1
+- Backup 2
+
+This is critical.
+
+If a player is already in:
+- XI
+- Impact
+- Impact Backup
+
+they must NOT be selectable as B1/B2.
+
+Also, if user previously selected B1/B2 and later edits the team before toss and moves that same player into:
+- Main XI
+- Primary Impact
+- Backup Impact
+
+then the corresponding backup slot must automatically become empty.
+
+Examples:
+- Karun Nair is B1
+- user edits team before toss and adds Karun Nair to XI
+→ B1 must auto-clear
+
+- Sameer Rizvi is B2
+- user edits team and makes him Impact Backup
+→ B2 must auto-clear
+
+This must be enforced in:
+- frontend state
+- backend validation
+
+Backend must remain source of truth.
+
+==================================================
+LOCK RULE
+==================================================
+
+The Backup icon/button in the team summary card must be editable only before:
+- official Playing XI announcement
+OR
+- normal entry lock / deadline
+
+After official Playing XI announcement / lock:
+- backup action in team summary card becomes locked/disabled
+- user cannot add, edit, or remove B1/B2
+
+If user opens team after lock:
+- they may view existing backups if needed
+- but cannot edit them
+
+==================================================
+SCORING / REPLACEMENT RULE
+==================================================
+
+Keep the already-correct replacement logic:
+
+- Backup 1 = first priority
+- Backup 2 = second priority
+
+Backups activate only if:
+- selected main XI player is not in official Playing XI
+- backup itself is in official Playing XI
+
+Captain / Vice-Captain transfer rule remains:
+- if replaced player was Captain, replacement backup inherits Captain
+- if replaced player was Vice-Captain, replacement backup inherits Vice-Captain
+
+Backup replacement gets:
+- +4 Playing XI bonus
+- own scorecard points
+- inherited multiplier if applicable
+
+No overlap / no double-count / no double-use must ever be possible.
+
+==================================================
+TEAM LAYOUT RULE
+==================================================
+
+Do not change the already-correct final team layout rule:
+- backups must not appear as extra players
+- visible final XI layout must never show more than 11 players
+- if replacement happens, backup appears in place of missing player
+- if no replacement happens, backup stays invisible
+- current Impact bench strip stays untouched
+
+==================================================
+WHAT TO IMPLEMENT
+==================================================
+
+PART 1 — AUDIT CURRENT CODE
+Before changes, inspect and confirm:
+1. Where the current XI Backup step is in create-team flow
+2. Where team summary card is rendered
+3. Best place in the team summary card to add the backup action/icon
+4. How current save/edit flow stores:
+   - playerIds
+   - primaryImpactId
+   - backupImpactId
+   - backupXiPlayer1Id
+   - backupXiPlayer2Id
+
+PART 2 — REMOVE XI BACKUP FROM MAIN STEP FLOW
+Rework the create-team UX so that XI Backup is no longer a main step.
+
+Main step flow should remain focused on:
+- XI
+- Impact
+- Impact Backup
+
+PART 3 — ADD OPTIONAL BACKUP ENTRY FROM TEAM SUMMARY CARD
+In the team summary card:
+- show Add Backups / Backup icon/button
+- if no backups selected, show call-to-action
+- if backups selected, show compact summary (B1 / B2)
+- tapping opens dedicated backup picker
+
+PART 4 — DEDICATED BACKUP PICKER
+Build a Dream11-inspired backup picker with:
+- B1 and B2 slots at top
+- clean available player list below
+- easy add/remove
+- mobile-first UI
+- compact and premium design
+
+PART 5 — OVERLAP AUTO-CLEAR
+If user later edits team before toss and moves B1/B2 player into:
+- XI
+- Impact
+- Impact Backup
+then backup slot must auto-clear immediately.
+
+This must be visible in UI and enforced in backend.
+
+PART 6 — LOCKING
+After official XI announcement / lock:
+- backup action in team summary card becomes locked
+- no edits possible
+
+PART 7 — KEEP SCORING / LAYOUT SAFE
+Do not break:
+- replacement scoring
+- C/VC transfer
+- no-extra-player layout rule
+- impact bench strip
+
+==================================================
+OUTPUT FORMAT I WANT
+==================================================
+
+A. Actual architecture found
+- current create-team flow files
+- current team summary card file/component
+- where backup action was inserted
+
+B. Exact UX implemented
+- where backup icon/button appears in team summary card
+- how user opens backup picker
+- how B1/B2 are selected and displayed
+
+C. Exact files changed
+- file path
+- what changed
+
+D. Flow changes
+- old step flow
+- new step flow
+
+E. Overlap handling
+- exactly how overlap is prevented
+- exactly how backup slot auto-clears when player is moved into XI / Impact / Impact Backup
+
+F. Lock behavior
+- exact condition used
+- what user sees after lock
+
+G. Scoring safety
+- confirm no double-use / double-point path exists
+- confirm replacement logic still works
+
+H. Layout safety
+- confirm final visible XI remains max 11
+- confirm impact bench strip untouched
+
+I. Manual test proof
+Please explicitly test:
+1. add B1/B2 from team summary card
+2. later edit team and move B1 into XI → B1 clears automatically
+3. later edit team and move B2 into Impact → B2 clears automatically
+4. illegal overlap attempt blocked by backend
+5. backup action locked after official XI
+6. no extra players shown in final layout
+7. scoring still works with valid replacement
+
+IMPORTANT
+Do not keep XI Backup as a compulsory create-team step.
+Do not allow overlap between XI / Impact / Impact Backup / B1 / B2.
+Implement XI Backup as an optional team-summary-card action.
