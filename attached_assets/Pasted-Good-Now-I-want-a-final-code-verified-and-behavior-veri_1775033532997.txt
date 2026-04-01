@@ -1,0 +1,126 @@
+Good. Now I want a final code-verified and behavior-verified signoff report for both features.
+
+Please do not give me a generic “done” message. I want exact proof.
+
+==================================================
+PART 1 — XI BACKUP FINAL VERIFICATION
+==================================================
+
+Please verify all of the below with the actual current code and test behavior:
+
+1. Storage / persistence
+- Where exactly are Backup 1 and Backup 2 stored?
+- Exact table + columns
+- Confirm save and edit both persist correctly
+
+2. Lock behavior
+- Confirm backups cannot be edited after:
+  a) official Playing XI is announced
+  b) normal entry lock applies
+- Show the exact function/condition used
+
+3. Validation
+- Backup cannot already be in main XI
+- Backup 1 and Backup 2 cannot be same
+- Backup cannot overlap with Impact or Impact backup
+- Max 2 backups only
+- Show exact validation points in code
+
+4. Resolution logic
+- Show the exact function that resolves missing XI players with Backup 1 and Backup 2
+- Confirm max 2 replacements only
+- Confirm backups only work if they are in official Playing XI
+- Confirm no replacement if backup is also out
+
+5. Captain / Vice-Captain inheritance
+This is critical. Confirm exact behavior for:
+- Captain misses, Backup 1 replaces → Backup 1 becomes Captain
+- Vice-Captain misses, Backup 2 replaces → Backup 2 becomes Vice-Captain
+- If both missing players are Captain and Vice-Captain, explain exactly which backup inherits which role
+- If no valid replacement happens, confirm C/VC bonus is lost for that slot
+
+6. Scoring
+- Confirm replacement backup gets +4 Playing XI bonus
+- Confirm replacement backup gets their own normal match points
+- Confirm inherited Captain/VC multiplier applies correctly if role transferred
+
+7. Edge cases
+Please explicitly verify:
+- only 1 selected player misses
+- 2 selected players miss
+- 3 selected players miss
+- Backup 1 invalid, Backup 2 valid
+- both backups invalid
+- captain misses but no valid replacement
+- vice-captain misses but no valid replacement
+
+==================================================
+PART 2 — POT PENALTY MODE FINAL VERIFICATION
+==================================================
+
+Please verify all of the below with actual code and behavior:
+
+1. Mode behavior
+- entries-only mode still works exactly as before
+- entries + penalty mode adds penalty users correctly
+
+2. Penalty amount rule
+- Confirm penalty amount is the SAME as the contribution/stake amount for that pot
+- Confirm there is no separate conflicting penalty amount field unless intentionally added
+
+3. User selection
+- Confirm users already counted via contest entry cannot be selected again as penalty users
+- Show exact UI/logic enforcing that
+
+4. Pot formula
+- Show exact formula used in penalty mode
+- Confirm penalty users affect pot total only
+
+5. Isolation from contest participation
+- Confirm penalty users do NOT become:
+  - contest participants
+  - leaderboard entries
+  - prize/winnings eligible users
+
+6. Re-processing
+- Confirm exact behavior if admin re-processes:
+  - does it replace the old pot calculation?
+  - does it stack?
+  - is there any lock condition?
+
+7. Edge cases
+Please explicitly verify:
+- no penalty users selected in penalty mode
+- only penalty users selected
+- match already processed and then corrected
+- penalty mode switched back to entries-only
+
+==================================================
+PART 3 — FILES / COMMITS / TEST PROOF
+==================================================
+
+I want the final report in this format:
+
+A. Exact files changed
+- file path
+- what changed
+
+B. Schema / DB changes
+- exact columns / tables added
+- migration details
+
+C. Exact functions added or changed
+- backend
+- frontend
+
+D. Manual test proof
+- list the concrete scenarios tested
+- expected result
+- actual result
+
+E. Anything still not finished
+- list honestly
+
+IMPORTANT
+Do not just say “working”.
+I want a true final signoff report with exact proof for both features.
