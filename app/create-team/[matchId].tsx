@@ -1328,36 +1328,58 @@ export default function CreateTeamScreen() {
               </View>
             )}
 
-            {/* B1 / B2 compact side-by-side chips */}
-            <View style={{ paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', gap: 8 }}>
-              {[
-                { num: 1, player: backup1Player, clear: () => { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); } },
-                { num: 2, player: backup2Player, clear: () => setBackupXiPlayer2Id(null) },
-              ].map(slot => (
-                <View key={slot.num} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, backgroundColor: slot.player ? colors.primary + '14' : colors.surfaceElevated, borderColor: slot.player ? colors.primary + '55' : colors.border, minHeight: 50 }}>
-                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: slot.player ? colors.primary : colors.surfaceElevated, borderWidth: slot.player ? 0 : 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Text style={{ color: slot.player ? '#FFF' : colors.textTertiary, fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>{slot.num}</Text>
-                  </View>
-                  {slot.player ? (
-                    <>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }} numberOfLines={1}>{slot.player.name}</Text>
-                        <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>{slot.player.teamShort} · {slot.player.role}</Text>
+            {/* B1 / B2 — selected summary cards, visually distinct from player list */}
+            <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
+              <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold' as const, color: colors.textTertiary, letterSpacing: 0.7, marginBottom: 8, textTransform: 'uppercase' as const }}>
+                Your Backups
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[
+                  { num: 1, player: backup1Player, clear: () => { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); } },
+                  { num: 2, player: backup2Player, clear: () => setBackupXiPlayer2Id(null) },
+                ].map(slot => (
+                  <View key={slot.num} style={{ flex: 1, borderRadius: 12, borderWidth: slot.player ? 1.5 : 1, borderColor: slot.player ? colors.primary : colors.border, backgroundColor: slot.player ? colors.primary + '12' : colors.surfaceElevated, overflow: 'hidden' as const, minHeight: 74 }}>
+                    {/* Top accent strip — only when filled */}
+                    {slot.player && <View style={{ height: 3, backgroundColor: colors.primary }} />}
+                    <View style={{ padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                      {/* Badge: number when empty → checkmark when filled */}
+                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: slot.player ? colors.primary : 'transparent', borderWidth: slot.player ? 0 : 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                        {slot.player
+                          ? <Ionicons name="checkmark" size={13} color="#fff" />
+                          : <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>{slot.num}</Text>
+                        }
                       </View>
-                      {!xiBackupLocked && (
-                        <Pressable onPress={slot.clear} hitSlop={8}>
-                          <Ionicons name="close-circle" size={17} color={colors.textTertiary} />
+                      {/* Content */}
+                      {slot.player ? (
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginBottom: 1 }} numberOfLines={1}>{slot.player.name}</Text>
+                          <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>{slot.player.teamShort} · {slot.player.role}</Text>
+                        </View>
+                      ) : (
+                        <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const, marginTop: 3 }}>
+                          {slot.num === 2 && !backup1Player ? 'Set B1 first' : xiBackupLocked ? 'Not set' : `Add Backup ${slot.num}`}
+                        </Text>
+                      )}
+                      {/* Remove button */}
+                      {slot.player && !xiBackupLocked && (
+                        <Pressable onPress={slot.clear} hitSlop={8} style={{ marginTop: -1 }}>
+                          <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
                         </Pressable>
                       )}
-                    </>
-                  ) : (
-                    <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
-                      {slot.num === 2 && !backup1Player ? 'Set B1 first' : xiBackupLocked ? 'Not set' : `Tap to add B${slot.num}`}
-                    </Text>
-                  )}
-                </View>
-              ))}
+                    </View>
+                    {/* Priority label at bottom when filled */}
+                    {slot.player && (
+                      <Text style={{ paddingHorizontal: 10, paddingBottom: 8, color: colors.primary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, opacity: 0.7 }}>
+                        {slot.num === 1 ? '1st priority' : '2nd priority'}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </View>
             </View>
+
+            {/* Divider separating selected summary from available list */}
+            <View style={{ marginHorizontal: 16, marginVertical: 10, height: 1, backgroundColor: colors.border }} />
 
             {!xiBackupLocked && (
               <ScrollView
