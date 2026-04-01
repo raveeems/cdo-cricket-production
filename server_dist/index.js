@@ -248,17 +248,43 @@ async function runMigrations() {
   try {
     console.log("[DB] Running idempotent schema migrations...");
     await client.query(`
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS series_id VARCHAR;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS team1_color VARCHAR(10) NOT NULL DEFAULT '#333';
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS team2_color VARCHAR(10) NOT NULL DEFAULT '#666';
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS tournament_name TEXT;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS entry_stake INTEGER NOT NULL DEFAULT 30;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS pot_processed BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS official_winner VARCHAR(10);
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS is_void BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS impact_features_enabled BOOLEAN NOT NULL DEFAULT false;
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS revised_start_time TIMESTAMP;
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS admin_unlock_override BOOLEAN NOT NULL DEFAULT false;
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_scorecard_at TIMESTAMP;
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS pot_mode VARCHAR(30) NOT NULL DEFAULT 'entries_only';
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS pot_penalty_user_ids JSONB NOT NULL DEFAULT '[]';
     `);
     await client.query(`
-      ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS id VARCHAR DEFAULT gen_random_uuid();
-      UPDATE match_player_status SET id = gen_random_uuid() WHERE id IS NULL;
+      ALTER TABLE players ADD COLUMN IF NOT EXISTS api_name TEXT;
+    `);
+    await client.query(`
+      ALTER TABLE user_teams ADD COLUMN IF NOT EXISTS primary_impact_id VARCHAR;
+      ALTER TABLE user_teams ADD COLUMN IF NOT EXISTS backup_impact_id VARCHAR;
+      ALTER TABLE user_teams ADD COLUMN IF NOT EXISTS captain_type VARCHAR(20) NOT NULL DEFAULT 'player';
+      ALTER TABLE user_teams ADD COLUMN IF NOT EXISTS vc_type VARCHAR(20) NOT NULL DEFAULT 'player';
+      ALTER TABLE user_teams ADD COLUMN IF NOT EXISTS invisible_mode BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE user_teams ADD COLUMN IF NOT EXISTS prediction_points INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE user_teams ADD COLUMN IF NOT EXISTS backup_xi_player_1_id VARCHAR;
+      ALTER TABLE user_teams ADD COLUMN IF NOT EXISTS backup_xi_player_2_id VARCHAR;
     `);
     await client.query(`
       ALTER TABLE user_teams ALTER COLUMN captain_id DROP NOT NULL;
       ALTER TABLE user_teams ALTER COLUMN vice_captain_id DROP NOT NULL;
+    `);
+    await client.query(`
+      ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS id VARCHAR DEFAULT gen_random_uuid();
+      ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS official_impact_sub_used BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) NOT NULL DEFAULT 'admin';
+      UPDATE match_player_status SET id = gen_random_uuid() WHERE id IS NULL;
     `);
     console.log("[DB] Migrations complete.");
   } catch (err) {
