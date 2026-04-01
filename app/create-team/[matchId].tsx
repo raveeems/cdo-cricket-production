@@ -36,7 +36,7 @@ import TeamPitchView from '@/components/TeamPitchView';
 import type { PitchPlayer } from '@/components/TeamPitchView';
 import { SkeletonBox } from '@/components/SkeletonBox';
 
-type Step = 'select' | 'xi_backup' | 'impact' | 'backup' | 'captain' | 'preview' | 'success';
+type Step = 'select' | 'impact' | 'backup' | 'captain' | 'preview' | 'success';
 type RoleFilter = 'ALL' | 'WK' | 'BAT' | 'AR' | 'BOWL';
 
 const SPLASH_MESSAGES = [
@@ -362,6 +362,7 @@ export default function CreateTeamScreen() {
   // XI Backup system
   const [backupXiPlayer1Id, setBackupXiPlayer1Id] = useState<string | null>(() => (editingTeam as any)?.backupXiPlayer1Id || null);
   const [backupXiPlayer2Id, setBackupXiPlayer2Id] = useState<string | null>(() => (editingTeam as any)?.backupXiPlayer2Id || null);
+  const [showBackupPicker, setShowBackupPicker] = useState(false);
   const [filter, setFilter] = useState<RoleFilter>('ALL');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -684,6 +685,9 @@ export default function CreateTeamScreen() {
         return;
       }
       newSet.add(player.id);
+      // Auto-clear backup slots if this player was already a B1 or B2
+      if (backupXiPlayer1Id === player.id) { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); }
+      else if (backupXiPlayer2Id === player.id) { setBackupXiPlayer2Id(null); }
     }
     setSelectedIds(newSet);
   };
@@ -987,7 +991,7 @@ export default function CreateTeamScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text, fontFamily: 'Inter_700Bold' }]}>
-          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'xi_backup' ? 'XI Backup Picks' : step === 'impact' ? 'Primary Impact Pick' : step === 'backup' ? 'Backup Impact Pick' : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
+          {step === 'select' ? (isEditMode ? 'Edit Players' : 'Select Players') : step === 'impact' ? 'Primary Impact Pick' : step === 'backup' ? 'Backup Impact Pick' : step === 'captain' ? 'Choose C & VC' : step === 'success' ? 'Contest Joined!' : 'Team Preview'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -995,8 +999,8 @@ export default function CreateTeamScreen() {
       {step !== 'success' && (
         <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, gap: 4 }}>
           {(impactEnabled
-            ? ['select', 'xi_backup', 'impact', 'backup', 'captain', 'preview']
-            : ['select', 'xi_backup', 'captain', 'preview']
+            ? ['select', 'impact', 'backup', 'captain', 'preview']
+            : ['select', 'captain', 'preview']
           ).map((s, i, arr) => {
             const stepIndex = arr.indexOf(step);
             const isActive = i <= stepIndex;
@@ -1256,7 +1260,7 @@ export default function CreateTeamScreen() {
                 if (isValidTeam) {
                   setDuplicateError(null);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setStep('xi_backup');
+                  setStep(impactEnabled ? 'impact' : 'captain');
                 }
               }}
               disabled={!isValidTeam}
@@ -1269,7 +1273,7 @@ export default function CreateTeamScreen() {
                 style={styles.nextBtnGradient}
               >
                 <Text style={[styles.nextBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                  Next: XI Backups
+                  {impactEnabled ? 'Next: Impact Pick' : 'Next: Captain'}
                 </Text>
                 <Ionicons name="arrow-forward" size={20} color="#000" />
               </LinearGradient>
@@ -1278,177 +1282,6 @@ export default function CreateTeamScreen() {
         </>
       )}
 
-      {step === 'xi_backup' && (() => {
-        // Track which backup slot is currently being filled (1 or 2)
-        const backup1Player = allPlayers.find(p => p.id === backupXiPlayer1Id) || null;
-        const backup2Player = allPlayers.find(p => p.id === backupXiPlayer2Id) || null;
-        const nextStep = impactEnabled ? 'impact' : 'captain';
-
-        const handlePickPlayer = (playerId: string) => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          if (backupXiPlayer1Id === playerId) {
-            setBackupXiPlayer1Id(null);
-            if (backupXiPlayer2Id) { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); }
-            return;
-          }
-          if (backupXiPlayer2Id === playerId) {
-            setBackupXiPlayer2Id(null);
-            return;
-          }
-          // If this player was already chosen as an Impact pick, clear those slots
-          // (a player cannot serve as both XI Backup and Impact pick)
-          if (primaryImpactId === playerId) {
-            setPrimaryImpactId(null);
-            setBackupImpactId(null);
-          } else if (backupImpactId === playerId) {
-            setBackupImpactId(null);
-          }
-          if (!backupXiPlayer1Id) { setBackupXiPlayer1Id(playerId); return; }
-          if (!backupXiPlayer2Id) { setBackupXiPlayer2Id(playerId); return; }
-        };
-
-        const eligibleForList = xiBackupEligible.filter(p =>
-          p.id !== backupXiPlayer1Id && p.id !== backupXiPlayer2Id
-        );
-
-        return (
-          <>
-            {/* Compact helper line — replaces the heavy info card */}
-            <View style={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <Ionicons name="shield-checkmark-outline" size={13} color={colors.textTertiary} />
-              <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, flex: 1 }}>
-                Optional · up to 2 · replaces absent XI players in priority order
-              </Text>
-            </View>
-
-            {xiBackupLocked && (
-              <View style={{ marginHorizontal: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 10, backgroundColor: '#F59E0B18', borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B40' }}>
-                <Ionicons name="lock-closed" size={13} color="#F59E0B" />
-                <Text style={{ color: '#F59E0B', fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>XI announced — backups locked</Text>
-              </View>
-            )}
-
-            {/* B1 / B2 — selected summary cards, visually distinct from player list */}
-            <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
-              <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold' as const, color: colors.textTertiary, letterSpacing: 0.7, marginBottom: 8, textTransform: 'uppercase' as const }}>
-                Your Backups
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {[
-                  { num: 1, player: backup1Player, clear: () => { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); } },
-                  { num: 2, player: backup2Player, clear: () => setBackupXiPlayer2Id(null) },
-                ].map(slot => (
-                  <View key={slot.num} style={{ flex: 1, borderRadius: 12, borderWidth: slot.player ? 1.5 : 1, borderColor: slot.player ? colors.primary : colors.border, backgroundColor: slot.player ? colors.primary + '12' : colors.surfaceElevated, overflow: 'hidden' as const, minHeight: 74 }}>
-                    {/* Top accent strip — only when filled */}
-                    {slot.player && <View style={{ height: 3, backgroundColor: colors.primary }} />}
-                    <View style={{ padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-                      {/* Badge: number when empty → checkmark when filled */}
-                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: slot.player ? colors.primary : 'transparent', borderWidth: slot.player ? 0 : 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                        {slot.player
-                          ? <Ionicons name="checkmark" size={13} color="#fff" />
-                          : <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>{slot.num}</Text>
-                        }
-                      </View>
-                      {/* Content */}
-                      {slot.player ? (
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginBottom: 1 }} numberOfLines={1}>{slot.player.name}</Text>
-                          <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>{slot.player.teamShort} · {slot.player.role}</Text>
-                        </View>
-                      ) : (
-                        <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const, marginTop: 3 }}>
-                          {slot.num === 2 && !backup1Player ? 'Set B1 first' : xiBackupLocked ? 'Not set' : `Add Backup ${slot.num}`}
-                        </Text>
-                      )}
-                      {/* Remove button */}
-                      {slot.player && !xiBackupLocked && (
-                        <Pressable onPress={slot.clear} hitSlop={8} style={{ marginTop: -1 }}>
-                          <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
-                        </Pressable>
-                      )}
-                    </View>
-                    {/* Priority label at bottom when filled */}
-                    {slot.player && (
-                      <Text style={{ paddingHorizontal: 10, paddingBottom: 8, color: colors.primary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, opacity: 0.7 }}>
-                        {slot.num === 1 ? '1st priority' : '2nd priority'}
-                      </Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            {/* Divider separating selected summary from available list */}
-            <View style={{ marginHorizontal: 16, marginVertical: 10, height: 1, backgroundColor: colors.border }} />
-
-            {!xiBackupLocked && (
-              <ScrollView
-                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold' as const, color: colors.textTertiary, letterSpacing: 0.7, marginBottom: 8, textTransform: 'uppercase' as const }}>
-                  Available Players
-                </Text>
-                {eligibleForList.length === 0 && !backupXiPlayer2Id ? (
-                  <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 20 }}>
-                    {backupXiPlayer1Id && backupXiPlayer2Id ? 'Both backup slots filled.' : 'No additional players available.'}
-                  </Text>
-                ) : (
-                  eligibleForList.map(player => {
-                    const roleColor = getRoleColor(player.role, isDark);
-                    return (
-                      <Pressable
-                        key={player.id}
-                        onPress={() => handlePickPlayer(player.id)}
-                        disabled={!backup1Player && player.id === backupXiPlayer2Id}
-                        style={[styles.captainItem, { backgroundColor: colors.card, borderColor: colors.cardBorder, padding: 10 }]}
-                      >
-                        <View style={styles.captainLeft}>
-                          <View style={{ backgroundColor: roleColor, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, minWidth: 38, alignItems: 'center' }}>
-                            <Text style={{ color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
-                          </View>
-                          <View>
-                            <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
-                            <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} · {player.credits} Cr</Text>
-                          </View>
-                        </View>
-                        <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
-                      </Pressable>
-                    );
-                  })
-                )}
-              </ScrollView>
-            )}
-
-            <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) }]}>
-              <View style={styles.bottomBarRow}>
-                <Pressable onPress={() => setStep('select')} style={[styles.backStepBtn, { borderColor: colors.border }]}>
-                  <Ionicons name="arrow-back" size={20} color={colors.text} />
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setStep(nextStep as Step);
-                  }}
-                  style={[styles.saveBtn, { flex: 1 }]}
-                >
-                  <LinearGradient
-                    colors={[colors.accent, colors.accentDark]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.saveBtnGradient}
-                  >
-                    <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                      {backupXiPlayer1Id ? 'Next' : 'Skip — No Backups'}
-                    </Text>
-                    <Ionicons name="arrow-forward" size={20} color="#000" />
-                  </LinearGradient>
-                </Pressable>
-              </View>
-            </View>
-          </>
-        );
-      })()}
 
       {step === 'impact' && impactEnabled && (
         <>
@@ -1891,6 +1724,54 @@ export default function CreateTeamScreen() {
               </View>
             </View>
 
+            {/* ── Optional XI Backups card ── */}
+            {(() => {
+              const b1 = backupXiPlayer1Id ? allPlayers.find(p => p.id === backupXiPlayer1Id) : null;
+              const b2 = backupXiPlayer2Id ? allPlayers.find(p => p.id === backupXiPlayer2Id) : null;
+              const locked = !!(match as any)?.playingXIManual;
+              const hasBackups = !!(b1 || b2);
+              return (
+                <Pressable
+                  onPress={() => { if (!locked) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowBackupPicker(true); } }}
+                  style={[styles.previewSummary, { backgroundColor: hasBackups ? colors.primary + '0C' : colors.card, borderColor: hasBackups ? colors.primary + '40' : colors.cardBorder, marginTop: 12 }]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: hasBackups ? 10 : 0 }}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={hasBackups ? colors.primary : colors.textTertiary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: hasBackups ? colors.text : colors.textSecondary, fontSize: 13, fontFamily: 'Inter_600SemiBold' as const }}>
+                        {locked ? 'XI Backups' : hasBackups ? 'XI Backups' : 'Add XI Backups (Optional)'}
+                      </Text>
+                      {!hasBackups && !locked && (
+                        <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>Replaces absent XI players · up to 2</Text>
+                      )}
+                    </View>
+                    {locked
+                      ? <Ionicons name="lock-closed" size={14} color={colors.textTertiary} />
+                      : <Ionicons name={hasBackups ? 'pencil' : 'add'} size={16} color={colors.primary} />
+                    }
+                  </View>
+                  {hasBackups && (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {[{ label: 'B1', player: b1 }, { label: 'B2', player: b2 }].map(slot => (
+                        <View key={slot.label} style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, backgroundColor: slot.player ? colors.primary + '12' : colors.surfaceElevated, borderColor: slot.player ? colors.primary + '40' : colors.border, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: slot.player ? colors.primary : colors.border, alignItems: 'center', justifyContent: 'center' }}>
+                            {slot.player
+                              ? <Ionicons name="checkmark" size={11} color="#fff" />
+                              : <Text style={{ color: colors.textTertiary, fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>{slot.label[1]}</Text>
+                            }
+                          </View>
+                          {slot.player
+                            ? <Text style={{ color: colors.text, fontSize: 11, fontFamily: 'Inter_600SemiBold' as const, flex: 1 }} numberOfLines={1}>{slot.player.name}</Text>
+                            : <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>Empty</Text>
+                          }
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })()}
+
             {impactEnabled && (captainType === 'impact_slot' || vcType === 'impact_slot') && (
               <View style={[styles.previewSummary, { backgroundColor: colors.accent + '08', borderColor: colors.accent + '25', marginTop: 12 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -2200,6 +2081,140 @@ export default function CreateTeamScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── XI Backup Picker Modal ── */}
+      <Modal
+        visible={showBackupPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowBackupPicker(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 16), paddingBottom: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
+            <Text style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const, marginLeft: 8 }}>XI Backups</Text>
+            <Pressable onPress={() => setShowBackupPicker(false)} hitSlop={8}>
+              <Ionicons name="close" size={22} color={colors.text} />
+            </Pressable>
+          </View>
+
+          {/* Compact helper */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Ionicons name="information-circle-outline" size={13} color={colors.textTertiary} />
+            <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'Inter_400Regular' as const, flex: 1 }}>
+              Optional · up to 2 · replaces absent XI players in priority order
+            </Text>
+          </View>
+
+          {/* B1 / B2 summary chips */}
+          {(() => {
+            const b1Player = backupXiPlayer1Id ? allPlayers.find(p => p.id === backupXiPlayer1Id) : null;
+            const b2Player = backupXiPlayer2Id ? allPlayers.find(p => p.id === backupXiPlayer2Id) : null;
+            const clearB1 = () => { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); };
+            const clearB2 = () => setBackupXiPlayer2Id(null);
+            const handlePick = (playerId: string) => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (backupXiPlayer1Id === playerId) { clearB1(); return; }
+              if (backupXiPlayer2Id === playerId) { clearB2(); return; }
+              if (!backupXiPlayer1Id) { setBackupXiPlayer1Id(playerId); return; }
+              if (!backupXiPlayer2Id) { setBackupXiPlayer2Id(playerId); return; }
+            };
+            const pickerEligible = xiBackupEligible.filter(p => p.id !== backupXiPlayer1Id && p.id !== backupXiPlayer2Id);
+            return (
+              <>
+                <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
+                  <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold' as const, color: colors.textTertiary, letterSpacing: 0.7, marginBottom: 8, textTransform: 'uppercase' as const }}>Your Backups</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {[
+                      { num: 1, player: b1Player, clear: clearB1 },
+                      { num: 2, player: b2Player, clear: clearB2 },
+                    ].map(slot => (
+                      <View key={slot.num} style={{ flex: 1, borderRadius: 12, borderWidth: slot.player ? 1.5 : 1, borderColor: slot.player ? colors.primary : colors.border, backgroundColor: slot.player ? colors.primary + '12' : colors.surfaceElevated, overflow: 'hidden' as const, minHeight: 74 }}>
+                        {slot.player && <View style={{ height: 3, backgroundColor: colors.primary }} />}
+                        <View style={{ padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: slot.player ? colors.primary : 'transparent', borderWidth: slot.player ? 0 : 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                            {slot.player ? <Ionicons name="checkmark" size={13} color="#fff" /> : <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>{slot.num}</Text>}
+                          </View>
+                          {slot.player ? (
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const, marginBottom: 1 }} numberOfLines={1}>{slot.player.name}</Text>
+                              <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular' as const }}>{slot.player.teamShort} · {slot.player.role}</Text>
+                            </View>
+                          ) : (
+                            <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const, marginTop: 3 }}>
+                              {slot.num === 2 && !b1Player ? 'Set B1 first' : `Tap a player to add B${slot.num}`}
+                            </Text>
+                          )}
+                          {slot.player && (
+                            <Pressable onPress={slot.clear} hitSlop={8} style={{ marginTop: -1 }}>
+                              <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
+                            </Pressable>
+                          )}
+                        </View>
+                        {slot.player && (
+                          <Text style={{ paddingHorizontal: 10, paddingBottom: 8, color: colors.primary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const, opacity: 0.7 }}>
+                            {slot.num === 1 ? '1st priority' : '2nd priority'}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={{ marginHorizontal: 16, marginBottom: 8, height: 1, backgroundColor: colors.border }} />
+
+                <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+                  <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold' as const, color: colors.textTertiary, letterSpacing: 0.7, marginBottom: 8, textTransform: 'uppercase' as const }}>
+                    Available Players
+                  </Text>
+                  {pickerEligible.length === 0 ? (
+                    <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' as const, textAlign: 'center', paddingVertical: 32 }}>
+                      {backupXiPlayer1Id && backupXiPlayer2Id ? 'Both slots filled. Tap × to change a pick.' : 'No eligible players available.'}
+                    </Text>
+                  ) : (
+                    pickerEligible.map(player => {
+                      const roleColor = getRoleColor(player.role, isDark);
+                      return (
+                        <Pressable
+                          key={player.id}
+                          onPress={() => handlePick(player.id)}
+                          style={[styles.captainItem, { backgroundColor: colors.card, borderColor: colors.cardBorder, padding: 10 }]}
+                        >
+                          <View style={styles.captainLeft}>
+                            <View style={{ backgroundColor: roleColor, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, minWidth: 38, alignItems: 'center' }}>
+                              <Text style={{ color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>{player.role}</Text>
+                            </View>
+                            <View>
+                              <Text style={[styles.captainName, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{player.name}</Text>
+                              <Text style={[styles.captainMeta, { color: colors.textTertiary, fontFamily: 'Inter_400Regular' }]}>{player.teamShort} · {player.credits} Cr</Text>
+                            </View>
+                          </View>
+                          <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
+                        </Pressable>
+                      );
+                    })
+                  )}
+                </ScrollView>
+
+                {/* Done button */}
+                <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 16), paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <Pressable
+                    onPress={() => setShowBackupPicker(false)}
+                    style={{ borderRadius: 14, overflow: 'hidden' as const }}
+                  >
+                    <LinearGradient colors={[colors.accent, colors.accentDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
+                      <Ionicons name="checkmark" size={20} color="#000" />
+                      <Text style={{ color: '#000', fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>Done</Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              </>
+            );
+          })()}
+        </View>
+      </Modal>
+
     </View>
   );
 }
