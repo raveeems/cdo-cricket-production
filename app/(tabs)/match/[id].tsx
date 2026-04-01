@@ -1816,7 +1816,30 @@ export default function MatchDetailScreen() {
 
             <View style={styles.heroCenter}>
               {(() => {
-                const rawScore = (match as any).scoreString || (match as any).score_string || (match as any).score || (match as any).liveScore || (match as any).status_overview || "";
+                // Build a fresh score string from the live scorecard when available.
+                // scorecardData refreshes every 45s directly from Crex — faster than
+                // match.scoreString which is DB-bound to the 60s heartbeat.
+                const IPL_KEYWORD_MAP: Record<string, string> = {
+                  'mumbai': 'MI', 'kolkata': 'KKR', 'chennai': 'CSK',
+                  'royal challengers': 'RCB', 'sunrisers': 'SRH', 'delhi': 'DC',
+                  'punjab': 'PBKS', 'rajasthan': 'RR', 'gujarat': 'GT', 'lucknow': 'LSG',
+                };
+                const inningToShort = (inning: string): string => {
+                  const low = inning.toLowerCase();
+                  for (const [kw, short] of Object.entries(IPL_KEYWORD_MAP)) {
+                    if (low.includes(kw)) return short;
+                  }
+                  // fallback: first token that looks like an abbreviation
+                  const m = inning.match(/\b([A-Z]{2,6})\b/);
+                  return m ? m[1] : inning.substring(0, 4).toUpperCase();
+                };
+                const liveScorecardStr =
+                  scorecard?.score && scorecard.score.length > 0
+                    ? scorecard.score
+                        .map((s) => `${inningToShort(s.inning)}: ${s.r}/${s.w} (${s.o} ov)`)
+                        .join(' | ')
+                    : null;
+                const rawScore = liveScorecardStr || (match as any).scoreString || (match as any).score_string || (match as any).score || (match as any).liveScore || (match as any).status_overview || "";
                 const hasScore = rawScore && rawScore.length > 3;
                 const isLiveish = effectiveStatus === 'live' || match.status === 'completed';
 
