@@ -1384,12 +1384,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // ── Pass 2b: Last Match XI bonus ─────────────────────────────────────
+        // Players who featured in the last match XI for their team get a bonus.
+        // This ensures last-XI players are preferred over unknown REST OF SQUAD
+        // players when smart scores are otherwise similar.
+        const lastXIBonus = new Map<string, number>(); // "name|teamShort" → bonus
+        for (const teamShort of [match.team1Short, match.team2Short]) {
+          const [prevMatch] = await db
+            .select({ id: matchesTable.id })
+            .from(matchesTable)
+            .where(
+              and(
+                sql`(${matchesTable.team1Short} = ${teamShort} OR ${matchesTable.team2Short} = ${teamShort})`,
+                eq(matchesTable.status, "completed"),
+                sql`${matchesTable.id} != ${matchId}`
+              )
+            )
+            .orderBy(sql`${matchesTable.startTime} DESC`)
+            .limit(1);
+          if (prevMatch) {
+            const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
+            for (const p of prevPlayers) {
+              if (p.isPlayingXI && p.teamShort === teamShort) {
+                lastXIBonus.set(`${p.name}|${p.teamShort}`, 20);
+              }
+            }
+          }
+        }
+
         // ── Pass 3: Score each player and sort ───────────────────────────────
         const scored = matchPlayers.map(p => {
           const key = `${p.name}|${p.teamShort}`;
           const tournPts = tournamentTotals.get(key) ?? 0;
           const h2hPts = h2hAverages.get(key) ?? 0;
-          const smartScore = (0.6 * tournPts) + (0.4 * h2hPts);
+          const xiBonus = lastXIBonus.get(key) ?? 0;
+          const smartScore = (0.6 * tournPts) + (0.4 * h2hPts) + xiBonus;
           return { ...p, smartScore };
         }).sort((a, b) => b.smartScore - a.smartScore);
 
@@ -1437,6 +1466,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (picked.length !== 11) {
           return res.status(422).json({ message: "Could not build a valid smart team — falling back to random" });
+        }
+
+        // ── Pass 5: Controlled variation (medium — swap 2 non-core players) ──
+        // Core = Last Match XI players. Non-core = REST OF SQUAD picks.
+        // For each non-core pick, find the next best unselected player of the
+        // same role and team balance who fits constraints — swap with 50% chance.
+        // This ensures no two users get identical teams while keeping the
+        // form-based core intact.
+        const pickedIds = new Set(picked.map(p => p.id));
+        const nonCorePicks = picked.filter(p => !lastXIBonus.has(`${p.name}|${p.teamShort}`));
+        let swapsApplied = 0;
+
+        for (const outPlayer of nonCorePicks) {
+          if (swapsApplied >= 2) break;
+          if (Math.random() < 0.5) continue; // 50% chance to attempt swap
+
+          const creditsWithout = picked.reduce((s, p) => s + (p.id === outPlayer.id ? 0 : p.credits), 0);
+          const teamCountsWithout: Record<string, number> = {};
+          for (const p of picked) {
+            if (p.id === outPlayer.id) continue;
+            teamCountsWithout[p.teamShort] = (teamCountsWithout[p.teamShort] || 0) + 1;
+          }
+          const roleCountsWithout: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+          for (const p of picked) {
+            if (p.id === outPlayer.id) continue;
+            roleCountsWithout[p.role]++;
+          }
+
+          const ROLE_LIMITS_V: Record<string, { min: number; max: number }> = {
+            WK: { min: 1, max: 4 }, BAT: { min: 1, max: 6 },
+            AR: { min: 1, max: 6 }, BOWL: { min: 1, max: 6 },
+          };
+
+          const alternative = scored.find(p =>
+            !pickedIds.has(p.id) &&
+            p.role === outPlayer.role &&
+            (teamCountsWithout[p.teamShort] || 0) < 6 &&
+            creditsWithout + p.credits <= 100 &&
+            (roleCountsWithout[p.role] || 0) < ROLE_LIMITS_V[p.role].max &&
+            (roleCountsWithout[p.role] || 0) >= (ROLE_LIMITS_V[p.role].min - 1)
+          );
+
+          if (alternative) {
+            const idx = picked.findIndex(p => p.id === outPlayer.id);
+            picked[idx] = alternative;
+            pickedIds.delete(outPlayer.id);
+            pickedIds.add(alternative.id);
+            swapsApplied++;
+          }
         }
 
         const hasTournamentData = tournamentTotals.size > 0;

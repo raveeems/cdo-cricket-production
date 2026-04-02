@@ -4066,11 +4066,30 @@ async function registerRoutes(app2) {
             h2hAverages.set(`${row.name}|${row.teamShort}`, row.avg);
           }
         }
+        const lastXIBonus = /* @__PURE__ */ new Map();
+        for (const teamShort of [match.team1Short, match.team2Short]) {
+          const [prevMatch] = await db.select({ id: matches.id }).from(matches).where(
+            and2(
+              sql3`(${matches.team1Short} = ${teamShort} OR ${matches.team2Short} = ${teamShort})`,
+              eq2(matches.status, "completed"),
+              sql3`${matches.id} != ${matchId}`
+            )
+          ).orderBy(sql3`${matches.startTime} DESC`).limit(1);
+          if (prevMatch) {
+            const prevPlayers = await storage.getPlayersForMatch(prevMatch.id);
+            for (const p of prevPlayers) {
+              if (p.isPlayingXI && p.teamShort === teamShort) {
+                lastXIBonus.set(`${p.name}|${p.teamShort}`, 20);
+              }
+            }
+          }
+        }
         const scored = matchPlayers.map((p) => {
           const key = `${p.name}|${p.teamShort}`;
           const tournPts = tournamentTotals.get(key) ?? 0;
           const h2hPts = h2hAverages.get(key) ?? 0;
-          const smartScore = 0.6 * tournPts + 0.4 * h2hPts;
+          const xiBonus = lastXIBonus.get(key) ?? 0;
+          const smartScore = 0.6 * tournPts + 0.4 * h2hPts + xiBonus;
           return { ...p, smartScore };
         }).sort((a, b) => b.smartScore - a.smartScore);
         const ROLE_LIMITS = {
@@ -4109,6 +4128,40 @@ async function registerRoutes(app2) {
         }
         if (picked.length !== 11) {
           return res.status(422).json({ message: "Could not build a valid smart team \u2014 falling back to random" });
+        }
+        const pickedIds = new Set(picked.map((p) => p.id));
+        const nonCorePicks = picked.filter((p) => !lastXIBonus.has(`${p.name}|${p.teamShort}`));
+        let swapsApplied = 0;
+        for (const outPlayer of nonCorePicks) {
+          if (swapsApplied >= 2) break;
+          if (Math.random() < 0.5) continue;
+          const creditsWithout = picked.reduce((s, p) => s + (p.id === outPlayer.id ? 0 : p.credits), 0);
+          const teamCountsWithout = {};
+          for (const p of picked) {
+            if (p.id === outPlayer.id) continue;
+            teamCountsWithout[p.teamShort] = (teamCountsWithout[p.teamShort] || 0) + 1;
+          }
+          const roleCountsWithout = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+          for (const p of picked) {
+            if (p.id === outPlayer.id) continue;
+            roleCountsWithout[p.role]++;
+          }
+          const ROLE_LIMITS_V = {
+            WK: { min: 1, max: 4 },
+            BAT: { min: 1, max: 6 },
+            AR: { min: 1, max: 6 },
+            BOWL: { min: 1, max: 6 }
+          };
+          const alternative = scored.find(
+            (p) => !pickedIds.has(p.id) && p.role === outPlayer.role && (teamCountsWithout[p.teamShort] || 0) < 6 && creditsWithout + p.credits <= 100 && (roleCountsWithout[p.role] || 0) < ROLE_LIMITS_V[p.role].max && (roleCountsWithout[p.role] || 0) >= ROLE_LIMITS_V[p.role].min - 1
+          );
+          if (alternative) {
+            const idx = picked.findIndex((p) => p.id === outPlayer.id);
+            picked[idx] = alternative;
+            pickedIds.delete(outPlayer.id);
+            pickedIds.add(alternative.id);
+            swapsApplied++;
+          }
         }
         const hasTournamentData = tournamentTotals.size > 0;
         const matchup = `${match.team1Short} vs ${match.team2Short}`;
