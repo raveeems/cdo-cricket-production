@@ -705,8 +705,27 @@ export default function CreateTeamScreen() {
     setSelectedIds(newSet);
   };
 
-  const handleAutoSelect = () => {
+  const handleAutoSelect = async () => {
     if (allPlayers.length < 11 || !match) return;
+
+    // ── Smart pick: try form + head-to-head first ─────────────────────────
+    try {
+      const res = await apiRequest('GET', `/api/matches/${matchId}/smart-pick`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.playerIds && data.playerIds.length === 11) {
+          const newIds = new Set<string>(data.playerIds);
+          setSelectedIds(newIds);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showSelectionWarning(data.reason || 'Smart team selected');
+          return;
+        }
+      }
+    } catch (e) {
+      // Smart pick failed — fall through to random
+    }
+
+    // ── Random fallback (existing logic unchanged) ────────────────────────
     const teams = new Set<string>();
     allPlayers.forEach(p => teams.add(p.teamShort || p.team || ''));
     const teamKeys = Array.from(teams);

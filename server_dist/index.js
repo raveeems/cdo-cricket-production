@@ -4010,6 +4010,118 @@ async function registerRoutes(app2) {
     }
   );
   app2.get(
+    "/api/matches/:id/smart-pick",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        if (matchPlayers.length < 22) {
+          return res.status(400).json({ message: "Not enough players" });
+        }
+        const tournamentTotals = /* @__PURE__ */ new Map();
+        if (match.tournamentName) {
+          const rows = await db.select({
+            name: players.name,
+            teamShort: players.teamShort,
+            total: sql3`CAST(SUM(${players.points}) AS INTEGER)`
+          }).from(players).innerJoin(matches, eq2(players.matchId, matches.id)).where(
+            and2(
+              eq2(matches.tournamentName, match.tournamentName),
+              eq2(matches.status, "completed"),
+              sql3`${players.points} > 0`
+            )
+          ).groupBy(players.name, players.teamShort);
+          for (const row of rows) {
+            tournamentTotals.set(`${row.name}|${row.teamShort}`, row.total);
+          }
+        }
+        const h2hAverages = /* @__PURE__ */ new Map();
+        const h2hMatches = await db.select({ id: matches.id }).from(matches).where(
+          and2(
+            eq2(matches.status, "completed"),
+            sql3`(
+                (${matches.team1Short} = ${match.team1Short} AND ${matches.team2Short} = ${match.team2Short})
+                OR
+                (${matches.team1Short} = ${match.team2Short} AND ${matches.team2Short} = ${match.team1Short})
+              )`,
+            sql3`${matches.id} != ${matchId}`
+          )
+        );
+        if (h2hMatches.length > 0) {
+          const h2hMatchIds = h2hMatches.map((m) => m.id);
+          const h2hRows = await db.select({
+            name: players.name,
+            teamShort: players.teamShort,
+            avg: sql3`CAST(AVG(${players.points}) AS FLOAT)`
+          }).from(players).where(
+            and2(
+              sql3`${players.matchId} = ANY(ARRAY[${sql3.join(h2hMatchIds.map((id) => sql3`${id}`), sql3`, `)}]::text[])`,
+              sql3`${players.points} > 0`
+            )
+          ).groupBy(players.name, players.teamShort);
+          for (const row of h2hRows) {
+            h2hAverages.set(`${row.name}|${row.teamShort}`, row.avg);
+          }
+        }
+        const scored = matchPlayers.map((p) => {
+          const key = `${p.name}|${p.teamShort}`;
+          const tournPts = tournamentTotals.get(key) ?? 0;
+          const h2hPts = h2hAverages.get(key) ?? 0;
+          const smartScore = 0.6 * tournPts + 0.4 * h2hPts;
+          return { ...p, smartScore };
+        }).sort((a, b) => b.smartScore - a.smartScore);
+        const ROLE_LIMITS = {
+          WK: { min: 1, max: 4 },
+          BAT: { min: 1, max: 6 },
+          AR: { min: 1, max: 6 },
+          BOWL: { min: 1, max: 6 }
+        };
+        const MAX_FROM_ONE_TEAM = 6;
+        const CREDIT_CAP = 100;
+        const picked = [];
+        const roleCounts = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const teamCounts = {};
+        let credits = 0;
+        for (const role of ["WK", "BAT", "AR", "BOWL"]) {
+          const best = scored.find(
+            (p) => p.role === role && !picked.find((x) => x.id === p.id) && (teamCounts[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && credits + p.credits <= CREDIT_CAP
+          );
+          if (best) {
+            picked.push(best);
+            roleCounts[best.role]++;
+            teamCounts[best.teamShort] = (teamCounts[best.teamShort] || 0) + 1;
+            credits += best.credits;
+          }
+        }
+        for (const p of scored) {
+          if (picked.length >= 11) break;
+          if (picked.find((x) => x.id === p.id)) continue;
+          if (roleCounts[p.role] >= ROLE_LIMITS[p.role].max) continue;
+          if ((teamCounts[p.teamShort] || 0) >= MAX_FROM_ONE_TEAM) continue;
+          if (credits + p.credits > CREDIT_CAP) continue;
+          picked.push(p);
+          roleCounts[p.role]++;
+          teamCounts[p.teamShort] = (teamCounts[p.teamShort] || 0) + 1;
+          credits += p.credits;
+        }
+        if (picked.length !== 11) {
+          return res.status(422).json({ message: "Could not build a valid smart team \u2014 falling back to random" });
+        }
+        const opponentShort = match.team1Short === match.team1Short ? match.team2Short : match.team1Short;
+        return res.json({
+          playerIds: picked.map((p) => p.id),
+          reason: h2hMatches.length > 0 ? `Based on IPL 2026 form + ${h2hMatches.length} head-to-head match${h2hMatches.length > 1 ? "es" : ""} vs ${opponentShort}` : `Based on IPL 2026 form (no previous head-to-head data yet)`
+        });
+      } catch (err) {
+        console.error("Smart pick error:", err);
+        return res.status(500).json({ message: "Smart pick failed" });
+      }
+    }
+  );
+  app2.get(
     "/api/my-teams",
     isAuthenticated,
     async (req, res) => {
