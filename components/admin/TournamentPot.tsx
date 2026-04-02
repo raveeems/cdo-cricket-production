@@ -86,6 +86,8 @@ export function TournamentPot({
 }: TournamentPotProps) {
   const unprocessedCount = potUnprocessedMatches.filter(m => !m.potProcessed).length;
   const processedCount = matches.filter(m => m.potProcessed).length;
+  const [showProcessed, setShowProcessed] = React.useState(false);
+  const visibleMatches = potUnprocessedMatches.filter(m => showProcessed ? true : !m.potProcessed);
 
   return (
     <View style={{ marginBottom: 28 }}>
@@ -154,12 +156,21 @@ export function TournamentPot({
         )}
 
         {/* Match selector */}
-        <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.6, marginBottom: 6, marginTop: 4, textTransform: 'uppercase', color: colors.textTertiary }}>
-          SELECT MATCH
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, marginTop: 4 }}>
+          <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textTertiary }}>
+            SELECT MATCH
+          </Text>
+          {processedCount > 0 && (
+            <Pressable onPress={() => setShowProcessed(prev => !prev)}>
+              <Text style={{ fontSize: 11, fontFamily: 'Inter_500Medium', color: colors.primary }}>
+                {showProcessed ? 'Hide processed' : `Show processed (${processedCount})`}
+              </Text>
+            </Pressable>
+          )}
+        </View>
         {potLoadingMatches ? (
           <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
-        ) : potUnprocessedMatches.length === 0 ? (
+        ) : visibleMatches.length === 0 ? (
           <View style={{ paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.surfaceElevated, borderRadius: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Ionicons name="checkmark-circle" size={16} color={colors.success} />
             <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 13 }}>No completed matches found</Text>
@@ -167,7 +178,7 @@ export function TournamentPot({
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {potUnprocessedMatches.map(m => {
+              {visibleMatches.map(m => {
                 const isSelected = m.id === potSelectedMatchId;
                 const isProcessed = !!m.potProcessed;
                 const matchDate = new Date(m.startTime);

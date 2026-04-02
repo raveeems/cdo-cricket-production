@@ -1,0 +1,39 @@
+Change 1 — Add useState import (it's already using React.useState so no import change needed — React is already imported on line 1) ✓
+Change 2 — Add toggle state and filtered list after line 82 (after const processedCount line):
+Find this exact block:
+ts  const unprocessedCount = potUnprocessedMatches.filter(m => !m.potProcessed).length;
+  const processedCount = matches.filter(m => m.potProcessed).length;
+Add immediately after:
+ts  const [showProcessed, setShowProcessed] = React.useState(false);
+  const visibleMatches = potUnprocessedMatches.filter(m => showProcessed ? true : !m.potProcessed);
+
+Change 3 — Replace SELECT MATCH label — find this exact block:
+ts        <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.6, marginBottom: 6, marginTop: 4, textTransform: 'uppercase', color: colors.textTertiary }}>
+          SELECT MATCH
+        </Text>
+Replace with:
+ts        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, marginTop: 4 }}>
+          <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textTertiary }}>
+            SELECT MATCH
+          </Text>
+          {processedCount > 0 && (
+            <Pressable onPress={() => setShowProcessed(prev => !prev)}>
+              <Text style={{ fontSize: 11, fontFamily: 'Inter_500Medium', color: colors.primary }}>
+                {showProcessed ? 'Hide processed' : `Show processed (${processedCount})`}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+Change 4 — Update the empty state check — find:
+ts        ) : potUnprocessedMatches.length === 0 ? (
+Replace with:
+ts        ) : visibleMatches.length === 0 ? (
+
+Change 5 — Update the match list — find:
+ts              {potUnprocessedMatches.map(m => {
+Replace with:
+ts              {visibleMatches.map(m => {
+
+Changed files: components/admin/TournamentPot.tsx only.
+5 small edits, no backend changes, no other files touched
