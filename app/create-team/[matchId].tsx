@@ -693,8 +693,14 @@ export default function CreateTeamScreen() {
       }
       newSet.add(player.id);
       // Auto-clear backup slots if this player was already a B1 or B2
-      if (backupXiPlayer1Id === player.id) { setBackupXiPlayer1Id(backupXiPlayer2Id); setBackupXiPlayer2Id(null); }
-      else if (backupXiPlayer2Id === player.id) { setBackupXiPlayer2Id(null); }
+      if (backupXiPlayer1Id === player.id) {
+        setBackupXiPlayer1Id(backupXiPlayer2Id);
+        setBackupXiPlayer2Id(null);
+        showSelectionWarning(`${player.name} was your Backup 1 — slot cleared.`);
+      } else if (backupXiPlayer2Id === player.id) {
+        setBackupXiPlayer2Id(null);
+        showSelectionWarning(`${player.name} was your Backup 2 — slot cleared.`);
+      }
     }
     setSelectedIds(newSet);
   };

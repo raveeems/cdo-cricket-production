@@ -2416,6 +2416,16 @@ export default function AdminScreen() {
 
             {selectedMatchId && !loadingPlayers && matchPlayers.length > 0 && selectedMatch && (
               <View style={{ marginTop: 8 }}>
+                {/* Sticky match label */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingHorizontal: 2 }}>
+                  <View style={{ width: 3, height: 16, borderRadius: 2, backgroundColor: colors.primary }} />
+                  <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>
+                    {selectedMatch.team1Short} vs {selectedMatch.team2Short}
+                  </Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                    {selectedMatch.status === 'live' ? '🔴 LIVE' : new Date(selectedMatch.startTime).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  </Text>
+                </View>
                 {(() => {
                   const t1XI = team1Players.filter(p => xiPlayerIds.has(p.id)).length;
                   const t2XI = team2Players.filter(p => xiPlayerIds.has(p.id)).length;
