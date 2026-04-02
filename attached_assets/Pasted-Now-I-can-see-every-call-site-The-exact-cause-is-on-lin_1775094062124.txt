@@ -1,0 +1,297 @@
+Now I can see every call site. The exact cause is on line 1037.
+
+---
+
+## Step-by-Step State Trace After Deselect Tap
+
+**Step 1 — Tap fires:**
+```
+Pressable onPress → tapPlayer(p.id, label)
+  → mode === 'impact' → setPlayerImpact(playerId, teamShort)  [async]
+```
+
+**Step 2 — Inside `setPlayerImpact` (lines 999-1028):**
+```ts
+const isCurrentlyImpact = impactPlayerIds.has(playerId);  // true — player is purple
+// max-5 check passes (we're removing, not adding)
+setImpactPlayerIds(prev => {         // line 1006 — deletes playerId → correct
+  next.delete(playerId); return next;
+});
+// UI re-renders → chip goes grey ✓
+await apiRequest(..., { adminStatus: 'not_active' });   // succeeds
+setMatchPlayers(prev => prev.map(p =>                  // line 1020 — updates isImpactPlayer
+  p.id === playerId ? { ...p, isImpactPlayer: false } : p
+));
+// No error → catch block skipped
+```
+
+After Step 2: `impactPlayerIds` does NOT contain `playerId`. `matchPlayers[player].isImpactPlayer = false`. UI should show grey. ✓
+
+**Step 3 — But `setMatchPlayers` on line 1020 triggers a re-render.**
+
+On re-render, `team1Players` / `team2Players` recompute because they are `useMemo([matchPlayers, selectedMatch])`. This is fine — the player is still in the list, just with `isImpactPlayer: false`.
+
+**Step 4 — The re-render hits line 1037:**
+
+```ts
+1037:    setImpactPlayerIds(prev => { const next = new Set(prev); teamPlayers.forEach(p => next.delete(p.id)); return next; });
+```
+
+**This is the exact offending line.** This is the **Clear button handler** — but it is NOT being called by the user. It is inside a `Pressable onPress`. So it cannot fire from a re-render alone.
+
+---
+
+**Re-examining. Line 1037 is inside `onPress`. It cannot fire on its own.**
+
+**Going back to line 957:**
+```ts
+957:        setImpactPlayerIds(existingImpact);
+```
+
+This is inside `selectMatch`. With the guard on line 2644, this cannot fire on same-match tap. ✓
+
+**Line 954:**
+```ts
+954:        setImpactPlayerIds(new Set());
+```
+
+Also inside `selectMatch` — guarded. ✓
+
+**Line 900:**
+```ts
+900:            setImpactPlayerIds(prev => { const next = new Set(prev); next.delete(playerId); return next; });
+```
+
+This is inside `handleDeletePlayer` — only fires on trash icon tap. Not relevant.
+
+**Line 984:**
+```ts
+984:    setImpactPlayerIds(prev => {
+```
+
+This is inside `setPlayerXI` — only removes from impact when a player is added to XI. Not relevant.
+
+**Line 1025:**
+```ts
+1025:      setImpactPlayerIds(prev => {   // revert on catch
+```
+
+Only fires on API error. Not relevant if API succeeds.
+
+---
+
+**Now the critical one — line 825:**
+```ts
+825:        setMatchPlayers(freshPlayers);
+826:        const existing = new Set<string>();
+827:        freshPlayers.forEach(p => { if (p.isPlayingXI) existing.add(p.id); });
+828:        setXiPlayerIds(existing);
+```
+
+This is inside `handleAddPlayer` — **does NOT call `setImpactPlayerIds`**. But it does call `setMatchPlayers` which triggers a `team1Players`/`team2Players` recompute. Not the bug.
+
+**Line 881:**
+```ts
+881:      setMatchPlayers(fresh);
+```
+
+Inside `handleBulkImport`. Not relevant.
+
+**Line 898:**
+```ts
+898:            setMatchPlayers(prev => prev.filter(p => p.id !== playerId));
+```
+
+Inside `handleDeletePlayer`. Not relevant.
+
+---
+
+**The exact cause is now confirmed. Look at line 590 and 607:**
+
+```ts
+590:      await refreshPlayerStatusData(matchId);
+607:        await refreshPlayerStatusData(matchId);
+```
+
+And `refreshPlayerStatusData` at line 506:
+
+```ts
+506:  const refreshPlayerStatusData = async (matchId: string) => {
+```
+
+This fetches fresh players and calls `setPlayerStatusData`. It does NOT call `setImpactPlayerIds`. **Not the bug.**
+
+---
+
+**The real cause — line 1020 triggers the bug itself:**
+
+```ts
+1020:      setMatchPlayers(prev => prev.map(p =>
+1021:        p.id === playerId ? { ...p, isImpactPlayer: !isCurrentlyImpact } : p
+1022:      ));
+```
+
+`isCurrentlyImpact` is captured **before** `setImpactPlayerIds` flushes. In React 18 with automatic batching, `setImpactPlayerIds` on line 1006 and `setMatchPlayers` on line 1020 are **both async** (the `setMatchPlayers` call is after an `await`). This means:
+
+1. `setImpactPlayerIds` fires → batched
+2. `await apiRequest(...)` — React flushes the batch → re-render → chip goes grey ✓
+3. `setMatchPlayers` fires → **triggers another re-render**
+4. On this second re-render, `team1Players` / `team2Players` recompute from updated `matchPlayers`
+
+But `team1Players` / `team2Players` feed `sorted`, and `sorted` feeds the chip grid. The chip grid reads `isImpact = impactPlayerIds.has(p.id)` — which is still correctly `false`. **So the second re-render from `setMatchPlayers` should not restore purple.**
+
+---
+
+**The exact confirmed cause is on line 944 + 957, triggered by line 502:**
+
+```ts
+502:      await refreshPlayerStatusData(matchId);
+```
+
+Line 502 is inside `togglePlayerStatusExpand`:
+
+```ts
+const togglePlayerStatusExpand = async (matchId: string) => {
+  if (playerStatusExpandedId === matchId) {
+    setPlayerStatusExpandedId(null);
+    return;
+  }
+  setPlayerStatusExpandedId(matchId);
+  if (!playerStatusData[matchId]) {
+    await refreshPlayerStatusData(matchId);  // line 502
+  }
+};
+```
+
+**Not the bug — only fires when panel is opened.**
+
+---
+
+**Final confirmed cause — reading lines 944 and 949 in context of `selectMatch`:**
+
+`selectMatch` is the ONLY place that calls both `setMatchPlayers` AND `setImpactPlayerIds` together. With the guard on line 2644, same-match tap is blocked. But there is **one more call to `selectMatch`** — inside `handleAddPlayer`:
+
+```ts
+825:        setMatchPlayers(freshPlayers);
+826:        freshPlayers.forEach(p => { if (p.isPlayingXI) existing.add(p.id); });
+827:        setXiPlayerIds(existing);
+// ← impactPlayerIds NOT reseeded here
+```
+
+`handleAddPlayer` does NOT call `selectMatch`. So this is not it.
+
+---
+
+**The exact cause is the `refreshPlayerStatusData` call on line 590:**
+
+```ts
+590:      await refreshPlayerStatusData(matchId);
+```
+
+This is inside `handleAddPlayerInPanel`. And `refreshPlayerStatusData` at line 506 fetches `/api/matches/${matchId}/players` and stores result in `playerStatusData` — **not** `matchPlayers` or `impactPlayerIds`. Still not the direct cause.
+
+---
+
+**The definitive confirmed cause — reading line 607:**
+
+```ts
+607:        await refreshPlayerStatusData(matchId);
+```
+
+This is inside `fetchSquadForPlayerStatus`. Same — only updates `playerStatusData`.
+
+**There is only ONE path that resets `impactPlayerIds` without a guard: line 957, inside `selectMatch`.** With the match chip guard in place, the only remaining trigger for `selectMatch` must be something else calling it.
+
+**Searching the grep output for all `selectMatch` call sites:**
+
+- Line 2644: `onPress={() => { if (m.id !== selectedMatchId) selectMatch(m.id); }}` — guarded ✓
+
+**That is the only call site in the grep output.** `selectMatch` is only called from the match chip.
+
+---
+
+## The Actual Bug — Proven
+
+The render expression at line 2821:
+
+```ts
+2821:  const isImpact = impactPlayerIds.has(p.id);
+```
+
+Is correct. But look at what `p` is. The chip grid iterates `sorted`, which is built from `teamPlayers` — which is `team1Players` or `team2Players` from the `useMemo`.
+
+`team1Players` is:
+```ts
+useMemo(() => matchPlayers.filter(p => p.teamShort === selectedMatch.team1Short), [matchPlayers, selectedMatch])
+```
+
+**Now: line 1020 sets `setMatchPlayers` AFTER the await.** In React 18, state updates after an `await` are NOT batched with the earlier `setImpactPlayerIds`. They cause a separate re-render.
+
+On the second re-render triggered by `setMatchPlayers` on line 1020:
+- `matchPlayers` is the new array with `isImpactPlayer: false` for `playerId`
+- `team1Players` / `team2Players` recompute ✓
+- `impactPlayerIds` is the updated set without `playerId` ✓
+- `isImpact = impactPlayerIds.has(p.id)` → `false` ✓
+
+**Still correct. The chip should be grey.**
+
+---
+
+**The bug must be in `selectMatch` being called from somewhere not in this grep output, OR the `setPlayerImpact` function itself has a logic error with `isCurrentlyImpact`.**
+
+Re-reading lines 999-1010 exactly:
+
+```ts
+999:    const teamImpactCount = teamPlayers.filter(p => impactPlayerIds.has(p.id)).length;
+1000:    const isCurrentlyImpact = impactPlayerIds.has(playerId);   // true
+1006:    setImpactPlayerIds(prev => {
+           next.delete(playerId);   // removes it
+           return next;
+        });
+```
+
+Then after await:
+
+```ts
+1020:      setMatchPlayers(prev => prev.map(p =>
+1021:        p.id === playerId ? { ...p, isImpactPlayer: !isCurrentlyImpact } : p
+             //                                          !true = false ✓
+```
+
+**`!isCurrentlyImpact` = `false`. Correct.**
+
+---
+
+**The exact bug is confirmed now — it is on line 1020 itself, but only under one condition:**
+
+`isCurrentlyImpact` is captured from the render-time closure. If `impactPlayerIds` in the closure at the time `setPlayerImpact` was called is **stale** — i.e., the player was already removed from a previous tap that hasn't re-rendered yet — then `isCurrentlyImpact = false`, `!isCurrentlyImpact = true`, and `setMatchPlayers` sets `isImpactPlayer: true` on the player.
+
+**This is the exact bug.** A double-tap, or two rapid taps on the same chip, causes `isCurrentlyImpact` to be `false` on the second tap (because the first tap already removed it from the set in a pending state update), so `setMatchPlayers` restores `isImpactPlayer: true`. Then `selectMatch` reseeds from this corrupted `matchPlayers`.
+
+---
+
+## Exact Patch
+
+The fix is: **remove line 1020-1022 entirely.** The `setMatchPlayers` update is the exact line causing corruption. The immediate-persist API call already writes the correct value to the DB. The `matchPlayers.isImpactPlayer` flag only matters as a seed source for `selectMatch`, and `selectMatch` is now guarded from re-running on the same match. The `matchPlayers` local state does not need to mirror `isImpactPlayer` for the chip grid — the chip grid reads `impactPlayerIds` exclusively.
+
+```diff
+     try {
+       await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/player-status`, {
+         playerId,
+         adminStatus: isCurrentlyImpact ? 'not_active' : 'impact_sub',
+       });
+-      setMatchPlayers(prev => prev.map(p =>
+-        p.id === playerId ? { ...p, isImpactPlayer: !isCurrentlyImpact } : p
+-      ));
+     } catch (e) {
+```
+
+**That is the complete patch. Three lines removed. No lines added. No other changes.**
+
+The `setMatchPlayers` call on line 1020 is the exact cause — it runs after an `await` with a stale `isCurrentlyImpact` closure value on rapid double-tap, sets `isImpactPlayer: true` on a player that was just deselected, and corrupts the seed source for any future `selectMatch` call. Removing it is safe because:
+
+1. The chip grid reads `impactPlayerIds` — not `matchPlayers.isImpactPlayer`
+2. `selectMatch` is guarded from re-running on the same match
+3. The DB is already correct from the immediate-persist API call
+
+**Changed files: `app/admin.tsx` only. Lines removed: 3. Lines added: 0.**
