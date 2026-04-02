@@ -1,0 +1,70 @@
+The bug is fixed.
+
+Now remove the debug logs before moving on. Here is the cleanup diff:
+
+**Remove DEBUG 1** — the log block at the start of `setPlayerImpact`:
+```diff
+-    // DEBUG 1
+-    console.log('[setPlayerImpact] START', {
+-      playerId,
+-      teamShort,
+-      isCurrentlyImpact: impactPlayerIds.has(playerId),
+-      impactPlayerIds: Array.from(impactPlayerIds),
+-    });
+```
+
+**Remove DEBUG 2** — inside the `setImpactPlayerIds` functional update:
+```diff
+-      // DEBUG 2
+-      const hadPlayer = next.has(playerId);
+       if (next.has(playerId)) { next.delete(playerId); } else { next.add(playerId); }
+-      console.log('[setImpactPlayerIds] functional update', {
+-        prev: Array.from(prev),
+-        next: Array.from(next),
+-        action: hadPlayer ? 'DELETED' : 'ADDED',
+-        playerId,
+-      });
+```
+
+**Remove DEBUG 3** — the `useEffect` watching `impactPlayerIds`:
+```diff
+-  // DEBUG 3 — temporary: trace every impactPlayerIds change
+-  useEffect(() => {
+-    console.log('[impactPlayerIds CHANGED]', Array.from(impactPlayerIds));
+-  }, [impactPlayerIds]);
+```
+
+**Remove DEBUG 4** — at the start of `selectMatch`:
+```diff
+-    // DEBUG 4
+-    console.log('[selectMatch] CALLED', { matchId, previousSelectedMatchId: selectedMatchId });
+```
+
+**Remove DEBUG 5** — before `setImpactPlayerIds(existingImpact)` in `selectMatch`:
+```diff
+-    // DEBUG 5
+-    console.log('[selectMatch] about to seed impactPlayerIds', {
+-      existingImpact: Array.from(existingImpact),
+-      sourcePlayers: players.filter(p => p.isImpactPlayer === true).map(p => ({ id: p.id, name: p.name, isImpactPlayer: p.isImpactPlayer, isPlayingXI: p.isPlayingXI })),
+-    });
+```
+
+**Remove DEBUG 6** — inside the chip grid render:
+```diff
+-        // DEBUG 6 — log only the player being traced (filter by checking impactPlayerIds at render time)
+-        if (p.isImpactPlayer === true) {
+-          console.log('[CHIP RENDER]', {
+-            id: p.id,
+-            name: p.name,
+-            isXI,
+-            isImpact,
+-            teamMode: teamMode[label],
+-            selectedMatchId,
+-            'p.isImpactPlayer': p.isImpactPlayer,
+-          });
+-        }
+```
+
+---
+
+Push the cleanup, confirm Railway deploys, then come back here and we'll start the structured plan across backend integrity, admin screen stability, and UX. 🙌
