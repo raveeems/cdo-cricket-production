@@ -22,6 +22,7 @@ import { apiRequest, getApiUrl } from '@/lib/query-client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PlayerStatusPanel } from '@/components/admin/PlayerStatusPanel';
 import { XIImpactGrid } from '@/components/admin/XIImpactGrid';
+import { TournamentPot } from '@/components/admin/TournamentPot';
 
 interface PendingUser {
   id: string;
@@ -2058,313 +2059,31 @@ export default function AdminScreen() {
             )}
           </View>
 
-          <View style={styles.section}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', marginBottom: 0, borderLeftColor: colors.accent }]}>
-                Tournament Pot Management
-              </Text>
-              {potUnprocessedMatches.filter(m => !m.potProcessed).length > 0 && (
-                <View style={{ backgroundColor: '#F59E0B20', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1, borderWidth: 1, borderColor: '#F59E0B40' }}>
-                  <Text style={{ color: '#F59E0B', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{potUnprocessedMatches.filter(m => !m.potProcessed).length}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
-              Process zero-sum pot distribution for completed matches.
-            </Text>
-
-            <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.formFieldLabel, { color: colors.textTertiary, marginBottom: 6 }]}>TOURNAMENT / SERIES</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {potTournamentNames.map(name => (
-                    <Pressable
-                      key={name}
-                      onPress={() => {
-                        setPotSelectedTournament(name);
-                        setPotShowNewInput(false);
-                        setPotNewTournament('');
-                      }}
-                      style={{
-                        borderRadius: 20,
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        borderWidth: 1,
-                        backgroundColor: name === potSelectedTournament ? colors.primary : colors.surfaceElevated,
-                        borderColor: name === potSelectedTournament ? colors.primary : colors.border,
-                      }}
-                    >
-                      <Text style={{
-                        color: name === potSelectedTournament ? '#FFF' : colors.text,
-                        fontFamily: 'Inter_600SemiBold',
-                        fontSize: 13,
-                      }}>
-                        {name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                  <Pressable
-                    onPress={() => {
-                      setPotShowNewInput(true);
-                      setPotSelectedTournament('');
-                    }}
-                    style={{
-                      borderRadius: 20,
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      borderWidth: 1,
-                      borderStyle: 'dashed' as any,
-                      backgroundColor: potShowNewInput ? colors.primary + '15' : colors.surfaceElevated,
-                      borderColor: potShowNewInput ? colors.primary : colors.border,
-                    }}
-                  >
-                    <Text style={{
-                      color: potShowNewInput ? colors.primary : colors.textSecondary,
-                      fontFamily: 'Inter_600SemiBold',
-                      fontSize: 13,
-                    }}>
-                      + Add New
-                    </Text>
-                  </Pressable>
-                </View>
-              </ScrollView>
-
-              {potShowNewInput && (
-                <TextInput
-                  style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium', marginBottom: 8 }]}
-                  value={potNewTournament}
-                  onChangeText={setPotNewTournament}
-                  placeholder="e.g. T20 World Cup"
-                  placeholderTextColor={colors.textTertiary}
-                />
-              )}
-
-              <Text style={[styles.formFieldLabel, { color: colors.textTertiary, marginBottom: 6, marginTop: 4 }]}>SELECT MATCH</Text>
-              {potLoadingMatches ? (
-                <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
-              ) : potUnprocessedMatches.length === 0 ? (
-                <View style={{ paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.surfaceElevated, borderRadius: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                  <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium', fontSize: 13 }}>
-                    No completed matches found
-                  </Text>
-                </View>
-              ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {potUnprocessedMatches.map(m => {
-                      const isSelected = m.id === potSelectedMatchId;
-                      const isProcessed = !!m.potProcessed;
-                      const matchDate = new Date(m.startTime);
-                      const formatted = matchDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                      const fullMatch = matches.find(fm => fm.id === m.id);
-                      const stake = fullMatch?.entryStake;
-                      return (
-                        <Pressable
-                          key={m.id}
-                          onPress={() => { setPotSelectedMatchId(m.id); setPotPenaltyUserIds([]); }}
-                          style={{
-                            borderRadius: 12,
-                            paddingHorizontal: 16,
-                            paddingVertical: 10,
-                            borderWidth: 1.5,
-                            backgroundColor: isSelected ? colors.primary : colors.surfaceElevated,
-                            borderColor: isSelected ? colors.primary : isProcessed ? colors.success + '50' : colors.border,
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Text style={{
-                            color: isSelected ? '#FFF' : colors.text,
-                            fontFamily: 'Inter_700Bold',
-                            fontSize: 14,
-                          }}>
-                            {m.team1Short} vs {m.team2Short}
-                          </Text>
-                          <Text style={{
-                            color: isSelected ? '#FFFFFF90' : colors.textTertiary,
-                            fontFamily: 'Inter_400Regular',
-                            fontSize: 11,
-                            marginTop: 2,
-                          }}>
-                            {formatted}{stake ? ` · ₹${stake}` : ''}{isProcessed ? ' · ✓' : ''}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              )}
-
-              <Text style={[styles.formFieldLabel, { color: colors.textTertiary, marginBottom: 6, marginTop: 4 }]}>ENTRY STAKE (₹)</Text>
-              <TextInput
-                style={[styles.addPlayerInput, { backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, fontFamily: 'Inter_500Medium' }]}
-                value={potStake}
-                onChangeText={setPotStake}
-                placeholder="30"
-                placeholderTextColor={colors.textTertiary}
-                keyboardType="numeric"
-              />
-
-              {/* Penalty Mode */}
-              <Text style={[styles.formFieldLabel, { color: colors.textTertiary, marginBottom: 6, marginTop: 12 }]}>POT MODE</Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                {([['entries_only', 'Entries Only'], ['entries_plus_penalty', 'Entries + Penalty']] as const).map(([mode, label]) => (
-                  <Pressable
-                    key={mode}
-                    onPress={() => {
-                      setPotMode(mode);
-                      if (mode === 'entries_only') setPotPenaltyUserIds([]);
-                    }}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      borderRadius: 10,
-                      borderWidth: 1.5,
-                      backgroundColor: potMode === mode ? colors.error + '15' : colors.surfaceElevated,
-                      borderColor: potMode === mode ? colors.error : colors.border,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ color: potMode === mode ? colors.error : colors.textSecondary, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
-                      {label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {potMode === 'entries_plus_penalty' && (() => {
-                return (
-                  <View style={{ marginBottom: 8 }}>
-                    <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17, marginBottom: 8 }}>
-                      Select users who receive a penalty (₹{potStake || '?'} deducted — same as stake). These users are NOT contest entrants.
-                    </Text>
-                    {potUsersLoading ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <View style={{ gap: 6 }}>
-                        {(() => {
-                          const selectedMatchData = potUnprocessedMatches.find(m => m.id === potSelectedMatchId);
-                          const entrantIds = new Set(selectedMatchData?.entrantUserIds || []);
-                          return allUsers.map(u => {
-                            const isSelected = potPenaltyUserIds.includes(u.id);
-                            const isEntrant = entrantIds.has(u.id);
-                            return (
-                              <Pressable
-                                key={u.id}
-                                onPress={() => {
-                                  if (isEntrant) return;
-                                  setPotPenaltyUserIds(prev =>
-                                    prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
-                                  );
-                                }}
-                                style={{
-                                  flexDirection: 'row',
-                                  alignItems: 'center',
-                                  gap: 10,
-                                  padding: 10,
-                                  borderRadius: 10,
-                                  borderWidth: 1,
-                                  backgroundColor: isEntrant ? colors.surfaceElevated : isSelected ? colors.error + '12' : colors.surfaceElevated,
-                                  borderColor: isEntrant ? colors.border : isSelected ? colors.error + '50' : colors.border,
-                                  opacity: isEntrant ? 0.45 : 1,
-                                }}
-                              >
-                                <View style={{
-                                  width: 22, height: 22, borderRadius: 11,
-                                  borderWidth: 1.5,
-                                  borderColor: isEntrant ? colors.border : isSelected ? colors.error : colors.border,
-                                  backgroundColor: isEntrant ? 'transparent' : isSelected ? colors.error : 'transparent',
-                                  alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                  {isSelected && !isEntrant && <Ionicons name="checkmark" size={13} color="#FFF" />}
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ color: isEntrant ? colors.textTertiary : colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{u.username}</Text>
-                                  {isEntrant ? (
-                                    <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11 }}>Already entered contest</Text>
-                                  ) : u.teamName ? (
-                                    <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11 }}>{u.teamName}</Text>
-                                  ) : null}
-                                </View>
-                                {isSelected && !isEntrant && (
-                                  <Text style={{ color: colors.error, fontFamily: 'Inter_700Bold', fontSize: 12 }}>-₹{potStake || '?'}</Text>
-                                )}
-                              </Pressable>
-                            );
-                          });
-                        })()}
-                        {allUsers.length === 0 && (
-                          <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' }}>No users found.</Text>
-                        )}
-                      </View>
-                    )}
-                    {potPenaltyUserIds.length > 0 && (
-                      <View style={{ marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: colors.error + '10', borderWidth: 1, borderColor: colors.error + '30' }}>
-                        <Text style={{ color: colors.error, fontFamily: 'Inter_700Bold', fontSize: 12, marginBottom: 2 }}>
-                          Penalty Summary
-                        </Text>
-                        <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12 }}>
-                          {potPenaltyUserIds.length} {potPenaltyUserIds.length === 1 ? 'user' : 'users'} × ₹{potStake || '?'} = ₹{potPenaltyUserIds.length * (parseInt(potStake) || 0)} added to pot
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                );
-              })()}
-
-              {(() => {
-                const selectedMatch = potUnprocessedMatches.find(m => m.id === potSelectedMatchId);
-                if (!selectedMatch?.potProcessed) return null;
-                return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, padding: 8, backgroundColor: '#F59E0B10', borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B30' }}>
-                    <Ionicons name="refresh-circle-outline" size={16} color="#F59E0B" />
-                    <Text style={{ color: '#F59E0B', fontSize: 12, fontFamily: 'Inter_500Medium', flex: 1 }}>
-                      This match was already processed. Submitting will re-process and replace previous entries.
-                    </Text>
-                  </View>
-                );
-              })()}
-
-              <Pressable
-                onPress={handleProcessAndDistribute}
-                disabled={potProcessing || (!potSelectedTournament && !potNewTournament.trim()) || !potSelectedMatchId}
-                style={{
-                  height: 44,
-                  borderRadius: 12,
-                  backgroundColor: '#F59E0B',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  flexDirection: 'row',
-                  gap: 8,
-                  marginTop: 8,
-                  opacity: (potProcessing || (!potSelectedTournament && !potNewTournament.trim()) || !potSelectedMatchId) ? 0.5 : 1,
-                }}
-              >
-                {potProcessing ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <>
-                    <Ionicons name="trophy" size={18} color="#FFF" />
-                    <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Process & Distribute Pot</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-
-            {(() => {
-              const processedCount = matches.filter(m => m.potProcessed).length;
-              if (processedCount === 0) return null;
-              return (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingHorizontal: 2 }}>
-                  <Ionicons name="checkmark-circle-outline" size={13} color={colors.success} />
-                  <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 12 }}>
-                    {processedCount} {processedCount === 1 ? 'match' : 'matches'} already processed
-                  </Text>
-                </View>
-              );
-            })()}
-          </View>
+          <TournamentPot
+            colors={colors}
+            matches={matches}
+            potTournamentNames={potTournamentNames}
+            potSelectedTournament={potSelectedTournament}
+            potShowNewInput={potShowNewInput}
+            potNewTournament={potNewTournament}
+            potLoadingMatches={potLoadingMatches}
+            potUnprocessedMatches={potUnprocessedMatches}
+            potSelectedMatchId={potSelectedMatchId}
+            potStake={potStake}
+            potMode={potMode}
+            potPenaltyUserIds={potPenaltyUserIds}
+            potUsersLoading={potUsersLoading}
+            allUsers={allUsers}
+            potProcessing={potProcessing}
+            onSetPotSelectedTournament={setPotSelectedTournament}
+            onSetPotShowNewInput={setPotShowNewInput}
+            onSetPotNewTournament={setPotNewTournament}
+            onSetPotSelectedMatchId={setPotSelectedMatchId}
+            onSetPotStake={setPotStake}
+            onSetPotMode={setPotMode}
+            onSetPotPenaltyUserIds={setPotPenaltyUserIds}
+            onProcess={handleProcessAndDistribute}
+          />
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
