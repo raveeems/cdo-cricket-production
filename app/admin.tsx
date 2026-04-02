@@ -989,7 +989,7 @@ export default function AdminScreen() {
     });
   };
 
-  const setPlayerImpact = (playerId: string, teamShort: string) => {
+  const setPlayerImpact = async (playerId: string, teamShort: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (xiPlayerIds.has(playerId)) {
       setXiMessage(`Remove ${teamShort} player from XI first before marking as Impact`);
@@ -997,15 +997,35 @@ export default function AdminScreen() {
     }
     const teamPlayers = matchPlayers.filter(p => p.teamShort === teamShort);
     const teamImpactCount = teamPlayers.filter(p => impactPlayerIds.has(p.id)).length;
-    if (!impactPlayerIds.has(playerId) && teamImpactCount >= 5) {
+    const isCurrentlyImpact = impactPlayerIds.has(playerId);
+    if (!isCurrentlyImpact && teamImpactCount >= 5) {
       setXiMessage(`${teamShort} already has 5 Impact players (max 5 per team)`);
       return;
     }
+    // Update local state immediately so UI is responsive
     setImpactPlayerIds(prev => {
       const next = new Set(prev);
       if (next.has(playerId)) { next.delete(playerId); } else { next.add(playerId); }
       return next;
     });
+    // Persist immediately so DB stays in sync with local state.
+    // This prevents selectMatch() from re-seeding impactPlayerIds from stale DB flags
+    // and overwriting deselections that haven't been saved via "Save XI + Impact" yet.
+    if (!selectedMatchId) return;
+    try {
+      await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/player-status`, {
+        playerId,
+        adminStatus: isCurrentlyImpact ? 'not_active' : 'impact_sub',
+      });
+    } catch (e) {
+      // Revert local state if API call fails
+      setImpactPlayerIds(prev => {
+        const next = new Set(prev);
+        if (isCurrentlyImpact) { next.add(playerId); } else { next.delete(playerId); }
+        return next;
+      });
+      setXiMessage(`Failed to update impact status — please try again`);
+    }
   };
 
   const clearPlayerStatus = (playerId: string) => {
