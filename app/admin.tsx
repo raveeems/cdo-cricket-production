@@ -1017,6 +1017,9 @@ export default function AdminScreen() {
         playerId,
         adminStatus: isCurrentlyImpact ? 'not_active' : 'impact_sub',
       });
+      setMatchPlayers(prev => prev.map(p =>
+        p.id === playerId ? { ...p, isImpactPlayer: !isCurrentlyImpact } : p
+      ));
     } catch (e) {
       // Revert local state if API call fails
       setImpactPlayerIds(prev => {
@@ -2638,7 +2641,7 @@ export default function AdminScreen() {
                     return (
                       <Pressable
                         key={m.id}
-                        onPress={() => selectMatch(m.id)}
+                        onPress={() => { if (m.id !== selectedMatchId) selectMatch(m.id); }}
                         style={[
                           styles.matchChip,
                           {
