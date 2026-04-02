@@ -1908,6 +1908,7 @@ export async function fetchCricbuzzScorecard(
     }
 
     const namePointsMap = new Map<string, number>();
+    const scardBowlerKeys = new Set<string>(); // tracks bowlers already counted via scard
     const scoreStringParts: string[] = [];
     let totalOvers = 0;
     let matchEnded = false;
@@ -1989,6 +1990,7 @@ export async function fetchCricbuzzScorecard(
         );
         console.log(`[Cricbuzz:Bowl] Inn${inn.inningsId} ${name}: ${wickets}w ${actualOvers}ov eco=${eco} => ${pts}pts`);
         addNamePoints(namePointsMap, name, pts);
+        scardBowlerKeys.add(normalizeName(name)); // mark as already counted
       }
 
       // Score string from batting total
@@ -2047,8 +2049,10 @@ export async function fetchCricbuzzScorecard(
         const actualOvers = cbOversToDecimal(bw.overs || 0);
         const eco = parseFloat(String(bw.economy || 0)) || 0;
         const existing = namePointsMap.get(normKey) || 0;
-        // Add bowling pts if they haven't been counted via scard yet
-        if (existing === 0 || bw.wickets > 0) {
+        // Only add leanback bowling if this bowler was NOT already counted via scard.
+        // The previous guard (existing===0 || bw.wickets>0) caused double-counting: a bowler
+        // with wickets who was already in the scard bowling table would be re-added.
+        if (!scardBowlerKeys.has(normKey)) {
           const pts = calcCricbuzzBowlingPoints(
             bw.wickets || 0,
             bw.maidens || 0,

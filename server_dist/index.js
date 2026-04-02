@@ -2161,6 +2161,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
       return null;
     }
     const namePointsMap = /* @__PURE__ */ new Map();
+    const scardBowlerKeys = /* @__PURE__ */ new Set();
     const scoreStringParts = [];
     let totalOvers = 0;
     let matchEnded = false;
@@ -2228,6 +2229,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
         );
         console.log(`[Cricbuzz:Bowl] Inn${inn.inningsId} ${name}: ${wickets2}w ${actualOvers}ov eco=${eco} => ${pts}pts`);
         addNamePoints(namePointsMap, name, pts);
+        scardBowlerKeys.add(normalizeName(name));
       }
       const runs = batsmen.reduce((s, b) => s + (b.runs || 0), 0) + (inn.extras?.total || 0);
       const wickets = batsmen.filter(
@@ -2271,7 +2273,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
         const actualOvers = cbOversToDecimal(bw.overs || 0);
         const eco = parseFloat(String(bw.economy || 0)) || 0;
         const existing = namePointsMap.get(normKey) || 0;
-        if (existing === 0 || bw.wickets > 0) {
+        if (!scardBowlerKeys.has(normKey)) {
           const pts = calcCricbuzzBowlingPoints(
             bw.wickets || 0,
             bw.maidens || 0,
