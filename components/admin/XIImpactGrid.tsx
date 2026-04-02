@@ -1,0 +1,309 @@
+import React from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+
+interface PlayerInfo {
+  id: string;
+  name: string;
+  role: string;
+  teamShort: string;
+  isPlayingXI?: boolean;
+  isImpactPlayer?: boolean;
+  credits?: number;
+}
+
+interface MatchInfo {
+  team1Short: string;
+  team2Short: string;
+}
+
+interface XIImpactGridProps {
+  colors: any;
+  selectedMatch: MatchInfo;
+  team1Players: PlayerInfo[];
+  team2Players: PlayerInfo[];
+  xiPlayerIds: Set<string>;
+  impactPlayerIds: Set<string>;
+  teamMode: Record<string, 'xi' | 'impact'>;
+  loadingPrevXI: boolean;
+  savingXI: boolean;
+  xiMessage: string;
+  onSetTeamMode: (updater: (prev: Record<string, 'xi' | 'impact'>) => Record<string, 'xi' | 'impact'>) => void;
+  onLoadPreviousXI: (teamShort: string) => void;
+  onClearTeam: (teamShort: string) => void;
+  onTapPlayer: (playerId: string, teamShort: string) => void;
+  onDeletePlayer: (playerId: string, playerName: string) => void;
+  onSave: () => void;
+}
+
+export function XIImpactGrid({
+  colors,
+  selectedMatch,
+  team1Players,
+  team2Players,
+  xiPlayerIds,
+  impactPlayerIds,
+  teamMode,
+  loadingPrevXI,
+  savingXI,
+  xiMessage,
+  onSetTeamMode,
+  onLoadPreviousXI,
+  onClearTeam,
+  onTapPlayer,
+  onDeletePlayer,
+  onSave,
+}: XIImpactGridProps) {
+  const t1XI = team1Players.filter(p => xiPlayerIds.has(p.id)).length;
+  const t2XI = team2Players.filter(p => xiPlayerIds.has(p.id)).length;
+  const t1Impact = team1Players.filter(p => impactPlayerIds.has(p.id)).length;
+  const t2Impact = team2Players.filter(p => impactPlayerIds.has(p.id)).length;
+  const bothReady = t1XI === 11 && t2XI === 11;
+
+  const teams = [
+    { label: selectedMatch.team1Short, players: team1Players, teamNum: 1 },
+    { label: selectedMatch.team2Short, players: team2Players, teamNum: 2 },
+  ];
+
+  return (
+    <View>
+      {/* Summary bar */}
+      <View style={[{
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        padding: 12, borderRadius: 12, borderWidth: 1,
+        backgroundColor: colors.card, borderColor: colors.cardBorder,
+      }]}>
+        <View style={{ flex: 1, gap: 3 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="people" size={14} color="#22C55E" />
+            <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 13 }}>
+              XI: {selectedMatch.team1Short} {t1XI}/11 · {selectedMatch.team2Short} {t2XI}/11
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ color: '#9333EA', fontSize: 13 }}>⚡</Text>
+            <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_500Medium' as const, fontSize: 12 }}>
+              Impact: {selectedMatch.team1Short} {t1Impact}/5 · {selectedMatch.team2Short} {t2Impact}/5
+            </Text>
+          </View>
+        </View>
+        <View style={{
+          paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
+          backgroundColor: bothReady ? '#22C55E20' : '#EF444420',
+        }}>
+          <Text style={{
+            color: bothReady ? '#22C55E' : '#EF4444',
+            fontFamily: 'Inter_700Bold' as const,
+            fontSize: 11,
+          }}>
+            {bothReady ? 'READY' : 'XI NEEDED'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Team grids */}
+      {teams.map(({ label, players: teamPlayers, teamNum }) => {
+        const teamXI = teamPlayers.filter(p => xiPlayerIds.has(p.id)).length;
+        const teamImpact = teamPlayers.filter(p => impactPlayerIds.has(p.id)).length;
+        const mode = teamMode[label] ?? 'xi';
+        const sorted = [...teamPlayers].sort((a, b) => {
+          const aRank = xiPlayerIds.has(a.id) ? 0 : impactPlayerIds.has(a.id) ? 1 : 2;
+          const bRank = xiPlayerIds.has(b.id) ? 0 : impactPlayerIds.has(b.id) ? 1 : 2;
+          return aRank - bRank;
+        });
+
+        return (
+          <View key={teamNum} style={{ marginTop: teamNum === 1 ? 12 : 20 }}>
+            {/* Team header row */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold' as const, fontSize: 16 }}>
+                {label}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                <Pressable
+                  onPress={() => onLoadPreviousXI(label)}
+                  disabled={loadingPrevXI}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 4,
+                    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+                    backgroundColor: colors.surfaceElevated,
+                  }}
+                >
+                  {loadingPrevXI
+                    ? <ActivityIndicator size="small" color={colors.primary} />
+                    : <Ionicons name="clipboard-outline" size={13} color={colors.textSecondary} />
+                  }
+                  <Text style={{ color: colors.textSecondary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>Last XI</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    onClearTeam(label);
+                  }}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 4,
+                    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+                    backgroundColor: '#EF444415',
+                  }}
+                >
+                  <Ionicons name="close-circle" size={13} color="#EF4444" />
+                  <Text style={{ color: '#EF4444', fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>Clear</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Mode pills */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+              <Pressable
+                onPress={() => onSetTeamMode(prev => ({ ...prev, [label]: 'xi' }))}
+                style={{
+                  flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  paddingVertical: 12, borderRadius: 12,
+                  backgroundColor: mode === 'xi' ? '#22C55E' : colors.surfaceElevated,
+                  borderWidth: 2, borderColor: mode === 'xi' ? '#22C55E' : colors.border,
+                }}
+              >
+                <Ionicons name="people" size={18} color={mode === 'xi' ? '#FFF' : '#22C55E'} />
+                <Text style={{ color: mode === 'xi' ? '#FFF' : '#22C55E', fontFamily: 'Inter_700Bold' as const, fontSize: 15 }}>
+                  XI {teamXI}/11
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onSetTeamMode(prev => ({ ...prev, [label]: 'impact' }))}
+                style={{
+                  flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  paddingVertical: 12, borderRadius: 12,
+                  backgroundColor: mode === 'impact' ? '#9333EA' : colors.surfaceElevated,
+                  borderWidth: 2, borderColor: mode === 'impact' ? '#9333EA' : colors.border,
+                }}
+              >
+                <Text style={{ color: mode === 'impact' ? '#FFF' : '#9333EA', fontSize: 18 }}>⚡</Text>
+                <Text style={{ color: mode === 'impact' ? '#FFF' : '#9333EA', fontFamily: 'Inter_700Bold' as const, fontSize: 15 }}>
+                  IMPACT {teamImpact}/5
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Mode hint */}
+            <Text style={{ color: mode === 'xi' ? '#22C55E' : '#9333EA', fontFamily: 'Inter_500Medium' as const, fontSize: 11, marginBottom: 8, textAlign: 'center' }}>
+              {mode === 'xi'
+                ? `Tap players to select XI — ${11 - teamXI > 0 ? `${11 - teamXI} more needed` : 'XI complete ✔'}`
+                : `Tap non-XI players to select Impact — ${5 - teamImpact > 0 ? `${5 - teamImpact} more needed` : 'Impact complete ✔'}`
+              }
+            </Text>
+
+            {/* Player chip grid */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {sorted.map(p => {
+                const isXI = xiPlayerIds.has(p.id);
+                const isImpact = impactPlayerIds.has(p.id);
+                const chipWidth = Platform.OS === 'web' ? '23%' : '31%';
+                const dimmed = mode === 'impact' && isXI;
+                const chipBg = isXI ? '#22C55E' : isImpact ? '#9333EA' : colors.card;
+                const chipBorder = isXI ? '#22C55E' : isImpact ? '#9333EA' : colors.cardBorder;
+                return (
+                  <View key={p.id} style={{ position: 'relative', width: chipWidth }}>
+                    <Pressable
+                      onPress={() => onTapPlayer(p.id, label)}
+                      disabled={dimmed}
+                      style={{
+                        width: '100%',
+                        paddingVertical: 10, paddingHorizontal: 8,
+                        borderRadius: 10,
+                        borderWidth: (isXI || isImpact) ? 2 : 1,
+                        borderColor: chipBorder,
+                        backgroundColor: chipBg,
+                        alignItems: 'center',
+                        opacity: dimmed ? 0.35 : 1,
+                      }}
+                    >
+                      <Text style={{ color: (isXI || isImpact) ? '#FFFFFF99' : colors.textSecondary, fontSize: 9, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.3 }}>
+                        {p.role}
+                      </Text>
+                      <Text style={{ color: (isXI || isImpact) ? '#FFF' : colors.text, fontSize: 13, fontFamily: 'Inter_700Bold' as const }} numberOfLines={1}>
+                        {p.name.split(' ').pop()}
+                      </Text>
+                      <Text style={{ color: (isXI || isImpact) ? '#FFFFFF70' : colors.textTertiary, fontSize: 9, fontFamily: 'Inter_400Regular' as const }} numberOfLines={1}>
+                        {p.name.split(' ').slice(0, -1).join(' ').substring(0, 12) || p.name}
+                      </Text>
+                      {(isXI || isImpact) && (
+                        <View style={{ marginTop: 4, backgroundColor: isXI ? '#16A34A' : '#7C3AED', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, alignSelf: 'center' }}>
+                          <Text style={{ color: '#FFF', fontSize: 9, fontFamily: 'Inter_700Bold' as const }}>
+                            {isXI ? 'XI' : '⚡ IMP'}
+                          </Text>
+                        </View>
+                      )}
+                    </Pressable>
+                    <Pressable
+                      onPress={() => onDeletePlayer(p.id, p.name)}
+                      style={{ position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', zIndex: 10 }}
+                    >
+                      <Ionicons name="trash" size={10} color="#FFF" />
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })}
+
+      {/* Save button */}
+      <Pressable
+        onPress={onSave}
+        disabled={savingXI}
+        style={{ borderRadius: 14, overflow: 'hidden', marginTop: 16, opacity: savingXI ? 0.45 : 1 }}
+      >
+        <LinearGradient
+          colors={['#22C55E', '#16A34A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ height: 50, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, borderRadius: 14 }}
+        >
+          {savingXI
+            ? <ActivityIndicator size="small" color="#FFF" />
+            : <Ionicons name="shield-checkmark" size={18} color="#FFF" />
+          }
+          <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold' as const, fontSize: 15 }}>
+            {savingXI ? 'Saving...' : 'Save XI + Impact'}
+          </Text>
+        </LinearGradient>
+      </Pressable>
+
+      {!savingXI && (
+        <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center', marginTop: 6 }}>
+          Marks XI players as IN · Impact as ⚡ · Remaining as OUT for all users
+        </Text>
+      )}
+
+      {xiMessage !== '' && (
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: 5,
+          paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, marginTop: 9,
+          backgroundColor: xiMessage.startsWith('✔') ? '#22C55E15' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? '#EF444412' : colors.primary + '15',
+          borderColor: xiMessage.startsWith('✔') ? '#22C55E40' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? '#EF444440' : colors.primary + '40',
+        }}>
+          <Ionicons
+            name={xiMessage.startsWith('✔') ? 'checkmark-circle' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? 'alert-circle' : 'information-circle'}
+            size={13}
+            color={xiMessage.startsWith('✔') ? '#22C55E' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? '#EF4444' : colors.primary}
+          />
+          <Text style={{
+            fontSize: 11, fontFamily: 'Inter_500Medium' as const, flex: 1,
+            color: xiMessage.startsWith('✔') ? '#22C55E' : xiMessage.startsWith('Failed') || xiMessage.startsWith('❌') ? '#EF4444' : colors.primary,
+          }}>
+            {xiMessage}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}

@@ -1,0 +1,61 @@
+Changes to app/admin.tsx
+Step 1 — Add import at the top after the existing imports:
+tsimport { XIImpactGrid } from '@/components/admin/XIImpactGrid';
+Step 2 — Add onClearTeam handler near the other handlers (after handlePanelAddToggle):
+tsconst handleClearTeam = (teamShort: string) => {
+  setXiPlayerIds(prev => {
+    const next = new Set(prev);
+    (teamShort === selectedMatch?.team1Short ? team1Players : team2Players)
+      .forEach(p => next.delete(p.id));
+    return next;
+  });
+  setImpactPlayerIds(prev => {
+    const next = new Set(prev);
+    (teamShort === selectedMatch?.team1Short ? team1Players : team2Players)
+      .forEach(p => next.delete(p.id));
+    return next;
+  });
+};
+Step 3 — Replace lines 2426–2665 with the component call:
+diff-            {selectedMatchId && !loadingPlayers && matchPlayers.length > 0 && selectedMatch && (
+-              <View style={{ marginTop: 8 }}>
+-                {/* Sticky match label */}
+-                ...
+-                {(() => { ... summary bar ... })()}
+-                {[team1, team2].map(...) { ... chip grid ... }}
+-                <Pressable onPress={saveXIAndImpact} ... />
+-                ...
+-              </View>
+-            )}
++            {selectedMatchId && !loadingPlayers && matchPlayers.length > 0 && selectedMatch && (
++              <View style={{ marginTop: 8 }}>
++                {/* Sticky match label */}
++                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingHorizontal: 2 }}>
++                  <View style={{ width: 3, height: 16, borderRadius: 2, backgroundColor: colors.primary }} />
++                  <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>
++                    {selectedMatch.team1Short} vs {selectedMatch.team2Short}
++                  </Text>
++                  <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
++                    {selectedMatch.status === 'live' ? '🔴 LIVE' : new Date(selectedMatch.startTime).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
++                  </Text>
++                </View>
++                <XIImpactGrid
++                  colors={colors}
++                  selectedMatch={selectedMatch}
++                  team1Players={team1Players}
++                  team2Players={team2Players}
++                  xiPlayerIds={xiPlayerIds}
++                  impactPlayerIds={impactPlayerIds}
++                  teamMode={teamMode}
++                  loadingPrevXI={loadingPrevXI}
++                  savingXI={savingXI}
++                  xiMessage={xiMessage}
++                  onSetTeamMode={setTeamMode}
++                  onLoadPreviousXI={loadPreviousXI}
++                  onClearTeam={handleClearTeam}
++                  onTapPlayer={tapPlayer}
++                  onDeletePlayer={handleDeletePlayer}
++                  onSave={saveXIAndImpact}
++                />
++              </View>
++            )}
