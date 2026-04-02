@@ -71,6 +71,7 @@ export default function AdminScreen() {
   const [isSyncing, setIsSyncing] = useState(false);
 
   const [matches, setMatches] = useState<MatchInfo[]>([]);
+  const [savedMatchIds, setSavedMatchIds] = useState<Set<string>>(new Set());
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [matchPlayers, setMatchPlayers] = useState<PlayerInfo[]>([]);
   const [xiPlayerIds, setXiPlayerIds] = useState<Set<string>>(new Set());
@@ -1101,6 +1102,9 @@ export default function AdminScreen() {
         });
       }
       setXiMessage(`✔ Saved — XI: ${t1XI}+${t2XI} | ⚡ Impact: ${t1Impact}+${t2Impact}`);
+      if (selectedMatchId) {
+        setSavedMatchIds(prev => new Set(prev).add(selectedMatchId));
+      }
     } catch (e: any) {
       setXiMessage('❌ Save failed: ' + (e.message || 'unknown error'));
     } finally {
@@ -2392,6 +2396,11 @@ export default function AdminScreen() {
                         }]}>
                           {m.status === 'live' ? 'LIVE' : new Date(m.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </Text>
+                        {savedMatchIds.has(m.id) && (
+                          <View style={{ marginTop: 3, backgroundColor: '#22C55E', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                            <Text style={{ color: '#FFF', fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>SAVED</Text>
+                          </View>
+                        )}
                       </Pressable>
                     );
                   })}

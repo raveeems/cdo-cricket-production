@@ -1840,7 +1840,7 @@ export default function CreateTeamScreen() {
           </ScrollView>
 
           {saveError && (
-            <View style={{ position: 'absolute', top: insets.top + webTopInset + 60, left: 16, right: 16, backgroundColor: '#EF4444', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, zIndex: 100 }}>
+            <View style={{ position: 'absolute', bottom: insets.bottom + (Platform.OS === 'web' ? 34 : 12) + 72, left: 16, right: 16, backgroundColor: '#EF4444', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, zIndex: 100 }}>
               <Ionicons name="alert-circle" size={22} color="#FFF" style={{ marginTop: 2 }} />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: '#FFF', fontSize: 14, fontFamily: 'Inter_700Bold' as const }}>Submission Failed</Text>
