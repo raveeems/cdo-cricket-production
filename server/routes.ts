@@ -1439,11 +1439,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(422).json({ message: "Could not build a valid smart team — falling back to random" });
         }
 
+        const hasTournamentData = tournamentTotals.size > 0;
+        const matchup = `${match.team1Short} vs ${match.team2Short}`;
+
         return res.json({
           playerIds: picked.map(p => p.id),
-          reason: h2hMatches.length > 0
-            ? `Based on IPL 2026 form + ${h2hMatches.length} head-to-head match${h2hMatches.length > 1 ? 'es' : ''} (${match.team1Short} vs ${match.team2Short})`
-            : `Based on IPL 2026 form (no previous head-to-head data yet)`,
+          reason: h2hMatches.length > 0 && hasTournamentData
+            ? `Smart pick: IPL 2026 form + ${h2hMatches.length} previous ${matchup} match${h2hMatches.length > 1 ? 'es' : ''}`
+            : hasTournamentData
+            ? `Smart pick: IPL 2026 form only (first time these teams meet this season)`
+            : `Smart pick: based on player credits (first matches of the season — no form data yet)`,
         });
       } catch (err: any) {
         console.error("Smart pick error:", err);
