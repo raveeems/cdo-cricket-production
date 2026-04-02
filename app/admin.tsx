@@ -222,11 +222,6 @@ export default function AdminScreen() {
     return () => clearTimeout(t);
   }, [browseError]);
 
-  // DEBUG: watch impactPlayerIds on every change
-  useEffect(() => {
-    console.log('[DEBUG][impactPlayerIds changed]', Array.from(impactPlayerIds));
-  }, [impactPlayerIds]);
-
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const checkedAtRef = useRef<Date>(new Date());
 
@@ -935,8 +930,6 @@ export default function AdminScreen() {
   };
 
   const selectMatch = async (matchId: string) => {
-    // DEBUG #4 — start of selectMatch
-    console.log('[DEBUG][selectMatch] called', { matchId, selectedMatchId });
     setSelectedMatchId(matchId);
     setXiMessage('');
     const m = matches.find(x => x.id === matchId);
@@ -961,8 +954,6 @@ export default function AdminScreen() {
         setImpactPlayerIds(new Set());
       } else {
         setXiPlayerIds(existingXI);
-        // DEBUG #5 — before seeding impactPlayerIds from DB
-        console.log('[DEBUG][selectMatch seeding impactPlayerIds]', { existingImpact: Array.from(existingImpact), impactSourcePlayers: players.filter(p => p.isImpactPlayer === true).map(p => ({ id: p.id, name: p.name, isPlayingXI: p.isPlayingXI })) });
         setImpactPlayerIds(existingImpact);
       }
       const m2 = matches.find(x => x.id === matchId);
@@ -999,8 +990,6 @@ export default function AdminScreen() {
   };
 
   const setPlayerImpact = async (playerId: string, teamShort: string) => {
-    // DEBUG #1 — start of setPlayerImpact
-    console.log('[DEBUG][setPlayerImpact] called', { playerId, teamShort, isCurrentlyImpact: impactPlayerIds.has(playerId), impactPlayerIds: Array.from(impactPlayerIds) });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (xiPlayerIds.has(playerId)) {
       setXiMessage(`Remove ${teamShort} player from XI first before marking as Impact`);
@@ -1018,8 +1007,6 @@ export default function AdminScreen() {
       const next = new Set(prev);
       const wasIn = next.has(playerId);
       if (wasIn) { next.delete(playerId); } else { next.add(playerId); }
-      // DEBUG #2 — inside setImpactPlayerIds updater
-      console.log('[DEBUG][setImpactPlayerIds updater]', { prev: Array.from(prev), next: Array.from(next), action: wasIn ? 'deleted' : 'added', playerId });
       return next;
     });
     // Persist immediately so DB stays in sync with local state.
@@ -2830,10 +2817,6 @@ export default function AdminScreen() {
                         {sorted.map(p => {
                           const isXI = xiPlayerIds.has(p.id);
                           const isImpact = impactPlayerIds.has(p.id);
-                          // DEBUG #6 — render path per player chip (logs only for impact-mode selected match)
-                          if (mode === 'impact' && selectedMatchId) {
-                            console.log('[DEBUG][chip render]', { id: p.id, name: p.name, isXI, isImpact, mode, selectedMatchId });
-                          }
                           const isNone = !isXI && !isImpact;
                           const chipWidth = Platform.OS === 'web' ? '23%' : '31%';
                           // In impact mode, XI players appear dimmed and untappable
