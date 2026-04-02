@@ -1,0 +1,81 @@
+I have everything needed. Here is the complete extraction.
+
+---
+
+## New file: `components/admin/PlayerStatusPanel.tsx`---
+
+## Changes to `app/admin.tsx`
+
+**Step 1 — Add the import** at the top of `app/admin.tsx`, after the existing imports:
+
+```diff
++import { PlayerStatusPanel } from '@/components/admin/PlayerStatusPanel';
+```
+
+**Step 2 — Add `onPanelAddToggle` handler** in `app/admin.tsx` (this replaces the inline logic that was previously inside the JSX):
+
+```diff
++  const handlePanelAddToggle = (matchId: string, team1Short: string) => {
++    if (panelAddOpen === matchId) {
++      setPanelAddOpen(null);
++      setPanelAddMsg('');
++    } else {
++      setPanelAddOpen(matchId);
++      setPanelAddName('');
++      setPanelAddTeam(team1Short);
++      setPanelAddRole('BAT');
++      setPanelAddCredits('8');
++      setPanelAddMsg('');
++    }
++  };
+```
+
+**Step 3 — Replace lines 1955–2267 in `app/admin.tsx`** with the component call:
+
+```diff
+-                {playerStatusExpandedId === m.id && (
+-                  <View style={{ marginTop: 10, borderTopWidth: 1, ... }}>
+-                    ... (313 lines) ...
+-                  </View>
+-                )}
++                {playerStatusExpandedId === m.id && (
++                  <PlayerStatusPanel
++                    match={m}
++                    colors={colors}
++                    loadingPlayerStatus={loadingPlayerStatus}
++                    playerStatusData={playerStatusData}
++                    updatingPlayerId={updatingPlayerId}
++                    fetchingSquadMatchId={fetchingSquadMatchId}
++                    fetchSquadResult={fetchSquadResult}
++                    panelAddOpen={panelAddOpen}
++                    panelAddName={panelAddName}
++                    panelAddTeam={panelAddTeam}
++                    panelAddRole={panelAddRole}
++                    panelAddCredits={panelAddCredits}
++                    panelAdding={panelAdding}
++                    panelAddMsg={panelAddMsg}
++                    onRefresh={() => refreshPlayerStatusData(m.id)}
++                    onSetPlayerStatus={setPlayerStatus}
++                    onToggleImpactSub={toggleImpactSub}
++                    onFetchSquad={fetchSquadForPlayerStatus}
++                    onPanelAddToggle={handlePanelAddToggle}
++                    onSetPanelAddName={setPanelAddName}
++                    onSetPanelAddTeam={setPanelAddTeam}
++                    onSetPanelAddRole={setPanelAddRole}
++                    onSetPanelAddCredits={setPanelAddCredits}
++                    onAddPlayer={handleAddPlayerInPanel}
++                  />
++                )}
+```
+
+---
+
+## Summary
+
+**New file:** `components/admin/PlayerStatusPanel.tsx`
+**Modified file:** `app/admin.tsx`
+- 1 import added
+- 1 handler extracted (`handlePanelAddToggle`)
+- 313 lines of inline JSX replaced with 1 component call
+
+`app/admin.tsx` goes from ~2800 lines to ~2500. The panel has its own isolated render tree — state changes inside it no longer affect the chip grid. 🙌

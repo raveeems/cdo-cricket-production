@@ -1,0 +1,391 @@
+import React from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  TextInput,
+  ActivityIndicator,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+interface MatchInfo {
+  id: string;
+  team1: string;
+  team2: string;
+  team1Short: string;
+  team2Short: string;
+}
+
+interface PlayerStatusPanelProps {
+  match: MatchInfo;
+  colors: any;
+  loadingPlayerStatus: string | null;
+  playerStatusData: Record<string, { players: any[]; statuses: Map<string, any> }>;
+  updatingPlayerId: string | null;
+  fetchingSquadMatchId: string | null;
+  fetchSquadResult: Record<string, string>;
+  panelAddOpen: string | null;
+  panelAddName: string;
+  panelAddTeam: string;
+  panelAddRole: string;
+  panelAddCredits: string;
+  panelAdding: boolean;
+  panelAddMsg: string;
+  onRefresh: () => void;
+  onSetPlayerStatus: (matchId: string, playerId: string, newStatus: string) => void;
+  onToggleImpactSub: (matchId: string, playerId: string, currentValue: boolean) => void;
+  onFetchSquad: (matchId: string) => void;
+  onPanelAddToggle: (matchId: string, team1Short: string) => void;
+  onSetPanelAddName: (val: string) => void;
+  onSetPanelAddTeam: (val: string) => void;
+  onSetPanelAddRole: (val: string) => void;
+  onSetPanelAddCredits: (val: string) => void;
+  onAddPlayer: (matchId: string, match: any) => Promise<void>;
+}
+
+export function PlayerStatusPanel({
+  match,
+  colors,
+  loadingPlayerStatus,
+  playerStatusData,
+  updatingPlayerId,
+  fetchingSquadMatchId,
+  fetchSquadResult,
+  panelAddOpen,
+  panelAddName,
+  panelAddTeam,
+  panelAddRole,
+  panelAddCredits,
+  panelAdding,
+  panelAddMsg,
+  onRefresh,
+  onSetPlayerStatus,
+  onToggleImpactSub,
+  onFetchSquad,
+  onPanelAddToggle,
+  onSetPanelAddName,
+  onSetPanelAddTeam,
+  onSetPanelAddRole,
+  onSetPanelAddCredits,
+  onAddPlayer,
+}: PlayerStatusPanelProps) {
+  const m = match;
+
+  const getTeamStatusCounts = (teamShort: string) => {
+    const data = playerStatusData[m.id];
+    if (!data) return { xi: 0, sub: 0 };
+    const teamPlayerIds = new Set(
+      data.players.filter((p: any) => p.teamShort === teamShort).map((p: any) => p.id)
+    );
+    let xi = 0, sub = 0;
+    data.statuses.forEach((s: any, pid: string) => {
+      if (!teamPlayerIds.has(pid)) return;
+      if (s.adminStatus === 'playing_xi') xi++;
+      if (s.adminStatus === 'impact_sub') sub++;
+    });
+    return { xi, sub };
+  };
+
+  const renderRow = (p: any) => {
+    const psd = playerStatusData[m.id];
+    const ps = psd?.statuses.get(p.id);
+    const adminStatus = ps?.adminStatus as string | undefined;
+    const isImpactSub = ps?.officialImpactSubUsed === true;
+    const isUpdating = updatingPlayerId === p.id;
+    const { sub } = getTeamStatusCounts(p.teamShort);
+    const subAtMax = sub >= 5 && adminStatus !== 'impact_sub';
+
+    const btnBase = {
+      width: 30, height: 18, borderRadius: 3,
+      justifyContent: 'center' as const, alignItems: 'center' as const,
+      borderWidth: 1,
+    };
+
+    return (
+      <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 3 }}>
+        <Text style={{ flex: 1, color: colors.text, fontSize: 11, fontFamily: 'Inter_400Regular' as const }} numberOfLines={1}>
+          {p.name}
+        </Text>
+        <Text style={{ width: 28, color: colors.textTertiary, fontSize: 9, fontFamily: 'Inter_400Regular' as const }}>
+          {p.role}
+        </Text>
+        {/* XI button */}
+        <Pressable
+          onPress={() => onSetPlayerStatus(m.id, p.id, 'playing_xi')}
+          disabled={isUpdating}
+          style={[btnBase, {
+            backgroundColor: adminStatus === 'playing_xi' ? '#22C55E' : 'transparent',
+            borderColor: adminStatus === 'playing_xi' ? '#22C55E' : colors.border,
+            opacity: isUpdating ? 0.5 : 1,
+          }]}
+        >
+          <Text style={{ color: adminStatus === 'playing_xi' ? '#fff' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>XI</Text>
+        </Pressable>
+        {/* SUB button */}
+        <Pressable
+          onPress={() => onSetPlayerStatus(m.id, p.id, 'impact_sub')}
+          disabled={isUpdating || subAtMax}
+          style={[btnBase, {
+            marginLeft: 2,
+            backgroundColor: adminStatus === 'impact_sub' ? '#9333EA' : 'transparent',
+            borderColor: adminStatus === 'impact_sub' ? '#9333EA' : colors.border,
+            opacity: (isUpdating || subAtMax) ? 0.35 : 1,
+          }]}
+        >
+          <Text style={{ color: adminStatus === 'impact_sub' ? '#fff' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>SUB</Text>
+        </Pressable>
+        {/* OUT button */}
+        <Pressable
+          onPress={() => onSetPlayerStatus(m.id, p.id, 'not_active')}
+          disabled={isUpdating}
+          style={[btnBase, {
+            marginLeft: 2,
+            backgroundColor: adminStatus === 'not_active' ? '#EF4444' : 'transparent',
+            borderColor: adminStatus === 'not_active' ? '#EF4444' : colors.border,
+            opacity: isUpdating ? 0.5 : 1,
+          }]}
+        >
+          <Text style={{ color: adminStatus === 'not_active' ? '#fff' : colors.textTertiary, fontSize: 8, fontFamily: 'Inter_700Bold' as const }}>OUT</Text>
+        </Pressable>
+        {/* ⚡ impact sub used */}
+        {adminStatus === 'impact_sub' ? (
+          <Pressable
+            onPress={() => onToggleImpactSub(m.id, p.id, isImpactSub)}
+            disabled={isUpdating}
+            style={{
+              width: 22, height: 18, borderRadius: 3, marginLeft: 2,
+              backgroundColor: isImpactSub ? '#9333EA30' : colors.surfaceElevated,
+              borderWidth: 1, borderColor: isImpactSub ? '#9333EA' : colors.border,
+              justifyContent: 'center', alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: isImpactSub ? '#9333EA' : colors.textTertiary, fontSize: 9 }}>⚡</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 24 }} />
+        )}
+      </View>
+    );
+  };
+
+  const psd = playerStatusData[m.id];
+
+  return (
+    <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
+      {/* Panel header */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.5 }}>
+          XI / IMPACT PLAYER SELECTION
+        </Text>
+        <Pressable onPress={onRefresh} style={{ padding: 4 }}>
+          {loadingPlayerStatus === m.id
+            ? <ActivityIndicator size="small" color={colors.primary} />
+            : <Ionicons name="refresh" size={14} color={colors.primary} />
+          }
+        </Pressable>
+      </View>
+
+      {/* Column header labels */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+        <Text style={{ flex: 1, color: colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const }}>PLAYER</Text>
+        <Text style={{ width: 28, color: colors.textTertiary, fontSize: 8, fontFamily: 'Inter_600SemiBold' as const }}>ROLE</Text>
+        <Text style={{ width: 30, color: '#22C55E', fontSize: 8, fontFamily: 'Inter_700Bold' as const, textAlign: 'center' }}>XI</Text>
+        <Text style={{ width: 30, color: '#9333EA', fontSize: 8, fontFamily: 'Inter_700Bold' as const, textAlign: 'center' }}>SUB</Text>
+        <Text style={{ width: 30, color: '#EF4444', fontSize: 8, fontFamily: 'Inter_700Bold' as const, textAlign: 'center' }}>OUT</Text>
+        <Text style={{ width: 22, color: '#9333EA', fontSize: 8, fontFamily: 'Inter_700Bold' as const, textAlign: 'center' }}>⚡</Text>
+      </View>
+
+      {(!psd || psd.players.length === 0) ? (
+        <View style={{ gap: 10 }}>
+          {loadingPlayerStatus === m.id ? (
+            <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>Loading players...</Text>
+          ) : (
+            <>
+              <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
+                No squad in DB yet. Add players manually below, or try fetching from the API.
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Pressable
+                  onPress={() => onFetchSquad(m.id)}
+                  disabled={fetchingSquadMatchId === m.id}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 5,
+                    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7,
+                    backgroundColor: colors.surfaceElevated,
+                    borderWidth: 1, borderColor: colors.border,
+                    opacity: fetchingSquadMatchId === m.id ? 0.5 : 1,
+                  }}
+                >
+                  {fetchingSquadMatchId === m.id
+                    ? <ActivityIndicator size="small" color={colors.primary} />
+                    : <Ionicons name="download-outline" size={12} color={colors.textSecondary} />
+                  }
+                  <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_500Medium' as const }}>
+                    {fetchingSquadMatchId === m.id ? 'Fetching...' : 'Fetch Squad from API'}
+                  </Text>
+                </Pressable>
+              </View>
+              {fetchSquadResult[m.id] ? (
+                <Text style={{ fontSize: 10, fontFamily: 'Inter_400Regular' as const, color: fetchSquadResult[m.id].startsWith('❌') ? colors.error : '#22C55E' }}>
+                  {fetchSquadResult[m.id]}
+                </Text>
+              ) : null}
+            </>
+          )}
+        </View>
+      ) : (
+        (['team1Short', 'team2Short'] as const).map(teamKey => {
+          const teamShort = m[teamKey];
+          const teamPlayers = psd.players.filter((p: any) => p.teamShort === teamShort);
+          if (teamPlayers.length === 0) return null;
+          const { xi, sub } = getTeamStatusCounts(teamShort);
+          const xiPlayers = teamPlayers.filter((p: any) => psd.statuses.get(p.id)?.adminStatus === 'playing_xi');
+          const subPlayers = teamPlayers.filter((p: any) => psd.statuses.get(p.id)?.adminStatus === 'impact_sub');
+          const otherPlayers = teamPlayers.filter((p: any) => {
+            const s = psd.statuses.get(p.id)?.adminStatus;
+            return !s || s === 'not_active';
+          });
+
+          return (
+            <View key={teamKey} style={{ marginBottom: 14 }}>
+              {/* Team header + live counters */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <Text style={{ color: colors.text, fontSize: 12, fontFamily: 'Inter_700Bold' as const }}>{teamShort}</Text>
+                <View style={{
+                  paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+                  backgroundColor: xi === 11 ? '#22C55E20' : colors.surfaceElevated,
+                  borderWidth: 1, borderColor: xi === 11 ? '#22C55E60' : colors.border,
+                }}>
+                  <Text style={{ color: xi === 11 ? '#22C55E' : colors.textSecondary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>
+                    XI: {xi}/11
+                  </Text>
+                </View>
+                <View style={{
+                  paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+                  backgroundColor: sub > 5 ? '#EF444420' : sub === 5 ? '#9333EA20' : colors.surfaceElevated,
+                  borderWidth: 1, borderColor: sub > 5 ? '#EF444460' : sub === 5 ? '#9333EA60' : colors.border,
+                }}>
+                  <Text style={{ color: sub > 5 ? '#EF4444' : sub === 5 ? '#9333EA' : colors.textSecondary, fontSize: 10, fontFamily: 'Inter_700Bold' as const }}>
+                    SUB: {sub}/5{sub > 5 ? ' ⚠' : ''}
+                  </Text>
+                </View>
+              </View>
+
+              {xiPlayers.length > 0 && (
+                <Text style={{ color: '#22C55E', fontSize: 8, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.6, marginBottom: 2 }}>
+                  PLAYING XI
+                </Text>
+              )}
+              {xiPlayers.map(renderRow)}
+
+              {subPlayers.length > 0 && (
+                <Text style={{ color: '#9333EA', fontSize: 8, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.6, marginTop: xiPlayers.length > 0 ? 6 : 0, marginBottom: 2 }}>
+                  IMPACT OPTIONS ({subPlayers.length}/5)
+                </Text>
+              )}
+              {subPlayers.map(renderRow)}
+
+              {otherPlayers.length > 0 && (
+                <Text style={{ color: colors.textTertiary, fontSize: 8, fontFamily: 'Inter_700Bold' as const, letterSpacing: 0.6, marginTop: (xiPlayers.length > 0 || subPlayers.length > 0) ? 6 : 0, marginBottom: 2 }}>
+                  REMAINING SQUAD
+                </Text>
+              )}
+              {otherPlayers.map(renderRow)}
+            </View>
+          );
+        })
+      )}
+
+      {/* ── ADD MISSING PLAYER ── */}
+      <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 10, paddingTop: 8 }}>
+        <Pressable
+          onPress={() => onPanelAddToggle(m.id, m.team1Short)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+        >
+          <Ionicons name={panelAddOpen === m.id ? 'chevron-up' : 'add-circle-outline'} size={14} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontSize: 12, fontFamily: 'Inter_600SemiBold' as const }}>
+            {panelAddOpen === m.id ? 'Cancel' : 'Add Missing Player'}
+          </Text>
+        </Pressable>
+
+        {panelAddOpen === m.id && (
+          <View style={{ marginTop: 8, gap: 6 }}>
+            {/* Team selector */}
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {([m.team1Short, m.team2Short] as string[]).map(ts => (
+                <Pressable
+                  key={ts}
+                  onPress={() => onSetPanelAddTeam(ts)}
+                  style={{
+                    flex: 1, paddingVertical: 6, borderRadius: 7, alignItems: 'center',
+                    backgroundColor: panelAddTeam === ts ? colors.primary : colors.surfaceElevated,
+                    borderWidth: 1, borderColor: panelAddTeam === ts ? colors.primary : colors.border,
+                  }}
+                >
+                  <Text style={{ color: panelAddTeam === ts ? '#FFF' : colors.textSecondary, fontSize: 12, fontFamily: 'Inter_700Bold' as const }}>
+                    {ts}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {/* Role selector */}
+            <View style={{ flexDirection: 'row', gap: 5 }}>
+              {(['BAT', 'BOWL', 'AR', 'WK'] as const).map(r => (
+                <Pressable
+                  key={r}
+                  onPress={() => onSetPanelAddRole(r)}
+                  style={{
+                    flex: 1, paddingVertical: 5, borderRadius: 6, alignItems: 'center',
+                    backgroundColor: panelAddRole === r ? colors.primary + '20' : colors.surfaceElevated,
+                    borderWidth: 1, borderColor: panelAddRole === r ? colors.primary : colors.border,
+                  }}
+                >
+                  <Text style={{ color: panelAddRole === r ? colors.primary : colors.textSecondary, fontSize: 10, fontFamily: 'Inter_600SemiBold' as const }}>
+                    {r}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {/* Name + Credits row */}
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TextInput
+                style={{ flex: 3, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 6, fontFamily: 'Inter_500Medium', fontSize: 12 }}
+                placeholder="Player name"
+                placeholderTextColor={colors.textTertiary}
+                value={panelAddName}
+                onChangeText={onSetPanelAddName}
+              />
+              <TextInput
+                style={{ flex: 1, backgroundColor: colors.surfaceElevated, color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 6, fontFamily: 'Inter_500Medium', fontSize: 12 }}
+                placeholder="Cr"
+                placeholderTextColor={colors.textTertiary}
+                value={panelAddCredits}
+                onChangeText={onSetPanelAddCredits}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            {/* Submit */}
+            <Pressable
+              onPress={() => onAddPlayer(m.id, m)}
+              disabled={panelAdding}
+              style={{
+                backgroundColor: colors.primary, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                opacity: panelAdding ? 0.6 : 1,
+              }}
+            >
+              {panelAdding
+                ? <ActivityIndicator size="small" color="#FFF" />
+                : <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold' as const, fontSize: 12 }}>Add to Match</Text>
+              }
+            </Pressable>
+            {panelAddMsg ? (
+              <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular' as const, color: panelAddMsg.startsWith('✔') ? '#22C55E' : colors.error }}>
+                {panelAddMsg}
+              </Text>
+            ) : null}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
