@@ -1072,7 +1072,8 @@ function setupErrorHandler(app: express.Application) {
               const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
               if (resolved.activePlayerId) {
                 const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
-                if (impactPlayer && impactPlayer.isPlayingXI !== true && impactPlayer.isImpactPlayer === true) {
+                const alreadyInXI = effectivePlayerIds.includes(resolved.activePlayerId);
+                if (impactPlayer && impactPlayer.isPlayingXI !== true && impactPlayer.isImpactPlayer === true && !alreadyInXI) {
                   // Guard: only award impact bonus when player is:
                   //   1. NOT in the Playing XI (isPlayingXI !== true — handles null/false/undefined safely)
                   //   2. Explicitly marked as an official impact player (isImpactPlayer === true)

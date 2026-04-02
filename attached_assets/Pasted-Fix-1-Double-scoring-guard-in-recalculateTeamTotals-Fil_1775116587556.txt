@@ -1,0 +1,85 @@
+Fix 1 — Double-scoring guard in recalculateTeamTotals
+File: server/index.ts
+Find this exact block:
+tsif (impactEnabled) {
+  try {
+    const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
+    if (resolved.activePlayerId) {
+      const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
+      if (impactPlayer && impactPlayer.isPlayingXI !== true && impactPlayer.isImpactPlayer === true) {
+Replace with:
+tsif (impactEnabled) {
+  try {
+    const resolved = await storage.resolveImpactSlot(matchId, team.primaryImpactId, team.backupImpactId);
+    if (resolved.activePlayerId) {
+      const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
+      const alreadyInXI = effectivePlayerIds.includes(resolved.activePlayerId);
+      if (impactPlayer && impactPlayer.isPlayingXI !== true && impactPlayer.isImpactPlayer === true && !alreadyInXI) {
+What changes: Added && !alreadyInXI — one condition. If the impact player ended up in effectivePlayerIds via backup substitution, they are not double-counted.
+
+Fix 2 — Fallback in resolveImpactSlot when auto-detection never fired
+File: server/storage.ts
+Find this exact block:
+tsasync resolveImpactSlot(
+  matchId: string,
+  primaryImpactId: string | null,
+  backupImpactId: string | null
+): Promise<{ activePlayerId: string | null; activatedBy: "primary" | "backup" | null }> {
+  if (primaryImpactId) {
+    const primaryStatus = await this.getMatchPlayerStatus(matchId, primaryImpactId);
+    if (primaryStatus?.officialImpactSubUsed) {
+      return { activePlayerId: primaryImpactId, activatedBy: "primary" };
+    }
+  }
+  if (backupImpactId) {
+    const backupStatus = await this.getMatchPlayerStatus(matchId, backupImpactId);
+    if (backupStatus?.officialImpactSubUsed) {
+      return { activePlayerId: backupImpactId, activatedBy: "backup" };
+    }
+  }
+  return { activePlayerId: null, activatedBy: null };
+}
+Replace with:
+tsasync resolveImpactSlot(
+  matchId: string,
+  primaryImpactId: string | null,
+  backupImpactId: string | null
+): Promise<{ activePlayerId: string | null; activatedBy: "primary" | "backup" | null }> {
+  if (primaryImpactId) {
+    const primaryStatus = await this.getMatchPlayerStatus(matchId, primaryImpactId);
+    if (primaryStatus?.officialImpactSubUsed) {
+      return { activePlayerId: primaryImpactId, activatedBy: "primary" };
+    }
+  }
+  if (backupImpactId) {
+    const backupStatus = await this.getMatchPlayerStatus(matchId, backupImpactId);
+    if (backupStatus?.officialImpactSubUsed) {
+      return { activePlayerId: backupImpactId, activatedBy: "backup" };
+    }
+  }
+  // Fallback: auto-detection may not have fired (e.g. Crex unavailable, non-Crex source).
+  // If primary impact player has points > 4 they clearly played — activate them.
+  // Check primary first, then backup. This mirrors the admin-designated priority order.
+  if (primaryImpactId) {
+    const [primaryPlayer] = await db
+      .select({ points: players.points, isImpactPlayer: players.isImpactPlayer, isPlayingXI: players.isPlayingXI })
+      .from(players)
+      .where(and(eq(players.id, primaryImpactId), eq(players.matchId, matchId)))
+      .limit(1);
+    if (primaryPlayer && primaryPlayer.isImpactPlayer === true && primaryPlayer.isPlayingXI !== true && (primaryPlayer.points || 0) > 4) {
+      return { activePlayerId: primaryImpactId, activatedBy: "primary" };
+    }
+  }
+  if (backupImpactId) {
+    const [backupPlayer] = await db
+      .select({ points: players.points, isImpactPlayer: players.isImpactPlayer, isPlayingXI: players.isPlayingXI })
+      .from(players)
+      .where(and(eq(players.id, backupImpactId), eq(players.matchId, matchId)))
+      .limit(1);
+    if (backupPlayer && backupPlayer.isImpactPlayer === true && backupPlayer.isPlayingXI !== true && (backupPlayer.points || 0) > 4) {
+      return { activePlayerId: backupImpactId, activatedBy: "backup" };
+    }
+  }
+  return { activePlayerId: null, activatedBy: null };
+}
+What changes: Two new fallback blocks added after the existing officialImpactSubUsed checks. If auto-detection never fired but the player clearly scored (points > 4 means beyond just the +4 base), they are activated. The threshold of > 4 means a player who only received the XI base and never actually played does not trigger this fallback.
