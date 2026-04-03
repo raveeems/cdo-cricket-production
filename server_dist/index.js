@@ -856,6 +856,7 @@ var cricket_api_exports = {};
 __export(cricket_api_exports, {
   ensureIPLPreviewMatches: () => ensureIPLPreviewMatches,
   fetchCFLLScoreHeader: () => fetchCFLLScoreHeader,
+  fetchCFLLScorecard: () => fetchCFLLScorecard,
   fetchCrexScorecard: () => fetchCrexScorecard,
   fetchCricbuzzLiveScorecard: () => fetchCricbuzzLiveScorecard,
   fetchCricbuzzScorecard: () => fetchCricbuzzScorecard,
@@ -2574,6 +2575,127 @@ async function fetchCFLLScoreHeader(team1Short, team2Short) {
       err
     );
     return null;
+  }
+}
+async function fetchCFLLScorecard(team1Short, team2Short) {
+  const empty = {
+    namePointsMap: /* @__PURE__ */ new Map(),
+    battedOrBowledPlayers: /* @__PURE__ */ new Set(),
+    scoreString: "",
+    matchEnded: false,
+    totalOvers: 0
+  };
+  try {
+    const matchUrl = await findCFLLMatchUrl(team1Short, team2Short);
+    if (!matchUrl) {
+      console.log(`[CFLL:Scorecard] No match URL found for ${team1Short} vs ${team2Short}`);
+      return empty;
+    }
+    const scorecardUrl = matchUrl.replace("/live-score/", "/scorecard/");
+    console.log(`[CFLL:Scorecard] Fetching ${scorecardUrl}`);
+    const html = await fetchCFLLPage(scorecardUrl);
+    if (!html) return empty;
+    const norm = (s) => s.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+    const namePointsMap = /* @__PURE__ */ new Map();
+    const battedOrBowledPlayers = /* @__PURE__ */ new Set();
+    const catchMap = /* @__PURE__ */ new Map();
+    const runOutMap = /* @__PURE__ */ new Map();
+    const lbwBowledMap = /* @__PURE__ */ new Map();
+    const tableRows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+    for (const row of tableRows) {
+      const cells = [];
+      let cellMatch;
+      const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      while ((cellMatch = cellRe.exec(row)) !== null) {
+        cells.push(cellMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+      }
+      if (cells.length === 6 && !isNaN(parseInt(cells[1])) && !isNaN(parseInt(cells[2]))) {
+        const nameAndDismissal = cells[0];
+        const runs = parseInt(cells[1]) || 0;
+        const balls = parseInt(cells[2]) || 0;
+        const fours = parseInt(cells[3]) || 0;
+        const sixes = parseInt(cells[4]) || 0;
+        const nameLine = nameAndDismissal.split(/c |b |run|lbw/i)[0].trim();
+        const cleanName = nameLine.replace(/\(C\)|\(wk\)|Imp/gi, "").trim();
+        if (!cleanName || cleanName.length < 2) continue;
+        const normName = norm(cleanName);
+        const dismissed = !nameAndDismissal.toLowerCase().includes("not out") && balls > 0;
+        const battingPts = calcCricbuzzBattingPoints(runs, balls, fours, sixes, dismissed);
+        battedOrBowledPlayers.add(normName);
+        namePointsMap.set(normName, (namePointsMap.get(normName) || 0) + battingPts);
+        const dismissalLower = nameAndDismissal.toLowerCase();
+        const cAndBMatch = nameAndDismissal.match(/c\s*&?\s*b\s+([A-Za-z\s]+)/i);
+        if (cAndBMatch) {
+          const bowler = norm(cAndBMatch[1].trim());
+          catchMap.set(bowler, (catchMap.get(bowler) || 0) + 1);
+          lbwBowledMap.set(bowler, (lbwBowledMap.get(bowler) || 0) + 1);
+        } else {
+          const caughtMatch = nameAndDismissal.match(/c\s+([A-Za-z\s]+?)\s+b\s+([A-Za-z\s]+)/i);
+          if (caughtMatch) {
+            const fielder = norm(caughtMatch[1].trim());
+            const bowler = norm(caughtMatch[2].trim());
+            if (fielder) catchMap.set(fielder, (catchMap.get(fielder) || 0) + 1);
+            if (dismissalLower.includes("lbw") || dismissalLower.match(/^b\s/)) {
+              lbwBowledMap.set(bowler, (lbwBowledMap.get(bowler) || 0) + 1);
+            }
+          }
+          if (dismissalLower.match(/^bowled\s+|^lbw\s+b\s+/)) {
+            const bowlerMatch = dismissalLower.match(/(?:bowled|lbw\s+b)\s+([a-z\s]+)/);
+            if (bowlerMatch) {
+              const bowler = norm(bowlerMatch[1].trim());
+              lbwBowledMap.set(bowler, (lbwBowledMap.get(bowler) || 0) + 1);
+            }
+          }
+        }
+        const runOutMatch = nameAndDismissal.match(/runout\s*(?:\[T\])?\s*([A-Za-z\s]+?)(?:\s*\[H\]\s*([A-Za-z\s]+))?$/i);
+        if (runOutMatch) {
+          const direct = norm(runOutMatch[1].trim());
+          const assist = runOutMatch[2] ? norm(runOutMatch[2].trim()) : null;
+          if (direct) runOutMap.set(direct, (runOutMap.get(direct) || 0) + 1);
+          if (assist) runOutMap.set(assist, (runOutMap.get(assist) || 0) + 0.5);
+        }
+      } else if (cells.length === 6 && !isNaN(parseFloat(cells[1]))) {
+        const bowlerName = cells[0].replace(/Imp/gi, "").trim();
+        if (!bowlerName || bowlerName.length < 2) continue;
+        const overs = parseFloat(cells[1]) || 0;
+        const maidens = parseInt(cells[2]) || 0;
+        const runsConceded = parseInt(cells[3]) || 0;
+        const wickets = parseInt(cells[4]) || 0;
+        const normBowler = norm(bowlerName);
+        const economy = overs > 0 ? runsConceded / overs : 0;
+        const lbwBowledBonus = (lbwBowledMap.get(normBowler) || 0) * 8;
+        const bowlingPts = calcCricbuzzBowlingPoints(wickets, maidens, economy, overs, lbwBowledBonus);
+        battedOrBowledPlayers.add(normBowler);
+        namePointsMap.set(normBowler, (namePointsMap.get(normBowler) || 0) + bowlingPts);
+      }
+    }
+    for (const [fielder, catches] of catchMap.entries()) {
+      const pts = Math.floor(catches) * 8 + (Math.floor(catches) >= 3 ? 4 : 0);
+      namePointsMap.set(fielder, (namePointsMap.get(fielder) || 0) + pts);
+    }
+    for (const [fielder, value] of runOutMap.entries()) {
+      const isAssist = value % 1 !== 0;
+      const pts = isAssist ? 6 : Math.floor(value) * 12;
+      namePointsMap.set(fielder, (namePointsMap.get(fielder) || 0) + pts);
+    }
+    let scoreString = "";
+    let matchEnded = false;
+    let totalOvers = 0;
+    try {
+      const scoreResult = await fetchCFLLScoreHeader(team1Short, team2Short);
+      if (scoreResult) {
+        scoreString = scoreResult.scoreString;
+        matchEnded = scoreResult.matchEnded;
+        totalOvers = scoreResult.totalOvers;
+      }
+    } catch (e) {
+      console.log(`[CFLL:Scorecard] Score header fetch failed`);
+    }
+    console.log(`[CFLL:Scorecard] Parsed ${namePointsMap.size} players, ${battedOrBowledPlayers.size} batted/bowled for ${team1Short} vs ${team2Short}`);
+    return { namePointsMap, battedOrBowledPlayers, scoreString, matchEnded, totalOvers };
+  } catch (err) {
+    console.error(`[CFLL:Scorecard] Failed for ${team1Short} vs ${team2Short}: ${err}`);
+    return empty;
   }
 }
 async function fetchCrexPage(url) {
@@ -7384,7 +7506,7 @@ function setupErrorHandler(app2) {
     };
     if (!match.externalId) return empty;
     try {
-      const { fetchMatchScorecardWithScore: fetchMatchScorecardWithScore2, fetchMatchInfo: fetchMatchInfo2, fetchCricbuzzScorecard: fetchCricbuzzScorecard2, fetchCrexScorecard: fetchCrexScorecard2, fetchCFLLScoreHeader: fetchCFLLScoreHeader2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+      const { fetchMatchScorecardWithScore: fetchMatchScorecardWithScore2, fetchMatchInfo: fetchMatchInfo2, fetchCricbuzzScorecard: fetchCricbuzzScorecard2, fetchCFLLScorecard: fetchCFLLScorecard2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
       const result = {
         pointsMap: /* @__PURE__ */ new Map(),
         namePointsMap: /* @__PURE__ */ new Map(),
@@ -7396,43 +7518,26 @@ function setupErrorHandler(app2) {
       };
       let source = "";
       if (match.team1Short && match.team2Short) {
-        log(`[Heartbeat:Score] Fetching Crex (scorecard) + CFLL (score header) in parallel for ${match.team1Short} vs ${match.team2Short}`);
-        const [crexSettled, cfllSettled] = await Promise.allSettled([
-          fetchCrexScorecard2(match.team1Short, match.team2Short),
-          fetchCFLLScoreHeader2(match.team1Short, match.team2Short)
-        ]);
-        const crexResult = crexSettled.status === "fulfilled" ? crexSettled.value : null;
-        const cfllResult = cfllSettled.status === "fulfilled" ? cfllSettled.value : null;
-        if (crexSettled.status === "rejected") {
-          log(`[Heartbeat:Score] Crex error: ${crexSettled.reason}`);
-        }
-        if (cfllSettled.status === "rejected") {
-          log(`[Heartbeat:Score] CFLL error: ${cfllSettled.reason}`);
-        }
-        if (crexResult && (crexResult.namePointsMap.size > 0 || crexResult.scoreString)) {
-          result.namePointsMap = crexResult.namePointsMap;
-          result.battedOrBowledPlayers = crexResult.battedOrBowledPlayers;
-          result.scoreString = crexResult.scoreString || "";
-          result.matchEnded = crexResult.matchEnded;
-          result.totalOvers = crexResult.totalOvers;
-          source = "Crex";
-          log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players (${crexResult.battedOrBowledPlayers.size} batted/bowled), score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
-        } else {
-          log(`[Heartbeat:Score] Crex empty \u2014 will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
-        }
-        if (cfllResult?.scoreString && !result.scoreString) {
-          result.scoreString = cfllResult.scoreString;
-          if (cfllResult.matchEnded) result.matchEnded = true;
-          result.totalOvers = cfllResult.totalOvers;
-          source = "CFLL";
-          log(`[Heartbeat:Score] CFLL score header applied (Crex had no score): "${cfllResult.scoreString}"`);
-        } else if (cfllResult?.scoreString) {
-          log(`[Heartbeat:Score] CFLL score skipped \u2014 Crex score present: "${result.scoreString}"`);
+        try {
+          const cfllResult = await fetchCFLLScorecard2(match.team1Short, match.team2Short);
+          if (cfllResult.namePointsMap.size > 0) {
+            result.namePointsMap = cfllResult.namePointsMap;
+            result.battedOrBowledPlayers = cfllResult.battedOrBowledPlayers;
+            result.scoreString = cfllResult.scoreString || "";
+            result.matchEnded = cfllResult.matchEnded;
+            result.totalOvers = cfllResult.totalOvers;
+            source = "CFLL";
+            log(`[Heartbeat:Score] CFLL Scorecard SUCCESS: ${cfllResult.namePointsMap.size} players (${cfllResult.battedOrBowledPlayers.size} batted/bowled) for ${match.team1Short} vs ${match.team2Short}`);
+          } else {
+            log(`[Heartbeat:Score] CFLL Scorecard empty \u2014 falling back to Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
+          }
+        } catch (e) {
+          log(`[Heartbeat:Score] CFLL Scorecard failed \u2014 falling back to Cricbuzz: ${e}`);
         }
       }
       if (!source && process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
         try {
-          log(`[Heartbeat:Score] Cricbuzz (secondary) for ${match.team1Short} vs ${match.team2Short}`);
+          log(`[Heartbeat:Score] Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
           const cbResult = await fetchCricbuzzScorecard2(match.team1Short, match.team2Short);
           if (cbResult && (cbResult.namePointsMap.size > 0 || cbResult.scoreString)) {
             result.namePointsMap = cbResult.namePointsMap;

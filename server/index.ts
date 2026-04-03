@@ -643,7 +643,7 @@ function setupErrorHandler(app: express.Application) {
       if (!match.externalId) return empty;
 
       try {
-        const { fetchMatchScorecardWithScore, fetchMatchInfo, fetchCricbuzzScorecard, fetchCrexScorecard, fetchCFLLScoreHeader } = await import(
+        const { fetchMatchScorecardWithScore, fetchMatchInfo, fetchCricbuzzScorecard, fetchCFLLScorecard } = await import(
           "./cricket-api"
         );
 
@@ -658,60 +658,34 @@ function setupErrorHandler(app: express.Application) {
         };
         let source = "";
 
-        // --- CO-PRIMARY: Crex (scorecard + points) + CFLL (score header) — fetched in parallel ---
+        // --- Step 1: CFLL Scorecard (SSR, always accessible for IPL) ---
         if (match.team1Short && match.team2Short) {
-          log(`[Heartbeat:Score] Fetching Crex (scorecard) + CFLL (score header) in parallel for ${match.team1Short} vs ${match.team2Short}`);
-          const [crexSettled, cfllSettled] = await Promise.allSettled([
-            fetchCrexScorecard(match.team1Short, match.team2Short),
-            fetchCFLLScoreHeader(match.team1Short, match.team2Short),
-          ]);
-
-          const crexResult = crexSettled.status === "fulfilled" ? crexSettled.value : null;
-          const cfllResult = cfllSettled.status === "fulfilled" ? cfllSettled.value : null;
-
-          if (crexSettled.status === "rejected") {
-            log(`[Heartbeat:Score] Crex error: ${crexSettled.reason}`);
-          }
-          if (cfllSettled.status === "rejected") {
-            log(`[Heartbeat:Score] CFLL error: ${cfllSettled.reason}`);
-          }
-
-          // Crex: scorecard (points calculation + battedOrBowledPlayers) — authority for fantasy
-          if (crexResult && (crexResult.namePointsMap.size > 0 || crexResult.scoreString)) {
-            result.namePointsMap = crexResult.namePointsMap;
-            result.battedOrBowledPlayers = crexResult.battedOrBowledPlayers;
-            result.scoreString = crexResult.scoreString || "";
-            result.matchEnded = crexResult.matchEnded;
-            result.totalOvers = crexResult.totalOvers;
-            source = "Crex";
-            log(`[Heartbeat:Score] Crex SUCCESS: ${crexResult.namePointsMap.size} players (${crexResult.battedOrBowledPlayers.size} batted/bowled), score="${crexResult.scoreString}", ended=${crexResult.matchEnded}`);
-          } else {
-            log(`[Heartbeat:Score] Crex empty — will try Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
-          }
-
-          // CFLL: fallback score header only when Crex returned nothing
-          // Do NOT override a valid Crex score — CFLL's totalOvers uses a different
-          // scale (adds 20 for 2nd innings) vs Crex's HTML parser which may only
-          // return current-innings overs, making the freshness comparison unreliable.
-          if (cfllResult?.scoreString && !result.scoreString) {
-            result.scoreString = cfllResult.scoreString;
-            if (cfllResult.matchEnded) result.matchEnded = true;
-            result.totalOvers = cfllResult.totalOvers;
-            source = "CFLL";
-            log(`[Heartbeat:Score] CFLL score header applied (Crex had no score): "${cfllResult.scoreString}"`);
-          } else if (cfllResult?.scoreString) {
-            log(`[Heartbeat:Score] CFLL score skipped — Crex score present: "${result.scoreString}"`);
+          try {
+            const cfllResult = await fetchCFLLScorecard(match.team1Short, match.team2Short);
+            if (cfllResult.namePointsMap.size > 0) {
+              result.namePointsMap = cfllResult.namePointsMap;
+              result.battedOrBowledPlayers = cfllResult.battedOrBowledPlayers;
+              result.scoreString = cfllResult.scoreString || "";
+              result.matchEnded = cfllResult.matchEnded;
+              result.totalOvers = cfllResult.totalOvers;
+              source = "CFLL";
+              log(`[Heartbeat:Score] CFLL Scorecard SUCCESS: ${cfllResult.namePointsMap.size} players (${cfllResult.battedOrBowledPlayers.size} batted/bowled) for ${match.team1Short} vs ${match.team2Short}`);
+            } else {
+              log(`[Heartbeat:Score] CFLL Scorecard empty — falling back to Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
+            }
+          } catch (e) {
+            log(`[Heartbeat:Score] CFLL Scorecard failed — falling back to Cricbuzz: ${e}`);
           }
         }
 
-        // --- SECONDARY: Cricbuzz (RapidAPI) ---
+        // --- Step 2: Cricbuzz (RapidAPI) — only if CFLL returned nothing ---
         if (!source && process.env.RAPIDAPI_KEY && match.team1Short && match.team2Short) {
           try {
-            log(`[Heartbeat:Score] Cricbuzz (secondary) for ${match.team1Short} vs ${match.team2Short}`);
+            log(`[Heartbeat:Score] Cricbuzz for ${match.team1Short} vs ${match.team2Short}`);
             const cbResult = await fetchCricbuzzScorecard(match.team1Short, match.team2Short);
             if (cbResult && (cbResult.namePointsMap.size > 0 || cbResult.scoreString)) {
               result.namePointsMap = cbResult.namePointsMap;
-              result.battedOrBowledPlayers = cbResult.battedOrBowledPlayers; // empty Set for Cricbuzz
+              result.battedOrBowledPlayers = cbResult.battedOrBowledPlayers;
               result.scoreString = cbResult.scoreString || "";
               result.matchEnded = cbResult.matchEnded;
               result.totalOvers = cbResult.totalOvers;

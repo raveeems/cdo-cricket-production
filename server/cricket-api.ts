@@ -2470,6 +2470,160 @@ export async function fetchCFLLScoreHeader(
   }
 }
 
+export async function fetchCFLLScorecard(
+  team1Short: string,
+  team2Short: string,
+): Promise<{
+  namePointsMap: Map<string, number>;
+  battedOrBowledPlayers: Set<string>;
+  scoreString: string;
+  matchEnded: boolean;
+  totalOvers: number;
+}> {
+  const empty = {
+    namePointsMap: new Map<string, number>(),
+    battedOrBowledPlayers: new Set<string>(),
+    scoreString: "",
+    matchEnded: false,
+    totalOvers: 0,
+  };
+
+  try {
+    const matchUrl = await findCFLLMatchUrl(team1Short, team2Short);
+    if (!matchUrl) {
+      console.log(`[CFLL:Scorecard] No match URL found for ${team1Short} vs ${team2Short}`);
+      return empty;
+    }
+
+    const scorecardUrl = matchUrl.replace('/live-score/', '/scorecard/');
+    console.log(`[CFLL:Scorecard] Fetching ${scorecardUrl}`);
+
+    const html = await fetchCFLLPage(scorecardUrl);
+    if (!html) return empty;
+
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+
+    const namePointsMap = new Map<string, number>();
+    const battedOrBowledPlayers = new Set<string>();
+    const catchMap = new Map<string, number>();
+    const runOutMap = new Map<string, number>();
+    const lbwBowledMap = new Map<string, number>();
+
+    const tableRows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+
+    for (const row of tableRows) {
+      const cells: string[] = [];
+      let cellMatch;
+      const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      while ((cellMatch = cellRe.exec(row)) !== null) {
+        cells.push(cellMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+      }
+
+      if (cells.length === 6 && !isNaN(parseInt(cells[1])) && !isNaN(parseInt(cells[2]))) {
+        // Batting row: Name+dismissal | R | B | 4S | 6S | SR
+        const nameAndDismissal = cells[0];
+        const runs = parseInt(cells[1]) || 0;
+        const balls = parseInt(cells[2]) || 0;
+        const fours = parseInt(cells[3]) || 0;
+        const sixes = parseInt(cells[4]) || 0;
+
+        const nameLine = nameAndDismissal.split(/c |b |run|lbw/i)[0].trim();
+        const cleanName = nameLine.replace(/\(C\)|\(wk\)|Imp/gi, '').trim();
+        if (!cleanName || cleanName.length < 2) continue;
+
+        const normName = norm(cleanName);
+        const dismissed = !nameAndDismissal.toLowerCase().includes('not out') && balls > 0;
+        const battingPts = calcCricbuzzBattingPoints(runs, balls, fours, sixes, dismissed);
+        battedOrBowledPlayers.add(normName);
+        namePointsMap.set(normName, (namePointsMap.get(normName) || 0) + battingPts);
+
+        const dismissalLower = nameAndDismissal.toLowerCase();
+
+        const cAndBMatch = nameAndDismissal.match(/c\s*&?\s*b\s+([A-Za-z\s]+)/i);
+        if (cAndBMatch) {
+          const bowler = norm(cAndBMatch[1].trim());
+          catchMap.set(bowler, (catchMap.get(bowler) || 0) + 1);
+          lbwBowledMap.set(bowler, (lbwBowledMap.get(bowler) || 0) + 1);
+        } else {
+          const caughtMatch = nameAndDismissal.match(/c\s+([A-Za-z\s]+?)\s+b\s+([A-Za-z\s]+)/i);
+          if (caughtMatch) {
+            const fielder = norm(caughtMatch[1].trim());
+            const bowler = norm(caughtMatch[2].trim());
+            if (fielder) catchMap.set(fielder, (catchMap.get(fielder) || 0) + 1);
+            if (dismissalLower.includes('lbw') || dismissalLower.match(/^b\s/)) {
+              lbwBowledMap.set(bowler, (lbwBowledMap.get(bowler) || 0) + 1);
+            }
+          }
+          if (dismissalLower.match(/^bowled\s+|^lbw\s+b\s+/)) {
+            const bowlerMatch = dismissalLower.match(/(?:bowled|lbw\s+b)\s+([a-z\s]+)/);
+            if (bowlerMatch) {
+              const bowler = norm(bowlerMatch[1].trim());
+              lbwBowledMap.set(bowler, (lbwBowledMap.get(bowler) || 0) + 1);
+            }
+          }
+        }
+
+        const runOutMatch = nameAndDismissal.match(/runout\s*(?:\[T\])?\s*([A-Za-z\s]+?)(?:\s*\[H\]\s*([A-Za-z\s]+))?$/i);
+        if (runOutMatch) {
+          const direct = norm(runOutMatch[1].trim());
+          const assist = runOutMatch[2] ? norm(runOutMatch[2].trim()) : null;
+          if (direct) runOutMap.set(direct, (runOutMap.get(direct) || 0) + 1);
+          if (assist) runOutMap.set(assist, (runOutMap.get(assist) || 0) + 0.5);
+        }
+
+      } else if (cells.length === 6 && !isNaN(parseFloat(cells[1]))) {
+        // Bowling row: Name | O | M | R | W | ER
+        const bowlerName = cells[0].replace(/Imp/gi, '').trim();
+        if (!bowlerName || bowlerName.length < 2) continue;
+
+        const overs = parseFloat(cells[1]) || 0;
+        const maidens = parseInt(cells[2]) || 0;
+        const runsConceded = parseInt(cells[3]) || 0;
+        const wickets = parseInt(cells[4]) || 0;
+        const normBowler = norm(bowlerName);
+        const economy = overs > 0 ? runsConceded / overs : 0;
+        const lbwBowledBonus = (lbwBowledMap.get(normBowler) || 0) * 8;
+        const bowlingPts = calcCricbuzzBowlingPoints(wickets, maidens, economy, overs, lbwBowledBonus);
+        battedOrBowledPlayers.add(normBowler);
+        namePointsMap.set(normBowler, (namePointsMap.get(normBowler) || 0) + bowlingPts);
+      }
+    }
+
+    // Apply fielding credits
+    for (const [fielder, catches] of catchMap.entries()) {
+      const pts = Math.floor(catches) * 8 + (Math.floor(catches) >= 3 ? 4 : 0);
+      namePointsMap.set(fielder, (namePointsMap.get(fielder) || 0) + pts);
+    }
+    for (const [fielder, value] of runOutMap.entries()) {
+      const isAssist = value % 1 !== 0;
+      const pts = isAssist ? 6 : Math.floor(value) * 12;
+      namePointsMap.set(fielder, (namePointsMap.get(fielder) || 0) + pts);
+    }
+
+    // Get score string from existing header function
+    let scoreString = '';
+    let matchEnded = false;
+    let totalOvers = 0;
+    try {
+      const scoreResult = await fetchCFLLScoreHeader(team1Short, team2Short);
+      if (scoreResult) {
+        scoreString = scoreResult.scoreString;
+        matchEnded = scoreResult.matchEnded;
+        totalOvers = scoreResult.totalOvers;
+      }
+    } catch (e) {
+      console.log(`[CFLL:Scorecard] Score header fetch failed`);
+    }
+
+    console.log(`[CFLL:Scorecard] Parsed ${namePointsMap.size} players, ${battedOrBowledPlayers.size} batted/bowled for ${team1Short} vs ${team2Short}`);
+    return { namePointsMap, battedOrBowledPlayers, scoreString, matchEnded, totalOvers };
+
+  } catch (err) {
+    console.error(`[CFLL:Scorecard] Failed for ${team1Short} vs ${team2Short}: ${err}`);
+    return empty;
+  }
+}
+
 // ============================================================
 // CREX SCRAPER — primary live scorecard source
 // ============================================================
