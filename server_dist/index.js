@@ -3891,8 +3891,12 @@ async function registerRoutes(app2) {
       } catch (normErr) {
         console.error("[teamShort normalization] error:", normErr);
       }
+      const statuses = await storage.getMatchPlayerStatuses(matchId);
+      const statusMap = new Map(statuses.map((s) => [s.playerId, s]));
       const augmentedPlayers = matchPlayers.map((p) => ({
         ...p,
+        isImpactPlayer: statusMap.get(p.id)?.adminStatus === "impact_sub",
+        isPlayingXI: statusMap.get(p.id)?.adminStatus === "playing_xi",
         lastMatchPoints: playerPointsMap[p.id]?.lastMatchPoints ?? null,
         tournamentPoints: playerPointsMap[p.id]?.tournamentPoints ?? null
       }));

@@ -863,8 +863,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // non-fatal — continue with un-normalized players
       }
 
+      // Overlay match-specific adminStatus so isImpactPlayer/isPlayingXI never
+      // bleed across matches from the global player record flag.
+      const statuses = await storage.getMatchPlayerStatuses(matchId);
+      const statusMap = new Map(statuses.map(s => [s.playerId, s]));
+
       const augmentedPlayers = matchPlayers.map((p) => ({
         ...p,
+        isImpactPlayer: statusMap.get(p.id)?.adminStatus === 'impact_sub',
+        isPlayingXI: statusMap.get(p.id)?.adminStatus === 'playing_xi',
         lastMatchPoints: playerPointsMap[p.id]?.lastMatchPoints ?? null,
         tournamentPoints: playerPointsMap[p.id]?.tournamentPoints ?? null,
       }));
