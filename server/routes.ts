@@ -49,14 +49,17 @@ function checkUnlockEligibility(match: { firstScorecardAt?: Date | string | null
   return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 5 minutes" };
 }
 
-function isEntryOpen(match: { startTime: Date | string; revisedStartTime?: Date | string | null; adminUnlockOverride?: boolean | null; firstScorecardAt?: Date | string | null }, nowMs: number): boolean {
+function isEntryOpen(match: { startTime: Date | string; revisedStartTime?: Date | string | null; adminUnlockOverride?: boolean | null; firstScorecardAt?: Date | string | null; unlockedAt?: Date | string | null }, nowMs: number): boolean {
   const lockMs = getEffectiveLockMs(match);
   if (match.adminUnlockOverride === true) {
-    if (match.firstScorecardAt) {
-      const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 60_000;
-      if (nowMs >= cutoff) return false;
+    // Use unlockedAt to measure the 5-minute window — not firstScorecardAt.
+    // firstScorecardAt could be from minutes ago, immediately closing the window.
+    const unlockedAt = match.unlockedAt;
+    if (unlockedAt) {
+      const minutesSinceUnlock = (nowMs - new Date(unlockedAt).getTime()) / 60000;
+      if (minutesSinceUnlock >= 5) return false; // window expired
     }
-    return true;
+    return true; // unlock active and within window
   }
   return nowMs < lockMs;
 }
@@ -4068,13 +4071,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
-        if (unlock) {
-          const eligibility = checkUnlockEligibility(match as any);
-          if (!eligibility.allowed) {
-            return res.status(409).json({ message: eligibility.reason });
-          }
-        }
-        await storage.updateMatch(matchId, { adminUnlockOverride: unlock } as any);
+        console.log(`[Admin] Match ${match.id} ${unlock ? 'unlocked' : 'locked'} by admin at ${new Date().toISOString()}`);
+        await storage.updateMatch(matchId, {
+          adminUnlockOverride: unlock,
+          unlockedAt: unlock ? new Date() : null,
+        } as any);
         await storage.createAuditLog({
           adminUserId: req.session.userId!,
           actionType: unlock ? "admin_unlock_match" : "admin_lock_match",

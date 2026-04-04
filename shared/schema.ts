@@ -69,6 +69,7 @@ export const matches = pgTable("matches", {
   revisedStartTime: timestamp("revised_start_time"),
   adminUnlockOverride: boolean("admin_unlock_override").notNull().default(false),
   firstScorecardAt: timestamp("first_scorecard_at"),
+  unlockedAt: timestamp("unlocked_at"),
   // Tournament Pot penalty mode fields
   potMode: varchar("pot_mode", { length: 30 }).notNull().default("entries_only"),
   potPenaltyUserIds: jsonb("pot_penalty_user_ids").$type<string[]>().notNull().default([]),

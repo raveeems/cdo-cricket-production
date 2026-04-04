@@ -56,6 +56,7 @@ async function runMigrations(): Promise<void> {
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_scorecard_at TIMESTAMP;
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS pot_mode VARCHAR(30) NOT NULL DEFAULT 'entries_only';
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS pot_penalty_user_ids JSONB NOT NULL DEFAULT '[]';
+      ALTER TABLE matches ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMP;
     `);
 
     // players — api_name added for name-matching against external APIs
