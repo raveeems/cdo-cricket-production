@@ -2151,6 +2151,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
     }
     const namePointsMap = /* @__PURE__ */ new Map();
     const scardBowlerKeys = /* @__PURE__ */ new Set();
+    const battedOrBowledPlayers = /* @__PURE__ */ new Set();
     const scoreStringParts = [];
     let totalOvers = 0;
     let matchEnded = false;
@@ -2184,6 +2185,10 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
           !!dismissed
         );
         addNamePoints(namePointsMap, name, pts);
+        if ((b.balls || 0) >= 1) {
+          const normBatsman = name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+          battedOrBowledPlayers.add(normBatsman);
+        }
         if (b.outdec) {
           const d = b.outdec;
           const catchMatch = d.match(/^c\s+(.+?)\s+b\s+/i);
@@ -2219,6 +2224,10 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
         console.log(`[Cricbuzz:Bowl] Inn${inn.inningsId} ${name}: ${wickets2}w ${actualOvers}ov eco=${eco} => ${pts}pts`);
         addNamePoints(namePointsMap, name, pts);
         scardBowlerKeys.add(normalizeName(name));
+        if (actualOvers > 0) {
+          const normBowler = name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+          battedOrBowledPlayers.add(normBowler);
+        }
       }
       const runs = batsmen.reduce((s, b) => s + (b.runs || 0), 0) + (inn.extras?.total || 0);
       const wickets = batsmen.filter(
@@ -2290,7 +2299,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
 ${sorted.map(([n, p]) => `  ${n}: ${p}`).join("\n")}`);
     }
     if (namePointsMap.size === 0 && !scoreString) return null;
-    return { namePointsMap, battedOrBowledPlayers: /* @__PURE__ */ new Set(), scoreString, matchEnded, totalOvers };
+    return { namePointsMap, battedOrBowledPlayers, scoreString, matchEnded, totalOvers };
   } catch (err) {
     console.error(
       `[Cricbuzz] fetchCricbuzzScorecard failed for ${team1Short} vs ${team2Short}:`,
@@ -7974,8 +7983,7 @@ function setupErrorHandler(app2) {
                 if (existingStatus?.officialImpactSubUsed) continue;
                 const normName2 = candidate.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
                 const appearedStrict = battedOrBowledPlayers.size > 0 && battedOrBowledPlayers.has(normName2);
-                const appearedInMap = !appearedStrict && ((candidate.externalId ? pointsMap.has(candidate.externalId) : false) || namePointsMap.has(normName2));
-                if (appearedStrict || appearedInMap) {
+                if (appearedStrict) {
                   const via = appearedStrict ? "bat/bowl row" : "scorecard map";
                   log(`[Heartbeat:Impact] Candidate confirmed active: ${candidate.name} (${candidate.teamShort}) via ${via} for ${matchLabel}`);
                   await storage.upsertMatchPlayerStatus({

@@ -1302,14 +1302,12 @@ function setupErrorHandler(app: express.Application) {
                     .replace(/\s+/g, " ")
                     .trim();
 
-                  // Check strict bat/bowl set first (Crex), then namePointsMap (fielding / non-Crex sources)
+                  // Strict detection only — namePointsMap includes dismissal text which causes
+                  // false positives (fielders mentioned in dismissals get wrongly activated).
+                  // battedOrBowledPlayers is populated by CFLL and Cricbuzz scard loops only.
                   const appearedStrict = battedOrBowledPlayers.size > 0 && battedOrBowledPlayers.has(normName);
-                  const appearedInMap = !appearedStrict && (
-                    (candidate.externalId ? pointsMap.has(candidate.externalId) : false) ||
-                    (namePointsMap.has(normName))
-                  );
 
-                  if (appearedStrict || appearedInMap) {
+                  if (appearedStrict) {
                     const via = appearedStrict ? "bat/bowl row" : "scorecard map";
                     log(`[Heartbeat:Impact] Candidate confirmed active: ${candidate.name} (${candidate.teamShort}) via ${via} for ${matchLabel}`);
                     await storage.upsertMatchPlayerStatus({

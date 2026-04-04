@@ -1909,6 +1909,7 @@ export async function fetchCricbuzzScorecard(
 
     const namePointsMap = new Map<string, number>();
     const scardBowlerKeys = new Set<string>(); // tracks bowlers already counted via scard
+    const battedOrBowledPlayers = new Set<string>();
     const scoreStringParts: string[] = [];
     let totalOvers = 0;
     let matchEnded = false;
@@ -1952,6 +1953,10 @@ export async function fetchCricbuzzScorecard(
           !!dismissed
         );
         addNamePoints(namePointsMap, name, pts);
+        if ((b.balls || 0) >= 1) {
+          const normBatsman = name.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+          battedOrBowledPlayers.add(normBatsman);
+        }
 
         // FIELDING from dismissal string
         if (b.outdec) {
@@ -1991,6 +1996,10 @@ export async function fetchCricbuzzScorecard(
         console.log(`[Cricbuzz:Bowl] Inn${inn.inningsId} ${name}: ${wickets}w ${actualOvers}ov eco=${eco} => ${pts}pts`);
         addNamePoints(namePointsMap, name, pts);
         scardBowlerKeys.add(normalizeName(name)); // mark as already counted
+        if (actualOvers > 0) {
+          const normBowler = name.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+          battedOrBowledPlayers.add(normBowler);
+        }
       }
 
       // Score string from batting total
@@ -2088,9 +2097,7 @@ export async function fetchCricbuzzScorecard(
     }
 
     if (namePointsMap.size === 0 && !scoreString) return null;
-    // Cricbuzz does not separate fielding-only mentions from batting/bowling rows,
-    // so battedOrBowledPlayers is empty — impact sub detection falls back to namePointsMap
-    return { namePointsMap, battedOrBowledPlayers: new Set<string>(), scoreString, matchEnded, totalOvers };
+    return { namePointsMap, battedOrBowledPlayers, scoreString, matchEnded, totalOvers };
   } catch (err) {
     console.error(
       `[Cricbuzz] fetchCricbuzzScorecard failed for ${team1Short} vs ${team2Short}:`,
