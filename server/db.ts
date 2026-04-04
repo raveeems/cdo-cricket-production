@@ -89,16 +89,6 @@ async function runMigrations(): Promise<void> {
       UPDATE match_player_status SET id = gen_random_uuid() WHERE id IS NULL;
     `);
 
-    // push_tokens — FCM push notification token storage
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS push_tokens (
-        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL UNIQUE,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
     console.log("[DB] Migrations complete.");
   } catch (err: any) {
     console.error("[DB] Migration error:", err.message);

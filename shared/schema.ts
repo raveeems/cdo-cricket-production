@@ -255,10 +255,3 @@ export type TournamentLedger = typeof tournamentLedger.$inferSelect;
 export type MatchPlayerStatus = typeof matchPlayerStatus.$inferSelect;
 export type UserWeeklyUsage = typeof userWeeklyUsage.$inferSelect;
 export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
-
-export const pushTokens = pgTable("push_tokens", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  token: text("token").notNull().unique(),
-  createdAt: timestamp("created_at").defaultNow(),
-});

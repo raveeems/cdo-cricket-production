@@ -14,7 +14,6 @@ import {
   matchPlayerStatus,
   userWeeklyUsage,
   adminAuditLog,
-  pushTokens,
   type InsertUser,
   type User,
   type ReferenceCode,
@@ -734,29 +733,6 @@ export class DatabaseStorage {
 
   async getAllUsers(): Promise<User[]> {
     return db.select().from(users);
-  }
-
-  async savePushToken(userId: string, token: string): Promise<void> {
-    await db.insert(pushTokens)
-      .values({ userId, token })
-      .onConflictDoNothing();
-  }
-
-  async getPushTokensForIPLUsers(): Promise<string[]> {
-    const result = await db
-      .selectDistinct({ token: pushTokens.token })
-      .from(pushTokens)
-      .innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId))
-      .innerJoin(matches, eq(userTeams.matchId, matches.id))
-      .where(
-        sql`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
-        OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
-      );
-    return result.map(r => r.token);
-  }
-
-  async deletePushToken(token: string): Promise<void> {
-    await db.delete(pushTokens).where(eq(pushTokens.token, token));
   }
 }
 

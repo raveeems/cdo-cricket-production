@@ -3,8 +3,6 @@ import { View, StyleSheet, Image, Text, Platform, Dimensions } from 'react-nativ
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { apiRequest } from '@/lib/query-client';
-import { initPushNotifications } from '@/lib/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -167,14 +165,6 @@ export default function IndexScreen() {
       router.replace('/(tabs)');
     }
   }, [animDone, isLoading, isAuthenticated, isVerified]);
-
-  useEffect(() => {
-    if (isAuthenticated && Platform.OS === 'web') {
-      initPushNotifications(apiRequest).catch(e => {
-        console.error('[FCM] Init error:', e);
-      });
-    }
-  }, [isAuthenticated]);
 
   const logoAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: logoScale.value }],

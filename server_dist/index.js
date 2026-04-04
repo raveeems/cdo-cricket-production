@@ -29,7 +29,6 @@ __export(schema_exports, {
   matchPredictions: () => matchPredictions,
   matches: () => matches,
   players: () => players,
-  pushTokens: () => pushTokens,
   referenceCodes: () => referenceCodes,
   rewards: () => rewards,
   tournamentLedger: () => tournamentLedger,
@@ -50,7 +49,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var users, referenceCodes, matches, players, userTeams, codeVerifications, matchPredictions, rewards, tournamentLedger, apiCallLog, matchPlayerStatus, userWeeklyUsage, adminAuditLog, insertUserSchema, insertReferenceCodeSchema, insertMatchSchema, insertPlayerSchema, insertUserTeamSchema, pushTokens;
+var users, referenceCodes, matches, players, userTeams, codeVerifications, matchPredictions, rewards, tournamentLedger, apiCallLog, matchPlayerStatus, userWeeklyUsage, adminAuditLog, insertUserSchema, insertReferenceCodeSchema, insertMatchSchema, insertPlayerSchema, insertUserTeamSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -241,12 +240,6 @@ var init_schema = __esm({
       backupXiPlayer1Id: z.string().nullable().optional(),
       backupXiPlayer2Id: z.string().nullable().optional()
     });
-    pushTokens = pgTable("push_tokens", {
-      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-      userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-      token: text("token").notNull().unique(),
-      createdAt: timestamp("created_at").defaultNow()
-    });
   }
 });
 
@@ -298,14 +291,6 @@ async function runMigrations() {
       ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS official_impact_sub_used BOOLEAN NOT NULL DEFAULT false;
       ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) NOT NULL DEFAULT 'admin';
       UPDATE match_player_status SET id = gen_random_uuid() WHERE id IS NULL;
-    `);
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS push_tokens (
-        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL UNIQUE,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
     `);
     console.log("[DB] Migrations complete.");
   } catch (err) {
@@ -848,19 +833,6 @@ var init_storage = __esm({
       }
       async getAllUsers() {
         return db.select().from(users);
-      }
-      async savePushToken(userId, token) {
-        await db.insert(pushTokens).values({ userId, token }).onConflictDoNothing();
-      }
-      async getPushTokensForIPLUsers() {
-        const result = await db.selectDistinct({ token: pushTokens.token }).from(pushTokens).innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId)).innerJoin(matches, eq(userTeams.matchId, matches.id)).where(
-          sql2`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
-        OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
-        );
-        return result.map((r) => r.token);
-      }
-      async deletePushToken(token) {
-        await db.delete(pushTokens).where(eq(pushTokens.token, token));
       }
     };
     storage = new DatabaseStorage();
@@ -3066,111 +3038,6 @@ var init_cricket_api = __esm({
   }
 });
 
-// server/notifications.ts
-var notifications_exports = {};
-__export(notifications_exports, {
-  notifyMatchEnded: () => notifyMatchEnded,
-  notifyMatchStartingSoon: () => notifyMatchStartingSoon,
-  notifyXIAndImpactUpdated: () => notifyXIAndImpactUpdated
-});
-import * as admin from "firebase-admin";
-function initFirebase() {
-  if (initialized || admin.apps.length > 0) return;
-  try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || "{}");
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-    initialized = true;
-    console.log("[FCM] Firebase Admin initialized");
-  } catch (e) {
-    console.error("[FCM] Firebase Admin init failed:", e);
-  }
-}
-async function sendToTokens(tokens, title, body, data) {
-  if (tokens.length === 0) {
-    console.log("[FCM] No tokens to send to");
-    return;
-  }
-  initFirebase();
-  const chunks = [];
-  for (let i = 0; i < tokens.length; i += 500) {
-    chunks.push(tokens.slice(i, i + 500));
-  }
-  for (const chunk of chunks) {
-    try {
-      const response = await admin.messaging().sendEachForMulticast({
-        tokens: chunk,
-        notification: { title, body },
-        data: data || {},
-        webpush: {
-          notification: {
-            title,
-            body,
-            icon: "/icon.png",
-            badge: "/icon.png",
-            requireInteraction: false
-          },
-          fcmOptions: { link: "/" }
-        }
-      });
-      const failedTokens = [];
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          const errCode = resp.error?.code;
-          if (errCode === "messaging/invalid-registration-token" || errCode === "messaging/registration-token-not-registered") {
-            failedTokens.push(chunk[idx]);
-          }
-        }
-      });
-      for (const token of failedTokens) {
-        await storage.deletePushToken(token);
-      }
-      console.log(`[FCM] Sent: ${response.successCount} success, ${response.failureCount} failed out of ${chunk.length}`);
-    } catch (e) {
-      console.error("[FCM] Send error:", e);
-    }
-  }
-}
-async function notifyMatchStartingSoon(team1Short, team2Short) {
-  const tokens = await storage.getPushTokensForIPLUsers();
-  console.log(`[FCM] Notifying ${tokens.length} users \u2014 match starting soon`);
-  await sendToTokens(
-    tokens,
-    `${team1Short} vs ${team2Short} starts in 30 minutes`,
-    "Lock your team now before the deadline closes!",
-    { type: "match_starting" }
-  );
-}
-async function notifyXIAndImpactUpdated(team1Short, team2Short) {
-  const tokens = await storage.getPushTokensForIPLUsers();
-  console.log(`[FCM] Notifying ${tokens.length} users \u2014 XI and Impact updated`);
-  await sendToTokens(
-    tokens,
-    `${team1Short} vs ${team2Short} Playing XI & Impact Updated`,
-    "The playing XI and impact players are confirmed. Review your team now!",
-    { type: "xi_impact_updated" }
-  );
-}
-async function notifyMatchEnded(team1Short, team2Short) {
-  const tokens = await storage.getPushTokensForIPLUsers();
-  console.log(`[FCM] Notifying ${tokens.length} users \u2014 match ended`);
-  await sendToTokens(
-    tokens,
-    `${team1Short} vs ${team2Short} has ended`,
-    "The match is over \u2014 check your points and see where you stand!",
-    { type: "match_ended" }
-  );
-}
-var initialized;
-var init_notifications = __esm({
-  "server/notifications.ts"() {
-    "use strict";
-    init_storage();
-    initialized = false;
-  }
-});
-
 // server/index.ts
 import express from "express";
 
@@ -3434,19 +3301,6 @@ async function registerRoutes(app2) {
     req.session.destroy(() => {
     });
     return res.json({ ok: true });
-  });
-  app2.post("/api/push-token", isAuthenticated, async (req, res) => {
-    try {
-      const { token } = req.body;
-      if (!token || typeof token !== "string") {
-        return res.status(400).json({ message: "Token required" });
-      }
-      await storage.savePushToken(req.session.userId, token);
-      return res.json({ success: true });
-    } catch (e) {
-      console.error("Push token save error:", e);
-      return res.status(500).json({ message: "Failed to save token" });
-    }
   });
   const IPL_2026_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f";
   if (process.env.NODE_ENV !== "production") {
@@ -5436,15 +5290,6 @@ async function registerRoutes(app2) {
         await storage.updateMatch(matchId, { playingXIManual: true });
         const recalcAfterManualXI = globalThis.__recalculateTeamTotals;
         if (recalcAfterManualXI) await recalcAfterManualXI(matchId, `${match.team1Short} vs ${match.team2Short}`);
-        try {
-          const { notifyXIAndImpactUpdated: notifyXIAndImpactUpdated2 } = await Promise.resolve().then(() => (init_notifications(), notifications_exports));
-          const xiMatch = await storage.getMatch(req.params.id);
-          if (xiMatch) {
-            await notifyXIAndImpactUpdated2(xiMatch.team1Short, xiMatch.team2Short);
-          }
-        } catch (e) {
-          console.error("[FCM] XI+Impact notification failed:", e);
-        }
         return res.json({
           message: `Playing XI manually set: ${updated} players marked, team points recalculated`,
           count: updated,
@@ -8073,22 +7918,6 @@ function setupErrorHandler(app2) {
     try {
       const allMatches = await storage.getAllMatches();
       const now = Date.now();
-      const thirtyMinsMs = 30 * 60 * 1e3;
-      const twentyFiveMinsMs = 25 * 60 * 1e3;
-      for (const m of allMatches) {
-        if (m.status !== "upcoming") continue;
-        if (!m.team1Short || !m.team2Short) continue;
-        const startMs = m.startTime ? new Date(m.startTime).getTime() : 0;
-        if (startMs > now + twentyFiveMinsMs && startMs <= now + thirtyMinsMs) {
-          try {
-            const { notifyMatchStartingSoon: notifyMatchStartingSoon2 } = await Promise.resolve().then(() => (init_notifications(), notifications_exports));
-            await notifyMatchStartingSoon2(m.team1Short, m.team2Short);
-            log(`[FCM] 30-min notification sent for ${m.team1Short} vs ${m.team2Short}`);
-          } catch (e) {
-            console.error("[FCM] Starting soon notification failed:", e);
-          }
-        }
-      }
       const liveMatches = allMatches.filter(
         (m) => m.status === "live" || m.status === "delayed" || m.startTime && new Date(m.startTime).getTime() < now && m.status !== "completed"
       );
@@ -8167,12 +7996,6 @@ function setupErrorHandler(app2) {
           if (matchEnded && match.status !== "completed") {
             log(`[Heartbeat] COMPLETED: ${matchLabel}`);
             await storage.updateMatch(match.id, { status: "completed" });
-            try {
-              const { notifyMatchEnded: notifyMatchEnded2 } = await Promise.resolve().then(() => (init_notifications(), notifications_exports));
-              await notifyMatchEnded2(match.team1Short, match.team2Short);
-            } catch (e) {
-              console.error("[FCM] Match ended notification failed:", e);
-            }
             try {
               const distribute = globalThis.__distributeMatchReward;
               if (distribute) await distribute(match.id);
