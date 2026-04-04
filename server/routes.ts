@@ -4273,6 +4273,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.get("/api/admin/match-health", isAdmin, async (req: Request, res: Response) => {
+    try {
+      const allMatches = await storage.getAllMatches();
+      const liveAndRecent = allMatches.filter(m =>
+        m.status === "live" || m.status === "completed" || m.status === "delayed"
+      ).slice(0, 10);
+
+      const health = await Promise.all(liveAndRecent.map(async (m) => {
+        const players = await storage.getPlayersForMatch(m.id);
+        const teams = await storage.getAllTeamsForMatch(m.id);
+        const xiPlayers = players.filter(p => p.isPlayingXI === true);
+        const impactPlayers = players.filter(p => p.isImpactPlayer === true);
+        const playersWithPoints = players.filter(p => (p.points || 0) > 0);
+        const playersWithFullPoints = players.filter(p => (p.points || 0) > 4);
+
+        let activeImpactName: string | null = null;
+        for (const p of impactPlayers) {
+          const status = await storage.getMatchPlayerStatus(m.id, p.id);
+          if (status?.officialImpactSubUsed) {
+            activeImpactName = p.name;
+            break;
+          }
+        }
+
+        return {
+          matchId: m.id,
+          label: `${m.team1Short} vs ${m.team2Short}`,
+          status: m.status,
+          startTime: m.startTime,
+          lastSyncAt: (m as any).lastSyncAt || null,
+          totalPlayers: players.length,
+          xiSet: xiPlayers.length,
+          impactCandidates: impactPlayers.length,
+          activeImpactSub: activeImpactName,
+          playersWithPoints: playersWithPoints.length,
+          playersWithFullPoints: playersWithFullPoints.length,
+          totalTeams: teams.length,
+          impactEnabled: (m as any).impactFeaturesEnabled === true,
+          scoreString: (m as any).scoreString || null,
+        };
+      }));
+
+      return res.json({ health });
+    } catch (err) {
+      console.error("Match health error:", err);
+      return res.status(500).json({ message: "Failed to fetch match health" });
+    }
+  });
+
   // Re-score: re-fetch scorecard + re-run player points + recalculate team totals (bypasses protection for ended matches)
   app.post(
     "/api/admin/matches/:id/rescore",

@@ -6682,6 +6682,50 @@ async function registerRoutes(app2) {
       }
     }
   );
+  app2.get("/api/admin/match-health", isAdmin, async (req, res) => {
+    try {
+      const allMatches = await storage.getAllMatches();
+      const liveAndRecent = allMatches.filter(
+        (m) => m.status === "live" || m.status === "completed" || m.status === "delayed"
+      ).slice(0, 10);
+      const health = await Promise.all(liveAndRecent.map(async (m) => {
+        const players2 = await storage.getPlayersForMatch(m.id);
+        const teams = await storage.getAllTeamsForMatch(m.id);
+        const xiPlayers = players2.filter((p) => p.isPlayingXI === true);
+        const impactPlayers = players2.filter((p) => p.isImpactPlayer === true);
+        const playersWithPoints = players2.filter((p) => (p.points || 0) > 0);
+        const playersWithFullPoints = players2.filter((p) => (p.points || 0) > 4);
+        let activeImpactName = null;
+        for (const p of impactPlayers) {
+          const status = await storage.getMatchPlayerStatus(m.id, p.id);
+          if (status?.officialImpactSubUsed) {
+            activeImpactName = p.name;
+            break;
+          }
+        }
+        return {
+          matchId: m.id,
+          label: `${m.team1Short} vs ${m.team2Short}`,
+          status: m.status,
+          startTime: m.startTime,
+          lastSyncAt: m.lastSyncAt || null,
+          totalPlayers: players2.length,
+          xiSet: xiPlayers.length,
+          impactCandidates: impactPlayers.length,
+          activeImpactSub: activeImpactName,
+          playersWithPoints: playersWithPoints.length,
+          playersWithFullPoints: playersWithFullPoints.length,
+          totalTeams: teams.length,
+          impactEnabled: m.impactFeaturesEnabled === true,
+          scoreString: m.scoreString || null
+        };
+      }));
+      return res.json({ health });
+    } catch (err) {
+      console.error("Match health error:", err);
+      return res.status(500).json({ message: "Failed to fetch match health" });
+    }
+  });
   app2.post(
     "/api/admin/matches/:id/rescore",
     isAuthenticated,

@@ -157,6 +157,9 @@ export default function AdminScreen() {
   const [lockTogglingId, setLockTogglingId] = useState<string | null>(null);
   const [markingCompleteId, setMarkingCompleteId] = useState<string | null>(null);
   const [matchActionResult, setMatchActionResult] = useState<Record<string, string>>({});
+  const [matchHealth, setMatchHealth] = useState<any[]>([]);
+  const [loadingHealth, setLoadingHealth] = useState(false);
+  const [healthLastFetched, setHealthLastFetched] = useState<Date | null>(null);
   const setMatchResult = (matchId: string, msg: string) => {
     setMatchActionResult(prev => ({ ...prev, [matchId]: msg }));
     setTimeout(() => setMatchActionResult(prev => { const n = { ...prev }; delete n[matchId]; return n; }), 5000);
@@ -289,6 +292,26 @@ export default function AdminScreen() {
       setRecalculating(false);
     }
   };
+
+  const fetchMatchHealth = async () => {
+    setLoadingHealth(true);
+    try {
+      const res = await apiRequest('GET', '/api/admin/match-health');
+      const data = await res.json();
+      setMatchHealth(data.health || []);
+      setHealthLastFetched(new Date());
+    } catch (e) {
+      console.error('Health fetch failed:', e);
+    } finally {
+      setLoadingHealth(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMatchHealth();
+    const interval = setInterval(fetchMatchHealth, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [rescoring, setRescoring] = useState(false);
   const rescoreMatch = async (matchId: string) => {
@@ -2056,6 +2079,140 @@ export default function AdminScreen() {
                   </Text>
                 </View>
               ))
+            )}
+          </View>
+
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 18, color: colors.text, fontFamily: 'Inter_700Bold', borderLeftWidth: 3, paddingLeft: 10, borderLeftColor: '#22C55E' }}>
+                  Match Health
+                </Text>
+                {matchHealth.some(m => m.status === 'live') && (
+                  <View style={{ backgroundColor: '#EF444420', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: '#EF444440' }}>
+                    <Text style={{ color: '#EF4444', fontSize: 11, fontFamily: 'Inter_700Bold' }}>LIVE</Text>
+                  </View>
+                )}
+              </View>
+              <Pressable onPress={fetchMatchHealth} disabled={loadingHealth} style={{ padding: 4 }}>
+                {loadingHealth
+                  ? <ActivityIndicator size="small" color={colors.primary} />
+                  : <Ionicons name="refresh" size={16} color={colors.primary} />
+                }
+              </Pressable>
+            </View>
+
+            {healthLastFetched && (
+              <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular', marginBottom: 10 }}>
+                Last updated {Math.round((Date.now() - healthLastFetched.getTime()) / 1000)}s ago
+              </Text>
+            )}
+
+            {matchHealth.length === 0 ? (
+              <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' }}>
+                No live or recent matches found.
+              </Text>
+            ) : (
+              matchHealth.map(m => {
+                const isLive = m.status === 'live';
+                const xiReady = m.xiSet >= 20;
+                const scoringActive = m.playersWithFullPoints > 0;
+                const impactReady = !m.impactEnabled || m.impactCandidates >= 8;
+                const allHealthy = xiReady && scoringActive && impactReady;
+
+                return (
+                  <View key={m.matchId} style={{
+                    borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 10,
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: isLive ? (allHealthy ? '#22C55E60' : '#F59E0B60') : colors.border,
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 14 }}>
+                        {m.label}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {isLive && (
+                          <View style={{ backgroundColor: '#EF444420', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ color: '#EF4444', fontSize: 10, fontFamily: 'Inter_700Bold' }}>🔴 LIVE</Text>
+                          </View>
+                        )}
+                        <View style={{
+                          backgroundColor: allHealthy ? '#22C55E20' : '#F59E0B20',
+                          borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+                        }}>
+                          <Text style={{ color: allHealthy ? '#22C55E' : '#F59E0B', fontSize: 10, fontFamily: 'Inter_700Bold' }}>
+                            {allHealthy ? '✓ HEALTHY' : '⚠ CHECK'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {m.scoreString ? (
+                      <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 8 }} numberOfLines={1}>
+                        {m.scoreString}
+                      </Text>
+                    ) : null}
+
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                      <View style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 4,
+                        backgroundColor: xiReady ? '#22C55E15' : '#EF444415',
+                        borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+                        borderWidth: 1, borderColor: xiReady ? '#22C55E40' : '#EF444440',
+                      }}>
+                        <Text style={{ fontSize: 10, color: xiReady ? '#22C55E' : '#EF4444', fontFamily: 'Inter_600SemiBold' }}>
+                          XI {m.xiSet}/{m.totalPlayers}
+                        </Text>
+                      </View>
+
+                      <View style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 4,
+                        backgroundColor: scoringActive ? '#22C55E15' : '#F59E0B15',
+                        borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+                        borderWidth: 1, borderColor: scoringActive ? '#22C55E40' : '#F59E0B40',
+                      }}>
+                        <Text style={{ fontSize: 10, color: scoringActive ? '#22C55E' : '#F59E0B', fontFamily: 'Inter_600SemiBold' }}>
+                          {scoringActive ? `⚡ ${m.playersWithFullPoints} scoring` : '⏳ awaiting scores'}
+                        </Text>
+                      </View>
+
+                      {m.impactEnabled && (
+                        <View style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 4,
+                          backgroundColor: impactReady ? '#9333EA15' : '#EF444415',
+                          borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+                          borderWidth: 1, borderColor: impactReady ? '#9333EA40' : '#EF444440',
+                        }}>
+                          <Text style={{ fontSize: 10, color: impactReady ? '#9333EA' : '#EF4444', fontFamily: 'Inter_600SemiBold' }}>
+                            ⚡ {m.impactCandidates} candidates
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={{
+                        backgroundColor: colors.card, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+                        borderWidth: 1, borderColor: colors.border,
+                      }}>
+                        <Text style={{ fontSize: 10, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }}>
+                          👥 {m.totalTeams} teams
+                        </Text>
+                      </View>
+                    </View>
+
+                    {m.impactEnabled && (
+                      <Text style={{ fontSize: 11, fontFamily: 'Inter_500Medium', color: m.activeImpactSub ? '#9333EA' : colors.textTertiary }}>
+                        {m.activeImpactSub ? `⚡ Impact sub: ${m.activeImpactSub}` : '⚡ No impact sub confirmed yet'}
+                      </Text>
+                    )}
+
+                    {m.lastSyncAt && (
+                      <Text style={{ fontSize: 10, color: colors.textTertiary, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
+                        Last sync: {new Date(m.lastSyncAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })
             )}
           </View>
 
