@@ -743,16 +743,21 @@ export class DatabaseStorage {
   }
 
   async getPushTokensForIPLUsers(): Promise<string[]> {
-    const result = await db
-      .selectDistinct({ token: pushTokens.token })
-      .from(pushTokens)
-      .innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId))
-      .innerJoin(matches, eq(userTeams.matchId, matches.id))
-      .where(
-        sql`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
-        OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
-      );
-    return result.map(r => r.token);
+    try {
+      const result = await db
+        .selectDistinct({ token: pushTokens.token })
+        .from(pushTokens)
+        .innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId))
+        .innerJoin(matches, eq(userTeams.matchId, matches.id))
+        .where(
+          sql`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
+          OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
+        );
+      return result.map(r => r.token);
+    } catch (e) {
+      console.error('[FCM] getPushTokensForIPLUsers failed:', e);
+      return [];
+    }
   }
 
   async deletePushToken(token: string): Promise<void> {

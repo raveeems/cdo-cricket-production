@@ -855,11 +855,16 @@ var init_storage = __esm({
         await db.insert(pushTokens).values({ userId, token }).onConflictDoNothing();
       }
       async getPushTokensForIPLUsers() {
-        const result = await db.selectDistinct({ token: pushTokens.token }).from(pushTokens).innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId)).innerJoin(matches, eq(userTeams.matchId, matches.id)).where(
-          sql2`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
-        OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
-        );
-        return result.map((r) => r.token);
+        try {
+          const result = await db.selectDistinct({ token: pushTokens.token }).from(pushTokens).innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId)).innerJoin(matches, eq(userTeams.matchId, matches.id)).where(
+            sql2`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
+          OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
+          );
+          return result.map((r) => r.token);
+        } catch (e) {
+          console.error("[FCM] getPushTokensForIPLUsers failed:", e);
+          return [];
+        }
       }
       async deletePushToken(token) {
         await db.delete(pushTokens).where(eq(pushTokens.token, token));
@@ -3089,7 +3094,7 @@ function initFirebase() {
   }
 }
 async function sendToTokens(tokens, title, body, data) {
-  if (tokens.length === 0) {
+  if (!tokens || tokens.length === 0) {
     console.log("[FCM] No tokens to send to");
     return;
   }

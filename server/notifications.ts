@@ -23,7 +23,7 @@ async function sendToTokens(
   body: string,
   data?: Record<string, string>
 ): Promise<void> {
-  if (tokens.length === 0) {
+  if (!tokens || tokens.length === 0) {
     console.log('[FCM] No tokens to send to');
     return;
   }
