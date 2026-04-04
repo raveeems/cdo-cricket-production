@@ -1,0 +1,117 @@
+Add a push notification toggle to the settings section in app/(tabs)/profile.tsx.
+
+Do not change any existing functionality.
+Push to main on https://github.com/raveeems/cdo-cricket-production when done.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 1 — Add imports at the top of app/(tabs)/profile.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add these imports at the top of the file with the existing imports:
+
+import { Platform } from 'react-native';
+import { initPushNotifications } from '@/lib/firebase';
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 2 — Add notification state near other useState declarations
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add these two state variables near the top of the component with the other useState declarations:
+
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 3 — Add useEffect to check current permission state
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add this useEffect after the existing useEffects in the component:
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+    setNotificationsEnabled(Notification.permission === 'granted');
+  }, []);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 4 — Add toggle handler
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add this handler function near the other handler functions in the component:
+
+  const handleNotificationToggle = async () => {
+    if (Platform.OS !== 'web') return;
+    if (notificationLoading) return;
+    setNotificationLoading(true);
+    try {
+      if (notificationsEnabled) {
+        // Cannot programmatically revoke — tell user to disable in browser settings
+        alert('To disable notifications, click the lock icon in your browser address bar and set Notifications to Block.');
+        setNotificationLoading(false);
+        return;
+      }
+      // Request permission and register token
+      await initPushNotifications(apiRequest);
+      const granted = typeof window !== 'undefined' &&
+        'Notification' in window &&
+        Notification.permission === 'granted';
+      setNotificationsEnabled(granted);
+    } catch (e) {
+      console.error('[FCM] Toggle failed:', e);
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 5 — Add notification row to settings section
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find the divider after the Dark Mode toggle row (around line 277):
+  <View style={divider} />
+
+Add this new row immediately after that divider, before the How to Play row:
+
+  {Platform.OS === 'web' && (
+    <>
+      <Pressable
+        onPress={handleNotificationToggle}
+        style={({ hovered }: any) => [
+          styles.settingRow,
+          hovered && styles.settingRowHovered,
+        ]}
+      >
+        <View style={styles.settingLeft}>
+          <Ionicons
+            name={notificationsEnabled ? 'notifications' : 'notifications-outline'}
+            size={20}
+            color={notificationsEnabled ? colors.primary : colors.textSecondary}
+          />
+          <View>
+            <Text style={[styles.settingLabel, { color: colors.text }]}>
+              Match Notifications
+            </Text>
+            <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: 'Inter_400Regular' }}>
+              {notificationsEnabled
+                ? 'You will receive match alerts'
+                : 'Tap to enable match alerts'}
+            </Text>
+          </View>
+        </View>
+        {notificationLoading ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={handleNotificationToggle}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor="#FFFFFF"
+          />
+        )}
+      </Pressable>
+      <View style={divider} />
+    </>
+  )}
+
+Make sure ActivityIndicator and Switch are imported from react-native if not already imported.
