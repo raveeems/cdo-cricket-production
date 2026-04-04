@@ -1137,6 +1137,23 @@ function setupErrorHandler(app: express.Application) {
         const allMatches = await storage.getAllMatches();
         const now = Date.now();
 
+        const thirtyMinsMs = 30 * 60 * 1000;
+        const twentyFiveMinsMs = 25 * 60 * 1000;
+        for (const m of allMatches) {
+          if (m.status !== 'upcoming') continue;
+          if (!m.team1Short || !m.team2Short) continue;
+          const startMs = m.startTime ? new Date(m.startTime).getTime() : 0;
+          if (startMs > (now + twentyFiveMinsMs) && startMs <= (now + thirtyMinsMs)) {
+            try {
+              const { notifyMatchStartingSoon } = await import('./notifications');
+              await notifyMatchStartingSoon(m.team1Short, m.team2Short);
+              log(`[FCM] 30-min notification sent for ${m.team1Short} vs ${m.team2Short}`);
+            } catch (e) {
+              console.error('[FCM] Starting soon notification failed:', e);
+            }
+          }
+        }
+
         const liveMatches = allMatches.filter(
           (m) => m.status === "live" || m.status === "delayed" ||
             (m.startTime && new Date(m.startTime).getTime() < now && m.status !== "completed")
@@ -1249,6 +1266,12 @@ function setupErrorHandler(app: express.Application) {
             if (matchEnded && match.status !== "completed") {
               log(`[Heartbeat] COMPLETED: ${matchLabel}`);
               await storage.updateMatch(match.id, { status: "completed" });
+              try {
+                const { notifyMatchEnded } = await import('./notifications');
+                await notifyMatchEnded(match.team1Short, match.team2Short);
+              } catch (e) {
+                console.error('[FCM] Match ended notification failed:', e);
+              }
               try {
                 const distribute = (globalThis as any).__distributeMatchReward;
                 if (distribute) await distribute(match.id);

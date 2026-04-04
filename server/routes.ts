@@ -306,6 +306,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({ ok: true });
   });
 
+  app.post('/api/push-token', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { token } = req.body;
+      if (!token || typeof token !== 'string') {
+        return res.status(400).json({ message: 'Token required' });
+      }
+      await storage.savePushToken(req.session.userId!, token);
+      return res.json({ success: true });
+    } catch (e) {
+      console.error('Push token save error:', e);
+      return res.status(500).json({ message: 'Failed to save token' });
+    }
+  });
+
   // ── DEV ONLY ── players by team short names (supports mock match UI testing)
   // Strategy: try DB first per team; if a team has 0 DB players, fall back to
   // the IPL 2026 series squad via the cricket API.
@@ -2682,6 +2696,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const recalcAfterManualXI = (globalThis as any).__recalculateTeamTotals;
         if (recalcAfterManualXI) await recalcAfterManualXI(matchId, `${match.team1Short} vs ${match.team2Short}`);
+
+        try {
+          const { notifyXIAndImpactUpdated } = await import('./notifications');
+          const xiMatch = await storage.getMatch(req.params.id);
+          if (xiMatch) {
+            await notifyXIAndImpactUpdated(xiMatch.team1Short, xiMatch.team2Short);
+          }
+        } catch (e) {
+          console.error('[FCM] XI+Impact notification failed:', e);
+        }
 
         return res.json({
           message: `Playing XI manually set: ${updated} players marked, team points recalculated`,
