@@ -4035,6 +4035,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const status = await storage.upsertMatchPlayerStatus(data);
 
+        // When officialImpactSubUsed is toggled ON, ensure isImpactPlayer=true
+        // on the player record so recalculateTeamTotals impact guard passes
+        if (officialImpactSubUsed === true) {
+          await storage.updatePlayer(playerId, { isImpactPlayer: true });
+          // Trigger immediate recalculation so users see updated points right away
+          try {
+            const recalc = (globalThis as any).__recalculateTeamTotals;
+            if (recalc) await recalc(matchId, 'impact sub activated');
+          } catch (e) {
+            console.error('[Impact] Recalc after toggle failed:', e);
+          }
+        }
+
         if (adminStatus) {
           await storage.updatePlayer(playerId, {
             isPlayingXI: adminStatus === "playing_xi",

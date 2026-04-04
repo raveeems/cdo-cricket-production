@@ -6612,6 +6612,15 @@ async function registerRoutes(app2) {
         if (adminStatus) data.adminStatus = adminStatus;
         if (typeof officialImpactSubUsed === "boolean") data.officialImpactSubUsed = officialImpactSubUsed;
         const status = await storage.upsertMatchPlayerStatus(data);
+        if (officialImpactSubUsed === true) {
+          await storage.updatePlayer(playerId, { isImpactPlayer: true });
+          try {
+            const recalc = globalThis.__recalculateTeamTotals;
+            if (recalc) await recalc(matchId, "impact sub activated");
+          } catch (e) {
+            console.error("[Impact] Recalc after toggle failed:", e);
+          }
+        }
         if (adminStatus) {
           await storage.updatePlayer(playerId, {
             isPlayingXI: adminStatus === "playing_xi",
