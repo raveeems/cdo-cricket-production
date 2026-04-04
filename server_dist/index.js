@@ -8022,7 +8022,7 @@ function setupErrorHandler(app2) {
             if (resolved.activePlayerId) {
               const impactPlayer = playerById.get(resolved.activePlayerId) || playerByExtId.get(resolved.activePlayerId);
               const alreadyInXI = effectivePlayerIds.includes(resolved.activePlayerId);
-              if (impactPlayer && impactPlayer.isPlayingXI !== true && impactPlayer.isImpactPlayer === true && !alreadyInXI) {
+              if (impactPlayer && impactPlayer.isPlayingXI !== true && !alreadyInXI) {
                 let impactPts = (impactPlayer.points || 0) + 4;
                 let impactMultiplier = 1;
                 if (team.captainType === "impact_slot") impactMultiplier = 2;
