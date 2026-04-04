@@ -1,0 +1,51 @@
+Fix the 5th impact player being blocked in admin.tsx due to ghost 
+isImpactPlayer flags from previous matches.
+
+Root cause: GET /api/matches/:id/players returns isImpactPlayer from 
+the player record globally — not per-match. Players who were impact 
+subs in previous matches still have isImpactPlayer=true, silently 
+pre-populating the impact set and triggering the 5-per-team limit.
+
+Do not change anything else.
+Push to main on https://github.com/raveeems/cdo-cricket-production when done.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 1 — server/routes.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find the GET /api/matches/:id/players endpoint.
+After fetching players for the match, fetch matchPlayerStatuses for 
+this match and overlay adminStatus onto each player:
+
+  const statuses = await storage.getMatchPlayerStatuses(matchId);
+  const statusMap = new Map(statuses.map(s => [s.playerId, s]));
+
+Then when building each player in the response, replace the global 
+isImpactPlayer flag with the match-specific one:
+
+  isImpactPlayer: statusMap.get(p.id)?.adminStatus === 'impact_sub',
+  isPlayingXI: statusMap.get(p.id)?.adminStatus === 'playing_xi',
+
+This means isImpactPlayer and isPlayingXI in the player response 
+now reflect what is set for THIS match only — not a global flag 
+that bleeds across matches.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 2 — app/admin.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find selectMatch function around line 988.
+Find where impactPlayerIds is seeded (around line 1005):
+
+  if (p.isImpactPlayer && !p.isPlayingXI) existingImpact.add(p.id);
+
+This line is now correct since isImpactPlayer comes from the 
+match-specific adminStatus overlay from Change 1.
+No change needed here — it will work correctly once the server 
+returns match-specific flags.
+
+However also find where xiPlayerIds is seeded (around line 1004):
+  if (p.isPlayingXI) existingXI.add(p.id);
+
+This is also now correct since isPlayingXI is match-specific.
+No change needed.
