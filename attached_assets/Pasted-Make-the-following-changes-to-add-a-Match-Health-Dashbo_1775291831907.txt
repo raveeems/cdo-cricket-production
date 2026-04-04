@@ -1,0 +1,238 @@
+Make the following changes to add a Match Health Dashboard to the admin screen.
+
+Do not change any existing functionality. Push to main on https://github.com/raveeems/cdo-cricket-production when done.
+
+─────────────────────────────────────────
+CHANGE 1 — server/routes.ts
+─────────────────────────────────────────
+
+Add this new endpoint after the existing Recalc endpoint (around line 4271):
+
+app.get("/api/admin/match-health", isAdmin, async (req: Request, res: Response) => {
+  try {
+    const allMatches = await storage.getAllMatches();
+    const liveAndRecent = allMatches.filter(m =>
+      m.status === "live" || m.status === "completed" || m.status === "delayed"
+    ).slice(0, 10);
+
+    const health = await Promise.all(liveAndRecent.map(async (m) => {
+      const players = await storage.getPlayersForMatch(m.id);
+      const teams = await storage.getAllTeamsForMatch(m.id);
+      const xiPlayers = players.filter(p => p.isPlayingXI === true);
+      const impactPlayers = players.filter(p => p.isImpactPlayer === true);
+      const playersWithPoints = players.filter(p => (p.points || 0) > 0);
+      const playersWithFullPoints = players.filter(p => (p.points || 0) > 4);
+
+      // Find active impact sub
+      let activeImpactName: string | null = null;
+      for (const p of impactPlayers) {
+        const status = await storage.getMatchPlayerStatus(m.id, p.id);
+        if (status?.officialImpactSubUsed) {
+          activeImpactName = p.name;
+          break;
+        }
+      }
+
+      return {
+        matchId: m.id,
+        label: `${m.team1Short} vs ${m.team2Short}`,
+        status: m.status,
+        startTime: m.startTime,
+        lastSyncAt: (m as any).lastSyncAt || null,
+        totalPlayers: players.length,
+        xiSet: xiPlayers.length,
+        impactCandidates: impactPlayers.length,
+        activeImpactSub: activeImpactName,
+        playersWithPoints: playersWithPoints.length,
+        playersWithFullPoints: playersWithFullPoints.length,
+        totalTeams: teams.length,
+        impactEnabled: (m as any).impactFeaturesEnabled === true,
+        scoreString: (m as any).scoreString || null,
+      };
+    }));
+
+    return res.json({ health });
+  } catch (err) {
+    console.error("Match health error:", err);
+    return res.status(500).json({ message: "Failed to fetch match health" });
+  }
+});
+
+─────────────────────────────────────────
+CHANGE 2 — app/admin.tsx
+─────────────────────────────────────────
+
+Step 1: Add these state variables near the other useState declarations at the top of the component (around line 140):
+
+  const [matchHealth, setMatchHealth] = useState<any[]>([]);
+  const [loadingHealth, setLoadingHealth] = useState(false);
+  const [healthLastFetched, setHealthLastFetched] = useState<Date | null>(null);
+
+Step 2: Add this fetch function near the other handler functions (around line 275):
+
+  const fetchMatchHealth = async () => {
+    setLoadingHealth(true);
+    try {
+      const res = await apiRequest('GET', '/api/admin/match-health');
+      const data = await res.json();
+      setMatchHealth(data.health || []);
+      setHealthLastFetched(new Date());
+    } catch (e) {
+      console.error('Health fetch failed:', e);
+    } finally {
+      setLoadingHealth(false);
+    }
+  };
+
+Step 3: Add a useEffect to auto-fetch health on mount and every 60 seconds:
+
+  useEffect(() => {
+    fetchMatchHealth();
+    const interval = setInterval(fetchMatchHealth, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+Step 4: Add the health dashboard UI section. Insert it as the FIRST section inside the main admin ScrollView, before the Tournament Pot Management section. The section should look like this:
+
+  <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text style={{ fontSize: 18, color: colors.text, fontFamily: 'Inter_700Bold', borderLeftWidth: 3, paddingLeft: 10, borderLeftColor: '#22C55E' }}>
+          Match Health
+        </Text>
+        {matchHealth.some(m => m.status === 'live') && (
+          <View style={{ backgroundColor: '#EF444420', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: '#EF444440' }}>
+            <Text style={{ color: '#EF4444', fontSize: 11, fontFamily: 'Inter_700Bold' }}>LIVE</Text>
+          </View>
+        )}
+      </View>
+      <Pressable onPress={fetchMatchHealth} disabled={loadingHealth} style={{ padding: 4 }}>
+        {loadingHealth
+          ? <ActivityIndicator size="small" color={colors.primary} />
+          : <Ionicons name="refresh" size={16} color={colors.primary} />
+        }
+      </Pressable>
+    </View>
+
+    {healthLastFetched && (
+      <Text style={{ color: colors.textTertiary, fontSize: 10, fontFamily: 'Inter_400Regular', marginBottom: 10 }}>
+        Last updated {Math.round((Date.now() - healthLastFetched.getTime()) / 1000)}s ago
+      </Text>
+    )}
+
+    {matchHealth.length === 0 ? (
+      <Text style={{ color: colors.textTertiary, fontSize: 13, fontFamily: 'Inter_400Regular' }}>
+        No live or recent matches found.
+      </Text>
+    ) : (
+      matchHealth.map(m => {
+        const isLive = m.status === 'live';
+        const xiReady = m.xiSet >= 20;
+        const scoringActive = m.playersWithFullPoints > 0;
+        const impactReady = !m.impactEnabled || m.impactCandidates >= 8;
+        const allHealthy = xiReady && scoringActive && impactReady;
+
+        return (
+          <View key={m.matchId} style={{
+            borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 10,
+            backgroundColor: colors.surfaceElevated,
+            borderColor: isLive ? (allHealthy ? '#22C55E60' : '#F59E0B60') : colors.border,
+          }}>
+            {/* Match label + status */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: colors.text, fontFamily: 'Inter_700Bold', fontSize: 14 }}>
+                {m.label}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {isLive && (
+                  <View style={{ backgroundColor: '#EF444420', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                    <Text style={{ color: '#EF4444', fontSize: 10, fontFamily: 'Inter_700Bold' }}>🔴 LIVE</Text>
+                  </View>
+                )}
+                <View style={{
+                  backgroundColor: allHealthy ? '#22C55E20' : '#F59E0B20',
+                  borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+                }}>
+                  <Text style={{ color: allHealthy ? '#22C55E' : '#F59E0B', fontSize: 10, fontFamily: 'Inter_700Bold' }}>
+                    {allHealthy ? '✓ HEALTHY' : '⚠ CHECK'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Score string */}
+            {m.scoreString ? (
+              <Text style={{ color: colors.textSecondary, fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 8 }} numberOfLines={1}>
+                {m.scoreString}
+              </Text>
+            ) : null}
+
+            {/* Health indicators row */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {/* XI */}
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 4,
+                backgroundColor: xiReady ? '#22C55E15' : '#EF444415',
+                borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+                borderWidth: 1, borderColor: xiReady ? '#22C55E40' : '#EF444440',
+              }}>
+                <Text style={{ fontSize: 10, color: xiReady ? '#22C55E' : '#EF4444', fontFamily: 'Inter_600SemiBold' }}>
+                  XI {m.xiSet}/{m.totalPlayers}
+                </Text>
+              </View>
+
+              {/* Scoring */}
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 4,
+                backgroundColor: scoringActive ? '#22C55E15' : '#F59E0B15',
+                borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+                borderWidth: 1, borderColor: scoringActive ? '#22C55E40' : '#F59E0B40',
+              }}>
+                <Text style={{ fontSize: 10, color: scoringActive ? '#22C55E' : '#F59E0B', fontFamily: 'Inter_600SemiBold' }}>
+                  {scoringActive ? `⚡ ${m.playersWithFullPoints} scoring` : '⏳ awaiting scores'}
+                </Text>
+              </View>
+
+              {/* Impact */}
+              {m.impactEnabled && (
+                <View style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 4,
+                  backgroundColor: impactReady ? '#9333EA15' : '#EF444415',
+                  borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+                  borderWidth: 1, borderColor: impactReady ? '#9333EA40' : '#EF444440',
+                }}>
+                  <Text style={{ fontSize: 10, color: impactReady ? '#9333EA' : '#EF4444', fontFamily: 'Inter_600SemiBold' }}>
+                    ⚡ {m.impactCandidates} candidates
+                  </Text>
+                </View>
+              )}
+
+              {/* Teams */}
+              <View style={{
+                backgroundColor: colors.card, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+                borderWidth: 1, borderColor: colors.border,
+              }}>
+                <Text style={{ fontSize: 10, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }}>
+                  👥 {m.totalTeams} teams
+                </Text>
+              </View>
+            </View>
+
+            {/* Impact sub status */}
+            {m.impactEnabled && (
+              <Text style={{ fontSize: 11, fontFamily: 'Inter_500Medium', color: m.activeImpactSub ? '#9333EA' : colors.textTertiary }}>
+                {m.activeImpactSub ? `⚡ Impact sub: ${m.activeImpactSub}` : '⚡ No impact sub confirmed yet'}
+              </Text>
+            )}
+
+            {/* Last sync */}
+            {m.lastSyncAt && (
+              <Text style={{ fontSize: 10, color: colors.textTertiary, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
+                Last sync: {new Date(m.lastSyncAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            )}
+          </View>
+        );
+      })
+    )}
+  </View>
