@@ -1,0 +1,367 @@
+Implement push notifications using Firebase Cloud Messaging.
+Do not break any existing functionality.
+Push to main on https://github.com/raveeems/cdo-cricket-production when done.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Install dependencies
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run:
+  npm install firebase-admin firebase
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Database: add pushTokens table
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In db/schema.ts add this table after the existing tables:
+
+export const pushTokens = pgTable("push_tokens", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+Then run:
+  npm run db:push
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Storage methods in server/storage.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add these three methods to the storage class:
+
+  async savePushToken(userId: string, token: string): Promise<void> {
+    await db.insert(pushTokens)
+      .values({ userId, token })
+      .onConflictDoNothing();
+  }
+
+  async getPushTokensForIPLUsers(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ token: pushTokens.token })
+      .from(pushTokens)
+      .innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId))
+      .innerJoin(matches, eq(userTeams.matchId, matches.id))
+      .where(
+        sql`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
+        OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
+      );
+    return result.map(r => r.token);
+  }
+
+  async deletePushToken(token: string): Promise<void> {
+    await db.delete(pushTokens).where(eq(pushTokens.token, token));
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — Create server/notifications.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create new file server/notifications.ts:
+
+import * as admin from 'firebase-admin';
+import { storage } from './storage';
+
+let initialized = false;
+
+function initFirebase() {
+  if (initialized || admin.apps.length > 0) return;
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    initialized = true;
+    console.log('[FCM] Firebase Admin initialized');
+  } catch (e) {
+    console.error('[FCM] Firebase Admin init failed:', e);
+  }
+}
+
+async function sendToTokens(
+  tokens: string[],
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> {
+  if (tokens.length === 0) {
+    console.log('[FCM] No tokens to send to');
+    return;
+  }
+  initFirebase();
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < tokens.length; i += 500) {
+    chunks.push(tokens.slice(i, i + 500));
+  }
+
+  for (const chunk of chunks) {
+    try {
+      const response = await admin.messaging().sendEachForMulticast({
+        tokens: chunk,
+        notification: { title, body },
+        data: data || {},
+        webpush: {
+          notification: {
+            title,
+            body,
+            icon: '/icon.png',
+            badge: '/icon.png',
+            requireInteraction: false,
+          },
+          fcmOptions: { link: '/' },
+        },
+      });
+
+      const failedTokens: string[] = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const errCode = resp.error?.code;
+          if (
+            errCode === 'messaging/invalid-registration-token' ||
+            errCode === 'messaging/registration-token-not-registered'
+          ) {
+            failedTokens.push(chunk[idx]);
+          }
+        }
+      });
+
+      for (const token of failedTokens) {
+        await storage.deletePushToken(token);
+      }
+
+      console.log(`[FCM] Sent: ${response.successCount} success, ${response.failureCount} failed out of ${chunk.length}`);
+    } catch (e) {
+      console.error('[FCM] Send error:', e);
+    }
+  }
+}
+
+export async function notifyMatchStartingSoon(
+  team1Short: string,
+  team2Short: string
+): Promise<void> {
+  const tokens = await storage.getPushTokensForIPLUsers();
+  console.log(`[FCM] Notifying ${tokens.length} users — match starting soon`);
+  await sendToTokens(
+    tokens,
+    `${team1Short} vs ${team2Short} starts in 30 minutes`,
+    'Lock your team now before the deadline closes!',
+    { type: 'match_starting' }
+  );
+}
+
+export async function notifyXIAndImpactUpdated(
+  team1Short: string,
+  team2Short: string
+): Promise<void> {
+  const tokens = await storage.getPushTokensForIPLUsers();
+  console.log(`[FCM] Notifying ${tokens.length} users — XI and Impact updated`);
+  await sendToTokens(
+    tokens,
+    `${team1Short} vs ${team2Short} Playing XI & Impact Updated`,
+    'The playing XI and impact players are confirmed. Review your team now!',
+    { type: 'xi_impact_updated' }
+  );
+}
+
+export async function notifyMatchEnded(
+  team1Short: string,
+  team2Short: string
+): Promise<void> {
+  const tokens = await storage.getPushTokensForIPLUsers();
+  console.log(`[FCM] Notifying ${tokens.length} users — match ended`);
+  await sendToTokens(
+    tokens,
+    `${team1Short} vs ${team2Short} has ended`,
+    'The match is over — check your points and see where you stand!',
+    { type: 'match_ended' }
+  );
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — API route in server/routes.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add this endpoint after the existing auth routes:
+
+app.post('/api/push-token', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ message: 'Token required' });
+    }
+    await storage.savePushToken(req.session.userId!, token);
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('Push token save error:', e);
+    return res.status(500).json({ message: 'Failed to save token' });
+  }
+});
+
+Then find the admin endpoint that handles saving XI and Impact players
+(the one that calls POST /api/admin/matches/:id/set-playing-xi or similar).
+After it successfully saves, add:
+
+  try {
+    const { notifyXIAndImpactUpdated } = await import('./notifications');
+    const match = await storage.getMatch(req.params.id);
+    if (match) {
+      await notifyXIAndImpactUpdated(match.team1Short, match.team2Short);
+    }
+  } catch (e) {
+    console.error('[FCM] XI+Impact notification failed:', e);
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — Heartbeat triggers in server/index.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A) Find where match status is set to "completed":
+   if (matchEnded && match.status !== "completed") {
+     await storage.updateMatch(match.id, { status: "completed" });
+
+Add immediately after the updateMatch line:
+     try {
+       const { notifyMatchEnded } = await import('./notifications');
+       await notifyMatchEnded(match.team1Short, match.team2Short);
+     } catch (e) {
+       console.error('[FCM] Match ended notification failed:', e);
+     }
+
+B) At the start of matchHeartbeat, after const now = Date.now(),
+add this 30-minute warning block:
+
+  const thirtyMinsMs = 30 * 60 * 1000;
+  const twentyFiveMinsMs = 25 * 60 * 1000;
+  for (const m of allMatches) {
+    if (m.status !== 'upcoming') continue;
+    if (!m.team1Short || !m.team2Short) continue;
+    const startMs = m.startTime ? new Date(m.startTime).getTime() : 0;
+    if (startMs > (now + twentyFiveMinsMs) && startMs <= (now + thirtyMinsMs)) {
+      try {
+        const { notifyMatchStartingSoon } = await import('./notifications');
+        await notifyMatchStartingSoon(m.team1Short, m.team2Short);
+        console.log(`[FCM] 30-min notification sent for ${m.team1Short} vs ${m.team2Short}`);
+      } catch (e) {
+        console.error('[FCM] Starting soon notification failed:', e);
+      }
+    }
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 7 — Service Worker
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create public/firebase-messaging-sw.js:
+
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: "AIzaSyCt_0-bTv5hosPEC6vJB9rgzYcwhfSKS9Y",
+  authDomain: "cdo-cricket-34853.firebaseapp.com",
+  projectId: "cdo-cricket-34853",
+  storageBucket: "cdo-cricket-34853.firebasestorage.app",
+  messagingSenderId: "76828114572",
+  appId: "1:76828114572:web:cd2d5436caac8ad37085a9"
+});
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  const { title, body } = payload.notification || {};
+  if (title) {
+    self.registration.showNotification(title, {
+      body: body || '',
+      icon: '/icon.png',
+      badge: '/icon.png',
+    });
+  }
+});
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 8 — Frontend: lib/firebase.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create new file lib/firebase.ts:
+
+import { initializeApp, getApps } from 'firebase/app';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCt_0-bTv5hosPEC6vJB9rgzYcwhfSKS9Y",
+  authDomain: "cdo-cricket-34853.firebaseapp.com",
+  projectId: "cdo-cricket-34853",
+  storageBucket: "cdo-cricket-34853.firebasestorage.app",
+  messagingSenderId: "76828114572",
+  appId: "1:76828114572:web:cd2d5436caac8ad37085a9"
+};
+
+const VAPID_KEY = "BHj-7Vbu80Nfsq-myLuTblTXBjpiHIXA92900rYJXW6ahUkTVAPeM05xUoKXwiSw3NoajVTCvmUI5QQwHYWwzmQ";
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+
+export async function initPushNotifications(apiRequest: Function): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (!('Notification' in window)) return;
+  if (!('serviceWorker' in navigator)) return;
+
+  try {
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    const messaging = getMessaging(app);
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      console.log('[FCM] Permission denied');
+      return;
+    }
+
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: registration,
+    });
+
+    if (token) {
+      await apiRequest('POST', '/api/push-token', { token });
+      console.log('[FCM] Token registered successfully');
+    }
+
+    onMessage(messaging, (payload) => {
+      const { title, body } = payload.notification || {};
+      if (title && Notification.permission === 'granted') {
+        new Notification(title, {
+          body: body || '',
+          icon: '/icon.png',
+        });
+      }
+    });
+
+  } catch (e) {
+    console.error('[FCM] Setup failed:', e);
+  }
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 9 — Frontend: call initPushNotifications in app/index.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In app/index.tsx, add this import at the top:
+
+import { Platform } from 'react-native';
+import { initPushNotifications } from '@/lib/firebase';
+
+Then find the existing useEffect that watches isAuthenticated (around line 167).
+After that useEffect, add this new one:
+
+useEffect(() => {
+  if (isAuthenticated && Platform.OS === 'web') {
+    initPushNotifications(apiRequest).catch(e => {
+      console.error('[FCM] Init error:', e);
+    });
+  }
+}, [isAuthenticated]);
+
+This fires automatically for already-logged-in users when they open the app,
+and for new users right after login. No logout required.
