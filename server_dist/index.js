@@ -8241,6 +8241,8 @@ function setupErrorHandler(app2) {
                     playerId: candidate.id,
                     officialImpactSubUsed: true
                   });
+                  await storage.updatePlayer(candidate.id, { isImpactPlayer: true });
+                  log(`[Heartbeat:Impact] isImpactPlayer=true set on ${candidate.name} after auto-detection`);
                 }
               }
             } catch (impactErr) {
