@@ -1,0 +1,63 @@
+Fix duck penalty not being applied when dismissal text is "c b BowlerName" 
+(caught and bowled with no fielder listed).
+
+Apply the same fix to BOTH parsers in server/cricket-api.ts.
+Do not change anything else.
+Push to main on https://github.com/raveeems/cdo-cricket-production when done.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 1 — fetchCFLLScorecard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find the batting row parsing section inside fetchCFLLScorecard.
+Find this line:
+  const dismissed = !nameAndDismissal.toLowerCase().includes('not out') && balls > 0;
+
+Replace with:
+  const dismissalLower = nameAndDismissal.toLowerCase();
+  const dismissed = balls > 0 &&
+    !dismissalLower.includes('not out') && (
+      dismissalLower.includes(' b ') ||
+      dismissalLower.startsWith('b ') ||
+      dismissalLower.includes('c ') ||
+      dismissalLower.includes('lbw') ||
+      dismissalLower.includes('run out') ||
+      dismissalLower.includes('stumped') ||
+      dismissalLower.includes('hit wicket') ||
+      dismissalLower.includes('retired')
+    );
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 2 — fetchCricbuzzScorecard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find the batting row parsing section inside fetchCricbuzzScorecard.
+Find where dismissed is derived from the dismissal text — it will be 
+something like:
+  const dismissed = !dismissalText.includes('not out') && balls > 0;
+
+Replace with the same robust check:
+  const dismissalLower = (dismissalText || '').toLowerCase();
+  const dismissed = balls > 0 &&
+    !dismissalLower.includes('not out') && (
+      dismissalLower.includes(' b ') ||
+      dismissalLower.startsWith('b ') ||
+      dismissalLower.includes('c ') ||
+      dismissalLower.includes('lbw') ||
+      dismissalLower.includes('run out') ||
+      dismissalLower.includes('stumped') ||
+      dismissalLower.includes('hit wicket') ||
+      dismissalLower.includes('retired')
+    );
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 3 — calcCricbuzzBattingPoints
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Also find the calcCricbuzzBattingPoints function.
+Find the duck check inside it:
+  if (runs === 0 && balls > 0 && dismissed) pts -= 2;
+
+Make sure this line exists and is correct. If dismissed is passed 
+as a parameter, verify the function signature includes it.
+Do not change this line — just confirm it is there.
