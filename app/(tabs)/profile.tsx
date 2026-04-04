@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,8 @@ import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/query-client';
+import { initPushNotifications } from '@/lib/firebase';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/contexts/TeamContext';
@@ -37,6 +39,8 @@ export default function ProfileScreen() {
   const [teamNameInput, setTeamNameInput] = useState(user?.teamName || '');
   const [teamNameSaving, setTeamNameSaving] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(false);
 
   const webTopInset = isWeb ? 67 : 0;
 
@@ -92,6 +96,35 @@ export default function ProfileScreen() {
     if (ok) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditingTeamName(false);
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+    setNotificationsEnabled(Notification.permission === 'granted');
+  }, []);
+
+  const handleNotificationToggle = async () => {
+    if (Platform.OS !== 'web') return;
+    if (notificationLoading) return;
+    setNotificationLoading(true);
+    try {
+      if (notificationsEnabled) {
+        alert('To disable notifications, click the lock icon in your browser address bar and set Notifications to Block.');
+        setNotificationLoading(false);
+        return;
+      }
+      await initPushNotifications(apiRequest);
+      const granted = typeof window !== 'undefined' &&
+        'Notification' in window &&
+        Notification.permission === 'granted';
+      setNotificationsEnabled(granted);
+    } catch (e) {
+      console.error('[FCM] Toggle failed:', e);
+    } finally {
+      setNotificationLoading(false);
     }
   };
 
@@ -275,6 +308,49 @@ export default function ProfileScreen() {
             </Pressable>
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {Platform.OS === 'web' && (
+              <>
+                <Pressable
+                  onPress={handleNotificationToggle}
+                  style={[
+                    styles.settingRow,
+                    isWeb ? { cursor: 'pointer' as any } : {},
+                  ]}
+                >
+                  <View style={styles.settingLeft}>
+                    <View style={[styles.settingIcon, { backgroundColor: (notificationsEnabled ? colors.primary : colors.textSecondary) + '20' }]}>
+                      <Ionicons
+                        name={notificationsEnabled ? 'notifications' : 'notifications-outline'}
+                        size={20}
+                        color={notificationsEnabled ? colors.primary : colors.textSecondary}
+                      />
+                    </View>
+                    <View>
+                      <Text style={[styles.settingText, { color: colors.text, fontFamily: 'Inter_500Medium' }]}>
+                        Match Notifications
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.textTertiary, fontFamily: 'Inter_400Regular' }}>
+                        {notificationsEnabled
+                          ? 'You will receive match alerts'
+                          : 'Tap to enable match alerts'}
+                      </Text>
+                    </View>
+                  </View>
+                  {notificationLoading ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Switch
+                      value={notificationsEnabled}
+                      onValueChange={handleNotificationToggle}
+                      trackColor={{ false: colors.border, true: colors.primary }}
+                      thumbColor="#FFFFFF"
+                    />
+                  )}
+                </Pressable>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              </>
+            )}
 
             <Pressable
               style={[
