@@ -59,6 +59,16 @@ async function runMigrations(): Promise<void> {
       ALTER TABLE matches ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMP;
     `);
 
+    // push_tokens — FCM push notification token storage
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS push_tokens (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     // players — api_name added for name-matching against external APIs
     await client.query(`
       ALTER TABLE players ADD COLUMN IF NOT EXISTS api_name TEXT;
