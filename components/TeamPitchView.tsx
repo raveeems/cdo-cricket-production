@@ -14,6 +14,7 @@ interface PitchPlayer {
   externalId?: string;
   isPlayingXI?: boolean;
   isImpactPlayer?: boolean;
+  isImpactActivated?: boolean;
 }
 
 interface TeamPitchViewProps {
@@ -165,11 +166,11 @@ function BenchStrip({ primary, backup, captainType, vcType }: {
 
   const impactIsCaptain = captainType === 'impact_slot';
   const impactIsVC = vcType === 'impact_slot';
-  const primaryActivated = primary?.isImpactPlayer ?? false;
-  const backupActivated = backup?.isImpactPlayer ?? false;
+  const primaryActivated = primary?.isImpactActivated ?? false;
+  const backupActivated = backup?.isImpactActivated ?? false;
 
   function BenchCard({ player, label, isCaptain, isVC }: { player: PitchPlayer | null | undefined; label: string; isCaptain: boolean; isVC: boolean }) {
-    const isActivated = player?.isImpactPlayer ?? false;
+    const isActivated = player?.isImpactActivated ?? false;
     const rawPts = player?.points ?? 0;
     // When active, +4 impact bonus is added by the server on top of raw scorecard points.
     // Show the true contribution (pts + 4) so the displayed number matches the team total.

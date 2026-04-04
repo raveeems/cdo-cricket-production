@@ -4175,7 +4175,15 @@ async function registerRoutes(app2) {
             };
           }
         }
-        const matchPlayersForResponse = await storage.getPlayersForMatch(matchId);
+        const matchPlayersRaw = await storage.getPlayersForMatch(matchId);
+        const allStatuses = await storage.getMatchPlayerStatuses(matchId);
+        const activatedPlayerIds = new Set(
+          allStatuses.filter((s) => s.officialImpactSubUsed === true).map((s) => s.playerId)
+        );
+        const matchPlayersForResponse = matchPlayersRaw.map((p) => ({
+          ...p,
+          isImpactActivated: activatedPlayerIds.has(p.id)
+        }));
         const playerById = new Map(matchPlayersForResponse.map((p) => [p.id, p]));
         const standings = allTeams.map((t) => {
           const isOwn = t.userId === req.session.userId;

@@ -629,13 +629,13 @@ export default function MatchDetailScreen() {
           if (!match.impactFeaturesEnabled || !previewTeam.primaryImpactId) return null;
           const p = players.find(pl => pl.id === previewTeam.primaryImpactId);
           if (!p) return null;
-          return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.isImpactPlayer ? (p.points || 0) + 4 : (p.points || 0), teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer };
+          return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
         })();
         const previewBackupImpact: PitchPlayer | null = (() => {
           if (!match.impactFeaturesEnabled || !previewTeam.backupImpactId) return null;
           const p = players.find(pl => pl.id === previewTeam.backupImpactId);
           if (!p) return null;
-          return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.isImpactPlayer ? (p.points || 0) + 4 : (p.points || 0), teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer };
+          return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
         })();
         return (
           <TeamPitchView
@@ -1478,13 +1478,13 @@ export default function MatchDetailScreen() {
                   if (!entry.primaryImpactId) return null;
                   const p = entryPool.find(pl => pl.id === entry.primaryImpactId);
                   if (!p) return null;
-                  return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: (p as any).isImpactPlayer ? ((p.points || 0) + 4) : (p.points || 0), teamShort: (p as any).teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!(p as any).isImpactPlayer };
+                  return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: (p.points || 0), teamShort: (p as any).teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!(p as any).isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
                 })();
                 const entryBackupImpact: PitchPlayer | null = (() => {
                   if (!entry.backupImpactId) return null;
                   const p = entryPool.find(pl => pl.id === entry.backupImpactId);
                   if (!p) return null;
-                  return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: (p as any).isImpactPlayer ? ((p.points || 0) + 4) : (p.points || 0), teamShort: (p as any).teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!(p as any).isImpactPlayer };
+                  return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: (p.points || 0), teamShort: (p as any).teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!(p as any).isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
                 })();
                 return (
                   <View style={{ marginTop: 10, width: '100%' }}>
@@ -1653,13 +1653,13 @@ export default function MatchDetailScreen() {
                         if (!team.primaryImpactId) return null;
                         const p = allKnownPlayers.find(pl => pl.id === team.primaryImpactId);
                         if (!p) return null;
-                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.isImpactPlayer ? (p.points || 0) + 4 : (p.points || 0), teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer };
+                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
                       })();
                       const participantBackupImpact: PitchPlayer | null = (() => {
                         if (!team.backupImpactId) return null;
                         const p = allKnownPlayers.find(pl => pl.id === team.backupImpactId);
                         if (!p) return null;
-                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.isImpactPlayer ? (p.points || 0) + 4 : (p.points || 0), teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer };
+                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
                       })();
                       return (
                         <View style={{ marginTop: 10 }}>
