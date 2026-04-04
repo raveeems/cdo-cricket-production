@@ -1,0 +1,60 @@
+Fix the admin unlock 5-minute window so it measures from when admin tapped Unlock, not from firstScorecardAt.
+
+Do not break any existing functionality.
+Push to main on https://github.com/raveeems/cdo-cricket-production when done.
+
+─────────────────────────────────────────
+CHANGE 1 — server/routes.ts — store unlockedAt timestamp
+─────────────────────────────────────────
+
+Find the admin-unlock endpoint (POST /api/admin/matches/:id/admin-unlock).
+Find this line:
+  await storage.updateMatch(match.id, { adminUnlockOverride: unlock });
+
+Replace with:
+  await storage.updateMatch(match.id, {
+    adminUnlockOverride: unlock,
+    unlockedAt: unlock ? new Date() : null,
+  });
+
+─────────────────────────────────────────
+CHANGE 2 — server/routes.ts — fix isEntryOpen 5-minute window
+─────────────────────────────────────────
+
+Find the isEntryOpen function. It currently has a check like:
+  if (adminUnlockOverride && firstScorecardAt && minutesElapsed >= 5) return false
+
+Replace that entire block with:
+  if (adminUnlockOverride) {
+    // Use unlockedAt to measure the 5-minute window — not firstScorecardAt.
+    // firstScorecardAt could be from minutes ago, immediately closing the window.
+    const unlockedAt = (match as any).unlockedAt;
+    if (unlockedAt) {
+      const minutesSinceUnlock = (now - new Date(unlockedAt).getTime()) / 60000;
+      if (minutesSinceUnlock >= 5) return false; // window expired
+    }
+    return true; // unlock active and within window
+  }
+
+─────────────────────────────────────────
+CHANGE 3 — db/schema.ts — add unlockedAt column
+─────────────────────────────────────────
+
+Find the matches table definition. Add this column:
+  unlockedAt: timestamp("unlocked_at"),
+
+Then run: npm run db:push
+
+─────────────────────────────────────────
+CHANGE 4 — remove eligibility check on unlock
+─────────────────────────────────────────
+
+Find the admin-unlock endpoint. Find where it runs checkUnlockEligibility 
+and returns 409 if too late.
+
+Remove that eligibility check entirely. The 5-minute window in isEntryOpen 
+now handles expiry automatically. Admin should always be able to unlock — 
+the window just closes itself after 5 minutes from unlock time.
+
+Replace the eligibility check block with just a log:
+  console.log(`[Admin] Match ${match.id} unlocked by admin at ${new Date().toISOString()}`);
