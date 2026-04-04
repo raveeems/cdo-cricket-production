@@ -2646,11 +2646,11 @@ async function fetchCFLLScorecard(team1Short, team2Short) {
         const cleanName = nameLine.replace(/\(C\)|\(wk\)|Imp/gi, "").trim();
         if (!cleanName || cleanName.length < 2) continue;
         const normName = norm(cleanName);
-        const dismissed = !nameAndDismissal.toLowerCase().includes("not out") && balls > 0;
+        const dismissalLower = nameAndDismissal.toLowerCase();
+        const dismissed = balls > 0 && !dismissalLower.includes("not out") && (dismissalLower.includes(" b ") || dismissalLower.startsWith("b ") || dismissalLower.includes("c ") || dismissalLower.includes("lbw") || dismissalLower.includes("run out") || dismissalLower.includes("stumped") || dismissalLower.includes("hit wicket") || dismissalLower.includes("retired"));
         const battingPts = calcCricbuzzBattingPoints(runs, balls, fours, sixes, dismissed);
         battedOrBowledPlayers.add(normName);
         namePointsMap.set(normName, (namePointsMap.get(normName) || 0) + battingPts);
-        const dismissalLower = nameAndDismissal.toLowerCase();
         const cAndBMatch = nameAndDismissal.match(/c\s*&?\s*b\s+([A-Za-z\s]+)/i);
         if (cAndBMatch) {
           const bowler = norm(cAndBMatch[1].trim());
@@ -2801,14 +2801,13 @@ function parseCrexHtml(html) {
     if (!name) continue;
     const decisionMatch = seg.match(/class="decision"[^>]*>\s*([^<]+?)\s*</);
     const dismissal = decisionMatch ? decisionMatch[1].trim() : "batting";
-    const dismissed = !["batting", "not out", ""].includes(
-      dismissal.toLowerCase()
-    );
     const statNums = [
       ...seg.matchAll(/<!---->?<div[^>]*>(\d+\.?\d*)<\/div><!---->?/g)
     ].map((m) => parseFloat(m[1]));
     if (statNums.length < 4) continue;
     const [runs, balls, fours, sixes] = statNums;
+    const dismissalLower = (dismissal || "").toLowerCase();
+    const dismissed = balls > 0 && !dismissalLower.includes("not out") && (dismissalLower.includes(" b ") || dismissalLower.startsWith("b ") || dismissalLower.includes("c ") || dismissalLower.includes("lbw") || dismissalLower.includes("run out") || dismissalLower.includes("stumped") || dismissalLower.includes("hit wicket") || dismissalLower.includes("retired"));
     battedOrBowledPlayers.add(normalizeName(name));
     const lbwMatch = dismissal.match(/^(?:lbw\s+b|b)\s+(.+)/i);
     if (lbwMatch) {

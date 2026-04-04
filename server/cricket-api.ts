@@ -2539,12 +2539,21 @@ export async function fetchCFLLScorecard(
         if (!cleanName || cleanName.length < 2) continue;
 
         const normName = norm(cleanName);
-        const dismissed = !nameAndDismissal.toLowerCase().includes('not out') && balls > 0;
+        const dismissalLower = nameAndDismissal.toLowerCase();
+        const dismissed = balls > 0 &&
+          !dismissalLower.includes('not out') && (
+            dismissalLower.includes(' b ') ||
+            dismissalLower.startsWith('b ') ||
+            dismissalLower.includes('c ') ||
+            dismissalLower.includes('lbw') ||
+            dismissalLower.includes('run out') ||
+            dismissalLower.includes('stumped') ||
+            dismissalLower.includes('hit wicket') ||
+            dismissalLower.includes('retired')
+          );
         const battingPts = calcCricbuzzBattingPoints(runs, balls, fours, sixes, dismissed);
         battedOrBowledPlayers.add(normName);
         namePointsMap.set(normName, (namePointsMap.get(normName) || 0) + battingPts);
-
-        const dismissalLower = nameAndDismissal.toLowerCase();
 
         const cAndBMatch = nameAndDismissal.match(/c\s*&?\s*b\s+([A-Za-z\s]+)/i);
         if (cAndBMatch) {
@@ -2737,9 +2746,6 @@ function parseCrexHtml(html: string): CricbuzzScoreResult {
 
     const decisionMatch = seg.match(/class="decision"[^>]*>\s*([^<]+?)\s*</);
     const dismissal = decisionMatch ? decisionMatch[1].trim() : "batting";
-    const dismissed = !["batting", "not out", ""].includes(
-      dismissal.toLowerCase()
-    );
 
     const statNums = [
       ...seg.matchAll(/<!---->?<div[^>]*>(\d+\.?\d*)<\/div><!---->?/g),
@@ -2747,6 +2753,19 @@ function parseCrexHtml(html: string): CricbuzzScoreResult {
 
     if (statNums.length < 4) continue;
     const [runs, balls, fours, sixes] = statNums;
+
+    const dismissalLower = (dismissal || '').toLowerCase();
+    const dismissed = balls > 0 &&
+      !dismissalLower.includes('not out') && (
+        dismissalLower.includes(' b ') ||
+        dismissalLower.startsWith('b ') ||
+        dismissalLower.includes('c ') ||
+        dismissalLower.includes('lbw') ||
+        dismissalLower.includes('run out') ||
+        dismissalLower.includes('stumped') ||
+        dismissalLower.includes('hit wicket') ||
+        dismissalLower.includes('retired')
+      );
 
     // This player has their own batting row — they genuinely participated
     battedOrBowledPlayers.add(normalizeName(name));
