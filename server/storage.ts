@@ -705,29 +705,6 @@ export class DatabaseStorage {
         return { activePlayerId: backupImpactId, activatedBy: "backup" };
       }
     }
-    // Fallback: auto-detection may not have fired (e.g. Crex unavailable, non-Crex source).
-    // If primary impact player has points > 4 they clearly played — activate them.
-    // Check primary first, then backup. This mirrors the admin-designated priority order.
-    if (primaryImpactId) {
-      const [primaryPlayer] = await db
-        .select({ points: players.points, isImpactPlayer: players.isImpactPlayer, isPlayingXI: players.isPlayingXI })
-        .from(players)
-        .where(and(eq(players.id, primaryImpactId), eq(players.matchId, matchId)))
-        .limit(1);
-      if (primaryPlayer && primaryPlayer.isImpactPlayer === true && primaryPlayer.isPlayingXI !== true && (primaryPlayer.points || 0) > 4) {
-        return { activePlayerId: primaryImpactId, activatedBy: "primary" };
-      }
-    }
-    if (backupImpactId) {
-      const [backupPlayer] = await db
-        .select({ points: players.points, isImpactPlayer: players.isImpactPlayer, isPlayingXI: players.isPlayingXI })
-        .from(players)
-        .where(and(eq(players.id, backupImpactId), eq(players.matchId, matchId)))
-        .limit(1);
-      if (backupPlayer && backupPlayer.isImpactPlayer === true && backupPlayer.isPlayingXI !== true && (backupPlayer.points || 0) > 4) {
-        return { activePlayerId: backupImpactId, activatedBy: "backup" };
-      }
-    }
     return { activePlayerId: null, activatedBy: null };
   }
 

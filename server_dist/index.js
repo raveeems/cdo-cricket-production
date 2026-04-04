@@ -816,18 +816,6 @@ var init_storage = __esm({
             return { activePlayerId: backupImpactId, activatedBy: "backup" };
           }
         }
-        if (primaryImpactId) {
-          const [primaryPlayer] = await db.select({ points: players.points, isImpactPlayer: players.isImpactPlayer, isPlayingXI: players.isPlayingXI }).from(players).where(and(eq(players.id, primaryImpactId), eq(players.matchId, matchId))).limit(1);
-          if (primaryPlayer && primaryPlayer.isImpactPlayer === true && primaryPlayer.isPlayingXI !== true && (primaryPlayer.points || 0) > 4) {
-            return { activePlayerId: primaryImpactId, activatedBy: "primary" };
-          }
-        }
-        if (backupImpactId) {
-          const [backupPlayer] = await db.select({ points: players.points, isImpactPlayer: players.isImpactPlayer, isPlayingXI: players.isPlayingXI }).from(players).where(and(eq(players.id, backupImpactId), eq(players.matchId, matchId))).limit(1);
-          if (backupPlayer && backupPlayer.isImpactPlayer === true && backupPlayer.isPlayingXI !== true && (backupPlayer.points || 0) > 4) {
-            return { activePlayerId: backupImpactId, activatedBy: "backup" };
-          }
-        }
         return { activePlayerId: null, activatedBy: null };
       }
       // ====== Match Feature Toggle ======
