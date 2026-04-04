@@ -1,0 +1,84 @@
+Make the following two changes. Do not change anything else. Push to main on https://github.com/raveeems/cdo-cricket-production when done.
+
+─────────────────────────────────────────
+CHANGE 1 — server/index.ts
+─────────────────────────────────────────
+
+Find the impact auto-detection block inside matchHeartbeat. It looks like this:
+
+  const appearedStrict = battedOrBowledPlayers.size > 0 && battedOrBowledPlayers.has(normName);
+  const appearedInMap = !appearedStrict && (
+    (candidate.externalId ? pointsMap.has(candidate.externalId) : false) ||
+    (namePointsMap.has(normName))
+  );
+
+  if (appearedStrict || appearedInMap) {
+
+Replace those lines with:
+
+  // Strict detection only — namePointsMap includes dismissal text which causes
+  // false positives (fielders mentioned in dismissals get wrongly activated).
+  // battedOrBowledPlayers is populated by CFLL and Cricbuzz scard loops only.
+  const appearedStrict = battedOrBowledPlayers.size > 0 && battedOrBowledPlayers.has(normName);
+
+  if (appearedStrict) {
+
+─────────────────────────────────────────
+CHANGE 2 — server/cricket-api.ts
+─────────────────────────────────────────
+
+Find the fetchCricbuzzScorecard function. Inside it, find the scard batting loop
+where each batsman row is processed and points are calculated. After calculating
+batting points for each batsman, add this line if the batsman faced at least 1 ball:
+
+  if (balls >= 1) {
+    const normBatsman = batsmanName.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+    battedOrBowledPlayers.add(normBatsman);
+  }
+
+Then find the scard bowling loop where each bowler row is processed and points
+are calculated. After calculating bowling points for each bowler, add this line
+if the bowler bowled at least 1 ball:
+
+  if (overs > 0) {
+    const normBowler = bowlerName.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+    battedOrBowledPlayers.add(normBowler);
+  }
+
+─────────────────────────────────────────
+WHY THESE TWO CHANGES WORK TOGETHER
+─────────────────────────────────────────
+
+After these changes the impact auto-detection flow is:
+
+Step 1 — Admin taps ⚡ ON manually
+  → officialImpactSubUsed = true in DB
+  → resolveImpactSlot returns that player
+  → correct points calculated
+  → Admin override always wins
+
+Step 2 — Admin unavailable, CFLL is primary source
+  → fetchCFLLScorecard populates battedOrBowledPlayers from batting/bowling rows
+  → heartbeat checks battedOrBowledPlayers for each impact candidate
+  → if candidate appears → officialImpactSubUsed = true written automatically
+  → correct points calculated
+
+Step 3 — CFLL fails, Cricbuzz takes over
+  → fetchCricbuzzScorecard now populates battedOrBowledPlayers from scard loops
+  → same auto-detection fires correctly
+  → correct points calculated
+
+Step 4 — Admin overrides after the fact
+  → Admin taps ⚡ OFF on wrong player, ⚡ ON on correct player
+  → Admin taps Recalc
+  → all team totals corrected immediately
+
+Step 5 — Both CFLL and Cricbuzz fail (extreme edge case)
+  → battedOrBowledPlayers is empty
+  → auto-detection does not fire
+  → impact player gets zero impact points
+  → Admin must set manually when available
+  → Admin taps Recalc to correct
+
+This is the correct priority order:
+Admin manual > Auto-detection from scorecard > Zero (admin corrects later)
