@@ -1,0 +1,62 @@
+Fix the impact bench ACTIVE badge showing incorrectly for all impact candidates.
+
+The bug: isImpactPlayer=true is set for all admin-designated candidates.
+The frontend reads isImpactPlayer to show ACTIVE badge — so all candidates 
+show ACTIVE even when no impact sub has been used yet.
+
+The fix: add isImpactActivated field (driven by officialImpactSubUsed) 
+to the bench player shape, and use that for the ACTIVE badge instead.
+
+Do not break any existing functionality.
+Push to main on https://github.com/raveeems/cdo-cricket-production when done.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 1 — server/routes.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find the bench player shape builder around line 1229 where the 
+primary impact bench player is built. It currently looks like:
+
+  { ..., isPlayingXI, isImpactPlayer }
+
+For both the primary and backup bench player shapes (lines ~1229 and ~1286),
+fetch the matchPlayerStatus and add isImpactActivated:
+
+For PRIMARY bench player (around line 1229):
+  const primaryStatus = await storage.getMatchPlayerStatus(matchId, primaryBenchPlayer.id);
+  const primaryActivated = primaryStatus?.officialImpactSubUsed === true;
+
+Then add to the primary bench player shape:
+  isImpactActivated: primaryActivated,
+
+For BACKUP bench player (around line 1286):
+  const backupStatus = await storage.getMatchPlayerStatus(matchId, backupBenchPlayer.id);
+  const backupActivated = backupStatus?.officialImpactSubUsed === true;
+
+Then add to the backup bench player shape:
+  isImpactActivated: backupActivated,
+
+If matchId is not directly available in that route, use team.matchId.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 2 — components/TeamPitchView.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find lines 168-169:
+  const primaryActivated = primary?.isImpactPlayer ?? false;
+  const backupActivated  = backup?.isImpactPlayer ?? false;
+
+Replace with:
+  const primaryActivated = primary?.isImpactActivated ?? false;
+  const backupActivated  = backup?.isImpactActivated ?? false;
+
+Find line 172:
+  const isActivated = player?.isImpactPlayer ?? false;
+
+Replace with:
+  const isActivated = player?.isImpactActivated ?? false;
+
+Find line 176:
+  const ptsWithBonus = isActivated ? rawPts + 4 : rawPts;
+
+Keep this line unchanged — points bonus correctly tied to isImpactActivated now.
