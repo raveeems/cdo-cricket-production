@@ -686,25 +686,28 @@ var init_storage = __esm({
         const ledgerResult = await db.select({
           userId: tournamentLedger.userId,
           userName: tournamentLedger.userName,
-          totalPoints: sql2`SUM(${tournamentLedger.pointsChange})`.as("total_points"),
-          matchCount: sql2`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${tournamentLedger.matchId} END)`.as("match_count")
-        }).from(tournamentLedger).leftJoin(matches, eq(matches.id, tournamentLedger.matchId)).where(eq(tournamentLedger.tournamentName, tName)).groupBy(tournamentLedger.userId, tournamentLedger.userName).orderBy(desc(sql2`total_points`));
+          totalPoints: sql2`SUM(${tournamentLedger.pointsChange})`.as("total_points")
+        }).from(tournamentLedger).where(eq(tournamentLedger.tournamentName, tName)).groupBy(tournamentLedger.userId, tournamentLedger.userName).orderBy(desc(sql2`total_points`));
+        const matchCounts = await db.select({
+          userId: userTeams.userId,
+          matchCount: sql2`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${userTeams.matchId} END)`
+        }).from(userTeams).leftJoin(matches, eq(userTeams.matchId, matches.id)).where(eq(matches.tournamentName, tName)).groupBy(userTeams.userId);
+        const matchCountMap = new Map(matchCounts.map((r) => [r.userId, Number(r.matchCount)]));
         const teamPlayers = await db.select({
           userId: users.id,
           teamName: users.teamName,
-          username: users.username,
-          matchCount: sql2`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${userTeams.matchId} END)`.as("team_match_count")
+          username: users.username
         }).from(userTeams).innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName))).innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true))).groupBy(users.id, users.teamName, users.username);
         const ledgerUserIds = new Set(ledgerResult.map((r) => r.userId));
         const combined = ledgerResult.map((r) => ({
           userId: r.userId,
           userName: r.userName,
           totalPoints: Number(r.totalPoints),
-          matchCount: Number(r.matchCount)
+          matchCount: matchCountMap.get(r.userId) ?? 0
         }));
         for (const tp of teamPlayers) {
           if (!ledgerUserIds.has(tp.userId)) {
-            combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: Number(tp.matchCount) });
+            combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: matchCountMap.get(tp.userId) ?? 0 });
           }
         }
         return combined.sort((a, b) => b.totalPoints - a.totalPoints);

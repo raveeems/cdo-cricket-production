@@ -491,28 +491,37 @@ export class DatabaseStorage {
   }
 
   async getTournamentStandings(tName: string): Promise<{ userId: string; userName: string; totalPoints: number; matchCount: number }[]> {
-    // Get settled ledger entries
+    // Step 1 — points from ledger
     const ledgerResult = await db
       .select({
         userId: tournamentLedger.userId,
         userName: tournamentLedger.userName,
         totalPoints: sql<number>`SUM(${tournamentLedger.pointsChange})`.as('total_points'),
-        matchCount: sql<number>`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${tournamentLedger.matchId} END)`.as('match_count'),
       })
       .from(tournamentLedger)
-      .leftJoin(matches, eq(matches.id, tournamentLedger.matchId))
       .where(eq(tournamentLedger.tournamentName, tName))
       .groupBy(tournamentLedger.userId, tournamentLedger.userName)
       .orderBy(desc(sql`total_points`));
 
-    // Also find verified users who have teams in this tournament but no ledger entry yet,
-    // with their actual match count (how many tournament matches they have teams in).
+    // Step 2 — match counts from userTeams (completed matches only)
+    const matchCounts = await db
+      .select({
+        userId: userTeams.userId,
+        matchCount: sql<number>`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${userTeams.matchId} END)`,
+      })
+      .from(userTeams)
+      .leftJoin(matches, eq(userTeams.matchId, matches.id))
+      .where(eq(matches.tournamentName, tName))
+      .groupBy(userTeams.userId);
+
+    const matchCountMap = new Map(matchCounts.map(r => [r.userId, Number(r.matchCount)]));
+
+    // Also find verified users who have teams in this tournament but no ledger entry yet
     const teamPlayers = await db
       .select({
         userId: users.id,
         teamName: users.teamName,
         username: users.username,
-        matchCount: sql<number>`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${userTeams.matchId} END)`.as('team_match_count'),
       })
       .from(userTeams)
       .innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName)))
@@ -524,12 +533,12 @@ export class DatabaseStorage {
       userId: r.userId,
       userName: r.userName,
       totalPoints: Number(r.totalPoints),
-      matchCount: Number(r.matchCount),
+      matchCount: matchCountMap.get(r.userId) ?? 0,
     }));
 
     for (const tp of teamPlayers) {
       if (!ledgerUserIds.has(tp.userId)) {
-        combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: Number(tp.matchCount) });
+        combined.push({ userId: tp.userId, userName: tp.teamName || tp.username, totalPoints: 0, matchCount: matchCountMap.get(tp.userId) ?? 0 });
       }
     }
 
