@@ -1714,7 +1714,7 @@ function calculateFantasyPoints(playerId, scorecard) {
       else if (bat.r >= 75) points += 12;
       else if (bat.r >= 50) points += 8;
       else if (bat.r >= 25) points += 4;
-      if (bat.r === 0 && bat.b > 0) points -= 2;
+      if (bat.r === 0 && bat.b > 0 && bat.dismissal) points -= 2;
       if (bat.b >= 10) {
         if (bat.sr > 170) points += 6;
         else if (bat.sr > 150) points += 4;
@@ -2190,6 +2190,7 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
       return null;
     }
     const namePointsMap = /* @__PURE__ */ new Map();
+    const catchCountMap = /* @__PURE__ */ new Map();
     const scardBowlerKeys = /* @__PURE__ */ new Set();
     const battedOrBowledPlayers = /* @__PURE__ */ new Set();
     const scoreStringParts = [];
@@ -2235,7 +2236,8 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
           const stumpMatch = d.match(/^st\s+(.+?)\s+b\s+/i);
           const runoutMatch = d.match(/run out\s*\((.+?)\)/i);
           if (catchMatch) {
-            addNamePoints(namePointsMap, catchMatch[1].trim(), 8);
+            const cKey = normalizeName(catchMatch[1].trim());
+            if (cKey) catchCountMap.set(cKey, (catchCountMap.get(cKey) || 0) + 1);
           } else if (stumpMatch) {
             addNamePoints(namePointsMap, stumpMatch[1].trim(), 12);
           } else if (runoutMatch) {
@@ -2278,6 +2280,10 @@ async function fetchCricbuzzScorecard(team1Short, team2Short) {
           `${inn.inningsId || "Inn"}: ${runs}/${wickets}`
         );
       }
+    }
+    for (const [fielder, catches] of catchCountMap.entries()) {
+      const pts = catches * 8 + (catches >= 3 ? 4 : 0);
+      namePointsMap.set(fielder, (namePointsMap.get(fielder) || 0) + pts);
     }
     try {
       const leanback = await cricbuzzFetch(`/mcenter/v1/${matchId}/leanback`);

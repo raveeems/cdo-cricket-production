@@ -1299,7 +1299,7 @@ function calculateFantasyPoints(
       else if (bat.r >= 50) points += 8;
       else if (bat.r >= 25) points += 4;
 
-      if (bat.r === 0 && bat.b > 0) points -= 2;
+      if (bat.r === 0 && bat.b > 0 && bat.dismissal) points -= 2;
 
       if (bat.b >= 10) {
         if (bat.sr > 170) points += 6;
@@ -1908,6 +1908,7 @@ export async function fetchCricbuzzScorecard(
     }
 
     const namePointsMap = new Map<string, number>();
+    const catchCountMap = new Map<string, number>(); // tracks catches per fielder for 3+ bonus
     const scardBowlerKeys = new Set<string>(); // tracks bowlers already counted via scard
     const battedOrBowledPlayers = new Set<string>();
     const scoreStringParts: string[] = [];
@@ -1965,7 +1966,8 @@ export async function fetchCricbuzzScorecard(
           const stumpMatch = d.match(/^st\s+(.+?)\s+b\s+/i);
           const runoutMatch = d.match(/run out\s*\((.+?)\)/i);
           if (catchMatch) {
-            addNamePoints(namePointsMap, catchMatch[1].trim(), 8);
+            const cKey = normalizeName(catchMatch[1].trim());
+            if (cKey) catchCountMap.set(cKey, (catchCountMap.get(cKey) || 0) + 1);
           } else if (stumpMatch) {
             addNamePoints(namePointsMap, stumpMatch[1].trim(), 12);
           } else if (runoutMatch) {
@@ -2015,6 +2017,12 @@ export async function fetchCricbuzzScorecard(
           `${inn.inningsId || "Inn"}: ${runs}/${wickets}`
         );
       }
+    }
+
+    // Apply fielding catch credits with 3+ catch bonus
+    for (const [fielder, catches] of catchCountMap.entries()) {
+      const pts = catches * 8 + (catches >= 3 ? 4 : 0);
+      namePointsMap.set(fielder, (namePointsMap.get(fielder) || 0) + pts);
     }
 
     // --- LEANBACK: live bowling for ongoing innings + accurate score ---
