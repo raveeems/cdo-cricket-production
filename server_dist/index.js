@@ -3250,7 +3250,7 @@ function isEntryOpen(match, nowMs) {
     const unlockedAt = match.unlockedAt;
     if (unlockedAt) {
       const minutesSinceUnlock = (nowMs - new Date(unlockedAt).getTime()) / 6e4;
-      if (minutesSinceUnlock >= 5) return false;
+      if (minutesSinceUnlock >= 15) return false;
     }
     return true;
   }
@@ -8162,7 +8162,7 @@ function setupErrorHandler(app2) {
       for (const m of allMatches) {
         if (m.adminUnlockOverride && m.unlockedAt) {
           const minutesSince = (now - new Date(m.unlockedAt).getTime()) / 6e4;
-          if (minutesSince >= 5) {
+          if (minutesSince >= 15) {
             await storage.updateMatch(m.id, { adminUnlockOverride: false, unlockedAt: null });
             log(`[Heartbeat] Auto-cleared expired unlock for match ${m.id}`);
           }

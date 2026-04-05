@@ -52,12 +52,12 @@ function checkUnlockEligibility(match: { firstScorecardAt?: Date | string | null
 function isEntryOpen(match: { startTime: Date | string; revisedStartTime?: Date | string | null; adminUnlockOverride?: boolean | null; firstScorecardAt?: Date | string | null; unlockedAt?: Date | string | null }, nowMs: number): boolean {
   const lockMs = getEffectiveLockMs(match);
   if (match.adminUnlockOverride === true) {
-    // Use unlockedAt to measure the 5-minute window — not firstScorecardAt.
+    // Use unlockedAt to measure the 15-minute window — not firstScorecardAt.
     // firstScorecardAt could be from minutes ago, immediately closing the window.
     const unlockedAt = match.unlockedAt;
     if (unlockedAt) {
       const minutesSinceUnlock = (nowMs - new Date(unlockedAt).getTime()) / 60000;
-      if (minutesSinceUnlock >= 5) return false; // window expired
+      if (minutesSinceUnlock >= 15) return false; // window expired
     }
     return true; // unlock active and within window
   }
