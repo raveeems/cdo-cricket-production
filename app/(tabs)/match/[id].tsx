@@ -1638,28 +1638,33 @@ export default function MatchDetailScreen() {
                       </View>
                     )}
                     {isExpanded && teamPlayers.length > 0 && (() => {
-                      const pitchPlayers: PitchPlayer[] = teamPlayers
-                        .filter((p): p is Player => !!p)
-                        .map(p => ({
-                          id: p.id,
-                          name: p.name,
-                          role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
-                          points: p.points || 0,
-                          teamShort: p.teamShort,
-                          externalId: (p as any).externalId,
-                          isPlayingXI: p.isPlayingXI,
-                        }));
+                      // Use resolvedPlayers from standings response — it carries isImpactActivated
+                      // and correct isPlayingXI/isImpactPlayer overlaid by the server.
+                      const pitchPlayers: PitchPlayer[] = (team.resolvedPlayers || []).map((p: any) => ({
+                        id: p.id,
+                        name: p.name,
+                        role: p.role as 'WK' | 'BAT' | 'AR' | 'BOWL',
+                        points: p.points || 0,
+                        teamShort: p.teamShort,
+                        externalId: p.externalId,
+                        isPlayingXI: p.isPlayingXI ?? false,
+                        isImpactPlayer: !!p.isImpactPlayer,
+                        isImpactActivated: !!p.isImpactActivated,
+                      }));
+                      // Impact players are NOT in resolvedPlayers (they're separate slots).
+                      // Look them up from allKnownPlayers — which now carries isImpactActivated
+                      // from the players endpoint overlay.
                       const participantPrimaryImpact: PitchPlayer | null = (() => {
                         if (!team.primaryImpactId) return null;
                         const p = allKnownPlayers.find(pl => pl.id === team.primaryImpactId);
                         if (!p) return null;
-                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
+                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!(p as any).isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
                       })();
                       const participantBackupImpact: PitchPlayer | null = (() => {
                         if (!team.backupImpactId) return null;
                         const p = allKnownPlayers.find(pl => pl.id === team.backupImpactId);
                         if (!p) return null;
-                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!p.isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
+                        return { id: p.id, name: p.name, role: p.role as 'WK'|'BAT'|'AR'|'BOWL', points: p.points || 0, teamShort: p.teamShort, externalId: (p as any).externalId, isPlayingXI: false, isImpactPlayer: !!(p as any).isImpactPlayer, isImpactActivated: !!(p as any).isImpactActivated };
                       })();
                       return (
                         <View style={{ marginTop: 10 }}>

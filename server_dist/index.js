@@ -3902,9 +3902,13 @@ async function registerRoutes(app2) {
       }
       const statuses = await storage.getMatchPlayerStatuses(matchId);
       const statusMap = new Map(statuses.map((s) => [s.playerId, s]));
+      const activatedImpactIds = new Set(
+        statuses.filter((s) => s.officialImpactSubUsed === true).map((s) => s.playerId)
+      );
       const augmentedPlayers = matchPlayers.map((p) => ({
         ...p,
         isImpactPlayer: statusMap.get(p.id)?.adminStatus === "impact_sub",
+        isImpactActivated: activatedImpactIds.has(p.id),
         isPlayingXI: p.isPlayingXI,
         lastMatchPoints: playerPointsMap[p.id]?.lastMatchPoints ?? null,
         tournamentPoints: playerPointsMap[p.id]?.tournamentPoints ?? null
