@@ -368,11 +368,12 @@ export class DatabaseStorage {
         username: users.username,
         teamName: users.teamName,
         totalPoints: sql<number>`COALESCE(SUM(${userTeams.totalPoints}), 0)`.as('total_points_sum'),
-        matchesPlayed: sql<number>`COUNT(DISTINCT ${userTeams.matchId})`.as('matches_played'),
+        matchesPlayed: sql<number>`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${userTeams.matchId} END)`.as('matches_played'),
         teamsCreated: sql<number>`COUNT(${userTeams.id})`.as('teams_created'),
       })
       .from(users)
       .leftJoin(userTeams, eq(users.id, userTeams.userId))
+      .leftJoin(matches, eq(userTeams.matchId, matches.id))
       .where(eq(users.isVerified, true))
       .groupBy(users.id, users.username, users.teamName)
       .orderBy(desc(sql`total_points_sum`));

@@ -599,9 +599,9 @@ var init_storage = __esm({
           username: users.username,
           teamName: users.teamName,
           totalPoints: sql2`COALESCE(SUM(${userTeams.totalPoints}), 0)`.as("total_points_sum"),
-          matchesPlayed: sql2`COUNT(DISTINCT ${userTeams.matchId})`.as("matches_played"),
+          matchesPlayed: sql2`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${userTeams.matchId} END)`.as("matches_played"),
           teamsCreated: sql2`COUNT(${userTeams.id})`.as("teams_created")
-        }).from(users).leftJoin(userTeams, eq(users.id, userTeams.userId)).where(eq(users.isVerified, true)).groupBy(users.id, users.username, users.teamName).orderBy(desc(sql2`total_points_sum`));
+        }).from(users).leftJoin(userTeams, eq(users.id, userTeams.userId)).leftJoin(matches, eq(userTeams.matchId, matches.id)).where(eq(users.isVerified, true)).groupBy(users.id, users.username, users.teamName).orderBy(desc(sql2`total_points_sum`));
         return result.map((row, index) => ({
           rank: index + 1,
           userId: row.userId,
@@ -4227,7 +4227,7 @@ async function registerRoutes(app2) {
           }
           let resolvedPlayers = t.playerIds.map((pid) => {
             const p = playerById.get(pid);
-            if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort, externalId: p.externalId, isPlayingXI: p.isPlayingXI ?? false, isImpactPlayer: p.isImpactPlayer ?? false };
+            if (p) return { id: p.id, name: p.name, role: p.role, points: p.points || 0, teamShort: p.teamShort, externalId: p.externalId, isPlayingXI: p.isPlayingXI ?? false, isImpactPlayer: p.isImpactPlayer ?? false, isImpactActivated: p.isImpactActivated ?? false };
             return null;
           }).filter(Boolean);
           if (resolvedPlayers.length === 0 && matchPlayersForResponse.length > 0) {
