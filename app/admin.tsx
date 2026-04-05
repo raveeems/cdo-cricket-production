@@ -1896,7 +1896,7 @@ export default function AdminScreen() {
                         ? <ActivityIndicator size="small" color={colors.textTertiary} />
                         : <Ionicons name={m.adminUnlockOverride ? 'lock-open-outline' : 'lock-closed-outline'} size={13} color={m.adminUnlockOverride ? '#10B981' : colors.textSecondary} />}
                       <Text style={[styles.actionBtnText, { color: m.adminUnlockOverride ? '#10B981' : colors.textSecondary }]}>
-                        {m.adminUnlockOverride ? 'Unlocked' : 'Lock'}
+                        {m.adminUnlockOverride ? 'Unlocked' : 'Locked'}
                       </Text>
                     </Pressable>
                   ) : <View style={{ flex: 1 }} />}

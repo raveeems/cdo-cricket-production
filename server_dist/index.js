@@ -8159,6 +8159,15 @@ function setupErrorHandler(app2) {
       } catch (e) {
         console.error("[FCM] Starting soon notification failed:", e);
       }
+      for (const m of allMatches) {
+        if (m.adminUnlockOverride && m.unlockedAt) {
+          const minutesSince = (now - new Date(m.unlockedAt).getTime()) / 6e4;
+          if (minutesSince >= 5) {
+            await storage.updateMatch(m.id, { adminUnlockOverride: false, unlockedAt: null });
+            log(`[Heartbeat] Auto-cleared expired unlock for match ${m.id}`);
+          }
+        }
+      }
       const liveMatches = allMatches.filter(
         (m) => m.status === "live" || m.status === "delayed" || m.startTime && new Date(m.startTime).getTime() < now && m.status !== "completed"
       );

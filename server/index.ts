@@ -1156,6 +1156,17 @@ function setupErrorHandler(app: express.Application) {
           console.error('[FCM] Starting soon notification failed:', e);
         }
 
+        // Auto-clear expired adminUnlockOverride (5-min window)
+        for (const m of allMatches) {
+          if ((m as any).adminUnlockOverride && (m as any).unlockedAt) {
+            const minutesSince = (now - new Date((m as any).unlockedAt).getTime()) / 60000;
+            if (minutesSince >= 5) {
+              await storage.updateMatch(m.id, { adminUnlockOverride: false, unlockedAt: null } as any);
+              log(`[Heartbeat] Auto-cleared expired unlock for match ${m.id}`);
+            }
+          }
+        }
+
         const liveMatches = allMatches.filter(
           (m) => m.status === "live" || m.status === "delayed" ||
             (m.startTime && new Date(m.startTime).getTime() < now && m.status !== "completed")
