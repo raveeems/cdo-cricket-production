@@ -1,0 +1,43 @@
+2026-04-05T09:14:57.283251935Z [inf]  Starting Container
+2026-04-05T09:14:58.013140227Z [inf]  
+2026-04-05T09:14:58.013140320Z [inf]  [DB] Running idempotent schema migrations...
+2026-04-05T09:14:58.013147448Z [err]  To eliminate this warning, add "type": "module" to /app/package.json.
+2026-04-05T09:14:58.013150381Z [inf]  DEPLOY_CHECK 3799067d59b27b7b90049412f5266a4c745bd04f
+2026-04-05T09:14:58.013151494Z [inf]  [Retroactive] ENG vs SL: Already distributed, skipping
+2026-04-05T09:14:58.013157000Z [err]  (Use `node --trace-warnings ...` to show where the warning was created)
+2026-04-05T09:14:58.013157094Z [inf]  Serving static Expo files with dynamic manifest routing
+2026-04-05T09:14:58.013160660Z [inf]  [Retroactive] IND vs RSA: Already distributed, skipping
+2026-04-05T09:14:58.013163109Z [inf]  Web build found at /app/web-app — serving web app to browsers
+2026-04-05T09:14:58.013166223Z [err]  (node:25) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-04-05T09:14:58.013168316Z [inf]  [DB] Migrations complete.
+2026-04-05T09:14:58.013170655Z [inf]  Expo routing: Checking expo-platform header on / and /manifest
+2026-04-05T09:14:58.013173438Z [inf]  [DB] Connected successfully
+2026-04-05T09:14:58.013177730Z [inf]  [DB] Connecting to database... (attempt 1/10)
+2026-04-05T09:14:58.013181793Z [err]  (node:25) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///app/server_dist/index.js is not specified and it doesn't parse as CommonJS.
+2026-04-05T09:14:58.013185231Z [err]  Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+2026-04-05T09:14:58.013235723Z [err]  npm warn config production Use `--omit=dev` instead.
+2026-04-05T09:14:58.013239168Z [inf]  
+2026-04-05T09:14:58.013242781Z [inf]  > expo-app@1.0.0 server:prod
+2026-04-05T09:14:58.013246330Z [inf]  > NODE_ENV=production node server_dist/index.js
+2026-04-05T09:14:58.013546180Z [inf]  [ReplacementPlayers] Seeded 7 players into 75 active matches
+2026-04-05T09:14:58.013613389Z [inf]  Match Heartbeat started (every 60s — score sync, points, lockout, stale-data rejection)
+2026-04-05T09:14:58.013616804Z [inf]  Auto-syncing matches (IPL only)...
+2026-04-05T09:14:58.013619715Z [inf]  express server listening on port 8080
+2026-04-05T09:14:58.013622560Z [inf]  express server fully ready on port 8080
+2026-04-05T09:14:58.344363876Z [inf]  Auto-sync: 25 matches from currentMatches, hits: 1/10000
+2026-04-05T09:14:58.972247396Z [inf]  Auto-sync: 25 matches from matches, hits: 1/10000
+2026-04-05T09:14:58.972251874Z [inf]  Auto-sync: no T20 matches to sync
+2026-04-05T09:15:38.650745460Z [inf]  [FCM] Notifying 5 users — match starting soon
+2026-04-05T09:15:38.650758303Z [err]  [FCM] notifyMatchStartingSoon failed: TypeError: Cannot read properties of undefined (reading 'length')
+2026-04-05T09:15:38.650762232Z [err]      at initFirebase (file:///app/server_dist/index.js:3081:33)
+2026-04-05T09:15:38.650766052Z [err]      at sendToTokens (file:///app/server_dist/index.js:3101:3)
+2026-04-05T09:15:38.650768975Z [err]      at notifyMatchStartingSoon (file:///app/server_dist/index.js:3145:11)
+2026-04-05T09:15:38.650771657Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-05T09:15:38.650774363Z [err]      at async file:///app/server_dist/index.js:3473:7
+2026-04-05T09:15:38.650777214Z [inf]  POST /api/admin/test-notification 200 in 110ms :: {"message":"Test notification…
+2026-04-05T09:15:44.242291185Z [inf]  [IPL Preview] Fetching IPL 2026 series fixtures (cache miss)...
+2026-04-05T09:15:44.242294550Z [inf]  [IPL Preview] API key available: true
+2026-04-05T09:15:45.055746897Z [inf]  Series Info API: fetched 70 matches for Indian Premier League 2026, hits: 1/10000
+2026-04-05T09:15:45.055751140Z [inf]  [IPL Preview] Series fetch returned 70 fixtures
+2026-04-05T09:15:46.059822579Z [inf]  GET /api/matches 200 in 1551ms :: {"matches":[{"id":"c4471e08-4649-4356-b59a-5c…
+2026-04-05T09:16:05.721111306Z [inf]  [Heartbeat] polling 0 active matches (221 total in DB)
