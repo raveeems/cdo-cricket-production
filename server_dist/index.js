@@ -3076,17 +3076,16 @@ __export(notifications_exports, {
   notifyMatchStartingSoon: () => notifyMatchStartingSoon,
   notifyXIAndImpactUpdated: () => notifyXIAndImpactUpdated
 });
-import * as admin from "firebase-admin";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getMessaging } from "firebase-admin/messaging";
 function initFirebase() {
-  if (initialized || admin.apps && admin.apps.length > 0) return;
+  if (initialized || getApps().length > 0) return;
   try {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT || "{}";
     console.log("[FCM] FIREBASE_SERVICE_ACCOUNT present:", raw.length > 10);
     const serviceAccount = JSON.parse(raw);
     console.log("[FCM] Parsed service account project_id:", serviceAccount.project_id);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
+    initializeApp({ credential: cert(serviceAccount) });
     initialized = true;
     console.log("[FCM] Firebase Admin initialized");
   } catch (e) {
@@ -3105,7 +3104,7 @@ async function sendToTokens(tokens, title, body, data) {
   }
   for (const chunk of chunks) {
     try {
-      const response = await admin.messaging().sendEachForMulticast({
+      const response = await getMessaging().sendEachForMulticast({
         tokens: chunk,
         notification: { title, body },
         data: data || {},
