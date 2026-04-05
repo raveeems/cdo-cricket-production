@@ -3078,7 +3078,7 @@ __export(notifications_exports, {
 });
 import * as admin from "firebase-admin";
 function initFirebase() {
-  if (initialized || admin.apps.length > 0) return;
+  if (initialized || admin.apps && admin.apps.length > 0) return;
   try {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT || "{}";
     console.log("[FCM] FIREBASE_SERVICE_ACCOUNT present:", raw.length > 10);
