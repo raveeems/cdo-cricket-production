@@ -323,6 +323,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ---- TEST: Send push notification to all registered tokens ----
+  app.post('/api/admin/test-notification', isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
+    try {
+      const { notifyMatchStartingSoon } = await import('./notifications');
+      await notifyMatchStartingSoon('TEST', 'MATCH');
+      return res.json({ message: 'Test notification sent — check Railway logs for [FCM] lines' });
+    } catch (e: any) {
+      console.error('[FCM] Test notification error:', e);
+      return res.status(500).json({ message: e.message });
+    }
+  });
+
   // ── DEV ONLY ── players by team short names (supports mock match UI testing)
   // Strategy: try DB first per team; if a team has 0 DB players, fall back to
   // the IPL 2026 series squad via the cricket API.

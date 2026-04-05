@@ -3467,6 +3467,16 @@ async function registerRoutes(app2) {
       return res.status(500).json({ message: "Failed to save token" });
     }
   });
+  app2.post("/api/admin/test-notification", isAuthenticated, isAdmin, async (_req, res) => {
+    try {
+      const { notifyMatchStartingSoon: notifyMatchStartingSoon2 } = await Promise.resolve().then(() => (init_notifications(), notifications_exports));
+      await notifyMatchStartingSoon2("TEST", "MATCH");
+      return res.json({ message: "Test notification sent \u2014 check Railway logs for [FCM] lines" });
+    } catch (e) {
+      console.error("[FCM] Test notification error:", e);
+      return res.status(500).json({ message: e.message });
+    }
+  });
   const IPL_2026_SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f";
   if (process.env.NODE_ENV !== "production") {
     app2.get("/api/dev/players", async (req, res) => {
