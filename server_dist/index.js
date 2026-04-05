@@ -3080,7 +3080,10 @@ import * as admin from "firebase-admin";
 function initFirebase() {
   if (initialized || admin.apps.length > 0) return;
   try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || "{}");
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT || "{}";
+    console.log("[FCM] FIREBASE_SERVICE_ACCOUNT present:", raw.length > 10);
+    const serviceAccount = JSON.parse(raw);
+    console.log("[FCM] Parsed service account project_id:", serviceAccount.project_id);
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
