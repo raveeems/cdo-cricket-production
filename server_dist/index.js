@@ -674,21 +674,26 @@ var init_storage = __esm({
         await db.delete(tournamentLedger).where(eq(tournamentLedger.matchId, matchId));
       }
       async getDistinctTournamentNames() {
-        const result = await db.selectDistinct({ name: tournamentLedger.tournamentName }).from(tournamentLedger);
-        return result.map((r) => r.name);
+        const rows = await db.selectDistinct({ name: matches.tournamentName }).from(matches).where(
+          and(
+            sql2`${matches.tournamentName} IS NOT NULL`,
+            sql2`LOWER(${matches.tournamentName}) LIKE '%ipl%'`
+          )
+        );
+        return rows.map((r) => r.name).filter(Boolean);
       }
       async getTournamentStandings(tName) {
         const ledgerResult = await db.select({
           userId: tournamentLedger.userId,
           userName: tournamentLedger.userName,
           totalPoints: sql2`SUM(${tournamentLedger.pointsChange})`.as("total_points"),
-          matchCount: sql2`COUNT(DISTINCT ${tournamentLedger.matchId})`.as("match_count")
-        }).from(tournamentLedger).where(eq(tournamentLedger.tournamentName, tName)).groupBy(tournamentLedger.userId, tournamentLedger.userName).orderBy(desc(sql2`total_points`));
+          matchCount: sql2`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${tournamentLedger.matchId} END)`.as("match_count")
+        }).from(tournamentLedger).leftJoin(matches, eq(matches.id, tournamentLedger.matchId)).where(eq(tournamentLedger.tournamentName, tName)).groupBy(tournamentLedger.userId, tournamentLedger.userName).orderBy(desc(sql2`total_points`));
         const teamPlayers = await db.select({
           userId: users.id,
           teamName: users.teamName,
           username: users.username,
-          matchCount: sql2`COUNT(DISTINCT ${userTeams.matchId})`.as("team_match_count")
+          matchCount: sql2`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${userTeams.matchId} END)`.as("team_match_count")
         }).from(userTeams).innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName))).innerJoin(users, and(eq(users.id, userTeams.userId), eq(users.isVerified, true))).groupBy(users.id, users.teamName, users.username);
         const ledgerUserIds = new Set(ledgerResult.map((r) => r.userId));
         const combined = ledgerResult.map((r) => ({

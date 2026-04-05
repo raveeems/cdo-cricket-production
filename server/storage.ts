@@ -478,8 +478,16 @@ export class DatabaseStorage {
   }
 
   async getDistinctTournamentNames(): Promise<string[]> {
-    const result = await db.selectDistinct({ name: tournamentLedger.tournamentName }).from(tournamentLedger);
-    return result.map(r => r.name);
+    const rows = await db
+      .selectDistinct({ name: matches.tournamentName })
+      .from(matches)
+      .where(
+        and(
+          sql`${matches.tournamentName} IS NOT NULL`,
+          sql`LOWER(${matches.tournamentName}) LIKE '%ipl%'`
+        )
+      );
+    return rows.map(r => r.name).filter(Boolean) as string[];
   }
 
   async getTournamentStandings(tName: string): Promise<{ userId: string; userName: string; totalPoints: number; matchCount: number }[]> {
@@ -489,9 +497,10 @@ export class DatabaseStorage {
         userId: tournamentLedger.userId,
         userName: tournamentLedger.userName,
         totalPoints: sql<number>`SUM(${tournamentLedger.pointsChange})`.as('total_points'),
-        matchCount: sql<number>`COUNT(DISTINCT ${tournamentLedger.matchId})`.as('match_count'),
+        matchCount: sql<number>`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${tournamentLedger.matchId} END)`.as('match_count'),
       })
       .from(tournamentLedger)
+      .leftJoin(matches, eq(matches.id, tournamentLedger.matchId))
       .where(eq(tournamentLedger.tournamentName, tName))
       .groupBy(tournamentLedger.userId, tournamentLedger.userName)
       .orderBy(desc(sql`total_points`));
@@ -503,7 +512,7 @@ export class DatabaseStorage {
         userId: users.id,
         teamName: users.teamName,
         username: users.username,
-        matchCount: sql<number>`COUNT(DISTINCT ${userTeams.matchId})`.as('team_match_count'),
+        matchCount: sql<number>`COUNT(DISTINCT CASE WHEN ${matches.status} = 'completed' THEN ${userTeams.matchId} END)`.as('team_match_count'),
       })
       .from(userTeams)
       .innerJoin(matches, and(eq(matches.id, userTeams.matchId), eq(matches.tournamentName, tName)))
