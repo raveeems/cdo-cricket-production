@@ -3905,7 +3905,7 @@ async function registerRoutes(app2) {
       const augmentedPlayers = matchPlayers.map((p) => ({
         ...p,
         isImpactPlayer: statusMap.get(p.id)?.adminStatus === "impact_sub",
-        isPlayingXI: statusMap.get(p.id)?.adminStatus === "playing_xi",
+        isPlayingXI: p.isPlayingXI,
         lastMatchPoints: playerPointsMap[p.id]?.lastMatchPoints ?? null,
         tournamentPoints: playerPointsMap[p.id]?.tournamentPoints ?? null
       }));
