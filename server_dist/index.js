@@ -6899,9 +6899,13 @@ async function registerRoutes(app2) {
   app2.get("/api/admin/match-health", isAdmin, async (req, res) => {
     try {
       const allMatches = await storage.getAllMatches();
-      const liveAndRecent = allMatches.filter(
-        (m) => m.status === "live" || m.status === "completed" || m.status === "delayed"
-      ).slice(0, 10);
+      const now = Date.now();
+      const liveAndRecent = allMatches.filter((m) => {
+        const isIPL = (m.league || "").toLowerCase().includes("indian premier league") || (m.league || "").toLowerCase().includes("ipl");
+        const isRelevant = m.status === "live" || m.status === "completed" || m.status === "delayed" || m.status === "upcoming";
+        const withinWindow = new Date(m.startTime).getTime() >= now - 48 * 60 * 60 * 1e3;
+        return isIPL && isRelevant && withinWindow;
+      }).slice(0, 10);
       const health = await Promise.all(liveAndRecent.map(async (m) => {
         const players2 = await storage.getPlayersForMatch(m.id);
         const teams = await storage.getAllTeamsForMatch(m.id);

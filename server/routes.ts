@@ -4346,9 +4346,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/match-health", isAdmin, async (req: Request, res: Response) => {
     try {
       const allMatches = await storage.getAllMatches();
-      const liveAndRecent = allMatches.filter(m =>
-        m.status === "live" || m.status === "completed" || m.status === "delayed"
-      ).slice(0, 10);
+      const now = Date.now();
+      const liveAndRecent = allMatches.filter(m => {
+        const isIPL = (m.league || '').toLowerCase().includes('indian premier league') ||
+                      (m.league || '').toLowerCase().includes('ipl');
+        const isRelevant = m.status === "live" || m.status === "completed" ||
+                           m.status === "delayed" || m.status === "upcoming";
+        const withinWindow = new Date(m.startTime).getTime() >= now - 48 * 60 * 60 * 1000;
+        return isIPL && isRelevant && withinWindow;
+      }).slice(0, 10);
 
       const health = await Promise.all(liveAndRecent.map(async (m) => {
         const players = await storage.getPlayersForMatch(m.id);
