@@ -746,13 +746,7 @@ export class DatabaseStorage {
     try {
       const result = await db
         .selectDistinct({ token: pushTokens.token })
-        .from(pushTokens)
-        .innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId))
-        .innerJoin(matches, eq(userTeams.matchId, matches.id))
-        .where(
-          sql`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
-          OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
-        );
+        .from(pushTokens);
       return result.map(r => r.token);
     } catch (e) {
       console.error('[FCM] getPushTokensForIPLUsers failed:', e);

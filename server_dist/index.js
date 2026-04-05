@@ -856,10 +856,7 @@ var init_storage = __esm({
       }
       async getPushTokensForIPLUsers() {
         try {
-          const result = await db.selectDistinct({ token: pushTokens.token }).from(pushTokens).innerJoin(userTeams, eq(pushTokens.userId, userTeams.userId)).innerJoin(matches, eq(userTeams.matchId, matches.id)).where(
-            sql2`LOWER(${matches.tournamentName}) LIKE '%indian premier league%'
-          OR LOWER(${matches.tournamentName}) LIKE '%ipl%'`
-          );
+          const result = await db.selectDistinct({ token: pushTokens.token }).from(pushTokens);
           return result.map((r) => r.token);
         } catch (e) {
           console.error("[FCM] getPushTokensForIPLUsers failed:", e);
