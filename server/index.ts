@@ -813,10 +813,14 @@ function setupErrorHandler(app: express.Application) {
             }
             finalPts = fantasyPts + xiBase;
             mapped++;
-            // Only protect points on live matches — if match has ended, allow corrections
-            if (!matchEnded && finalPts < existingPts) {
+            // Only protect points on live matches — if match has ended, allow corrections.
+            // Allow drops of up to 20 pts (duck -2, SR swing max -12, economy swing max -12).
+            // Only block large drops that indicate stale/incomplete API data (e.g. 50-pt
+            // batsman showing as 0 because API temporarily lost scorecard).
+            const DROP_PROTECTION_THRESHOLD = 20;
+            if (!matchEnded && (existingPts - finalPts) > DROP_PROTECTION_THRESHOLD) {
               log(
-                `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} — keeping existing (live match)`,
+                `[Heartbeat:Points] PROTECTED: "${player.name}" large stale-data drop ${existingPts} -> ${finalPts} (diff ${existingPts - finalPts}) — keeping existing (live match)`,
               );
               skippedProtected++;
               continue;

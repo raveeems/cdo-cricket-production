@@ -7877,9 +7877,10 @@ function setupErrorHandler(app2) {
           }
           finalPts = fantasyPts + xiBase;
           mapped++;
-          if (!matchEnded && finalPts < existingPts) {
+          const DROP_PROTECTION_THRESHOLD = 20;
+          if (!matchEnded && existingPts - finalPts > DROP_PROTECTION_THRESHOLD) {
             log(
-              `[Heartbeat:Points] PROTECTED: "${player.name}" scorecard would DROP ${existingPts} -> ${finalPts} \u2014 keeping existing (live match)`
+              `[Heartbeat:Points] PROTECTED: "${player.name}" large stale-data drop ${existingPts} -> ${finalPts} (diff ${existingPts - finalPts}) \u2014 keeping existing (live match)`
             );
             skippedProtected++;
             continue;
