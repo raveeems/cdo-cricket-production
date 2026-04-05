@@ -81,7 +81,7 @@ export async function notifyMatchStartingSoon(
   team2Short: string
 ): Promise<void> {
   try {
-    const tokens = await storage.getPushTokensForIPLUsers();
+    const tokens = (await storage.getPushTokensForIPLUsers()) ?? [];
     console.log(`[FCM] Notifying ${tokens.length} users — match starting soon`);
     await sendToTokens(
       tokens,
@@ -99,7 +99,7 @@ export async function notifyXIAndImpactUpdated(
   team2Short: string
 ): Promise<void> {
   try {
-    const tokens = await storage.getPushTokensForIPLUsers();
+    const tokens = (await storage.getPushTokensForIPLUsers()) ?? [];
     console.log(`[FCM] Notifying ${tokens.length} users — XI and Impact updated`);
     await sendToTokens(
       tokens,
@@ -117,7 +117,7 @@ export async function notifyMatchEnded(
   team2Short: string
 ): Promise<void> {
   try {
-    const tokens = await storage.getPushTokensForIPLUsers();
+    const tokens = (await storage.getPushTokensForIPLUsers()) ?? [];
     console.log(`[FCM] Notifying ${tokens.length} users — match ended`);
     await sendToTokens(
       tokens,

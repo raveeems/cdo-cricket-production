@@ -3140,7 +3140,7 @@ async function sendToTokens(tokens, title, body, data) {
 }
 async function notifyMatchStartingSoon(team1Short, team2Short) {
   try {
-    const tokens = await storage.getPushTokensForIPLUsers();
+    const tokens = await storage.getPushTokensForIPLUsers() ?? [];
     console.log(`[FCM] Notifying ${tokens.length} users \u2014 match starting soon`);
     await sendToTokens(
       tokens,
@@ -3154,7 +3154,7 @@ async function notifyMatchStartingSoon(team1Short, team2Short) {
 }
 async function notifyXIAndImpactUpdated(team1Short, team2Short) {
   try {
-    const tokens = await storage.getPushTokensForIPLUsers();
+    const tokens = await storage.getPushTokensForIPLUsers() ?? [];
     console.log(`[FCM] Notifying ${tokens.length} users \u2014 XI and Impact updated`);
     await sendToTokens(
       tokens,
@@ -3168,7 +3168,7 @@ async function notifyXIAndImpactUpdated(team1Short, team2Short) {
 }
 async function notifyMatchEnded(team1Short, team2Short) {
   try {
-    const tokens = await storage.getPushTokensForIPLUsers();
+    const tokens = await storage.getPushTokensForIPLUsers() ?? [];
     console.log(`[FCM] Notifying ${tokens.length} users \u2014 match ended`);
     await sendToTokens(
       tokens,
