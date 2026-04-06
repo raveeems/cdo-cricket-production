@@ -142,10 +142,14 @@ function PlayerItem({
       </View>
       <View style={styles.playerItemRight}>
         <Text style={[styles.playerCredits, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
-          {player.credits} Cr  |  {(player.points ?? 0) > 0 ? `${player.points} pts` : [
-            player.lastMatchPoints != null ? `${player.lastMatchPoints}prev` : null,
-            player.tournamentPoints != null && player.tournamentPoints > 0 ? `${player.tournamentPoints}pts` : null,
-          ].filter(Boolean).join(' · ') || '—'}
+          {player.credits} Cr  |  {(player.points ?? 0) > 0
+            ? `${player.points} pts`
+            : typeof player.lastMatchPoints === 'number'
+            ? `${player.lastMatchPoints}prev`
+            : '—'}
+          {(player.points ?? 0) <= 0 && typeof player.tournamentPoints === 'number' && (
+            <Text style={styles.tournamentPts}> · {player.tournamentPoints}T</Text>
+          )}
         </Text>
         <View style={styles.formRow}>
           {(player.recentForm || []).slice(0, 3).map((v, i) => (
@@ -242,10 +246,14 @@ function CompactPlayerItem({
             )}
           </View>
           <Text style={[styles.compactMeta, { color: colors.textTertiary }]} numberOfLines={1}>
-            {player.credits}Cr · {(player.points ?? 0) > 0 ? `${player.points}pts` : [
-              player.lastMatchPoints != null ? `${player.lastMatchPoints}prev` : null,
-              player.tournamentPoints != null && player.tournamentPoints > 0 ? `${player.tournamentPoints}pts` : null,
-            ].filter(Boolean).join(' · ') || '—'}
+            {player.credits}Cr · {(player.points ?? 0) > 0
+              ? `${player.points}pts`
+              : typeof player.lastMatchPoints === 'number'
+              ? `${player.lastMatchPoints}prev`
+              : '—'}
+            {(player.points ?? 0) <= 0 && typeof player.tournamentPoints === 'number' && (
+              <Text style={styles.tournamentPts}> · {player.tournamentPoints}T</Text>
+            )}
           </Text>
         </View>
         <View style={[styles.compactCheck, { borderColor: isSelected ? colors.accent : colors.border, backgroundColor: isSelected ? colors.accent : 'transparent' }]}>
@@ -2406,6 +2414,11 @@ const splashStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  tournamentPts: {
+    fontSize: 10,
+    color: '#F59E0B',
+    fontFamily: 'Inter_600SemiBold',
+  },
   container: {
     flex: 1,
   },
