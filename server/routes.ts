@@ -44,24 +44,31 @@ function getEffectiveLockMs(match: { startTime: Date | string; revisedStartTime?
 
 function checkUnlockEligibility(match: { firstScorecardAt?: Date | string | null }): { allowed: boolean; reason?: string } {
   if (!match.firstScorecardAt) return { allowed: true };
-  const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 60_000;
+  const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 60_000;
   if (Date.now() < cutoff) return { allowed: true };
-  return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 5 minutes" };
+  return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 6 minutes" };
 }
 
-function isEntryOpen(match: { startTime: Date | string; revisedStartTime?: Date | string | null; adminUnlockOverride?: boolean | null; firstScorecardAt?: Date | string | null; unlockedAt?: Date | string | null }, nowMs: number): boolean {
-  const lockMs = getEffectiveLockMs(match);
+function isEntryOpen(match: {
+  startTime: Date | string;
+  revisedStartTime?: Date | string | null;
+  adminUnlockOverride?: boolean | null;
+  firstScorecardAt?: Date | string | null;
+  unlockedAt?: Date | string | null;
+}, nowMs: number): boolean {
+  // GATE 1: Completed matches are always locked
+  if ((match as any).status === 'completed') return false;
+
+  // GATE 2: Admin unlock — 6-minute hard cutoff from firstScorecardAt
   if (match.adminUnlockOverride === true) {
-    // Use unlockedAt to measure the 15-minute window — not firstScorecardAt.
-    // firstScorecardAt could be from minutes ago, immediately closing the window.
-    const unlockedAt = match.unlockedAt;
-    if (unlockedAt) {
-      const minutesSinceUnlock = (nowMs - new Date(unlockedAt).getTime()) / 60000;
-      if (minutesSinceUnlock >= 15) return false; // window expired
-    }
-    return true; // unlock active and within window
+    if (!match.firstScorecardAt) return true; // scoring not started yet — unlock is valid
+    const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 60_000;
+    return nowMs < cutoff; // hard 6-minute cutoff, no exceptions
   }
-  return nowMs < lockMs;
+
+  // GATE 3: Deadline-based entry — revisedStartTime takes priority over startTime
+  const effectiveDeadline = match.revisedStartTime ?? match.startTime;
+  return nowMs < new Date(effectiveDeadline).getTime();
 }
 
 function isAuthenticated(req: Request, res: Response, next: Function) {
@@ -1620,15 +1627,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const now = new Date();
+        if (match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
+        // For live/delayed matches, isEntryOpen() is the sole authority
         if (!isEntryOpen(match, now.getTime())) {
           return res
             .status(400)
             .json({ message: "Entry deadline has passed" });
-        }
-        if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
-          return res
-            .status(400)
-            .json({ message: "Match has already started" });
         }
 
         const existingTeams = await storage.getUserTeamsForMatch(
@@ -1879,11 +1885,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "Match not found" });
         }
         const now = new Date();
+        if (match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
+        // For live/delayed matches, isEntryOpen() is the sole authority
         if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
-        }
-        if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
-          return res.status(400).json({ message: "Match has already started" });
         }
 
         const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode, backupXiPlayer1Id, backupXiPlayer2Id } = req.body;
@@ -2138,12 +2145,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!match) {
           return res.status(404).json({ message: "Match not found" });
         }
-        const now = new Date();
-        if (!isEntryOpen(match, now.getTime())) {
-          return res.status(400).json({ message: "Prediction deadline has passed" });
-        }
-        if (match.status === "live" || match.status === "completed") {
+        if (match.status === "completed") {
           return res.status(400).json({ message: "Match has already started" });
+        }
+        if (!isEntryOpen(match, Date.now())) {
+          return res.status(400).json({ message: "Entry deadline has passed" });
         }
         if (predictedWinner !== match.team1Short && predictedWinner !== match.team2Short) {
           return res.status(400).json({ message: "Invalid team selection" });
@@ -4140,6 +4146,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
+
+        // Fix 4: Prevent re-unlock if firstScorecardAt is set and 6 minutes have passed
+        if (unlock === true && (match as any).firstScorecardAt) {
+          const cutoff = new Date((match as any).firstScorecardAt).getTime() + 6 * 60_000;
+          if (Date.now() >= cutoff) {
+            return res.status(403).json({
+              message: "Cannot unlock: scoring has been live for more than 6 minutes. This window is permanently closed.",
+            });
+          }
+        }
+
         console.log(`[Admin] Match ${match.id} ${unlock ? 'unlocked' : 'locked'} by admin at ${new Date().toISOString()}`);
         await storage.updateMatch(matchId, {
           adminUnlockOverride: unlock,

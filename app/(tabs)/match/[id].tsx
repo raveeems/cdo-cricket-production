@@ -354,7 +354,7 @@ export default function MatchDetailScreen() {
     );
   }
 
-  const canEdit = canEditTeam(match.startTime, match.status, match.revisedStartTime, match.adminUnlockOverride);
+  const canEdit = canEditTeam(match.startTime, match.status, match.revisedStartTime, match.adminUnlockOverride, match.firstScorecardAt);
   const canCreateMore = userTeams.length < 3;
   const filledPercent = (match.spotsFilled / match.spotsTotal) * 100;
 

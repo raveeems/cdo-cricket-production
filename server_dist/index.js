@@ -3348,27 +3348,21 @@ function verifyAuthToken(token) {
   if (sig !== expected) return null;
   return userId;
 }
-function getEffectiveLockMs(match) {
-  const effectiveStart = match.revisedStartTime ?? match.startTime;
-  return new Date(effectiveStart).getTime() - 1e3;
-}
 function checkUnlockEligibility(match) {
   if (!match.firstScorecardAt) return { allowed: true };
-  const cutoff = new Date(match.firstScorecardAt).getTime() + 5 * 6e4;
+  const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 6e4;
   if (Date.now() < cutoff) return { allowed: true };
-  return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 5 minutes" };
+  return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 6 minutes" };
 }
 function isEntryOpen(match, nowMs) {
-  const lockMs = getEffectiveLockMs(match);
+  if (match.status === "completed") return false;
   if (match.adminUnlockOverride === true) {
-    const unlockedAt = match.unlockedAt;
-    if (unlockedAt) {
-      const minutesSinceUnlock = (nowMs - new Date(unlockedAt).getTime()) / 6e4;
-      if (minutesSinceUnlock >= 15) return false;
-    }
-    return true;
+    if (!match.firstScorecardAt) return true;
+    const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 6e4;
+    return nowMs < cutoff;
   }
-  return nowMs < lockMs;
+  const effectiveDeadline = match.revisedStartTime ?? match.startTime;
+  return nowMs < new Date(effectiveDeadline).getTime();
 }
 function isAuthenticated(req, res, next) {
   if (req.session.userId) {
@@ -4646,11 +4640,11 @@ async function registerRoutes(app2) {
           return res.status(404).json({ message: "Match not found" });
         }
         const now = /* @__PURE__ */ new Date();
+        if (match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
         if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
-        }
-        if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
-          return res.status(400).json({ message: "Match has already started" });
         }
         const existingTeams = await storage.getUserTeamsForMatch(
           req.session.userId,
@@ -4868,11 +4862,11 @@ async function registerRoutes(app2) {
           return res.status(404).json({ message: "Match not found" });
         }
         const now = /* @__PURE__ */ new Date();
+        if (match.status === "completed") {
+          return res.status(400).json({ message: "Match has already started" });
+        }
         if (!isEntryOpen(match, now.getTime())) {
           return res.status(400).json({ message: "Entry deadline has passed" });
-        }
-        if ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
-          return res.status(400).json({ message: "Match has already started" });
         }
         const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode, backupXiPlayer1Id, backupXiPlayer2Id } = req.body;
         if (!playerIds || playerIds.length !== 11) {
@@ -5099,12 +5093,11 @@ async function registerRoutes(app2) {
         if (!match) {
           return res.status(404).json({ message: "Match not found" });
         }
-        const now = /* @__PURE__ */ new Date();
-        if (!isEntryOpen(match, now.getTime())) {
-          return res.status(400).json({ message: "Prediction deadline has passed" });
-        }
-        if (match.status === "live" || match.status === "completed") {
+        if (match.status === "completed") {
           return res.status(400).json({ message: "Match has already started" });
+        }
+        if (!isEntryOpen(match, Date.now())) {
+          return res.status(400).json({ message: "Entry deadline has passed" });
         }
         if (predictedWinner !== match.team1Short && predictedWinner !== match.team2Short) {
           return res.status(400).json({ message: "Invalid team selection" });
@@ -6836,6 +6829,14 @@ async function registerRoutes(app2) {
         }
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
+        if (unlock === true && match.firstScorecardAt) {
+          const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 6e4;
+          if (Date.now() >= cutoff) {
+            return res.status(403).json({
+              message: "Cannot unlock: scoring has been live for more than 6 minutes. This window is permanently closed."
+            });
+          }
+        }
         console.log(`[Admin] Match ${match.id} ${unlock ? "unlocked" : "locked"} by admin at ${(/* @__PURE__ */ new Date()).toISOString()}`);
         await storage.updateMatch(matchId, {
           adminUnlockOverride: unlock,

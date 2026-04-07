@@ -265,12 +265,23 @@ export function isMatchVisible(startTime: string): boolean {
   return diff > 0 && diff <= 48 * 60 * 60 * 1000;
 }
 
-export function canEditTeam(startTime: string, status?: string, revisedStartTime?: string | null, adminUnlockOverride?: boolean): boolean {
+export function canEditTeam(
+  startTime: string | Date,
+  status?: string,
+  revisedStartTime?: string | Date | null,
+  adminUnlockOverride?: boolean | null,
+  firstScorecardAt?: string | Date | null,
+): boolean {
   if (status === 'completed') return false;
-  if (adminUnlockOverride === true) return true;
-  const effectiveStart = revisedStartTime ?? startTime;
-  const lockMs = new Date(effectiveStart).getTime() - 1000;
-  return Date.now() < lockMs;
+
+  if (adminUnlockOverride === true) {
+    if (!firstScorecardAt) return true; // scoring not started, unlock valid
+    const cutoff = new Date(firstScorecardAt).getTime() + 6 * 60_000;
+    return Date.now() < cutoff; // hard 6-minute cutoff
+  }
+
+  const effectiveDeadline = revisedStartTime ?? startTime;
+  return Date.now() < new Date(effectiveDeadline).getTime();
 }
 
 export function getRoleColor(role: string, _isDark: boolean): string {
