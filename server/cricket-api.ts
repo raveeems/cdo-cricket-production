@@ -660,6 +660,23 @@ export async function ensureIPLPreviewMatches(existingMatches: any[]): Promise<a
 
   for (const m of next5) {
     if (existingMatches.some(e => e.externalId === m.externalId)) continue;
+    // Secondary dedup: same teams + same day (guards against CricAPI externalId drift)
+    const mDay = new Date(m.startTime).toISOString().split('T')[0];
+    const sameTeamDay = existingMatches.find(e => {
+      const eDay = new Date(e.startTime).toISOString().split('T')[0];
+      if (eDay !== mDay) return false;
+      return (
+        (e.team1Short === m.team1Short && e.team2Short === m.team2Short) ||
+        (e.team1Short === m.team2Short && e.team2Short === m.team1Short)
+      );
+    });
+    if (sameTeamDay) {
+      if (sameTeamDay.externalId !== m.externalId) {
+        console.log(`IPL preview: externalId drift for ${m.team1} vs ${m.team2} (${mDay}) — updating ${sameTeamDay.externalId} → ${m.externalId}`);
+        await storage.updateMatch(sameTeamDay.id, { externalId: m.externalId } as any);
+      }
+      continue;
+    }
     try {
       const created = await storage.createMatch({
         externalId: m.externalId,
@@ -713,7 +730,29 @@ async function upsertMatches(
   let updated = 0;
 
   for (const m of apiMatches) {
-    const dup = existingMatches.find((e) => e.externalId === m.externalId);
+    // Primary dedup: exact externalId match
+    let dup = existingMatches.find((e) => e.externalId === m.externalId);
+
+    // Secondary dedup: same teams (either order) on the same calendar day.
+    // Guards against CricAPI silently reassigning a new externalId to an existing match,
+    // which would otherwise cause a duplicate row in the DB.
+    if (!dup) {
+      const mDay = m.startTime.toISOString().split('T')[0];
+      dup = existingMatches.find((e) => {
+        const eDay = new Date(e.startTime).toISOString().split('T')[0];
+        if (eDay !== mDay) return false;
+        return (
+          (e.team1Short === m.team1Short && e.team2Short === m.team2Short) ||
+          (e.team1Short === m.team2Short && e.team2Short === m.team1Short)
+        );
+      }) ?? null;
+      if (dup) {
+        console.log(`Match ${m.team1} vs ${m.team2} (${mDay}): externalId drift — updating ${dup.externalId} → ${m.externalId}`);
+        await storage.updateMatch(dup.id, { externalId: m.externalId } as any);
+        dup = { ...dup, externalId: m.externalId };
+      }
+    }
+
     if (!dup) {
       await storage.createMatch({
         externalId: m.externalId,

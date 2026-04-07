@@ -1246,6 +1246,19 @@ async function ensureIPLPreviewMatches(existingMatches) {
   const newMatches = [];
   for (const m of next5) {
     if (existingMatches.some((e) => e.externalId === m.externalId)) continue;
+    const mDay = new Date(m.startTime).toISOString().split("T")[0];
+    const sameTeamDay = existingMatches.find((e) => {
+      const eDay = new Date(e.startTime).toISOString().split("T")[0];
+      if (eDay !== mDay) return false;
+      return e.team1Short === m.team1Short && e.team2Short === m.team2Short || e.team1Short === m.team2Short && e.team2Short === m.team1Short;
+    });
+    if (sameTeamDay) {
+      if (sameTeamDay.externalId !== m.externalId) {
+        console.log(`IPL preview: externalId drift for ${m.team1} vs ${m.team2} (${mDay}) \u2014 updating ${sameTeamDay.externalId} \u2192 ${m.externalId}`);
+        await storage2.updateMatch(sameTeamDay.id, { externalId: m.externalId });
+      }
+      continue;
+    }
     try {
       const created = await storage2.createMatch({
         externalId: m.externalId,
@@ -1279,7 +1292,20 @@ async function upsertMatches(apiMatches, existingMatches) {
   let created = 0;
   let updated = 0;
   for (const m of apiMatches) {
-    const dup = existingMatches.find((e) => e.externalId === m.externalId);
+    let dup = existingMatches.find((e) => e.externalId === m.externalId);
+    if (!dup) {
+      const mDay = m.startTime.toISOString().split("T")[0];
+      dup = existingMatches.find((e) => {
+        const eDay = new Date(e.startTime).toISOString().split("T")[0];
+        if (eDay !== mDay) return false;
+        return e.team1Short === m.team1Short && e.team2Short === m.team2Short || e.team1Short === m.team2Short && e.team2Short === m.team1Short;
+      }) ?? null;
+      if (dup) {
+        console.log(`Match ${m.team1} vs ${m.team2} (${mDay}): externalId drift \u2014 updating ${dup.externalId} \u2192 ${m.externalId}`);
+        await storage2.updateMatch(dup.id, { externalId: m.externalId });
+        dup = { ...dup, externalId: m.externalId };
+      }
+    }
     if (!dup) {
       await storage2.createMatch({
         externalId: m.externalId,
