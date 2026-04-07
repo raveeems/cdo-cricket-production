@@ -1494,6 +1494,18 @@ function setupErrorHandler(app: express.Application) {
     (globalThis as any).__updateFantasyPoints = updateFantasyPoints;
     (globalThis as any).__updateLiveScore = updateLiveScore;
 
+    // Run status refresh independently of heartbeat so it fires even when no
+    // users are active. refreshStaleMatchStatuses has its own 5-min cooldown
+    // so calling every 60s just means it runs at most once per 5 minutes.
+    setInterval(async () => {
+      try {
+        const { refreshStaleMatchStatuses } = await import("./cricket-api");
+        await refreshStaleMatchStatuses();
+      } catch (e) {
+        console.error("[StatusRefreshTimer] error:", e);
+      }
+    }, 60 * 1000);
+
     setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
     log(
       "Match Heartbeat started (every 60s — score sync, points, lockout, stale-data rejection)",

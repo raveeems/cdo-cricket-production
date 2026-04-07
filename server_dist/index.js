@@ -1548,8 +1548,12 @@ async function refreshStaleMatchStatuses() {
     if (!m.externalId) continue;
     try {
       const info = await fetchMatchInfo(m.externalId);
-      if (!info) continue;
+      if (!info) {
+        console.log(`[StatusRefresh] fetchMatchInfo returned null for ${m.team1Short} vs ${m.team2Short} (${m.externalId})`);
+        continue;
+      }
       const hasScoreData = !!(info.score && info.score.length > 0 && info.score.some((s) => s.r > 0 || s.w > 0 || s.o > 0));
+      console.log(`[StatusRefresh] ${m.team1Short} vs ${m.team2Short}: matchStarted=${info.matchStarted} matchEnded=${info.matchEnded} status="${info.status}" hasScoreData=${hasScoreData} currentDB=${m.status}`);
       const { status: newStatus, statusNote } = determineMatchStatus(
         info.matchStarted,
         info.matchEnded,
@@ -8568,6 +8572,14 @@ function setupErrorHandler(app2) {
   globalThis.__recalculateTeamTotals = recalculateTeamTotals;
   globalThis.__updateFantasyPoints = updateFantasyPoints;
   globalThis.__updateLiveScore = updateLiveScore;
+  setInterval(async () => {
+    try {
+      const { refreshStaleMatchStatuses: refreshStaleMatchStatuses2 } = await Promise.resolve().then(() => (init_cricket_api(), cricket_api_exports));
+      await refreshStaleMatchStatuses2();
+    } catch (e) {
+      console.error("[StatusRefreshTimer] error:", e);
+    }
+  }, 60 * 1e3);
   setInterval(matchHeartbeat, HEARTBEAT_INTERVAL);
   log(
     "Match Heartbeat started (every 60s \u2014 score sync, points, lockout, stale-data rejection)"
