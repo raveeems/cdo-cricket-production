@@ -5129,7 +5129,7 @@ async function registerRoutes(app2) {
         if (!match) {
           return res.status(404).json({ message: "Match not found" });
         }
-        const isRevealed = match.status === "live" || match.status === "completed";
+        const isRevealed = match.status === "live" || match.status === "completed" || match.status === "delayed";
         const myPrediction = await storage.getUserPredictionForMatch(
           req.session.userId,
           req.params.matchId
