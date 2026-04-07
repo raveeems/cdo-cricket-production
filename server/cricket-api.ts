@@ -1136,21 +1136,23 @@ export async function mergeMatchDuplicates(): Promise<number> {
           await storage.updateMatch((primary as any).id, updates);
         }
 
-        // Disable the secondary so the heartbeat ignores it
-        await storage.updateMatch((secondary as any).id, { externalId: null } as any);
-
+        // Migrate any user teams from secondary → primary so no user loses their entry,
+        // then delete the now-empty secondary so it disappears from the home screen.
         const secondaryTeamCount = secondary === a ? aTeams.length : bTeams.length;
-        if (secondaryTeamCount === 0) {
-          await storage.deleteMatch((secondary as any).id);
-          console.log(
-            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: deleted empty duplicate ${(secondary as any).id}`
+        if (secondaryTeamCount > 0) {
+          const moved = await storage.migrateTeamsToMatch(
+            (secondary as any).id,
+            (primary as any).id
           );
-        } else {
           console.log(
-            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: disabled duplicate ${(secondary as any).id} ` +
-            `(has ${secondaryTeamCount} team(s) — delete manually after review)`
+            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: migrated ${moved} team(s) from duplicate to primary`
           );
         }
+        await storage.deleteMatchCascade((secondary as any).id);
+        console.log(
+          `[MergeDup] ${a.team1Short} vs ${a.team2Short}: deleted duplicate ${(secondary as any).id}` +
+          (secondaryTeamCount > 0 ? ` (${secondaryTeamCount} teams migrated to primary)` : ` (was empty)`)
+        );
 
         mergeCount++;
       }

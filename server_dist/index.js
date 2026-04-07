@@ -522,6 +522,11 @@ var init_storage = __esm({
       async getAllTeamsForMatch(matchId) {
         return db.select().from(userTeams).where(eq(userTeams.matchId, matchId));
       }
+      /** Move all user_teams rows from one match to another. Used by mergeMatchDuplicates. */
+      async migrateTeamsToMatch(fromMatchId, toMatchId) {
+        const result = await db.update(userTeams).set({ matchId: toMatchId }).where(eq(userTeams.matchId, fromMatchId));
+        return result.rowCount ?? 0;
+      }
       async getUserTeams(userId) {
         return db.select().from(userTeams).where(eq(userTeams.userId, userId));
       }
@@ -1617,18 +1622,20 @@ async function mergeMatchDuplicates() {
         if (Object.keys(updates).length > 0) {
           await storage2.updateMatch(primary.id, updates);
         }
-        await storage2.updateMatch(secondary.id, { externalId: null });
         const secondaryTeamCount = secondary === a ? aTeams.length : bTeams.length;
-        if (secondaryTeamCount === 0) {
-          await storage2.deleteMatch(secondary.id);
-          console.log(
-            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: deleted empty duplicate ${secondary.id}`
+        if (secondaryTeamCount > 0) {
+          const moved = await storage2.migrateTeamsToMatch(
+            secondary.id,
+            primary.id
           );
-        } else {
           console.log(
-            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: disabled duplicate ${secondary.id} (has ${secondaryTeamCount} team(s) \u2014 delete manually after review)`
+            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: migrated ${moved} team(s) from duplicate to primary`
           );
         }
+        await storage2.deleteMatchCascade(secondary.id);
+        console.log(
+          `[MergeDup] ${a.team1Short} vs ${a.team2Short}: deleted duplicate ${secondary.id}` + (secondaryTeamCount > 0 ? ` (${secondaryTeamCount} teams migrated to primary)` : ` (was empty)`)
+        );
         mergeCount++;
       }
     }

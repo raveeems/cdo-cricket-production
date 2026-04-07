@@ -222,6 +222,15 @@ export class DatabaseStorage {
     return db.select().from(userTeams).where(eq(userTeams.matchId, matchId));
   }
 
+  /** Move all user_teams rows from one match to another. Used by mergeMatchDuplicates. */
+  async migrateTeamsToMatch(fromMatchId: string, toMatchId: string): Promise<number> {
+    const result = await db
+      .update(userTeams)
+      .set({ matchId: toMatchId })
+      .where(eq(userTeams.matchId, fromMatchId));
+    return (result as any).rowCount ?? 0;
+  }
+
   async getUserTeams(userId: string): Promise<UserTeam[]> {
     return db.select().from(userTeams).where(eq(userTeams.userId, userId));
   }
