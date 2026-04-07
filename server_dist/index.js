@@ -1563,6 +1563,17 @@ async function refreshStaleMatchStatuses() {
         await storage2.updateMatch(m.id, updates);
         console.log(`Status refresh: ${m.team1} vs ${m.team2}: ${m.status} -> ${newStatus} [${statusNote}]`);
       }
+      if (newStatus === "delayed") {
+        const deadlinePassed = Date.now() > new Date(m.revisedStartTime ?? m.startTime).getTime();
+        const scoringNotStarted = !m.firstScorecardAt;
+        if (deadlinePassed && scoringNotStarted) {
+          const autoRevised = new Date(Date.now() + 2 * 60 * 60 * 1e3);
+          await storage2.updateMatch(m.id, {
+            revisedStartTime: autoRevised
+          });
+          console.log(`[Delay] Auto-extended deadline for ${m.team1Short} vs ${m.team2Short} to ${autoRevised.toISOString()}`);
+        }
+      }
       if (newStatus === "live" || info.matchStarted && !info.matchEnded) {
         const xiCount = await storage2.getPlayingXICount(m.id);
         if (xiCount < 22) {

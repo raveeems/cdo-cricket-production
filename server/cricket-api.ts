@@ -1039,6 +1039,20 @@ export async function refreshStaleMatchStatuses(): Promise<void> {
         console.log(`Status refresh: ${m.team1} vs ${m.team2}: ${m.status} -> ${newStatus} [${statusNote}]`);
       }
 
+      // Auto-extend deadline when match transitions to delayed and no scoring has started
+      if (newStatus === 'delayed') {
+        const deadlinePassed = Date.now() > new Date((m as any).revisedStartTime ?? m.startTime).getTime();
+        const scoringNotStarted = !(m as any).firstScorecardAt;
+
+        if (deadlinePassed && scoringNotStarted) {
+          const autoRevised = new Date(Date.now() + 2 * 60 * 60 * 1000); // now + 2 hours
+          await storage.updateMatch(m.id, {
+            revisedStartTime: autoRevised,
+          } as any);
+          console.log(`[Delay] Auto-extended deadline for ${m.team1Short} vs ${m.team2Short} to ${autoRevised.toISOString()}`);
+        }
+      }
+
       if (newStatus === "live" || (info.matchStarted && !info.matchEnded)) {
         const xiCount = await storage.getPlayingXICount(m.id);
         if (xiCount < 22) {
