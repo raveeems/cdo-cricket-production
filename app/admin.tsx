@@ -766,14 +766,11 @@ export default function AdminScreen() {
     try {
       const res = await apiRequest('POST', `/api/admin/matches/${matchId}/absorb-duplicate`);
       const data = await res.json();
-      if (!res.ok) {
-        Alert.alert('Fix Duplicate', data.message || 'No duplicate found for this match');
-      } else {
-        await loadMatches();
-        Alert.alert('✔ Fixed', `Status + externalId copied from duplicate.\nDuplicate match ID:\n${data.duplicateMatchId}\n\nYou can now delete the duplicate.`);
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to fix duplicate');
+      await loadMatches();
+      Alert.alert('✔ Fixed', `Status + externalId copied from duplicate.\nDuplicate match ID:\n${data.duplicateMatchId}\n\nYou can now delete the duplicate.`);
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to fix duplicate';
+      Alert.alert('Fix Duplicate', msg);
     }
   };
 

@@ -901,6 +901,7 @@ __export(cricket_api_exports, {
   fetchSeriesSquad: () => fetchSeriesSquad,
   fetchUpcomingMatches: () => fetchUpcomingMatches,
   getInMemoryApiCallCount: () => getInMemoryApiCallCount,
+  mergeMatchDuplicates: () => mergeMatchDuplicates,
   refreshPlayingXIForLiveMatches: () => refreshPlayingXIForLiveMatches,
   refreshStaleMatchStatuses: () => refreshStaleMatchStatuses,
   syncMatchesFromApi: () => syncMatchesFromApi
@@ -1571,6 +1572,71 @@ async function refreshStaleMatchStatuses() {
       console.error(`Failed to refresh status for match ${m.id}:`, err);
     }
   }
+}
+async function mergeMatchDuplicates() {
+  const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const allMatches = await storage2.getAllMatches();
+  const groups = /* @__PURE__ */ new Map();
+  for (const m of allMatches) {
+    const t1 = m.team1Short;
+    const t2 = m.team2Short;
+    const key = [t1, t2].sort().join("_");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  }
+  let mergeCount = 0;
+  for (const [, group] of groups) {
+    if (group.length < 2) continue;
+    const THREE_DAYS = 3 * 24 * 60 * 60 * 1e3;
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const a = group[i];
+        const b = group[j];
+        const timeDiff = Math.abs(
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        );
+        if (timeDiff > THREE_DAYS) continue;
+        const aTeams = await storage2.getAllTeamsForMatch(a.id);
+        const bTeams = await storage2.getAllTeamsForMatch(b.id);
+        let primary = aTeams.length >= bTeams.length ? a : b;
+        let secondary = primary === a ? b : a;
+        const updates = {};
+        if (secondary.externalId && secondary.externalId !== primary.externalId) {
+          updates.externalId = secondary.externalId;
+          console.log(
+            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: externalId drift \u2014 updating primary ${primary.externalId} \u2192 ${secondary.externalId}`
+          );
+        }
+        const statusRank = { upcoming: 0, delayed: 1, live: 2, completed: 3 };
+        const pRank = statusRank[primary.status] ?? 0;
+        const sRank = statusRank[secondary.status] ?? 0;
+        if (sRank > pRank) {
+          updates.status = secondary.status;
+          if (secondary.statusNote) updates.statusNote = secondary.statusNote;
+        }
+        if (Object.keys(updates).length > 0) {
+          await storage2.updateMatch(primary.id, updates);
+        }
+        await storage2.updateMatch(secondary.id, { externalId: null });
+        const secondaryTeamCount = secondary === a ? aTeams.length : bTeams.length;
+        if (secondaryTeamCount === 0) {
+          await storage2.deleteMatch(secondary.id);
+          console.log(
+            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: deleted empty duplicate ${secondary.id}`
+          );
+        } else {
+          console.log(
+            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: disabled duplicate ${secondary.id} (has ${secondaryTeamCount} team(s) \u2014 delete manually after review)`
+          );
+        }
+        mergeCount++;
+      }
+    }
+  }
+  if (mergeCount > 0) {
+    console.log(`[MergeDup] Fixed ${mergeCount} duplicate match pair(s).`);
+  }
+  return mergeCount;
 }
 function mapCricApiRole(role) {
   const r = (role || "").toLowerCase();
@@ -7711,12 +7777,18 @@ function setupErrorHandler(app2) {
       }
     }
   })();
+  mergeMatchDuplicates().catch((err) => {
+    console.error("Initial duplicate merge failed:", err);
+  });
   syncMatchesFromApi().catch((err) => {
     console.error("Initial match sync failed:", err);
   });
   const TWO_HOURS = 2 * 60 * 60 * 1e3;
   setInterval(() => {
     log("Periodic match sync (every 2 hours)...");
+    mergeMatchDuplicates().catch((err) => {
+      console.error("Periodic duplicate merge failed:", err);
+    });
     syncMatchesFromApi().catch((err) => {
       console.error("Periodic match sync failed:", err);
     });

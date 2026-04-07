@@ -1055,6 +1055,114 @@ export async function refreshStaleMatchStatuses(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// mergeMatchDuplicates
+// ---------------------------------------------------------------------------
+// CricAPI sometimes retires an externalId and creates a new one for the same
+// physical match. This function detects those duplicate rows in our DB and
+// automatically merges them:
+//   - keeps the "primary" match (the one with more teams joined, or the older row)
+//   - copies externalId + status + statusNote from the duplicate onto the primary
+//   - nulls the duplicate's externalId so refreshStaleMatchStatuses ignores it
+//   - deletes the duplicate if it has zero teams; otherwise just disables it
+//
+// Called at server startup AND inside the periodic 2-hour sync so future
+// externalId drifts are healed automatically without any admin action.
+export async function mergeMatchDuplicates(): Promise<number> {
+  const { storage } = await import("./storage");
+  const allMatches = await storage.getAllMatches();
+
+  // Group matches by a canonical team-pair key (sorted alphabetically so order
+  // doesn't matter) so we catch both "MI vs RR" and "RR vs MI" variations.
+  const groups = new Map<string, typeof allMatches>();
+  for (const m of allMatches) {
+    const t1 = (m as any).team1Short as string;
+    const t2 = (m as any).team2Short as string;
+    const key = [t1, t2].sort().join("_");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(m);
+  }
+
+  let mergeCount = 0;
+
+  for (const [, group] of groups) {
+    if (group.length < 2) continue;
+
+    // Within this group, find pairs whose startTimes are within ±3 days of
+    // each other.  3 days is wide enough to survive timezone/API drift while
+    // still being strict enough to avoid confusing genuinely separate fixtures.
+    const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const a = group[i] as any;
+        const b = group[j] as any;
+        const timeDiff = Math.abs(
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        );
+        if (timeDiff > THREE_DAYS) continue;
+
+        // Get team counts to determine which match is the "primary"
+        const aTeams = await storage.getAllTeamsForMatch(a.id);
+        const bTeams = await storage.getAllTeamsForMatch(b.id);
+
+        // primary = more teams (or older id if tied)
+        let primary = aTeams.length >= bTeams.length ? a : b;
+        let secondary = primary === a ? b : a;
+
+        // If the secondary has a non-null externalId that differs from the
+        // primary's, copy it over so refreshStaleMatchStatuses uses the live ID.
+        const updates: Record<string, any> = {};
+        if (
+          (secondary as any).externalId &&
+          (secondary as any).externalId !== (primary as any).externalId
+        ) {
+          updates.externalId = (secondary as any).externalId;
+          console.log(
+            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: externalId drift — ` +
+            `updating primary ${(primary as any).externalId} → ${(secondary as any).externalId}`
+          );
+        }
+
+        // Promote status if secondary is further along (delayed > upcoming, completed > delayed, etc.)
+        const statusRank: Record<string, number> = { upcoming: 0, delayed: 1, live: 2, completed: 3 };
+        const pRank = statusRank[(primary as any).status] ?? 0;
+        const sRank = statusRank[(secondary as any).status] ?? 0;
+        if (sRank > pRank) {
+          updates.status = (secondary as any).status;
+          if ((secondary as any).statusNote) updates.statusNote = (secondary as any).statusNote;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await storage.updateMatch((primary as any).id, updates);
+        }
+
+        // Disable the secondary so the heartbeat ignores it
+        await storage.updateMatch((secondary as any).id, { externalId: null } as any);
+
+        const secondaryTeamCount = secondary === a ? aTeams.length : bTeams.length;
+        if (secondaryTeamCount === 0) {
+          await storage.deleteMatch((secondary as any).id);
+          console.log(
+            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: deleted empty duplicate ${(secondary as any).id}`
+          );
+        } else {
+          console.log(
+            `[MergeDup] ${a.team1Short} vs ${a.team2Short}: disabled duplicate ${(secondary as any).id} ` +
+            `(has ${secondaryTeamCount} team(s) — delete manually after review)`
+          );
+        }
+
+        mergeCount++;
+      }
+    }
+  }
+
+  if (mergeCount > 0) {
+    console.log(`[MergeDup] Fixed ${mergeCount} duplicate match pair(s).`);
+  }
+  return mergeCount;
+}
+
 interface SquadPlayer {
   id: string;
   name: string;

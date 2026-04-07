@@ -1,7 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { syncMatchesFromApi } from "./cricket-api";
+import { syncMatchesFromApi, mergeMatchDuplicates } from "./cricket-api";
 import { storage } from "./storage";
 import { connectWithRetry, markServerReady } from "./db";
 import * as fs from "fs";
@@ -438,6 +438,11 @@ function setupErrorHandler(app: express.Application) {
       }
     })();
 
+    // Auto-heal duplicate matches caused by CricAPI externalId drift, then sync.
+    mergeMatchDuplicates().catch((err) => {
+      console.error("Initial duplicate merge failed:", err);
+    });
+
     syncMatchesFromApi().catch((err) => {
       console.error("Initial match sync failed:", err);
     });
@@ -445,6 +450,9 @@ function setupErrorHandler(app: express.Application) {
     const TWO_HOURS = 2 * 60 * 60 * 1000;
     setInterval(() => {
       log("Periodic match sync (every 2 hours)...");
+      mergeMatchDuplicates().catch((err) => {
+        console.error("Periodic duplicate merge failed:", err);
+      });
       syncMatchesFromApi().catch((err) => {
         console.error("Periodic match sync failed:", err);
       });
