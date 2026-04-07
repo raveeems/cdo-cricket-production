@@ -994,11 +994,11 @@ function determineMatchStatus(matchStarted, matchEnded, apiStatusText, hasScoreD
     return { status: "completed", statusNote };
   }
   if (matchStarted) {
-    if (hasScoreData) {
-      return { status: "live", statusNote };
-    }
     if (isMatchDelayed(apiStatusText)) {
       return { status: "delayed", statusNote };
+    }
+    if (hasScoreData) {
+      return { status: "live", statusNote };
     }
     return { status: "live", statusNote: statusNote || "Toss completed" };
   }

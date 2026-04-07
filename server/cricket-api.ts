@@ -174,11 +174,14 @@ function determineMatchStatus(
   }
 
   if (matchStarted) {
-    if (hasScoreData) {
-      return { status: 'live', statusNote };
-    }
+    // Delay check must come before score check — a match can have partial
+    // score data (from a toss or early overs) and then get rain-delayed.
+    // If the current API status says it's delayed, that takes priority.
     if (isMatchDelayed(apiStatusText)) {
       return { status: 'delayed', statusNote };
+    }
+    if (hasScoreData) {
+      return { status: 'live', statusNote };
     }
     return { status: 'live', statusNote: statusNote || 'Toss completed' };
   }
