@@ -268,7 +268,6 @@ export function isMatchVisible(startTime: string): boolean {
 export function canEditTeam(startTime: string, status?: string, revisedStartTime?: string | null, adminUnlockOverride?: boolean): boolean {
   if (status === 'completed') return false;
   if (adminUnlockOverride === true) return true;
-  if (status === 'live') return false;
   const effectiveStart = revisedStartTime ?? startTime;
   const lockMs = new Date(effectiveStart).getTime() - 1000;
   return Date.now() < lockMs;
