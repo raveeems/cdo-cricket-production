@@ -1,0 +1,90 @@
+The Permanent Fix
+Server-side changes needed (routes.ts + server_dist/index.js):
+Fix 1 — isEntryOpen function:
+Replace current function with:
+typescriptfunction isEntryOpen(match: { 
+  startTime: Date | string; 
+  revisedStartTime?: Date | string | null; 
+  adminUnlockOverride?: boolean | null;
+  firstScorecardAt?: Date | string | null;
+  unlockedAt?: Date | string | null;
+}, nowMs: number): boolean {
+  // GATE 1: Completed matches are always locked
+  if ((match as any).status === 'completed') return false;
+
+  // GATE 2: Admin unlock window — 6 minutes hard cutoff from firstScorecardAt
+  // This is INDEPENDENT of deadline extension
+  if (match.adminUnlockOverride === true) {
+    if (!match.firstScorecardAt) return true; // scoring not started yet — unlock is valid
+    const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 60_000;
+    return nowMs < cutoff; // hard 6-minute cutoff, no exceptions
+  }
+
+  // GATE 3: Deadline-based entry — revisedStartTime takes priority over startTime
+  // This is INDEPENDENT of admin unlock
+  const effectiveDeadline = match.revisedStartTime ?? match.startTime;
+  return nowMs < new Date(effectiveDeadline).getTime();
+}
+Fix 2 — POST /api/teams status check:
+Find:
+typescriptif ((match.status === "live" || match.status === "completed") && !match.adminUnlockOverride) {
+  return res.status(400).json({ message: "Match has already started" });
+}
+Replace with:
+typescriptif (match.status === "completed") {
+  return res.status(400).json({ message: "Match has already started" });
+}
+// For live/delayed matches, isEntryOpen() is the sole authority — checked below
+Fix 3 — POST /api/predictions status check:
+Find:
+typescriptif (match.status === "live" || match.status === "completed") {
+  return res.status(400).json({ message: "Match has already started" });
+}
+Replace with:
+typescriptif (match.status === "completed") {
+  return res.status(400).json({ message: "Match has already started" });
+}
+if (!isEntryOpen(match, Date.now())) {
+  return res.status(400).json({ message: "Entry deadline has passed" });
+}
+Fix 4 — Admin unlock: permanently disable after 6 minutes
+In the admin-unlock PATCH route, after setting adminUnlockOverride = true, add a check:
+typescript// Prevent re-unlock if firstScorecardAt is set and 6 minutes have passed
+if (unlock === true && match.firstScorecardAt) {
+  const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 60_000;
+  if (Date.now() >= cutoff) {
+    return res.status(403).json({ 
+      message: "Cannot unlock: scoring has been live for more than 6 minutes. This window is permanently closed." 
+    });
+  }
+}
+
+Frontend changes needed (lib/mock-data.ts + app/(tabs)/match/[id].tsx):
+Fix 5 — canEditTeam — handle unlock window correctly:
+Replace current function:
+typescriptexport function canEditTeam(
+  startTime: string | Date,
+  status: string,
+  revisedStartTime?: string | Date | null,
+  adminUnlockOverride?: boolean | null,
+  firstScorecardAt?: string | Date | null
+): boolean {
+  // Completed — always locked
+  if (status === 'completed') return false;
+
+  // Admin unlock — 6-minute window from firstScorecardAt
+  if (adminUnlockOverride === true) {
+    if (!firstScorecardAt) return true; // scoring not started, unlock valid
+    const cutoff = new Date(firstScorecardAt).getTime() + 6 * 60_000;
+    return Date.now() < cutoff;
+  }
+
+  // Deadline-based — revisedStartTime takes priority
+  const effectiveDeadline = revisedStartTime ?? startTime;
+  return Date.now() < new Date(effectiveDeadline).getTime();
+}
+Fix 6 — Pass firstScorecardAt to canEditTeam in [id].tsx:
+Find line 357:
+typescriptcanEditTeam(match.startTime, match.status, match.revisedStartTime, match.adminUnlockOverride)
+Replace with:
+typescriptcanEditTeam(match.startTime, match.status, match.revisedStartTime, match.adminUnlockOve
