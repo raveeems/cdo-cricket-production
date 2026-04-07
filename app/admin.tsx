@@ -762,6 +762,21 @@ export default function AdminScreen() {
     }
   };
 
+  const absorbDuplicate = async (matchId: string) => {
+    try {
+      const res = await apiRequest('POST', `/api/admin/matches/${matchId}/absorb-duplicate`);
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('Fix Duplicate', data.message || 'No duplicate found for this match');
+      } else {
+        await loadMatches();
+        Alert.alert('✔ Fixed', `Status + externalId copied from duplicate.\nDuplicate match ID:\n${data.duplicateMatchId}\n\nYou can now delete the duplicate.`);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to fix duplicate');
+    }
+  };
+
   const loadAuditLogs = async () => {
     setLoadingAudit(true);
     try {
@@ -1982,6 +1997,13 @@ export default function AdminScreen() {
                   ) : (
                     <View style={{ flex: 1 }} />
                   )}
+                  <Pressable
+                    onPress={() => absorbDuplicate(m.id)}
+                    style={[styles.destructiveBtn, { flex: 1, borderColor: '#F59E0B50', backgroundColor: '#F59E0B08' }]}
+                  >
+                    <Ionicons name="git-merge-outline" size={13} color="#F59E0B" />
+                    <Text style={[styles.destructiveBtnText, { color: '#F59E0B' }]}>Fix Dup</Text>
+                  </Pressable>
                   <Pressable
                     onPress={() => { setDeleteResult(''); setDeleteConfirmMatchId(m.id); }}
                     disabled={deleting}

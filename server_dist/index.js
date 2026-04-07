@@ -7048,6 +7048,58 @@ async function registerRoutes(app2) {
     }
   );
   app2.post(
+    "/api/admin/matches/:id/absorb-duplicate",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const original = await storage.getMatch(matchId);
+        if (!original) return res.status(404).json({ message: "Match not found" });
+        const allMatches = await storage.getAllMatches();
+        const origDay = new Date(original.startTime).toISOString().split("T")[0];
+        const duplicate = allMatches.find((m) => {
+          if (m.id === matchId) return false;
+          const mDay = new Date(m.startTime).toISOString().split("T")[0];
+          if (mDay !== origDay) return false;
+          return m.team1Short === original.team1Short && m.team2Short === original.team2Short || m.team1Short === original.team2Short && m.team2Short === original.team1Short;
+        });
+        if (!duplicate) {
+          return res.status(404).json({ message: "No duplicate found for this match on the same day" });
+        }
+        const updates = {};
+        if (duplicate.externalId) updates.externalId = duplicate.externalId;
+        if (duplicate.status && duplicate.status !== original.status) {
+          updates.status = duplicate.status;
+        }
+        if (duplicate.statusNote) updates.statusNote = duplicate.statusNote;
+        await storage.updateMatch(matchId, updates);
+        await storage.updateMatch(duplicate.id, { externalId: null });
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "absorb_duplicate",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({
+            duplicateMatchId: duplicate.id,
+            absorbedExternalId: duplicate.externalId,
+            absorbedStatus: duplicate.status
+          })
+        });
+        return res.json({
+          message: `Fixed: externalId + status copied from duplicate. Duplicate match ID: ${duplicate.id}`,
+          duplicateMatchId: duplicate.id,
+          absorbedExternalId: duplicate.externalId,
+          absorbedStatus: duplicate.status
+        });
+      } catch (err) {
+        console.error("Absorb duplicate error:", err);
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
     "/api/admin/matches/:id/lock-multi-team",
     isAuthenticated,
     isAdmin,

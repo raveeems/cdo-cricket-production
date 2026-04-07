@@ -4472,6 +4472,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: ABSORB DUPLICATE ----
+  // Fixes "externalId drift" duplicates: copies the externalId + status from the duplicate
+  // onto the original (this) match, then clears the duplicate's externalId so the
+  // automatic status-refresh skips it. Safe to call multiple times.
+  app.post(
+    "/api/admin/matches/:id/absorb-duplicate",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const original = await storage.getMatch(matchId);
+        if (!original) return res.status(404).json({ message: "Match not found" });
+
+        const allMatches = await storage.getAllMatches();
+        const origDay = new Date(original.startTime).toISOString().split('T')[0];
+
+        // Find the duplicate: same teams (either order) on the same day, different DB id
+        const duplicate = allMatches.find((m: any) => {
+          if (m.id === matchId) return false;
+          const mDay = new Date(m.startTime).toISOString().split('T')[0];
+          if (mDay !== origDay) return false;
+          return (
+            (m.team1Short === (original as any).team1Short && m.team2Short === (original as any).team2Short) ||
+            (m.team1Short === (original as any).team2Short && m.team2Short === (original as any).team1Short)
+          );
+        });
+
+        if (!duplicate) {
+          return res.status(404).json({ message: "No duplicate found for this match on the same day" });
+        }
+
+        // Copy externalId + status from duplicate → original
+        const updates: Record<string, any> = {};
+        if ((duplicate as any).externalId) updates.externalId = (duplicate as any).externalId;
+        if ((duplicate as any).status && (duplicate as any).status !== (original as any).status) {
+          updates.status = (duplicate as any).status;
+        }
+        if ((duplicate as any).statusNote) updates.statusNote = (duplicate as any).statusNote;
+
+        await storage.updateMatch(matchId, updates as any);
+
+        // Clear duplicate's externalId so refreshStaleMatchStatuses skips it
+        await storage.updateMatch((duplicate as any).id, { externalId: null } as any);
+
+        await storage.createAuditLog({
+          adminUserId: req.session.userId!,
+          actionType: "absorb_duplicate",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify({
+            duplicateMatchId: (duplicate as any).id,
+            absorbedExternalId: (duplicate as any).externalId,
+            absorbedStatus: (duplicate as any).status,
+          }),
+        });
+
+        return res.json({
+          message: `Fixed: externalId + status copied from duplicate. Duplicate match ID: ${(duplicate as any).id}`,
+          duplicateMatchId: (duplicate as any).id,
+          absorbedExternalId: (duplicate as any).externalId,
+          absorbedStatus: (duplicate as any).status,
+        });
+      } catch (err: any) {
+        console.error("Absorb duplicate error:", err);
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
   app.post(
     "/api/admin/matches/:id/lock-multi-team",
     isAuthenticated,
