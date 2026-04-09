@@ -142,19 +142,17 @@ function PlayerItem({
       </View>
       <View style={styles.playerItemRight}>
         <Text style={[styles.playerCredits, { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' }]}>
-          {player.credits} Cr  |  {(player.points ?? 0) > 0
-            ? `${player.points} pts`
-            : typeof player.lastMatchPoints === 'number'
-            ? `${player.lastMatchPoints}prev`
-            : null}
-          {(player.points ?? 0) <= 0 && typeof player.lastMatchPoints === 'number' && typeof player.tournamentPoints === 'number' && player.tournamentPoints > 0 && (
-            <Text style={{ fontSize: 10, color: '#F59E0B', fontFamily: 'Inter_600SemiBold' as const }}>{' · '}{player.tournamentPoints}T</Text>
+          {player.credits} Cr
+          {typeof player.lastMatchPoints === 'number'
+            ? `  |  ${player.lastMatchPoints}prev`
+            : (player.points ?? 0) > 0
+            ? `  |  ${player.points}pts`
+            : '  |  —'}
+          {typeof player.tournamentPoints === 'number' && player.tournamentPoints > 0 && (
+            <Text style={{ fontSize: 10, color: '#F59E0B', fontFamily: 'Inter_600SemiBold' as const }}>
+              {' · '}{player.tournamentPoints}T
+            </Text>
           )}
-          {(player.points ?? 0) <= 0 && typeof player.lastMatchPoints !== 'number' && typeof player.tournamentPoints === 'number' && player.tournamentPoints > 0 ? (
-            <Text style={{ fontSize: 10, color: '#F59E0B', fontFamily: 'Inter_600SemiBold' as const }}>{player.tournamentPoints}T</Text>
-          ) : (player.points ?? 0) <= 0 && typeof player.lastMatchPoints !== 'number' ? (
-            <Text style={{ color: colors.textTertiary }}>—</Text>
-          ) : null}
         </Text>
         <View style={styles.formRow}>
           {(player.recentForm || []).slice(0, 3).map((v, i) => (
@@ -251,19 +249,17 @@ function CompactPlayerItem({
             )}
           </View>
           <Text style={[styles.compactMeta, { color: colors.textTertiary }]} numberOfLines={1}>
-            {player.credits}Cr · {(player.points ?? 0) > 0
-              ? `${player.points}pts`
-              : typeof player.lastMatchPoints === 'number'
-              ? `${player.lastMatchPoints}prev`
-              : null}
-            {(player.points ?? 0) <= 0 && typeof player.lastMatchPoints === 'number' && typeof player.tournamentPoints === 'number' && player.tournamentPoints > 0 && (
-              <Text style={{ fontSize: 10, color: '#F59E0B', fontFamily: 'Inter_600SemiBold' as const }}>{' · '}{player.tournamentPoints}T</Text>
+            {player.credits}Cr
+            {typeof player.lastMatchPoints === 'number'
+              ? ` · ${player.lastMatchPoints}prev`
+              : (player.points ?? 0) > 0
+              ? ` · ${player.points}pts`
+              : ' · —'}
+            {typeof player.tournamentPoints === 'number' && player.tournamentPoints > 0 && (
+              <Text style={{ fontSize: 10, color: '#F59E0B', fontFamily: 'Inter_600SemiBold' as const }}>
+                {' · '}{player.tournamentPoints}T
+              </Text>
             )}
-            {(player.points ?? 0) <= 0 && typeof player.lastMatchPoints !== 'number' && typeof player.tournamentPoints === 'number' && player.tournamentPoints > 0 ? (
-              <Text style={{ fontSize: 10, color: '#F59E0B', fontFamily: 'Inter_600SemiBold' as const }}>{player.tournamentPoints}T</Text>
-            ) : (player.points ?? 0) <= 0 && typeof player.lastMatchPoints !== 'number' ? (
-              <Text style={{ color: colors.textTertiary }}>—</Text>
-            ) : null}
           </Text>
         </View>
         <View style={[styles.compactCheck, { borderColor: isSelected ? colors.accent : colors.border, backgroundColor: isSelected ? colors.accent : 'transparent' }]}>
