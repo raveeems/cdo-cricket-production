@@ -330,6 +330,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Cricsheet loader — trigger + progress ─────────────────────────────────────
+
+  app.post(
+    "/api/admin/load-cricsheet",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const { getLoaderProgress, loadCricsheetData } = await import("./cricsheet-loader");
+        const current = getLoaderProgress();
+        if (current.status === "running") {
+          return res.json({
+            message: "Loader already running",
+            progress: current,
+          });
+        }
+        // Fire and forget — runs in background
+        loadCricsheetData().catch((err) => {
+          console.error("[Cricsheet] Background load error:", err);
+        });
+        return res.json({
+          message: "Cricsheet loader started. Poll /api/admin/load-cricsheet/progress to track.",
+        });
+      } catch (err: any) {
+        console.error("[Cricsheet] Failed to start loader:", err);
+        return res.status(500).json({ message: "Failed to start loader", error: err.message });
+      }
+    }
+  );
+
+  app.get(
+    "/api/admin/load-cricsheet/progress",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const { getLoaderProgress } = await import("./cricsheet-loader");
+        return res.json(getLoaderProgress());
+      } catch (err: any) {
+        return res.status(500).json({ message: "Could not get progress", error: err.message });
+      }
+    }
+  );
+
   // ---- TEST: Send push notification to all registered tokens ----
   app.post('/api/admin/test-notification', isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try {
