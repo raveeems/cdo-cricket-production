@@ -3856,6 +3856,7 @@ var init_notifications = __esm({
 // server/routes.ts
 var routes_exports = {};
 __export(routes_exports, {
+  invalidateCanonicalIndex: () => invalidateCanonicalIndex,
   invalidateHistoricalStatsCache: () => invalidateHistoricalStatsCache,
   registerRoutes: () => registerRoutes,
   startOwnershipWorker: () => startOwnershipWorker
@@ -3928,7 +3929,8 @@ async function isAdmin(req, res, next) {
 }
 function invalidateHistoricalStatsCache() {
   historicalStatsCache = null;
-  console.log("[AI] Historical stats cache invalidated.");
+  canonicalCacheIndex = null;
+  console.log("[AI] Historical stats cache + canonical index invalidated.");
 }
 async function getHistoricalStatsCache() {
   if (historicalStatsCache) return historicalStatsCache;
@@ -4030,35 +4032,63 @@ function getAiMode(userId) {
   userTapCounters[userId] = count;
   return count % 2 === 0 ? "differential" : "safe";
 }
+function canonicalize(name) {
+  return name.toLowerCase().replace(/\./g, " ").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
 function extractSurname(name) {
-  return name.trim().split(/\s+/).pop()?.toLowerCase() || "";
+  return canonicalize(name).split(" ").pop() || "";
 }
 function extractInitial(name) {
-  return name.trim()[0]?.toLowerCase() || "";
+  return canonicalize(name)[0] || "";
 }
-function normalizeName2(name) {
-  return name.toLowerCase().replace(/[^a-z]/g, "");
+function buildCanonicalIndex(cache) {
+  if (canonicalCacheIndex && canonicalCacheIndex.size === cache.size) return canonicalCacheIndex;
+  const index = /* @__PURE__ */ new Map();
+  for (const row of cache.values()) index.set(canonicalize(row.player_name), row);
+  canonicalCacheIndex = index;
+  return index;
+}
+function invalidateCanonicalIndex() {
+  canonicalCacheIndex = null;
 }
 function matchPlayerToHistorical(dbName, cache) {
+  const canonicalIndex = buildCanonicalIndex(cache);
+  const canonicalDb = canonicalize(dbName);
+  const aliasTarget = PLAYER_ALIASES[canonicalDb];
+  if (aliasTarget) {
+    const row = canonicalIndex.get(canonicalize(aliasTarget)) || cache.get(aliasTarget);
+    if (row) {
+      const mp = row.matches_played;
+      if (mp === 0) {
+        console.log(`[AI Match] "${dbName}" \u2192 NONE (alias found but 0 matches)`);
+        return { stats: null, confidence: "none", resolvedVia: "alias-zero" };
+      }
+      const confidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
+      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} via ALIAS (${mp} matches)`);
+      return { stats: row, confidence, resolvedVia: "alias" };
+    }
+  }
+  const exactMatch = canonicalIndex.get(canonicalDb);
+  if (exactMatch) {
+    const mp = exactMatch.matches_played;
+    if (mp === 0) {
+      console.log(`[AI Match] "${dbName}" \u2192 NONE (exact canonical match, 0 matches)`);
+      return { stats: null, confidence: "none", resolvedVia: "exact-zero" };
+    }
+    const confidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
+    console.log(`[AI Match] "${dbName}" \u2192 "${exactMatch.player_name}" ${confidence.toUpperCase()} via EXACT (${mp} matches)`);
+    return { stats: exactMatch, confidence, resolvedVia: "exact" };
+  }
   const dbSurname = extractSurname(dbName);
   const dbInitial = extractInitial(dbName);
-  const dbNormalized = normalizeName2(dbName);
-  const dbHasInitialOnly = dbName.trim().split(/\s+/).length <= 2 && dbName.trim().split(/\s+/)[0].length <= 2;
+  const dbHasInitialOnly = canonicalDb.split(" ").length <= 2 && canonicalDb.split(" ")[0].length <= 2;
   const candidates = [];
   for (const row of cache.values()) {
     if (extractSurname(row.player_name) === dbSurname) candidates.push(row);
   }
   if (candidates.length === 0) {
-    for (const row of cache.values()) {
-      if (normalizeName2(row.player_name) === dbNormalized) {
-        const mp = row.matches_played;
-        const confidence = mp >= 5 ? "medium" : "low";
-        console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (normalized, ${mp} matches)`);
-        return { stats: row, confidence };
-      }
-    }
-    console.log(`[AI Match] "${dbName}" \u2192 NONE (no surname or normalized match)`);
-    return { stats: null, confidence: "none" };
+    console.log(`[AI Match] "${dbName}" \u2192 NONE (no surname match, no alias)`);
+    return { stats: null, confidence: "none", resolvedVia: "no-match" };
   }
   if (candidates.length === 1) {
     const row = candidates[0];
@@ -4066,19 +4096,19 @@ function matchPlayerToHistorical(dbName, cache) {
     const mp = row.matches_played;
     if (mp === 0) {
       console.log(`[AI Match] "${dbName}" \u2192 NONE (0 matches)`);
-      return { stats: null, confidence: "none" };
+      return { stats: null, confidence: "none", resolvedVia: "zero-matches" };
     }
     if (dbInitial === cricInitial) {
       const confidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
-      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (${mp} matches)`);
-      return { stats: row, confidence };
+      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} via SURNAME+INITIAL (${mp} matches)`);
+      return { stats: row, confidence, resolvedVia: "surname-initial" };
     }
     if (!dbHasInitialOnly) {
-      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" MEDIUM (no initial, ${mp} matches)`);
-      return { stats: row, confidence: "medium" };
+      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" MEDIUM via SURNAME-ONLY (no initial, ${mp} matches)`);
+      return { stats: row, confidence: "medium", resolvedVia: "surname-only" };
     }
     console.log(`[AI Match] "${dbName}" \u2192 NONE (initial conflict: db="${dbInitial}" cric="${cricInitial}")`);
-    return { stats: null, confidence: "none" };
+    return { stats: null, confidence: "none", resolvedVia: "initial-conflict" };
   }
   const initialMatches = candidates.filter((c) => extractInitial(c.player_name) === dbInitial);
   if (initialMatches.length === 1) {
@@ -4086,19 +4116,14 @@ function matchPlayerToHistorical(dbName, cache) {
     const mp = row.matches_played;
     if (mp === 0) {
       console.log(`[AI Match] "${dbName}" \u2192 NONE (0 matches)`);
-      return { stats: null, confidence: "none" };
+      return { stats: null, confidence: "none", resolvedVia: "zero-matches" };
     }
     const confidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
-    console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (collision resolved, ${mp} matches)`);
-    return { stats: row, confidence };
+    console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} via COLLISION-RESOLVED (${mp} matches)`);
+    return { stats: row, confidence, resolvedVia: "collision-resolved" };
   }
-  const best = candidates.sort((a, b) => b.matches_played - a.matches_played)[0];
-  if (best.matches_played === 0) {
-    console.log(`[AI Match] "${dbName}" \u2192 NONE (0 matches)`);
-    return { stats: null, confidence: "none" };
-  }
-  console.log(`[AI Match] "${dbName}" \u2192 "${best.player_name}" LOW (collision unresolved, mp=${best.matches_played})`);
-  return { stats: best, confidence: "low" };
+  console.log(`[AI Match] "${dbName}" \u2192 NONE (collision unresolved \u2014 ${candidates.length} candidates, add to PLAYER_ALIASES)`);
+  return { stats: null, confidence: "none", resolvedVia: "collision-unresolved" };
 }
 async function registerRoutes(app2) {
   const PgStore = connectPgSimple(session);
@@ -4291,6 +4316,51 @@ async function registerRoutes(app2) {
       return res.status(500).json({ message: "Failed to save token" });
     }
   });
+  app2.get(
+    "/api/admin/ai-diagnostics/:matchId",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.matchId;
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        const historicalCache = await getHistoricalStatsCache();
+        const results = matchPlayers.map((p) => {
+          const { stats, confidence, resolvedVia } = matchPlayerToHistorical(p.name, historicalCache);
+          return {
+            name: p.name,
+            teamShort: p.teamShort,
+            role: p.role,
+            isPlayingXI: p.isPlayingXI,
+            confidence,
+            resolvedVia,
+            matched: stats !== null,
+            cricsheetName: stats?.player_name ?? null,
+            matchesPlayed: stats?.matches_played ?? 0,
+            avgCdoPoints: stats?.avg_cdo_points ?? 0
+          };
+        });
+        const matched = results.filter((r) => r.matched);
+        const unresolved = results.filter((r) => !r.matched);
+        const byConfidence = {
+          high: matched.filter((r) => r.confidence === "high").length,
+          medium: matched.filter((r) => r.confidence === "medium").length,
+          low: matched.filter((r) => r.confidence === "low").length
+        };
+        return res.json({
+          matchId,
+          totalPlayers: results.length,
+          matched: matched.length,
+          unresolved: unresolved.length,
+          byConfidence,
+          details: results,
+          unresolvedNames: unresolved.map((r) => r.name)
+        });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
   app2.post(
     "/api/admin/rebuild-historical-stats",
     isAuthenticated,
@@ -8565,7 +8635,7 @@ async function registerRoutes(app2) {
   const httpServer = createServer(app2);
   return httpServer;
 }
-var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache, ownershipCache, CACHE_TTL_NORMAL, CACHE_TTL_LOCK, CACHE_MAX_STALENESS, userTapCounters;
+var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache, ownershipCache, CACHE_TTL_NORMAL, CACHE_TTL_LOCK, CACHE_MAX_STALENESS, userTapCounters, PLAYER_ALIASES, canonicalCacheIndex;
 var init_routes = __esm({
   "server/routes.ts"() {
     "use strict";
@@ -8586,6 +8656,103 @@ var init_routes = __esm({
     CACHE_TTL_LOCK = 60 * 1e3;
     CACHE_MAX_STALENESS = 5 * 60 * 1e3;
     userTapCounters = {};
+    PLAYER_ALIASES = {
+      // RR
+      "yashasvi jaiswal": "YBK Jaiswal",
+      "y jaiswal": "YBK Jaiswal",
+      "ravindra jadeja": "RA Jadeja",
+      "r jadeja": "RA Jadeja",
+      "riyan parag": "R Parag",
+      "shimron hetmyer": "SO Hetmyer",
+      "s hetmyer": "SO Hetmyer",
+      "dhruv jurel": "Dhruv Jurel",
+      "jofra archer": "JC Archer",
+      "j archer": "JC Archer",
+      "donovan ferreira": "D Ferreira",
+      "nandre burger": "N Burger",
+      "n burger": "N Burger",
+      "ravi bishnoi": "Ravi Bishnoi",
+      "sandeep sharma": "Sandeep Sharma",
+      "vaibhav suryavanshi": "V Suryavanshi",
+      // RCB
+      "virat kohli": "V Kohli",
+      "v kohli": "V Kohli",
+      "rajat patidar": "RM Patidar",
+      "r patidar": "RM Patidar",
+      "devdutt padikkal": "D Padikkal",
+      "d padikkal": "D Padikkal",
+      "tim david": "TH David",
+      "t david": "TH David",
+      "romario shepherd": "R Shepherd",
+      "krunal pandya": "KH Pandya",
+      "k pandya": "KH Pandya",
+      "bhuvneshwar kumar": "B Kumar",
+      "b kumar": "B Kumar",
+      "josh hazlewood": "JR Hazlewood",
+      "j hazlewood": "JR Hazlewood",
+      "philip salt": "PD Salt",
+      "p salt": "PD Salt",
+      "jitesh sharma": "Jitesh Sharma",
+      "lhuan dre pretorious": "L Pretorius",
+      // Common IPL
+      "rohit sharma": "RG Sharma",
+      "r sharma": "RG Sharma",
+      "hardik pandya": "HH Pandya",
+      "h pandya": "HH Pandya",
+      "ms dhoni": "MS Dhoni",
+      "m dhoni": "MS Dhoni",
+      "shubman gill": "Shubman Gill",
+      "kl rahul": "KL Rahul",
+      "k rahul": "KL Rahul",
+      "suryakumar yadav": "SA Yadav",
+      "s yadav": "SA Yadav",
+      "ishan kishan": "I Kishan",
+      "i kishan": "I Kishan",
+      "shreyas iyer": "SS Iyer",
+      "s iyer": "SS Iyer",
+      "sanju samson": "SV Samson",
+      "s samson": "SV Samson",
+      "rishabh pant": "R Pant",
+      "david warner": "DA Warner",
+      "d warner": "DA Warner",
+      "pat cummins": "PJ Cummins",
+      "p cummins": "PJ Cummins",
+      "mitchell starc": "MA Starc",
+      "m starc": "MA Starc",
+      "travis head": "TM Head",
+      "t head": "TM Head",
+      "heinrich klaasen": "HE Klaasen",
+      "h klaasen": "HE Klaasen",
+      "abhishek sharma": "Abhishek Sharma",
+      "a sharma": "Abhishek Sharma",
+      "shardul thakur": "SN Thakur",
+      "s thakur": "SN Thakur",
+      "arshdeep singh": "Arshdeep Singh",
+      "mohammed siraj": "Mohammed Siraj",
+      "m siraj": "Mohammed Siraj",
+      "kuldeep yadav": "Kuldeep Yadav",
+      "yuzvendra chahal": "YS Chahal",
+      "y chahal": "YS Chahal",
+      "washington sundar": "W Sundar",
+      "w sundar": "W Sundar",
+      "deepak chahar": "DL Chahar",
+      "d chahar": "DL Chahar",
+      "mayank agarwal": "MA Agarwal",
+      "m agarwal": "MA Agarwal",
+      "prithvi shaw": "PS Shaw",
+      "p shaw": "PS Shaw",
+      "ambati rayudu": "AT Rayudu",
+      "a rayudu": "AT Rayudu",
+      "faf du plessis": "F du Plessis",
+      "quinton de kock": "Q de Kock",
+      "q de kock": "Q de Kock",
+      "glenn maxwell": "GJ Maxwell",
+      "g maxwell": "GJ Maxwell",
+      "adam gilchrist": "AC Gilchrist",
+      "dinesh karthik": "KD Karthik",
+      "d karthik": "KD Karthik"
+    };
+    canonicalCacheIndex = null;
   }
 });
 
