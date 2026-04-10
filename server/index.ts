@@ -1,9 +1,11 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { startOwnershipWorker } from "./routes";
 import { syncMatchesFromApi, mergeMatchDuplicates } from "./cricket-api";
 import { storage } from "./storage";
-import { connectWithRetry, markServerReady } from "./db";
+import { connectWithRetry, markServerReady, db } from "./db";
+import { sql } from "drizzle-orm";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -415,6 +417,16 @@ function setupErrorHandler(app: express.Application) {
   // This prevents the healthcheck from hitting a 500 during startup.
   await connectWithRetry(10, 3000);
   markServerReady();
+
+  // Start background ownership cache worker
+  startOwnershipWorker(async () => {
+    const upcoming = await db.execute(sql`
+      SELECT id FROM matches
+      WHERE status IN ('upcoming', 'live')
+      AND start_time > NOW() - INTERVAL '3 hours'
+    `);
+    return (upcoming.rows as any[]).map(r => r.id);
+  });
 
   server.listen(port, "0.0.0.0", () => {
     log(`express server listening on port ${port}`);

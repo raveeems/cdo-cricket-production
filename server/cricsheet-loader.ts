@@ -480,7 +480,10 @@ async function rebuildHistoricalStats(): Promise<void> {
         matches_played, total_cdo_points, avg_cdo_points,
         avg_powerplay_runs, avg_middle_runs, avg_death_runs,
         avg_powerplay_wickets, avg_death_wickets,
-        typical_batting_position, updated_at
+        typical_batting_position,
+        batting_position_certainty,
+        bowling_quota_certainty,
+        updated_at
       )
       SELECT
         player_name, team,
@@ -492,21 +495,37 @@ async function rebuildHistoricalStats(): Promise<void> {
         ROUND(AVG(death_runs)::numeric, 2)                   AS avg_death_runs,
         ROUND(AVG(powerplay_wickets)::numeric, 3)            AS avg_powerplay_wickets,
         ROUND(AVG(death_wickets)::numeric, 3)                AS avg_death_wickets,
-        COALESCE(ROUND(AVG(NULLIF(batting_position, 0))::numeric, 1), 0)  AS typical_batting_position,
+        COALESCE(ROUND(AVG(NULLIF(batting_position, 0))::numeric, 1), 0) AS typical_batting_position,
+        -- batting_position_certainty: % of last 10 matches where batted in positions 1-4
+        COALESCE(
+          ROUND(
+            (SUM(CASE WHEN batting_position BETWEEN 1 AND 4 THEN 1 ELSE 0 END)::float
+             / NULLIF(COUNT(*), 0)) ::numeric, 3
+          ), 0
+        ) AS batting_position_certainty,
+        -- bowling_quota_certainty: % of last 10 matches where bowled >= 3 overs
+        COALESCE(
+          ROUND(
+            (SUM(CASE WHEN overs_bowled >= 3 THEN 1 ELSE 0 END)::float
+             / NULLIF(COUNT(*), 0))::numeric, 3
+          ), 0
+        ) AS bowling_quota_certainty,
         NOW()
       FROM player_match_history
       GROUP BY player_name, team
       ON CONFLICT (player_name, team) DO UPDATE SET
-        matches_played            = EXCLUDED.matches_played,
-        total_cdo_points          = EXCLUDED.total_cdo_points,
-        avg_cdo_points            = EXCLUDED.avg_cdo_points,
-        avg_powerplay_runs        = EXCLUDED.avg_powerplay_runs,
-        avg_middle_runs           = EXCLUDED.avg_middle_runs,
-        avg_death_runs            = EXCLUDED.avg_death_runs,
-        avg_powerplay_wickets     = EXCLUDED.avg_powerplay_wickets,
-        avg_death_wickets         = EXCLUDED.avg_death_wickets,
-        typical_batting_position  = EXCLUDED.typical_batting_position,
-        updated_at                = NOW()
+        matches_played              = EXCLUDED.matches_played,
+        total_cdo_points            = EXCLUDED.total_cdo_points,
+        avg_cdo_points              = EXCLUDED.avg_cdo_points,
+        avg_powerplay_runs          = EXCLUDED.avg_powerplay_runs,
+        avg_middle_runs             = EXCLUDED.avg_middle_runs,
+        avg_death_runs              = EXCLUDED.avg_death_runs,
+        avg_powerplay_wickets       = EXCLUDED.avg_powerplay_wickets,
+        avg_death_wickets           = EXCLUDED.avg_death_wickets,
+        typical_batting_position    = EXCLUDED.typical_batting_position,
+        batting_position_certainty  = EXCLUDED.batting_position_certainty,
+        bowling_quota_certainty     = EXCLUDED.bowling_quota_certainty,
+        updated_at                  = NOW()
     `);
     console.log("[Cricsheet] player_historical_stats rebuilt.");
   } finally {

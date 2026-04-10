@@ -367,11 +367,15 @@ async function runMigrations() {
       );
     `);
     await client.query(`
+      ALTER TABLE player_historical_stats
+        ADD COLUMN IF NOT EXISTS batting_position_certainty FLOAT NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS bowling_quota_certainty FLOAT NOT NULL DEFAULT 0;
+
       CREATE INDEX IF NOT EXISTS idx_player_historical_stats_name
-      ON player_historical_stats(player_name);
+        ON player_historical_stats(player_name);
 
       CREATE INDEX IF NOT EXISTS idx_player_match_history_name_season
-      ON player_match_history(player_name, season);
+        ON player_match_history(player_name, season);
     `);
     console.log("[DB] Migrations complete.");
   } catch (err) {
@@ -3655,7 +3659,10 @@ async function rebuildHistoricalStats() {
         matches_played, total_cdo_points, avg_cdo_points,
         avg_powerplay_runs, avg_middle_runs, avg_death_runs,
         avg_powerplay_wickets, avg_death_wickets,
-        typical_batting_position, updated_at
+        typical_batting_position,
+        batting_position_certainty,
+        bowling_quota_certainty,
+        updated_at
       )
       SELECT
         player_name, team,
@@ -3667,21 +3674,37 @@ async function rebuildHistoricalStats() {
         ROUND(AVG(death_runs)::numeric, 2)                   AS avg_death_runs,
         ROUND(AVG(powerplay_wickets)::numeric, 3)            AS avg_powerplay_wickets,
         ROUND(AVG(death_wickets)::numeric, 3)                AS avg_death_wickets,
-        COALESCE(ROUND(AVG(NULLIF(batting_position, 0))::numeric, 1), 0)  AS typical_batting_position,
+        COALESCE(ROUND(AVG(NULLIF(batting_position, 0))::numeric, 1), 0) AS typical_batting_position,
+        -- batting_position_certainty: % of last 10 matches where batted in positions 1-4
+        COALESCE(
+          ROUND(
+            (SUM(CASE WHEN batting_position BETWEEN 1 AND 4 THEN 1 ELSE 0 END)::float
+             / NULLIF(COUNT(*), 0)) ::numeric, 3
+          ), 0
+        ) AS batting_position_certainty,
+        -- bowling_quota_certainty: % of last 10 matches where bowled >= 3 overs
+        COALESCE(
+          ROUND(
+            (SUM(CASE WHEN overs_bowled >= 3 THEN 1 ELSE 0 END)::float
+             / NULLIF(COUNT(*), 0))::numeric, 3
+          ), 0
+        ) AS bowling_quota_certainty,
         NOW()
       FROM player_match_history
       GROUP BY player_name, team
       ON CONFLICT (player_name, team) DO UPDATE SET
-        matches_played            = EXCLUDED.matches_played,
-        total_cdo_points          = EXCLUDED.total_cdo_points,
-        avg_cdo_points            = EXCLUDED.avg_cdo_points,
-        avg_powerplay_runs        = EXCLUDED.avg_powerplay_runs,
-        avg_middle_runs           = EXCLUDED.avg_middle_runs,
-        avg_death_runs            = EXCLUDED.avg_death_runs,
-        avg_powerplay_wickets     = EXCLUDED.avg_powerplay_wickets,
-        avg_death_wickets         = EXCLUDED.avg_death_wickets,
-        typical_batting_position  = EXCLUDED.typical_batting_position,
-        updated_at                = NOW()
+        matches_played              = EXCLUDED.matches_played,
+        total_cdo_points            = EXCLUDED.total_cdo_points,
+        avg_cdo_points              = EXCLUDED.avg_cdo_points,
+        avg_powerplay_runs          = EXCLUDED.avg_powerplay_runs,
+        avg_middle_runs             = EXCLUDED.avg_middle_runs,
+        avg_death_runs              = EXCLUDED.avg_death_runs,
+        avg_powerplay_wickets       = EXCLUDED.avg_powerplay_wickets,
+        avg_death_wickets           = EXCLUDED.avg_death_wickets,
+        typical_batting_position    = EXCLUDED.typical_batting_position,
+        batting_position_certainty  = EXCLUDED.batting_position_certainty,
+        bowling_quota_certainty     = EXCLUDED.bowling_quota_certainty,
+        updated_at                  = NOW()
     `);
     console.log("[Cricsheet] player_historical_stats rebuilt.");
   } finally {
@@ -3826,7 +3849,8 @@ var init_notifications = __esm({
 var routes_exports = {};
 __export(routes_exports, {
   invalidateHistoricalStatsCache: () => invalidateHistoricalStatsCache,
-  registerRoutes: () => registerRoutes
+  registerRoutes: () => registerRoutes,
+  startOwnershipWorker: () => startOwnershipWorker
 });
 import { createServer } from "node:http";
 import { eq as eq2, and as and2, sql as sql3, or, desc as desc2 } from "drizzle-orm";
@@ -3905,7 +3929,8 @@ async function getHistoricalStatsCache() {
     SELECT player_name, avg_cdo_points,
            avg_powerplay_runs, avg_middle_runs, avg_death_runs,
            avg_powerplay_wickets, avg_death_wickets,
-           typical_batting_position, matches_played
+           typical_batting_position, matches_played,
+           batting_position_certainty, bowling_quota_certainty
     FROM player_historical_stats
   `);
   const cache = /* @__PURE__ */ new Map();
@@ -3915,6 +3940,87 @@ async function getHistoricalStatsCache() {
   historicalStatsCache = cache;
   console.log(`[AI] Historical stats cache built \u2014 ${cache.size} players.`);
   return cache;
+}
+async function refreshOwnershipCache(matchId) {
+  try {
+    const rows = await db.execute(sql3`
+      SELECT ut.player_ids, ut.captain_id, ut.vice_captain_id
+      FROM user_teams ut
+      WHERE ut.match_id = ${matchId}
+    `);
+    const teams = rows.rows;
+    const teamCount = teams.length;
+    if (teamCount === 0) return;
+    const playerCounts = {};
+    const captainCounts = {};
+    const vcCounts = {};
+    for (const team of teams) {
+      const ids = team.player_ids || [];
+      for (const id of ids) playerCounts[id] = (playerCounts[id] || 0) + 1;
+      if (team.captain_id) captainCounts[team.captain_id] = (captainCounts[team.captain_id] || 0) + 1;
+      if (team.vice_captain_id) vcCounts[team.vice_captain_id] = (vcCounts[team.vice_captain_id] || 0) + 1;
+    }
+    const playerOwnership = {};
+    const captainOwnership = {};
+    const vcOwnership = {};
+    for (const [id, count] of Object.entries(playerCounts)) playerOwnership[id] = count / teamCount;
+    for (const [id, count] of Object.entries(captainCounts)) captainOwnership[id] = count / teamCount;
+    for (const [id, count] of Object.entries(vcCounts)) vcOwnership[id] = count / teamCount;
+    ownershipCache[matchId] = {
+      playerOwnership,
+      captainOwnership,
+      vcOwnership,
+      teamCount,
+      calculatedAt: Date.now(),
+      source: "real"
+    };
+  } catch (err) {
+    console.error(`[Ownership] Refresh failed for ${matchId}:`, err.message);
+  }
+}
+function getProxyOwnership(player) {
+  if (player.credits >= 9.5) return 0.65;
+  if (player.role === "WK") return 0.55;
+  const pos = player.battingPosition || 0;
+  if (pos >= 1 && pos <= 3) return 0.55;
+  if (pos >= 4 && pos <= 6) return 0.3;
+  if (player.role === "BOWL") return 0.45;
+  if (player.role === "AR") return 0.4;
+  return 0.2;
+}
+function getOwnershipForMatch(matchId, matchStartTime, players2) {
+  const cached = ownershipCache[matchId];
+  const now = Date.now();
+  const minsToStart = (new Date(matchStartTime).getTime() - now) / 6e4;
+  const ttl = minsToStart <= 20 ? CACHE_TTL_LOCK : CACHE_TTL_NORMAL;
+  if (!cached || now - cached.calculatedAt > CACHE_MAX_STALENESS) {
+    console.warn(`[Ownership] Cache dead/missing for ${matchId} \u2014 using proxy`);
+    const playerOwnership = {};
+    for (const p of players2) playerOwnership[p.id] = getProxyOwnership(p);
+    return { playerOwnership, captainOwnership: {}, vcOwnership: {}, teamCount: 0, calculatedAt: now, source: "proxy" };
+  }
+  if (now - cached.calculatedAt > ttl) {
+    console.warn(`[Ownership] Cache stale for ${matchId} \u2014 serving stale, triggering refresh`);
+    refreshOwnershipCache(matchId).catch(() => {
+    });
+  }
+  return cached;
+}
+function startOwnershipWorker(getUpcomingMatchIds) {
+  setInterval(async () => {
+    try {
+      const matchIds = await getUpcomingMatchIds();
+      for (const matchId of matchIds) await refreshOwnershipCache(matchId);
+    } catch (err) {
+      console.error("[Ownership] Worker error:", err.message);
+    }
+  }, CACHE_TTL_NORMAL);
+  console.log("[Ownership] Background worker started.");
+}
+function getAiMode(userId) {
+  const count = (userTapCounters[userId] || 0) + 1;
+  userTapCounters[userId] = count;
+  return count % 2 === 0 ? "differential" : "safe";
 }
 function extractSurname(name) {
   return name.trim().split(/\s+/).pop()?.toLowerCase() || "";
@@ -3932,15 +4038,13 @@ function matchPlayerToHistorical(dbName, cache) {
   const dbHasInitialOnly = dbName.trim().split(/\s+/).length <= 2 && dbName.trim().split(/\s+/)[0].length <= 2;
   const candidates = [];
   for (const row of cache.values()) {
-    if (extractSurname(row.player_name) === dbSurname) {
-      candidates.push(row);
-    }
+    if (extractSurname(row.player_name) === dbSurname) candidates.push(row);
   }
   if (candidates.length === 0) {
     for (const row of cache.values()) {
       if (normalizeName2(row.player_name) === dbNormalized) {
         const mp = row.matches_played;
-        const confidence = mp >= 10 ? "medium" : mp >= 5 ? "medium" : "low";
+        const confidence = mp >= 5 ? "medium" : "low";
         console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (normalized, ${mp} matches)`);
         return { stats: row, confidence };
       }
@@ -3953,7 +4057,7 @@ function matchPlayerToHistorical(dbName, cache) {
     const cricInitial = extractInitial(row.player_name);
     const mp = row.matches_played;
     if (mp === 0) {
-      console.log(`[AI Match] "${dbName}" \u2192 NONE (0 Cricsheet matches)`);
+      console.log(`[AI Match] "${dbName}" \u2192 NONE (0 matches)`);
       return { stats: null, confidence: "none" };
     }
     if (dbInitial === cricInitial) {
@@ -3962,7 +4066,7 @@ function matchPlayerToHistorical(dbName, cache) {
       return { stats: row, confidence };
     }
     if (!dbHasInitialOnly) {
-      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" MEDIUM (no initial to compare, ${mp} matches)`);
+      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" MEDIUM (no initial, ${mp} matches)`);
       return { stats: row, confidence: "medium" };
     }
     console.log(`[AI Match] "${dbName}" \u2192 NONE (initial conflict: db="${dbInitial}" cric="${cricInitial}")`);
@@ -3973,19 +4077,19 @@ function matchPlayerToHistorical(dbName, cache) {
     const row = initialMatches[0];
     const mp = row.matches_played;
     if (mp === 0) {
-      console.log(`[AI Match] "${dbName}" \u2192 NONE (0 Cricsheet matches)`);
+      console.log(`[AI Match] "${dbName}" \u2192 NONE (0 matches)`);
       return { stats: null, confidence: "none" };
     }
     const confidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
-    console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (collision resolved by initial, ${mp} matches)`);
+    console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (collision resolved, ${mp} matches)`);
     return { stats: row, confidence };
   }
   const best = candidates.sort((a, b) => b.matches_played - a.matches_played)[0];
   if (best.matches_played === 0) {
-    console.log(`[AI Match] "${dbName}" \u2192 NONE (collision unresolved, 0 matches)`);
+    console.log(`[AI Match] "${dbName}" \u2192 NONE (0 matches)`);
     return { stats: null, confidence: "none" };
   }
-  console.log(`[AI Match] "${dbName}" \u2192 "${best.player_name}" LOW (collision unresolved, picked highest matches_played=${best.matches_played})`);
+  console.log(`[AI Match] "${dbName}" \u2192 "${best.player_name}" LOW (collision unresolved, mp=${best.matches_played})`);
   return { stats: best, confidence: "low" };
 }
 async function registerRoutes(app2) {
@@ -5078,67 +5182,77 @@ async function registerRoutes(app2) {
     async (req, res) => {
       try {
         let tryBuildTeam2 = function(pool2) {
-          const picked2 = [];
+          const picked = [];
           const roleCounts = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
           const teamCounts = {};
           let credits = 0;
           for (const role of ["WK", "BAT", "AR", "BOWL"]) {
             const best = pool2.find(
-              (p) => p.role === role && !picked2.find((x) => x.id === p.id) && (teamCounts[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && credits + p.credits <= CREDIT_CAP
+              (p) => p.role === role && !picked.find((x) => x.id === p.id) && (teamCounts[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && credits + p.credits <= CREDIT_CAP
             );
             if (best) {
-              picked2.push(best);
+              picked.push(best);
               roleCounts[best.role]++;
               teamCounts[best.teamShort] = (teamCounts[best.teamShort] || 0) + 1;
               credits += best.credits;
             }
           }
           for (const p of pool2) {
-            if (picked2.length >= 11) break;
-            if (picked2.find((x) => x.id === p.id)) continue;
+            if (picked.length >= 11) break;
+            if (picked.find((x) => x.id === p.id)) continue;
             if (roleCounts[p.role] >= ROLE_LIMITS[p.role].max) continue;
             if ((teamCounts[p.teamShort] || 0) >= MAX_FROM_ONE_TEAM) continue;
             if (credits + p.credits > CREDIT_CAP) continue;
-            picked2.push(p);
+            picked.push(p);
             roleCounts[p.role]++;
             teamCounts[p.teamShort] = (teamCounts[p.teamShort] || 0) + 1;
             credits += p.credits;
           }
-          return picked2.length === 11 ? picked2 : null;
-        }, seededRandom2 = function(seed, index) {
-          let hash = 0;
-          const str = seed + index;
-          for (let i = 0; i < str.length; i++) {
-            hash = (hash << 5) - hash + str.charCodeAt(i);
-            hash |= 0;
-          }
-          return Math.abs(hash) / 2147483647;
+          return picked.length === 11 ? picked : null;
+        }, assignCaptains2 = function(team, ownerData, differential) {
+          const cvSorted = [...team].sort((a, b) => {
+            if (Math.abs(b.aiScore - a.aiScore) < 5) {
+              if (b.role === "AR" && a.role !== "AR") return 1;
+              if (a.role === "AR" && b.role !== "AR") return -1;
+            }
+            return b.aiScore - a.aiScore;
+          });
+          if (!differential || !ownerData) return { captainId: cvSorted[0].id, vcId: cvSorted[1].id };
+          const topScore = cvSorted[0].aiScore;
+          const leverageCandidate = team.find((p) => {
+            const own = ownerData.playerOwnership[p.id] ?? 0;
+            const hist = historicalCache.get(p.name);
+            const roleCertainty = (hist?.batting_position_certainty ?? 0) >= 0.6 || (hist?.bowling_quota_certainty ?? 0) >= 0.6;
+            return own < 0.25 && p.aiScore >= topScore * 0.85 && roleCertainty && p.id !== cvSorted[0].id;
+          });
+          return leverageCandidate ? { captainId: leverageCandidate.id, vcId: cvSorted[0].id } : { captainId: cvSorted[0].id, vcId: cvSorted[1].id };
+        }, calcTeamProjection2 = function(team, captainId, vcId) {
+          return team.reduce((sum, p) => sum + p.aiScore * (p.id === captainId ? 2 : p.id === vcId ? 1.5 : 1), 0);
         };
-        var tryBuildTeam = tryBuildTeam2, seededRandom = seededRandom2;
+        var tryBuildTeam = tryBuildTeam2, assignCaptains = assignCaptains2, calcTeamProjection = calcTeamProjection2;
         const matchId = req.params.id;
         const userId = req.session.userId;
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
         const matchPlayers = await storage.getPlayersForMatch(matchId);
-        const team1Players = matchPlayers.filter(
+        const team1XI = matchPlayers.filter(
           (p) => p.teamShort === match.team1Short && p.isPlayingXI === true
         );
-        const team2Players = matchPlayers.filter(
+        const team2XI = matchPlayers.filter(
           (p) => p.teamShort === match.team2Short && p.isPlayingXI === true
         );
-        const xiPool = [...team1Players, ...team2Players];
-        const gatePass = team1Players.length >= 11 && team2Players.length >= 11 && xiPool.some((p) => p.role === "WK") && xiPool.some((p) => p.role === "BAT") && xiPool.some((p) => p.role === "AR") && xiPool.some((p) => p.role === "BOWL");
+        const xiPool = [...team1XI, ...team2XI];
+        const gatePass = team1XI.length >= 11 && team2XI.length >= 11 && xiPool.some((p) => p.role === "WK") && xiPool.some((p) => p.role === "BAT") && xiPool.some((p) => p.role === "AR") && xiPool.some((p) => p.role === "BOWL");
         if (!gatePass) {
           return res.json({
             fallback: true,
-            reason: "Playing XI not fully announced yet \u2014 using Smart Pick instead."
+            reason: "Playing XI not fully announced \u2014 using Smart Pick instead."
           });
         }
+        const mode = getAiMode(userId);
         const xiPlayerNames = xiPool.map((p) => p.name);
         const [historicalCache, formRows, h2hMatches] = await Promise.all([
-          // Historical stats — from in-memory cache
           getHistoricalStatsCache(),
-          // Form data — single batched query (N+1 eliminated)
           match.tournamentName ? db.execute(sql3`
             SELECT p.name, p.team_short, p.points, m.start_time
             FROM players p
@@ -5147,104 +5261,88 @@ async function registerRoutes(app2) {
               AND m.tournament_name = ${match.tournamentName}
               AND m.status = 'completed'
               AND m.id != ${matchId}
-            ORDER BY m.start_time DESC
+            ORDER BY p.name, m.start_time DESC
           `) : Promise.resolve({ rows: [] }),
-          // H2H — all seasons
-          db.select({ id: matches.id, startTime: matches.startTime }).from(matches).where(
-            and2(
-              eq2(matches.status, "completed"),
-              sql3`(
-                  (${matches.team1Short} = ${match.team1Short} AND ${matches.team2Short} = ${match.team2Short})
-                  OR
-                  (${matches.team1Short} = ${match.team2Short} AND ${matches.team2Short} = ${match.team1Short})
-                )`,
-              sql3`${matches.id} != ${matchId}`
-            )
-          ).orderBy(sql3`${matches.startTime} DESC`)
+          db.select({ id: matches.id, startTime: matches.startTime }).from(matches).where(and2(
+            eq2(matches.status, "completed"),
+            sql3`(
+                (${matches.team1Short} = ${match.team1Short} AND ${matches.team2Short} = ${match.team2Short})
+                OR
+                (${matches.team1Short} = ${match.team2Short} AND ${matches.team2Short} = ${match.team1Short})
+              )`,
+            sql3`${matches.id} != ${matchId}`
+          )).orderBy(sql3`${matches.startTime} DESC`)
         ]);
         const formMap = /* @__PURE__ */ new Map();
         const formByPlayer = /* @__PURE__ */ new Map();
         for (const row of formRows.rows) {
           const key = `${row.name}|${row.team_short}`;
           if (!formByPlayer.has(key)) formByPlayer.set(key, []);
-          if (formByPlayer.get(key).length < 5) {
-            formByPlayer.get(key).push(row.points ?? 0);
-          }
+          if (formByPlayer.get(key).length < 5) formByPlayer.get(key).push(row.points ?? 0);
         }
-        const weights = [0.3, 0.25, 0.2, 0.15, 0.1];
+        const formWeights = [0.3, 0.25, 0.2, 0.15, 0.1];
         for (const [key, pts] of formByPlayer.entries()) {
-          let weightedSum = 0, weightTotal = 0;
+          let ws = 0, wt = 0;
           for (let i = 0; i < pts.length; i++) {
-            const w = weights[i] ?? 0.1;
-            weightedSum += pts[i] * w;
-            weightTotal += w;
+            ws += pts[i] * (formWeights[i] ?? 0.1);
+            wt += formWeights[i] ?? 0.1;
           }
-          formMap.set(key, weightTotal > 0 ? weightedSum / weightTotal : 0);
+          formMap.set(key, wt > 0 ? ws / wt : 0);
         }
         const h2hMap = /* @__PURE__ */ new Map();
         if (h2hMatches.length > 0) {
           const recentH2HIds = new Set(h2hMatches.slice(0, 4).map((m) => m.id));
           const h2hMatchIds = h2hMatches.map((m) => m.id);
-          const h2hRows = await db.select({
-            name: players.name,
-            teamShort: players.teamShort,
-            points: players.points,
-            matchId: players.matchId
-          }).from(players).where(
-            sql3`${players.matchId} = ANY(ARRAY[${sql3.join(
-              h2hMatchIds.map((id) => sql3`${id}`),
-              sql3`, `
-            )}]::text[])`
-          );
+          const h2hRows = await db.select({ name: players.name, teamShort: players.teamShort, points: players.points, matchId: players.matchId }).from(players).where(sql3`${players.matchId} = ANY(ARRAY[${sql3.join(h2hMatchIds.map((id) => sql3`${id}`), sql3`, `)}]::text[])`);
           const h2hByPlayer = /* @__PURE__ */ new Map();
           for (const row of h2hRows) {
             const key = `${row.name}|${row.teamShort}`;
-            const weight = recentH2HIds.has(row.matchId) ? 2 : 1;
+            const w = recentH2HIds.has(row.matchId) ? 2 : 1;
             if (!h2hByPlayer.has(key)) h2hByPlayer.set(key, { sum: 0, count: 0 });
-            const entry = h2hByPlayer.get(key);
-            entry.sum += (row.points ?? 0) * weight;
-            entry.count += weight;
+            h2hByPlayer.get(key).sum += (row.points ?? 0) * w;
+            h2hByPlayer.get(key).count += w;
           }
-          for (const [key, { sum, count }] of h2hByPlayer.entries()) {
-            h2hMap.set(key, count > 0 ? sum / count : 0);
-          }
+          for (const [key, { sum, count }] of h2hByPlayer.entries()) h2hMap.set(key, count > 0 ? sum / count : 0);
         }
-        const roleAvgMap = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
-        const roleCounts2 = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const roleAvgMap = {
+          WK: { sum: 0, count: 0 },
+          BAT: { sum: 0, count: 0 },
+          AR: { sum: 0, count: 0 },
+          BOWL: { sum: 0, count: 0 }
+        };
         for (const p of xiPool) {
-          const match2 = matchPlayerToHistorical(p.name, historicalCache);
-          if (match2.stats && match2.confidence !== "none") {
-            roleAvgMap[p.role] = (roleAvgMap[p.role] || 0) + match2.stats.avg_cdo_points;
-            roleCounts2[p.role]++;
+          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache);
+          if (stats && confidence !== "none" && roleAvgMap[p.role]) {
+            roleAvgMap[p.role].sum += stats.avg_cdo_points;
+            roleAvgMap[p.role].count++;
           }
         }
+        const roleDefaults = {};
         for (const role of ["WK", "BAT", "AR", "BOWL"]) {
-          roleAvgMap[role] = roleCounts2[role] > 0 ? roleAvgMap[role] / roleCounts2[role] : 20;
+          roleDefaults[role] = roleAvgMap[role].count > 0 ? roleAvgMap[role].sum / roleAvgMap[role].count : 20;
         }
         const scored = xiPool.map((p) => {
           const key = `${p.name}|${p.teamShort}`;
           const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache);
-          const careerAvg = stats ? stats.avg_cdo_points : roleAvgMap[p.role];
+          const careerAvg = stats ? stats.avg_cdo_points : roleDefaults[p.role];
           const careerWeight = confidence === "high" ? 0.3 : confidence === "medium" ? 0.2 : confidence === "low" ? 0.15 : 0;
           const formWeight = 1 - careerWeight - 0.15;
-          const formScore = formMap.get(key) ?? 0;
-          const h2hScore = h2hMap.get(key) ?? 0;
           let phaseBonus = 0;
           if (stats) {
             const pos = stats.typical_batting_position || 0;
             if (p.role === "BAT" || p.role === "AR" || p.role === "WK") {
-              let batBonus = 0;
+              let b = 0;
               if (pos >= 1 && pos <= 2) {
                 const r = stats.avg_powerplay_runs;
-                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+                b = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
               } else if (pos >= 3 && pos <= 5) {
                 const r = stats.avg_middle_runs;
-                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+                b = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
               } else if (pos >= 6 && pos <= 8) {
                 const r = stats.avg_death_runs;
-                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+                b = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
               }
-              phaseBonus += batBonus;
+              phaseBonus += b;
             }
             if (p.role === "BOWL" || p.role === "AR") {
               const ppW = stats.avg_powerplay_wickets;
@@ -5254,8 +5352,9 @@ async function registerRoutes(app2) {
             }
             phaseBonus = Math.min(phaseBonus, 20);
           }
-          const aiScore = careerWeight * careerAvg + formWeight * formScore + 0.15 * h2hScore + phaseBonus;
-          return { ...p, aiScore, confidence, careerAvg };
+          const ceilingScore = stats && stats.matches_played >= 3 ? stats.avg_cdo_points * 1.8 : careerAvg * 1.5;
+          const aiScore = careerWeight * careerAvg + formWeight * (formMap.get(key) ?? 0) + 0.15 * (h2hMap.get(key) ?? 0) + phaseBonus;
+          return { ...p, aiScore, confidence, careerAvg, ceilingScore };
         });
         scored.sort((a, b) => b.aiScore - a.aiScore);
         const ROLE_LIMITS = {
@@ -5266,81 +5365,148 @@ async function registerRoutes(app2) {
         };
         const MAX_FROM_ONE_TEAM = 6;
         const CREDIT_CAP = 100;
-        let picked = tryBuildTeam2(scored);
-        if (!picked) {
-          const MAX_RETRIES = 3;
-          for (let retry = 0; retry < MAX_RETRIES; retry++) {
-            const roleCritical = /* @__PURE__ */ new Set();
-            const roleSeenCount = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
-            const sortedByScore = [...scored].sort((a, b) => a.aiScore - b.aiScore);
-            for (const role of ["WK", "BAT", "AR", "BOWL"]) {
-              roleSeenCount[role] = scored.filter((p) => p.role === role).length;
-            }
-            const dropCandidate = sortedByScore.find((p) => roleSeenCount[p.role] > 1);
-            if (!dropCandidate) break;
-            const reducedPool = scored.filter((p) => p.id !== dropCandidate.id);
-            picked = tryBuildTeam2(reducedPool);
-            if (picked) break;
+        let safeTeam = tryBuildTeam2(scored);
+        if (!safeTeam) {
+          for (let retry = 0; retry < 3; retry++) {
+            const rc = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+            for (const p of scored) rc[p.role]++;
+            const drop = [...scored].sort((a, b) => a.aiScore - b.aiScore).find((p) => rc[p.role] > 1);
+            if (!drop) break;
+            safeTeam = tryBuildTeam2(scored.filter((p) => p.id !== drop.id));
+            if (safeTeam) break;
           }
         }
-        if (!picked) {
-          return res.status(422).json({
-            message: "Could not build a valid AI team \u2014 try Smart Pick instead."
-          });
-        }
-        const clickSeed = userId + Date.now().toString();
-        const pickedIds = new Set(picked.map((p) => p.id));
-        const swapCandidates = picked.filter(
-          (p) => p.careerAvg < 20 || (historicalCache.get(p.name)?.matches_played ?? 0) < 10
-        );
+        if (!safeTeam) return res.status(422).json({ message: "Could not build a valid AI team." });
+        const safeOwnership = mode === "differential" ? getOwnershipForMatch(matchId, match.startTime, xiPool) : null;
+        const { captainId: safeCaptainId, vcId: safeVcId } = assignCaptains2(safeTeam, null, false);
+        const safeProjection = calcTeamProjection2(safeTeam, safeCaptainId, safeVcId);
+        let finalTeam = safeTeam;
+        let finalCaptainId = safeCaptainId;
+        let finalVcId = safeVcId;
+        let modeDowngraded = false;
+        let downgradeReason = "";
+        let chalkDropped = null;
+        let replacementChosen = null;
         let swapsApplied = 0;
-        for (let i = 0; i < swapCandidates.length; i++) {
-          if (swapsApplied >= 3) break;
-          if (seededRandom2(clickSeed, i) > 0.3) continue;
-          const outPlayer = swapCandidates[i];
-          const creditsWithout = picked.reduce(
-            (s, p) => s + (p.id === outPlayer.id ? 0 : p.credits),
-            0
-          );
-          const teamCountsWithout = {};
-          const roleCountsWithout = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
-          for (const p of picked) {
-            if (p.id === outPlayer.id) continue;
-            teamCountsWithout[p.teamShort] = (teamCountsWithout[p.teamShort] || 0) + 1;
-            roleCountsWithout[p.role]++;
+        if (mode === "differential" && safeOwnership) {
+          const ownerData = safeOwnership;
+          const chalkThresholds = [0.75, 0.6, 0.4];
+          let chalkCandidates = [];
+          for (const threshold of chalkThresholds) {
+            chalkCandidates = safeTeam.filter((p) => (ownerData.playerOwnership[p.id] ?? getProxyOwnership(p)) >= threshold);
+            if (chalkCandidates.length > 0) break;
           }
-          const alternative = scored.find(
-            (p) => !pickedIds.has(p.id) && p.role === outPlayer.role && (teamCountsWithout[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && creditsWithout + p.credits <= CREDIT_CAP && roleCountsWithout[p.role] < ROLE_LIMITS[p.role].max
+          if (chalkCandidates.length === 0) {
+            modeDowngraded = true;
+            downgradeReason = "no chalk candidates";
+          }
+          if (!modeDowngraded) {
+            let differentialTeam = null;
+            for (const chalkPlayer of chalkCandidates) {
+              const rc3 = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+              for (const p of safeTeam) rc3[p.role]++;
+              if (rc3[chalkPlayer.role] <= 1) continue;
+              const ownerThresholds = [0.2, 0.3, 0.4, 1];
+              let replacement = null;
+              for (const ownerThreshold of ownerThresholds) {
+                const teamWithout = safeTeam.filter((p) => p.id !== chalkPlayer.id);
+                const creditsWithout = teamWithout.reduce((s, p) => s + p.credits, 0);
+                const twc = {};
+                const rwc = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+                for (const p of teamWithout) {
+                  twc[p.teamShort] = (twc[p.teamShort] || 0) + 1;
+                  rwc[p.role]++;
+                }
+                replacement = scored.find((p) => {
+                  const own = ownerData.playerOwnership[p.id] ?? getProxyOwnership(p);
+                  const chalkOwn = ownerData.playerOwnership[chalkPlayer.id] ?? getProxyOwnership(chalkPlayer);
+                  return !safeTeam.find((x) => x.id === p.id) && p.role === chalkPlayer.role && own < ownerThreshold && own < chalkOwn && (twc[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && creditsWithout + p.credits <= CREDIT_CAP && rwc[p.role] < ROLE_LIMITS[p.role].max;
+                }) || null;
+                if (replacement) break;
+              }
+              if (!replacement) continue;
+              const candidateTeam = safeTeam.map((p) => p.id === chalkPlayer.id ? replacement : p);
+              const { captainId: diffCaptainId, vcId: diffVcId } = assignCaptains2(candidateTeam, ownerData, true);
+              const diffProjection = calcTeamProjection2(candidateTeam, diffCaptainId, diffVcId);
+              const guardrailRatio = swapsApplied === 0 ? 0.93 : swapsApplied === 1 ? 0.9 : 0.87;
+              if (diffProjection < safeProjection * guardrailRatio) {
+                downgradeReason = `projection ${(diffProjection / safeProjection * 100).toFixed(1)}% below guardrail`;
+                continue;
+              }
+              differentialTeam = candidateTeam;
+              finalCaptainId = diffCaptainId;
+              finalVcId = diffVcId;
+              chalkDropped = chalkPlayer.name;
+              replacementChosen = replacement.name;
+              swapsApplied++;
+              break;
+            }
+            if (!differentialTeam) {
+              modeDowngraded = true;
+              downgradeReason = downgradeReason || "no valid differential swap found";
+            } else {
+              finalTeam = differentialTeam;
+            }
+          }
+          if (modeDowngraded) {
+            finalCaptainId = safeCaptainId;
+            finalVcId = safeVcId;
+          }
+        } else {
+          finalCaptainId = safeCaptainId;
+          finalVcId = safeVcId;
+        }
+        if (mode === "safe" || modeDowngraded) {
+          let seededRandom2 = function(seed, index) {
+            let hash = 0;
+            const str = seed + index;
+            for (let i = 0; i < str.length; i++) {
+              hash = (hash << 5) - hash + str.charCodeAt(i);
+              hash |= 0;
+            }
+            return Math.abs(hash) / 2147483647;
+          };
+          var seededRandom = seededRandom2;
+          const clickSeed = userId + Date.now().toString();
+          const pickedIds = new Set(finalTeam.map((p) => p.id));
+          const swapCandidates = finalTeam.filter(
+            (p) => p.careerAvg < 20 || (historicalCache.get(p.name)?.matches_played ?? 0) < 10
           );
-          if (alternative) {
-            const idx = picked.findIndex((p) => p.id === outPlayer.id);
-            picked[idx] = alternative;
-            pickedIds.delete(outPlayer.id);
-            pickedIds.add(alternative.id);
-            swapsApplied++;
+          let safeSwaps = 0;
+          for (let i = 0; i < swapCandidates.length; i++) {
+            if (safeSwaps >= 3) break;
+            if (seededRandom2(clickSeed, i) > 0.3) continue;
+            const out = swapCandidates[i];
+            const creditsWithout = finalTeam.reduce((s, p) => s + (p.id === out.id ? 0 : p.credits), 0);
+            const twc = {};
+            const rwc = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+            for (const p of finalTeam) {
+              if (p.id === out.id) continue;
+              twc[p.teamShort] = (twc[p.teamShort] || 0) + 1;
+              rwc[p.role]++;
+            }
+            const alt = scored.find(
+              (p) => !pickedIds.has(p.id) && p.role === out.role && (twc[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && creditsWithout + p.credits <= CREDIT_CAP && rwc[p.role] < ROLE_LIMITS[p.role].max
+            );
+            if (alt) {
+              const idx = finalTeam.findIndex((p) => p.id === out.id);
+              finalTeam = [...finalTeam];
+              finalTeam[idx] = alt;
+              pickedIds.delete(out.id);
+              pickedIds.add(alt.id);
+              safeSwaps++;
+            }
           }
         }
-        const cvSorted = [...picked].sort((a, b) => {
-          if (Math.abs(b.aiScore - a.aiScore) < 5) {
-            const aIsAR = a.role === "AR" ? 1 : 0;
-            const bIsAR = b.role === "AR" ? 1 : 0;
-            if (bIsAR !== aIsAR) return bIsAR - aIsAR;
-          }
-          return b.aiScore - a.aiScore;
-        });
-        const captainId = cvSorted[0].id;
-        const viceCaptainId = cvSorted[1].id;
-        const highCount = scored.filter(
-          (p) => matchPlayerToHistorical(p.name, historicalCache).confidence === "high"
-        ).length;
-        const hasForm = formMap.size > 0;
-        const hasH2H = h2hMap.size > 0;
+        const finalProjection = calcTeamProjection2(finalTeam, finalCaptainId, finalVcId);
+        const highCount = scored.filter((p) => matchPlayerToHistorical(p.name, historicalCache).confidence === "high").length;
+        console.log(`[AI] matchId=${matchId} mode=${mode} downgraded=${modeDowngraded} reason="${downgradeReason}" chalk="${chalkDropped}" replacement="${replacementChosen}" swaps=${swapsApplied} safeProjection=${safeProjection.toFixed(1)} finalProjection=${finalProjection.toFixed(1)} guardrailRatio=${(finalProjection / safeProjection).toFixed(2)} ownership=${safeOwnership?.source ?? "n/a"} teamCount=${safeOwnership?.teamCount ?? 0} highConf=${highCount}`);
         return res.json({
           fallback: false,
-          playerIds: picked.map((p) => p.id),
-          captainId,
-          viceCaptainId,
-          reason: `AI Pick: ${highCount} players matched${hasForm ? " + 2026 form" : ""}${hasH2H ? " + H2H data" : ""}`
+          playerIds: finalTeam.map((p) => p.id),
+          captainId: finalCaptainId,
+          viceCaptainId: finalVcId,
+          reason: `AI Pick: ${highCount} players matched${formMap.size > 0 ? " + 2026 form" : ""}${h2hMap.size > 0 ? " + H2H data" : ""}`
         });
       } catch (err) {
         console.error("AI team error:", err);
@@ -8375,7 +8541,7 @@ async function registerRoutes(app2) {
   const httpServer = createServer(app2);
   return httpServer;
 }
-var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache;
+var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache, ownershipCache, CACHE_TTL_NORMAL, CACHE_TTL_LOCK, CACHE_MAX_STALENESS, userTapCounters;
 var init_routes = __esm({
   "server/routes.ts"() {
     "use strict";
@@ -8391,15 +8557,22 @@ var init_routes = __esm({
     squadFetchBackoff = /* @__PURE__ */ new Map();
     SQUAD_BACKOFF_MS = 60 * 60 * 1e3;
     historicalStatsCache = null;
+    ownershipCache = {};
+    CACHE_TTL_NORMAL = 2 * 60 * 1e3;
+    CACHE_TTL_LOCK = 60 * 1e3;
+    CACHE_MAX_STALENESS = 5 * 60 * 1e3;
+    userTapCounters = {};
   }
 });
 
 // server/index.ts
 init_routes();
+init_routes();
 init_cricket_api();
 init_storage();
 init_db();
 import express from "express";
+import { sql as sql4 } from "drizzle-orm";
 import * as fs from "fs";
 import * as path from "path";
 var app = express();
@@ -8706,6 +8879,14 @@ function setupErrorHandler(app2) {
   const port = Number(process.env.PORT) || 3e3;
   await connectWithRetry(10, 3e3);
   markServerReady();
+  startOwnershipWorker(async () => {
+    const upcoming = await db.execute(sql4`
+      SELECT id FROM matches
+      WHERE status IN ('upcoming', 'live')
+      AND start_time > NOW() - INTERVAL '3 hours'
+    `);
+    return upcoming.rows.map((r) => r.id);
+  });
   server.listen(port, "0.0.0.0", () => {
     log(`express server listening on port ${port}`);
     log(`express server fully ready on port ${port}`);
