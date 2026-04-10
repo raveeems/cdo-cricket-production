@@ -5257,7 +5257,7 @@ async function registerRoutes(app2) {
             SELECT p.name, p.team_short, p.points, m.start_time
             FROM players p
             INNER JOIN matches m ON p.match_id = m.id
-            WHERE p.name = ANY(${xiPlayerNames})
+            WHERE p.name = ANY(ARRAY[${sql3.join(xiPlayerNames.map((n) => sql3`${n}`), sql3`, `)}])
               AND m.tournament_name = ${match.tournamentName}
               AND m.status = 'completed'
               AND m.id != ${matchId}
