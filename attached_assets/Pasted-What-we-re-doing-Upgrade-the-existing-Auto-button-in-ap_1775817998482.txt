@@ -1,0 +1,78 @@
+What we're doing: Upgrade the existing Auto button in app/create-team/[matchId].tsx to run AI Pick logic first. No new button. Just smarter behavior under the hood.
+
+Open app/create-team/[matchId].tsx.
+
+Change 1 — Add aiPickLoading state.
+Find this exact line:
+tsconst [captainId, setCaptainId] = useState<string | null>(() => editingTeam?.captainId || null);
+Add this line directly below it:
+tsconst [aiPickLoading, setAiPickLoading] = useState(false);
+
+Change 2 — Replace handleAutoSelect with upgraded version.
+Find this exact line:
+tsconst handleAutoSelect = async () => {
+Add this entire block directly above it:
+tsconst handleAiPick = async () => {
+  if (!match || aiPickLoading) return;
+  setAiPickLoading(true);
+  try {
+    const res = await apiRequest('GET', `/api/matches/${matchId}/ai-team`);
+    if (res.ok) {
+      const data = await res.json();
+      if (!data.fallback && data.playerIds && data.playerIds.length === 11) {
+        setSelectedIds(new Set<string>(data.playerIds));
+        if (data.captainId) setCaptainId(data.captainId);
+        if (data.viceCaptainId) setVcId(data.viceCaptainId);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showSelectionWarning(data.reason || 'AI team selected');
+        return;
+      }
+    }
+    // Fallback to existing smart/random pick
+    await handleAutoSelect();
+  } catch (e) {
+    await handleAutoSelect();
+  } finally {
+    setAiPickLoading(false);
+  }
+};
+
+Change 3 — Update the button to call handleAiPick and rename label.
+Find this exact block:
+tsx            <Pressable
+              onPress={handleAutoSelect}
+              style={({ pressed }) => ({
+                backgroundColor: pressed ? '#E6C200' : '#FFD700',
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+              })}
+            >
+              <Ionicons name="flash" size={14} color="#000" />
+              <Text style={{ color: '#000', fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>Auto</Text>
+            </Pressable>
+Replace it with:
+tsx            <Pressable
+              onPress={handleAiPick}
+              disabled={aiPickLoading}
+              style={({ pressed }) => ({
+                backgroundColor: pressed || aiPickLoading ? '#E6C200' : '#FFD700',
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                opacity: aiPickLoading ? 0.7 : 1,
+              })}
+            >
+              <Ionicons name="flash" size={14} color="#000" />
+              <Text style={{ color: '#000', fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>
+                {aiPickLoading ? 'Picking...' : 'AI Pick'}
+              </Text>
+            </Pressable>
+
+Then rebuild frontend and push
