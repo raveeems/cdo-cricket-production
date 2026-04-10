@@ -4979,6 +4979,247 @@ async function registerRoutes(app2) {
     }
   );
   app2.get(
+    "/api/matches/:id/ai-team",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        let getPhaseBonus2 = function(hist, role) {
+          let bonus = 0;
+          const pos = hist.typical_batting_position || 0;
+          if (role === "BAT" || role === "AR" || role === "WK") {
+            if (pos >= 1 && pos <= 2) {
+              const ppRuns = hist.avg_powerplay_runs;
+              if (ppRuns >= 25) bonus += 15;
+              else if (ppRuns >= 15) bonus += 10;
+              else if (ppRuns >= 8) bonus += 5;
+            } else if (pos >= 3 && pos <= 5) {
+              const midRuns = hist.avg_middle_runs;
+              if (midRuns >= 25) bonus += 15;
+              else if (midRuns >= 15) bonus += 10;
+              else if (midRuns >= 8) bonus += 5;
+            } else if (pos >= 6 && pos <= 8) {
+              const deathRuns = hist.avg_death_runs;
+              if (deathRuns >= 25) bonus += 15;
+              else if (deathRuns >= 15) bonus += 10;
+              else if (deathRuns >= 8) bonus += 5;
+            }
+          }
+          if (role === "BOWL" || role === "AR") {
+            const ppWkts = hist.avg_powerplay_wickets;
+            if (ppWkts >= 0.8) bonus += 15;
+            else if (ppWkts >= 0.5) bonus += 10;
+            else if (ppWkts >= 0.3) bonus += 5;
+            const deathWkts = hist.avg_death_wickets;
+            if (deathWkts >= 0.8) bonus += 15;
+            else if (deathWkts >= 0.5) bonus += 10;
+            else if (deathWkts >= 0.3) bonus += 5;
+          }
+          return bonus;
+        }, seededRandom2 = function(seed, index) {
+          let hash = 0;
+          const str = seed + index;
+          for (let i = 0; i < str.length; i++) {
+            hash = (hash << 5) - hash + str.charCodeAt(i);
+            hash |= 0;
+          }
+          return Math.abs(hash) / 2147483647;
+        };
+        var getPhaseBonus = getPhaseBonus2, seededRandom = seededRandom2;
+        const matchId = req.params.id;
+        const userId = req.session.userId;
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const matchPlayers = await storage.getPlayersForMatch(matchId);
+        const xiPlayers = matchPlayers.filter((p) => p.isPlayingXI || p.isImpactPlayer);
+        const xiAnnounced = xiPlayers.length >= 11;
+        if (!xiAnnounced) {
+          return res.json({
+            fallback: true,
+            reason: "Playing XI not announced yet \u2014 using Smart Pick instead."
+          });
+        }
+        const playerNames = xiPlayers.map((p) => p.name);
+        const historicalRows = await db.execute(
+          sql3`
+            SELECT player_name, avg_cdo_points,
+                   avg_powerplay_runs, avg_middle_runs, avg_death_runs,
+                   avg_powerplay_wickets, avg_death_wickets,
+                   typical_batting_position, matches_played
+            FROM player_historical_stats
+            WHERE player_name = ANY(${playerNames})
+          `
+        );
+        const historicalMap = /* @__PURE__ */ new Map();
+        for (const row of historicalRows.rows) {
+          historicalMap.set(row.player_name, row);
+        }
+        const formMap = /* @__PURE__ */ new Map();
+        if (match.tournamentName) {
+          for (const player of xiPlayers) {
+            const recentRows = await db.execute(
+              sql3`
+                SELECT p.points
+                FROM players p
+                INNER JOIN matches m ON p.match_id = m.id
+                WHERE p.name = ${player.name}
+                  AND p.team_short = ${player.teamShort}
+                  AND m.tournament_name = ${match.tournamentName}
+                  AND m.status = 'completed'
+                  AND m.id != ${matchId}
+                ORDER BY m.start_time DESC
+                LIMIT 5
+              `
+            );
+            const rows = recentRows.rows;
+            if (rows.length === 0) continue;
+            const weights = [0.3, 0.25, 0.2, 0.15, 0.1];
+            let weightedSum = 0;
+            let weightTotal = 0;
+            for (let i = 0; i < rows.length; i++) {
+              const w = weights[i] ?? 0.1;
+              weightedSum += (rows[i].points ?? 0) * w;
+              weightTotal += w;
+            }
+            formMap.set(
+              `${player.name}|${player.teamShort}`,
+              weightTotal > 0 ? weightedSum / weightTotal : 0
+            );
+          }
+        }
+        const h2hMap = /* @__PURE__ */ new Map();
+        const h2hMatches = await db.select({ id: matches.id }).from(matches).where(
+          and2(
+            eq2(matches.status, "completed"),
+            sql3`(
+                (${matches.team1Short} = ${match.team1Short} AND ${matches.team2Short} = ${match.team2Short})
+                OR
+                (${matches.team1Short} = ${match.team2Short} AND ${matches.team2Short} = ${match.team1Short})
+              )`,
+            sql3`${matches.id} != ${matchId}`
+          )
+        );
+        if (h2hMatches.length > 0) {
+          const h2hMatchIds = h2hMatches.map((m) => m.id);
+          const h2hRows = await db.select({
+            name: players.name,
+            teamShort: players.teamShort,
+            avg: sql3`CAST(AVG(${players.points}) AS FLOAT)`
+          }).from(players).where(
+            and2(
+              sql3`${players.matchId} = ANY(ARRAY[${sql3.join(h2hMatchIds.map((id) => sql3`${id}`), sql3`, `)}]::text[])`,
+              sql3`${players.points} > 0`
+            )
+          ).groupBy(players.name, players.teamShort);
+          for (const row of h2hRows) {
+            h2hMap.set(`${row.name}|${row.teamShort}`, row.avg);
+          }
+        }
+        const scored = xiPlayers.map((p) => {
+          const key = `${p.name}|${p.teamShort}`;
+          const hist = historicalMap.get(p.name);
+          const careerAvg = hist?.avg_cdo_points ?? 0;
+          const formScore = formMap.get(key) ?? 0;
+          const h2hScore = h2hMap.get(key) ?? 0;
+          const phaseBonus = hist ? getPhaseBonus2(hist, p.role) : 0;
+          const aiScore = 0.4 * careerAvg + 0.3 * formScore + 0.2 * h2hScore + phaseBonus;
+          return { ...p, aiScore, careerAvg, formScore, h2hScore, phaseBonus };
+        }).sort((a, b) => b.aiScore - a.aiScore);
+        const ROLE_LIMITS = {
+          WK: { min: 1, max: 4 },
+          BAT: { min: 1, max: 6 },
+          AR: { min: 1, max: 6 },
+          BOWL: { min: 1, max: 6 }
+        };
+        const MAX_FROM_ONE_TEAM = 6;
+        const CREDIT_CAP = 100;
+        const picked = [];
+        const roleCounts = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const teamCounts = {};
+        let credits = 0;
+        for (const role of ["WK", "BAT", "AR", "BOWL"]) {
+          const best = scored.find(
+            (p) => p.role === role && !picked.find((x) => x.id === p.id) && (teamCounts[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && credits + p.credits <= CREDIT_CAP
+          );
+          if (best) {
+            picked.push(best);
+            roleCounts[best.role]++;
+            teamCounts[best.teamShort] = (teamCounts[best.teamShort] || 0) + 1;
+            credits += best.credits;
+          }
+        }
+        for (const p of scored) {
+          if (picked.length >= 11) break;
+          if (picked.find((x) => x.id === p.id)) continue;
+          if (roleCounts[p.role] >= ROLE_LIMITS[p.role].max) continue;
+          if ((teamCounts[p.teamShort] || 0) >= MAX_FROM_ONE_TEAM) continue;
+          if (credits + p.credits > CREDIT_CAP) continue;
+          picked.push(p);
+          roleCounts[p.role]++;
+          teamCounts[p.teamShort] = (teamCounts[p.teamShort] || 0) + 1;
+          credits += p.credits;
+        }
+        if (picked.length !== 11) {
+          return res.status(422).json({
+            message: "Could not build a valid AI team \u2014 try Smart Pick instead."
+          });
+        }
+        const pickedIds = new Set(picked.map((p) => p.id));
+        const nonCorePicks = picked.filter((p) => p.careerAvg < 20);
+        let swapsApplied = 0;
+        for (let i = 0; i < nonCorePicks.length; i++) {
+          if (swapsApplied >= 2) break;
+          if (seededRandom2(userId, i) > 0.5) continue;
+          const outPlayer = nonCorePicks[i];
+          const creditsWithout = picked.reduce(
+            (s, p) => s + (p.id === outPlayer.id ? 0 : p.credits),
+            0
+          );
+          const teamCountsWithout = {};
+          const roleCountsWithout = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+          for (const p of picked) {
+            if (p.id === outPlayer.id) continue;
+            teamCountsWithout[p.teamShort] = (teamCountsWithout[p.teamShort] || 0) + 1;
+            roleCountsWithout[p.role]++;
+          }
+          const alternative = scored.find(
+            (p) => !pickedIds.has(p.id) && p.role === outPlayer.role && (teamCountsWithout[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && creditsWithout + p.credits <= CREDIT_CAP && roleCountsWithout[p.role] < ROLE_LIMITS[p.role].max
+          );
+          if (alternative) {
+            const idx = picked.findIndex((p) => p.id === outPlayer.id);
+            picked[idx] = alternative;
+            pickedIds.delete(outPlayer.id);
+            pickedIds.add(alternative.id);
+            swapsApplied++;
+          }
+        }
+        const cvSorted = [...picked].sort((a, b) => {
+          if (Math.abs(b.aiScore - a.aiScore) < 5) {
+            const aIsAR = a.role === "AR" ? 1 : 0;
+            const bIsAR = b.role === "AR" ? 1 : 0;
+            if (bIsAR !== aIsAR) return bIsAR - aIsAR;
+          }
+          return b.aiScore - a.aiScore;
+        });
+        const captainId = cvSorted[0].id;
+        const viceCaptainId = cvSorted[1].id;
+        const hasHistory = historicalMap.size > 0;
+        const hasForm = formMap.size > 0;
+        const hasH2H = h2hMap.size > 0;
+        const reason = hasHistory ? `AI Pick: IPL history (${historicalMap.size} players matched)${hasForm ? " + 2026 form" : ""}${hasH2H ? " + H2H data" : ""}` : "AI Pick: 2026 form only (no historical data matched yet)";
+        return res.json({
+          fallback: false,
+          playerIds: picked.map((p) => p.id),
+          captainId,
+          viceCaptainId,
+          reason
+        });
+      } catch (err) {
+        console.error("AI team error:", err);
+        return res.status(500).json({ message: "AI team pick failed" });
+      }
+    }
+  );
+  app2.get(
     "/api/matches/:id/smart-pick",
     isAuthenticated,
     async (req, res) => {
