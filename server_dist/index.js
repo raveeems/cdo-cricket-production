@@ -4094,7 +4094,11 @@ async function getDbMappingsCache() {
 async function runAutoMapping() {
   try {
     const dbPlayersRows = await db.execute(sql3`
-      SELECT DISTINCT name, team_short FROM players WHERE name IS NOT NULL
+      SELECT DISTINCT p.name, p.team_short
+      FROM players p
+      INNER JOIN matches m ON p.match_id = m.id
+      WHERE p.name IS NOT NULL
+        AND m.tournament_name ILIKE '%ipl%'
     `);
     const cricsheetRows = await db.execute(sql3`
       SELECT DISTINCT player_name, team FROM player_historical_stats
@@ -4107,7 +4111,7 @@ async function runAutoMapping() {
     }
     const TEAM_NAME_MAP = {
       "RR": ["rajasthan royals"],
-      "RCB": ["royal challengers bangalore", "royal challengers bengaluru"],
+      "RCB": ["royal challengers bangalore", "royal challengers bengaluru", "royal challengers"],
       "MI": ["mumbai indians"],
       "CSK": ["chennai super kings"],
       "KKR": ["kolkata knight riders"],
