@@ -1437,16 +1437,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // ── Load historical stats for these players ───────────────────────────
         const playerNames = xiPlayers.map(p => p.name);
 
-        const historicalRows = await db.execute(
-          sql`
-            SELECT player_name, avg_cdo_points,
-                   avg_powerplay_runs, avg_middle_runs, avg_death_runs,
-                   avg_powerplay_wickets, avg_death_wickets,
-                   typical_batting_position, matches_played
-            FROM player_historical_stats
-            WHERE player_name = ANY(${playerNames})
-          `
+        // Fetch all historical stats then fuzzy-match in JS
+        // This handles name format differences e.g. "V Kohli" vs "Virat Kohli"
+        const allHistoricalRows = await db.execute(
+          sql`SELECT player_name, avg_cdo_points,
+                     avg_powerplay_runs, avg_middle_runs, avg_death_runs,
+                     avg_powerplay_wickets, avg_death_wickets,
+                     typical_batting_position, matches_played
+              FROM player_historical_stats`
         );
+
+        // Build surname index for fuzzy matching
+        // "Virat Kohli" → surname "kohli", "V Kohli" → surname "kohli"
+        function extractSurname(name: string): string {
+          return name.trim().split(/\s+/).pop()?.toLowerCase() || name.toLowerCase();
+        }
+        function extractInitial(name: string): string {
+          return name.trim()[0]?.toLowerCase() || "";
+        }
+
+        const surnameIndex = new Map<string, any[]>();
+        for (const row of allHistoricalRows.rows as any[]) {
+          const surname = extractSurname(row.player_name);
+          if (!surnameIndex.has(surname)) surnameIndex.set(surname, []);
+          surnameIndex.get(surname)!.push(row);
+        }
 
         type HistoricalStats = {
           avg_cdo_points: number;
@@ -1459,8 +1474,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           matches_played: number;
         };
         const historicalMap = new Map<string, HistoricalStats>();
-        for (const row of historicalRows.rows as any[]) {
-          historicalMap.set(row.player_name, row);
+        for (const playerName of playerNames) {
+          const surname = extractSurname(playerName);
+          const initial = extractInitial(playerName);
+          const candidates = surnameIndex.get(surname) || [];
+
+          if (candidates.length === 1) {
+            // Only one player with this surname — safe match
+            historicalMap.set(playerName, candidates[0]);
+          } else if (candidates.length > 1) {
+            // Multiple players with same surname — match by first initial too
+            const match = candidates.find(c =>
+              extractInitial(c.player_name) === initial
+            );
+            if (match) historicalMap.set(playerName, match);
+          }
         }
 
         // ── IPL 2026 form — last 5 matches per player (weighted) ─────────────
@@ -1659,9 +1687,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const nonCorePicks = picked.filter(p => p.careerAvg < 20);
         let swapsApplied = 0;
 
+        // Add timestamp to seed so each click produces a different team
+        const clickSeed = userId + Date.now().toString();
+
         for (let i = 0; i < nonCorePicks.length; i++) {
           if (swapsApplied >= 2) break;
-          if (seededRandom(userId, i) > 0.5) continue;
+          if (seededRandom(clickSeed, i) > 0.5) continue;
 
           const outPlayer = nonCorePicks[i];
           const creditsWithout = picked.reduce(

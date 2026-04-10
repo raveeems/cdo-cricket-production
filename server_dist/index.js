@@ -4983,7 +4983,11 @@ async function registerRoutes(app2) {
     isAuthenticated,
     async (req, res) => {
       try {
-        let getPhaseBonus2 = function(hist, role) {
+        let extractSurname2 = function(name) {
+          return name.trim().split(/\s+/).pop()?.toLowerCase() || name.toLowerCase();
+        }, extractInitial2 = function(name) {
+          return name.trim()[0]?.toLowerCase() || "";
+        }, getPhaseBonus2 = function(hist, role) {
           let bonus = 0;
           const pos = hist.typical_batting_position || 0;
           if (role === "BAT" || role === "AR" || role === "WK") {
@@ -5024,7 +5028,7 @@ async function registerRoutes(app2) {
           }
           return Math.abs(hash) / 2147483647;
         };
-        var getPhaseBonus = getPhaseBonus2, seededRandom = seededRandom2;
+        var extractSurname = extractSurname2, extractInitial = extractInitial2, getPhaseBonus = getPhaseBonus2, seededRandom = seededRandom2;
         const matchId = req.params.id;
         const userId = req.session.userId;
         const match = await storage.getMatch(matchId);
@@ -5039,19 +5043,32 @@ async function registerRoutes(app2) {
           });
         }
         const playerNames = xiPlayers.map((p) => p.name);
-        const historicalRows = await db.execute(
-          sql3`
-            SELECT player_name, avg_cdo_points,
-                   avg_powerplay_runs, avg_middle_runs, avg_death_runs,
-                   avg_powerplay_wickets, avg_death_wickets,
-                   typical_batting_position, matches_played
-            FROM player_historical_stats
-            WHERE player_name = ANY(${playerNames})
-          `
+        const allHistoricalRows = await db.execute(
+          sql3`SELECT player_name, avg_cdo_points,
+                     avg_powerplay_runs, avg_middle_runs, avg_death_runs,
+                     avg_powerplay_wickets, avg_death_wickets,
+                     typical_batting_position, matches_played
+              FROM player_historical_stats`
         );
+        const surnameIndex = /* @__PURE__ */ new Map();
+        for (const row of allHistoricalRows.rows) {
+          const surname = extractSurname2(row.player_name);
+          if (!surnameIndex.has(surname)) surnameIndex.set(surname, []);
+          surnameIndex.get(surname).push(row);
+        }
         const historicalMap = /* @__PURE__ */ new Map();
-        for (const row of historicalRows.rows) {
-          historicalMap.set(row.player_name, row);
+        for (const playerName of playerNames) {
+          const surname = extractSurname2(playerName);
+          const initial = extractInitial2(playerName);
+          const candidates = surnameIndex.get(surname) || [];
+          if (candidates.length === 1) {
+            historicalMap.set(playerName, candidates[0]);
+          } else if (candidates.length > 1) {
+            const match2 = candidates.find(
+              (c) => extractInitial2(c.player_name) === initial
+            );
+            if (match2) historicalMap.set(playerName, match2);
+          }
         }
         const formMap = /* @__PURE__ */ new Map();
         if (match.tournamentName) {
@@ -5166,9 +5183,10 @@ async function registerRoutes(app2) {
         const pickedIds = new Set(picked.map((p) => p.id));
         const nonCorePicks = picked.filter((p) => p.careerAvg < 20);
         let swapsApplied = 0;
+        const clickSeed = userId + Date.now().toString();
         for (let i = 0; i < nonCorePicks.length; i++) {
           if (swapsApplied >= 2) break;
-          if (seededRandom2(userId, i) > 0.5) continue;
+          if (seededRandom2(clickSeed, i) > 0.5) continue;
           const outPlayer = nonCorePicks[i];
           const creditsWithout = picked.reduce(
             (s, p) => s + (p.id === outPlayer.id ? 0 : p.credits),
