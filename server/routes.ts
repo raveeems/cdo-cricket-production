@@ -1930,8 +1930,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let swapsApplied = 0;
 
         for (const outPlayer of nonCorePicks) {
-          if (swapsApplied >= 2) break;
-          if (Math.random() < 0.5) continue; // 50% chance to attempt swap
+          if (swapsApplied >= 3) break;
+          if (Math.random() < 0.3) continue; // 70% chance to attempt swap
 
           const creditsWithout = picked.reduce((s, p) => s + (p.id === outPlayer.id ? 0 : p.credits), 0);
           const teamCountsWithout: Record<string, number> = {};

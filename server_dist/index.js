@@ -5361,8 +5361,8 @@ async function registerRoutes(app2) {
         const nonCorePicks = picked.filter((p) => !lastXIBonus.has(`${p.name}|${p.teamShort}`));
         let swapsApplied = 0;
         for (const outPlayer of nonCorePicks) {
-          if (swapsApplied >= 2) break;
-          if (Math.random() < 0.5) continue;
+          if (swapsApplied >= 3) break;
+          if (Math.random() < 0.3) continue;
           const creditsWithout = picked.reduce((s, p) => s + (p.id === outPlayer.id ? 0 : p.credits), 0);
           const teamCountsWithout = {};
           for (const p of picked) {
