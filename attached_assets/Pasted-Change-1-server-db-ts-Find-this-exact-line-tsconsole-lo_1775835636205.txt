@@ -1,0 +1,332 @@
+Change 1 — server/db.ts
+Find this exact line:
+tsconsole.log("[DB] Migrations complete.");
+Paste this directly above it:
+ts// Player name mappings — auto-generated bridge between DB display names and Cricsheet names
+await client.query(`
+  CREATE TABLE IF NOT EXISTS player_name_mappings (
+    id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+    db_name TEXT NOT NULL,
+    cricsheet_name TEXT NOT NULL,
+    team_short VARCHAR(10),
+    confidence TEXT NOT NULL DEFAULT 'auto',
+    source TEXT NOT NULL DEFAULT 'auto',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(db_name, team_short)
+  );
+  CREATE INDEX IF NOT EXISTS idx_player_name_mappings_db_name
+    ON player_name_mappings(db_name);
+`);
+
+Change 2 — server/cricsheet-loader.ts
+Find this exact block:
+ts    const { invalidateHistoricalStatsCache } = await import("./routes");
+    invalidateHistoricalStatsCache();
+    loaderProgress.status = "done";
+Replace with:
+ts    const { invalidateHistoricalStatsCache, invalidateCanonicalIndex, runAutoMapping } = await import("./routes");
+    invalidateHistoricalStatsCache();
+    invalidateCanonicalIndex();
+    console.log("[Cricsheet] Running auto name mapping...");
+    await runAutoMapping();
+    console.log("[Cricsheet] Auto name mapping complete.");
+    loaderProgress.status = "done";
+Also find this exact block in rebuildHistoricalStatsPublic:
+tsexport async function rebuildHistoricalStatsPublic(): Promise<void> {
+  console.log("[Cricsheet] Manual rebuild of player_historical_stats triggered...");
+  await rebuildHistoricalStats();
+  const { invalidateHistoricalStatsCache } = await import("./routes");
+  invalidateHistoricalStatsCache();
+  console.log("[Cricsheet] Manual rebuild complete.");
+}
+Replace with:
+tsexport async function rebuildHistoricalStatsPublic(): Promise<void> {
+  console.log("[Cricsheet] Manual rebuild of player_historical_stats triggered...");
+  await rebuildHistoricalStats();
+  const { invalidateHistoricalStatsCache, invalidateCanonicalIndex, runAutoMapping } = await import("./routes");
+  invalidateHistoricalStatsCache();
+  invalidateCanonicalIndex();
+  console.log("[Cricsheet] Running auto name mapping...");
+  await runAutoMapping();
+  console.log("[Cricsheet] Manual rebuild complete.");
+}
+
+Change 3 — server/routes.ts
+Part A — Add mappings cache and runAutoMapping function
+Find this exact line:
+tsexport function invalidateCanonicalIndex(): void {
+  canonicalCacheIndex = null;
+}
+Add this entire block directly after it:
+ts// ── DB-backed name mappings cache ─────────────────────────────────────────────
+let dbMappingsCache: Map<string, string> | null = null; // canonical db_name → cricsheet_name
+
+export function invalidateMappingsCache(): void {
+  dbMappingsCache = null;
+}
+
+async function getDbMappingsCache(): Promise<Map<string, string>> {
+  if (dbMappingsCache) return dbMappingsCache;
+  const rows = await db.execute(sql`
+    SELECT db_name, cricsheet_name FROM player_name_mappings
+  `);
+  const map = new Map<string, string>();
+  for (const row of rows.rows as any[]) {
+    map.set(canonicalize(row.db_name), row.cricsheet_name);
+  }
+  dbMappingsCache = map;
+  console.log(`[AI Mapping] Loaded ${map.size} mappings from DB`);
+  return map;
+}
+
+// ── Auto-mapping job ──────────────────────────────────────────────────────────
+// Runs after every Cricsheet reload. Matches players in your DB
+// against player_historical_stats using team + name signals.
+// High confidence matches are auto-saved. Low confidence are flagged.
+export async function runAutoMapping(): Promise<void> {
+  try {
+    // Get all unique players from your matches DB
+    const dbPlayersRows = await db.execute(sql`
+      SELECT DISTINCT name, team_short
+      FROM players
+      WHERE name IS NOT NULL
+    `);
+
+    // Get all Cricsheet players grouped by team
+    const cricsheetRows = await db.execute(sql`
+      SELECT DISTINCT player_name, team
+      FROM player_historical_stats
+    `);
+
+    // Build Cricsheet lookup: canonical team name → list of players
+    const cricsheetByTeam = new Map<string, string[]>();
+    for (const row of cricsheetRows.rows as any[]) {
+      const teamKey = canonicalize(row.team);
+      if (!cricsheetByTeam.has(teamKey)) cricsheetByTeam.set(teamKey, []);
+      cricsheetByTeam.get(teamKey)!.push(row.player_name);
+    }
+
+    // Team short → Cricsheet full team name mapping
+    const TEAM_NAME_MAP: Record<string, string[]> = {
+      "RR":   ["rajasthan royals"],
+      "RCB":  ["royal challengers bangalore", "royal challengers bengaluru"],
+      "MI":   ["mumbai indians"],
+      "CSK":  ["chennai super kings"],
+      "KKR":  ["kolkata knight riders"],
+      "SRH":  ["sunrisers hyderabad"],
+      "DC":   ["delhi capitals", "delhi daredevils"],
+      "PBKS": ["punjab kings", "kings xi punjab"],
+      "GT":   ["gujarat titans"],
+      "LSG":  ["lucknow super giants"],
+    };
+
+    let autoMapped = 0;
+    let alreadyMapped = 0;
+    let unresolved = 0;
+
+    for (const dbRow of dbPlayersRows.rows as any[]) {
+      const dbName: string = dbRow.name;
+      const teamShort: string = dbRow.team_short;
+      const canonicalDb = canonicalize(dbName);
+
+      // Skip if already mapped
+      const existingRows = await db.execute(sql`
+        SELECT id FROM player_name_mappings
+        WHERE db_name = ${dbName} AND team_short = ${teamShort}
+      `);
+      if (existingRows.rows.length > 0) { alreadyMapped++; continue; }
+
+      // Get Cricsheet players for this team
+      const teamKeys = TEAM_NAME_MAP[teamShort] || [];
+      let teamPlayers: string[] = [];
+      for (const teamKey of teamKeys) {
+        for (const [k, v] of cricsheetByTeam.entries()) {
+          if (k.includes(teamKey) || teamKey.includes(k)) {
+            teamPlayers = [...teamPlayers, ...v];
+          }
+        }
+      }
+
+      // If no team match, use all Cricsheet players
+      if (teamPlayers.length === 0) {
+        for (const v of cricsheetByTeam.values()) teamPlayers = [...teamPlayers, ...v];
+      }
+
+      // Try to find best match
+      let bestMatch: string | null = null;
+      let bestConfidence: string = "none";
+
+      // Exact canonical match within team
+      for (const cp of teamPlayers) {
+        if (canonicalize(cp) === canonicalDb) {
+          bestMatch = cp;
+          bestConfidence = "high";
+          break;
+        }
+      }
+
+      // Surname + initial match within team
+      if (!bestMatch) {
+        const dbSurname = extractSurname(dbName);
+        const dbInit = extractInitial(dbName);
+        const surnameMatches = teamPlayers.filter(cp => extractSurname(cp) === dbSurname);
+        if (surnameMatches.length === 1) {
+          bestMatch = surnameMatches[0];
+          bestConfidence = extractInitial(surnameMatches[0]) === dbInit ? "high" : "medium";
+        } else if (surnameMatches.length > 1) {
+          const initMatches = surnameMatches.filter(cp => extractInitial(cp) === dbInit);
+          if (initMatches.length === 1) {
+            bestMatch = initMatches[0];
+            bestConfidence = "high";
+          }
+        }
+      }
+
+      if (bestMatch && bestConfidence !== "none") {
+        await db.execute(sql`
+          INSERT INTO player_name_mappings (db_name, cricsheet_name, team_short, confidence, source)
+          VALUES (${dbName}, ${bestMatch}, ${teamShort}, ${bestConfidence}, 'auto')
+          ON CONFLICT (db_name, team_short) DO UPDATE SET
+            cricsheet_name = EXCLUDED.cricsheet_name,
+            confidence = EXCLUDED.confidence,
+            updated_at = NOW()
+        `);
+        autoMapped++;
+      } else {
+        // Insert as unresolved so admin can manually fix
+        await db.execute(sql`
+          INSERT INTO player_name_mappings (db_name, cricsheet_name, team_short, confidence, source)
+          VALUES (${dbName}, '', ${teamShort}, 'unresolved', 'auto')
+          ON CONFLICT (db_name, team_short) DO NOTHING
+        `);
+        unresolved++;
+      }
+    }
+
+    // Invalidate cache so next request picks up fresh mappings
+    dbMappingsCache = null;
+    console.log(`[AI Mapping] Auto-mapping complete: ${autoMapped} mapped, ${alreadyMapped} already mapped, ${unresolved} unresolved`);
+  } catch (err: any) {
+    console.error("[AI Mapping] Auto-mapping error:", err.message);
+  }
+}
+Part B — Update matchPlayerToHistorical to use DB mappings first
+Find this exact block at the start of matchPlayerToHistorical:
+tsfunction matchPlayerToHistorical(
+  dbName: string,
+  cache: Map<string, HistoricalStats>
+): MatchResult {
+  const canonicalIndex = buildCanonicalIndex(cache);
+  const canonicalDb = canonicalize(dbName);
+
+  // ── Step 1: Alias table (highest priority) ───────────────────────────────
+  const aliasTarget = PLAYER_ALIASES[canonicalDb];
+Replace the entire function signature and step 1 with:
+tsfunction matchPlayerToHistorical(
+  dbName: string,
+  cache: Map<string, HistoricalStats>,
+  dbMappings?: Map<string, string>
+): MatchResult {
+  const canonicalIndex = buildCanonicalIndex(cache);
+  const canonicalDb = canonicalize(dbName);
+
+  // ── Step 0: DB mappings table (highest priority — team-aware) ────────────
+  if (dbMappings) {
+    const dbMappingTarget = dbMappings.get(canonicalDb);
+    if (dbMappingTarget && dbMappingTarget !== "") {
+      const row = canonicalIndex.get(canonicalize(dbMappingTarget)) || cache.get(dbMappingTarget);
+      if (row) {
+        const mp = row.matches_played;
+        if (mp > 0) {
+          const confidence: MatchConfidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
+          console.log(`[AI Match] "${dbName}" → "${row.player_name}" ${confidence.toUpperCase()} via DB-MAPPING (${mp} matches)`);
+          return { stats: row, confidence, resolvedVia: "db-mapping" };
+        }
+      }
+    }
+  }
+
+  // ── Step 1: Alias table (fallback) ───────────────────────────────────────
+  const aliasTarget = PLAYER_ALIASES[canonicalDb];
+Part C — Pass DB mappings into the scoring loop
+Find this exact line inside the ai-team endpoint (inside the scored map):
+ts          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache);
+          const careerAvg = stats ? stats.avg_cdo_points : roleDefaults[p.role];
+This appears twice in the scoring section. Both need updating. Replace both occurrences with:
+ts          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache, dbMappings);
+          const careerAvg = stats ? stats.avg_cdo_points : roleDefaults[p.role];
+And find where roleDefaults is built (just before the scored map). Add the mappings fetch right before it:
+ts      // Load DB name mappings for this match
+      const dbMappings = await getDbMappingsCache();
+Part D — Add admin endpoints for managing mappings
+Find this exact line:
+tsapp.get(
+  "/api/admin/ai-diagnostics/:matchId",
+Paste this block directly above it:
+ts// ── Player name mappings admin endpoints ──────────────────────────────────────
+
+// Get all unresolved mappings
+app.get(
+  "/api/admin/player-mappings/unresolved",
+  isAuthenticated,
+  isAdmin,
+  async (_req: Request, res: Response) => {
+    try {
+      const rows = await db.execute(sql`
+        SELECT db_name, team_short, confidence, source, created_at
+        FROM player_name_mappings
+        WHERE confidence = 'unresolved' OR cricsheet_name = ''
+        ORDER BY team_short, db_name
+      `);
+      return res.json({ mappings: rows.rows, count: rows.rows.length });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// Manually set a mapping
+app.post(
+  "/api/admin/player-mappings",
+  isAuthenticated,
+  isAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const { dbName, cricsheetName, teamShort } = req.body;
+      if (!dbName || !cricsheetName || !teamShort) {
+        return res.status(400).json({ message: "dbName, cricsheetName, teamShort required" });
+      }
+      await db.execute(sql`
+        INSERT INTO player_name_mappings (db_name, cricsheet_name, team_short, confidence, source)
+        VALUES (${dbName}, ${cricsheetName}, ${teamShort}, 'manual', 'admin')
+        ON CONFLICT (db_name, team_short) DO UPDATE SET
+          cricsheet_name = EXCLUDED.cricsheet_name,
+          confidence = 'manual',
+          source = 'admin',
+          updated_at = NOW()
+      `);
+      dbMappingsCache = null;
+      return res.json({ message: `Mapped "${dbName}" → "${cricsheetName}" for ${teamShort}` });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// Trigger auto-mapping manually
+app.post(
+  "/api/admin/player-mappings/auto-map",
+  isAuthenticated,
+  isAdmin,
+  async (_req: Request, res: Response) => {
+    try {
+      runAutoMapping().catch(err => console.error("[AI Mapping] Error:", err));
+      return res.json({ message: "Auto-mapping started in background" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+Then rebuild and push
