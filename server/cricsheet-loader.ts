@@ -185,6 +185,8 @@ export async function loadCricsheetData(): Promise<void> {
     loaderProgress.message = "Rebuilding player_historical_stats...";
     await rebuildHistoricalStats();
 
+    const { invalidateHistoricalStatsCache } = await import("./routes");
+    invalidateHistoricalStatsCache();
     loaderProgress.status = "done";
     loaderProgress.message = `Complete. ${loaderProgress.processed} matches loaded, ${loaderProgress.failed} failed.`;
     console.log(`[Cricsheet] ${loaderProgress.message}`);

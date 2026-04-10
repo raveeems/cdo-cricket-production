@@ -159,6 +159,15 @@ async function runMigrations(): Promise<void> {
       );
     `);
 
+    // Performance indexes for AI team picker
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_player_historical_stats_name
+      ON player_historical_stats(player_name);
+
+      CREATE INDEX IF NOT EXISTS idx_player_match_history_name_season
+      ON player_match_history(player_name, season);
+    `);
+
     console.log("[DB] Migrations complete.");
   } catch (err: any) {
     console.error("[DB] Migration error:", err.message);

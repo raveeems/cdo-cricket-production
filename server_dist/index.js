@@ -366,6 +366,13 @@ async function runMigrations() {
         UNIQUE(player_name, team)
       );
     `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_player_historical_stats_name
+      ON player_historical_stats(player_name);
+
+      CREATE INDEX IF NOT EXISTS idx_player_match_history_name_season
+      ON player_match_history(player_name, season);
+    `);
     console.log("[DB] Migrations complete.");
   } catch (err) {
     console.error("[DB] Migration error:", err.message);
@@ -3376,6 +3383,8 @@ async function loadCricsheetData() {
     }
     loaderProgress.message = "Rebuilding player_historical_stats...";
     await rebuildHistoricalStats();
+    const { invalidateHistoricalStatsCache: invalidateHistoricalStatsCache2 } = await Promise.resolve().then(() => (init_routes(), routes_exports));
+    invalidateHistoricalStatsCache2();
     loaderProgress.status = "done";
     loaderProgress.message = `Complete. ${loaderProgress.processed} matches loaded, ${loaderProgress.failed} failed.`;
     console.log(`[Cricsheet] ${loaderProgress.message}`);
@@ -3813,22 +3822,18 @@ var init_notifications = __esm({
   }
 });
 
-// server/index.ts
-import express from "express";
-
 // server/routes.ts
-init_storage();
-init_db();
-init_schema();
-init_cricket_api();
+var routes_exports = {};
+__export(routes_exports, {
+  invalidateHistoricalStatsCache: () => invalidateHistoricalStatsCache,
+  registerRoutes: () => registerRoutes
+});
 import { createServer } from "node:http";
 import { eq as eq2, and as and2, sql as sql3, or, desc as desc2 } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { createHmac } from "crypto";
 import pg2 from "pg";
-var ADMIN_PHONES = ["9840872462", "9884334973", "7406020777"];
-var TOKEN_SECRET = process.env.SESSION_SECRET || "cdo-session-secret-dev";
 function generateAuthToken(userId) {
   const hmac = createHmac("sha256", TOKEN_SECRET);
   hmac.update(userId);
@@ -3889,11 +3894,100 @@ async function isAdmin(req, res, next) {
   }
   next();
 }
-var LIVE_CACHE_TTL_MS = 45e3;
-var liveScorecardCache = /* @__PURE__ */ new Map();
-var liveScoreCache = /* @__PURE__ */ new Map();
-var squadFetchBackoff = /* @__PURE__ */ new Map();
-var SQUAD_BACKOFF_MS = 60 * 60 * 1e3;
+function invalidateHistoricalStatsCache() {
+  historicalStatsCache = null;
+  console.log("[AI] Historical stats cache invalidated.");
+}
+async function getHistoricalStatsCache() {
+  if (historicalStatsCache) return historicalStatsCache;
+  console.log("[AI] Building historical stats cache from DB...");
+  const rows = await db.execute(sql3`
+    SELECT player_name, avg_cdo_points,
+           avg_powerplay_runs, avg_middle_runs, avg_death_runs,
+           avg_powerplay_wickets, avg_death_wickets,
+           typical_batting_position, matches_played
+    FROM player_historical_stats
+  `);
+  const cache = /* @__PURE__ */ new Map();
+  for (const row of rows.rows) {
+    cache.set(row.player_name, row);
+  }
+  historicalStatsCache = cache;
+  console.log(`[AI] Historical stats cache built \u2014 ${cache.size} players.`);
+  return cache;
+}
+function extractSurname(name) {
+  return name.trim().split(/\s+/).pop()?.toLowerCase() || "";
+}
+function extractInitial(name) {
+  return name.trim()[0]?.toLowerCase() || "";
+}
+function normalizeName2(name) {
+  return name.toLowerCase().replace(/[^a-z]/g, "");
+}
+function matchPlayerToHistorical(dbName, cache) {
+  const dbSurname = extractSurname(dbName);
+  const dbInitial = extractInitial(dbName);
+  const dbNormalized = normalizeName2(dbName);
+  const dbHasInitialOnly = dbName.trim().split(/\s+/).length <= 2 && dbName.trim().split(/\s+/)[0].length <= 2;
+  const candidates = [];
+  for (const row of cache.values()) {
+    if (extractSurname(row.player_name) === dbSurname) {
+      candidates.push(row);
+    }
+  }
+  if (candidates.length === 0) {
+    for (const row of cache.values()) {
+      if (normalizeName2(row.player_name) === dbNormalized) {
+        const mp = row.matches_played;
+        const confidence = mp >= 10 ? "medium" : mp >= 5 ? "medium" : "low";
+        console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (normalized, ${mp} matches)`);
+        return { stats: row, confidence };
+      }
+    }
+    console.log(`[AI Match] "${dbName}" \u2192 NONE (no surname or normalized match)`);
+    return { stats: null, confidence: "none" };
+  }
+  if (candidates.length === 1) {
+    const row = candidates[0];
+    const cricInitial = extractInitial(row.player_name);
+    const mp = row.matches_played;
+    if (mp === 0) {
+      console.log(`[AI Match] "${dbName}" \u2192 NONE (0 Cricsheet matches)`);
+      return { stats: null, confidence: "none" };
+    }
+    if (dbInitial === cricInitial) {
+      const confidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
+      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (${mp} matches)`);
+      return { stats: row, confidence };
+    }
+    if (!dbHasInitialOnly) {
+      console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" MEDIUM (no initial to compare, ${mp} matches)`);
+      return { stats: row, confidence: "medium" };
+    }
+    console.log(`[AI Match] "${dbName}" \u2192 NONE (initial conflict: db="${dbInitial}" cric="${cricInitial}")`);
+    return { stats: null, confidence: "none" };
+  }
+  const initialMatches = candidates.filter((c) => extractInitial(c.player_name) === dbInitial);
+  if (initialMatches.length === 1) {
+    const row = initialMatches[0];
+    const mp = row.matches_played;
+    if (mp === 0) {
+      console.log(`[AI Match] "${dbName}" \u2192 NONE (0 Cricsheet matches)`);
+      return { stats: null, confidence: "none" };
+    }
+    const confidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
+    console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} (collision resolved by initial, ${mp} matches)`);
+    return { stats: row, confidence };
+  }
+  const best = candidates.sort((a, b) => b.matches_played - a.matches_played)[0];
+  if (best.matches_played === 0) {
+    console.log(`[AI Match] "${dbName}" \u2192 NONE (collision unresolved, 0 matches)`);
+    return { stats: null, confidence: "none" };
+  }
+  console.log(`[AI Match] "${dbName}" \u2192 "${best.player_name}" LOW (collision unresolved, picked highest matches_played=${best.matches_played})`);
+  return { stats: best, confidence: "low" };
+}
 async function registerRoutes(app2) {
   const PgStore = connectPgSimple(session);
   const dbUrl = process.env.DATABASE_URL || "";
@@ -4983,42 +5077,34 @@ async function registerRoutes(app2) {
     isAuthenticated,
     async (req, res) => {
       try {
-        let extractSurname2 = function(name) {
-          return name.trim().split(/\s+/).pop()?.toLowerCase() || name.toLowerCase();
-        }, extractInitial2 = function(name) {
-          return name.trim()[0]?.toLowerCase() || "";
-        }, getPhaseBonus2 = function(hist, role) {
-          let bonus = 0;
-          const pos = hist.typical_batting_position || 0;
-          if (role === "BAT" || role === "AR" || role === "WK") {
-            if (pos >= 1 && pos <= 2) {
-              const ppRuns = hist.avg_powerplay_runs;
-              if (ppRuns >= 25) bonus += 15;
-              else if (ppRuns >= 15) bonus += 10;
-              else if (ppRuns >= 8) bonus += 5;
-            } else if (pos >= 3 && pos <= 5) {
-              const midRuns = hist.avg_middle_runs;
-              if (midRuns >= 25) bonus += 15;
-              else if (midRuns >= 15) bonus += 10;
-              else if (midRuns >= 8) bonus += 5;
-            } else if (pos >= 6 && pos <= 8) {
-              const deathRuns = hist.avg_death_runs;
-              if (deathRuns >= 25) bonus += 15;
-              else if (deathRuns >= 15) bonus += 10;
-              else if (deathRuns >= 8) bonus += 5;
+        let tryBuildTeam2 = function(pool2) {
+          const picked2 = [];
+          const roleCounts = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+          const teamCounts = {};
+          let credits = 0;
+          for (const role of ["WK", "BAT", "AR", "BOWL"]) {
+            const best = pool2.find(
+              (p) => p.role === role && !picked2.find((x) => x.id === p.id) && (teamCounts[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && credits + p.credits <= CREDIT_CAP
+            );
+            if (best) {
+              picked2.push(best);
+              roleCounts[best.role]++;
+              teamCounts[best.teamShort] = (teamCounts[best.teamShort] || 0) + 1;
+              credits += best.credits;
             }
           }
-          if (role === "BOWL" || role === "AR") {
-            const ppWkts = hist.avg_powerplay_wickets;
-            if (ppWkts >= 0.8) bonus += 15;
-            else if (ppWkts >= 0.5) bonus += 10;
-            else if (ppWkts >= 0.3) bonus += 5;
-            const deathWkts = hist.avg_death_wickets;
-            if (deathWkts >= 0.8) bonus += 15;
-            else if (deathWkts >= 0.5) bonus += 10;
-            else if (deathWkts >= 0.3) bonus += 5;
+          for (const p of pool2) {
+            if (picked2.length >= 11) break;
+            if (picked2.find((x) => x.id === p.id)) continue;
+            if (roleCounts[p.role] >= ROLE_LIMITS[p.role].max) continue;
+            if ((teamCounts[p.teamShort] || 0) >= MAX_FROM_ONE_TEAM) continue;
+            if (credits + p.credits > CREDIT_CAP) continue;
+            picked2.push(p);
+            roleCounts[p.role]++;
+            teamCounts[p.teamShort] = (teamCounts[p.teamShort] || 0) + 1;
+            credits += p.credits;
           }
-          return bonus;
+          return picked2.length === 11 ? picked2 : null;
         }, seededRandom2 = function(seed, index) {
           let hash = 0;
           const str = seed + index;
@@ -5028,119 +5114,150 @@ async function registerRoutes(app2) {
           }
           return Math.abs(hash) / 2147483647;
         };
-        var extractSurname = extractSurname2, extractInitial = extractInitial2, getPhaseBonus = getPhaseBonus2, seededRandom = seededRandom2;
+        var tryBuildTeam = tryBuildTeam2, seededRandom = seededRandom2;
         const matchId = req.params.id;
         const userId = req.session.userId;
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
         const matchPlayers = await storage.getPlayersForMatch(matchId);
-        const xiPlayers = matchPlayers.filter((p) => p.isPlayingXI || p.isImpactPlayer);
-        const xiAnnounced = xiPlayers.length >= 11;
-        if (!xiAnnounced) {
+        const team1Players = matchPlayers.filter(
+          (p) => p.teamShort === match.team1Short && p.isPlayingXI === true
+        );
+        const team2Players = matchPlayers.filter(
+          (p) => p.teamShort === match.team2Short && p.isPlayingXI === true
+        );
+        const xiPool = [...team1Players, ...team2Players];
+        const gatePass = team1Players.length >= 11 && team2Players.length >= 11 && xiPool.some((p) => p.role === "WK") && xiPool.some((p) => p.role === "BAT") && xiPool.some((p) => p.role === "AR") && xiPool.some((p) => p.role === "BOWL");
+        if (!gatePass) {
           return res.json({
             fallback: true,
-            reason: "Playing XI not announced yet \u2014 using Smart Pick instead."
+            reason: "Playing XI not fully announced yet \u2014 using Smart Pick instead."
           });
         }
-        const playerNames = xiPlayers.map((p) => p.name);
-        const allHistoricalRows = await db.execute(
-          sql3`SELECT player_name, avg_cdo_points,
-                     avg_powerplay_runs, avg_middle_runs, avg_death_runs,
-                     avg_powerplay_wickets, avg_death_wickets,
-                     typical_batting_position, matches_played
-              FROM player_historical_stats`
-        );
-        const surnameIndex = /* @__PURE__ */ new Map();
-        for (const row of allHistoricalRows.rows) {
-          const surname = extractSurname2(row.player_name);
-          if (!surnameIndex.has(surname)) surnameIndex.set(surname, []);
-          surnameIndex.get(surname).push(row);
-        }
-        const historicalMap = /* @__PURE__ */ new Map();
-        for (const playerName of playerNames) {
-          const surname = extractSurname2(playerName);
-          const initial = extractInitial2(playerName);
-          const candidates = surnameIndex.get(surname) || [];
-          if (candidates.length === 1) {
-            historicalMap.set(playerName, candidates[0]);
-          } else if (candidates.length > 1) {
-            const match2 = candidates.find(
-              (c) => extractInitial2(c.player_name) === initial
-            );
-            if (match2) historicalMap.set(playerName, match2);
-          }
-        }
+        const xiPlayerNames = xiPool.map((p) => p.name);
+        const [historicalCache, formRows, h2hMatches] = await Promise.all([
+          // Historical stats — from in-memory cache
+          getHistoricalStatsCache(),
+          // Form data — single batched query (N+1 eliminated)
+          match.tournamentName ? db.execute(sql3`
+            SELECT p.name, p.team_short, p.points, m.start_time
+            FROM players p
+            INNER JOIN matches m ON p.match_id = m.id
+            WHERE p.name = ANY(${xiPlayerNames})
+              AND m.tournament_name = ${match.tournamentName}
+              AND m.status = 'completed'
+              AND m.id != ${matchId}
+            ORDER BY m.start_time DESC
+          `) : Promise.resolve({ rows: [] }),
+          // H2H — all seasons
+          db.select({ id: matches.id, startTime: matches.startTime }).from(matches).where(
+            and2(
+              eq2(matches.status, "completed"),
+              sql3`(
+                  (${matches.team1Short} = ${match.team1Short} AND ${matches.team2Short} = ${match.team2Short})
+                  OR
+                  (${matches.team1Short} = ${match.team2Short} AND ${matches.team2Short} = ${match.team1Short})
+                )`,
+              sql3`${matches.id} != ${matchId}`
+            )
+          ).orderBy(sql3`${matches.startTime} DESC`)
+        ]);
         const formMap = /* @__PURE__ */ new Map();
-        if (match.tournamentName) {
-          for (const player of xiPlayers) {
-            const recentRows = await db.execute(
-              sql3`
-                SELECT p.points
-                FROM players p
-                INNER JOIN matches m ON p.match_id = m.id
-                WHERE p.name = ${player.name}
-                  AND p.team_short = ${player.teamShort}
-                  AND m.tournament_name = ${match.tournamentName}
-                  AND m.status = 'completed'
-                  AND m.id != ${matchId}
-                ORDER BY m.start_time DESC
-                LIMIT 5
-              `
-            );
-            const rows = recentRows.rows;
-            if (rows.length === 0) continue;
-            const weights = [0.3, 0.25, 0.2, 0.15, 0.1];
-            let weightedSum = 0;
-            let weightTotal = 0;
-            for (let i = 0; i < rows.length; i++) {
-              const w = weights[i] ?? 0.1;
-              weightedSum += (rows[i].points ?? 0) * w;
-              weightTotal += w;
-            }
-            formMap.set(
-              `${player.name}|${player.teamShort}`,
-              weightTotal > 0 ? weightedSum / weightTotal : 0
-            );
+        const formByPlayer = /* @__PURE__ */ new Map();
+        for (const row of formRows.rows) {
+          const key = `${row.name}|${row.team_short}`;
+          if (!formByPlayer.has(key)) formByPlayer.set(key, []);
+          if (formByPlayer.get(key).length < 5) {
+            formByPlayer.get(key).push(row.points ?? 0);
           }
+        }
+        const weights = [0.3, 0.25, 0.2, 0.15, 0.1];
+        for (const [key, pts] of formByPlayer.entries()) {
+          let weightedSum = 0, weightTotal = 0;
+          for (let i = 0; i < pts.length; i++) {
+            const w = weights[i] ?? 0.1;
+            weightedSum += pts[i] * w;
+            weightTotal += w;
+          }
+          formMap.set(key, weightTotal > 0 ? weightedSum / weightTotal : 0);
         }
         const h2hMap = /* @__PURE__ */ new Map();
-        const h2hMatches = await db.select({ id: matches.id }).from(matches).where(
-          and2(
-            eq2(matches.status, "completed"),
-            sql3`(
-                (${matches.team1Short} = ${match.team1Short} AND ${matches.team2Short} = ${match.team2Short})
-                OR
-                (${matches.team1Short} = ${match.team2Short} AND ${matches.team2Short} = ${match.team1Short})
-              )`,
-            sql3`${matches.id} != ${matchId}`
-          )
-        );
         if (h2hMatches.length > 0) {
+          const recentH2HIds = new Set(h2hMatches.slice(0, 4).map((m) => m.id));
           const h2hMatchIds = h2hMatches.map((m) => m.id);
           const h2hRows = await db.select({
             name: players.name,
             teamShort: players.teamShort,
-            avg: sql3`CAST(AVG(${players.points}) AS FLOAT)`
+            points: players.points,
+            matchId: players.matchId
           }).from(players).where(
-            and2(
-              sql3`${players.matchId} = ANY(ARRAY[${sql3.join(h2hMatchIds.map((id) => sql3`${id}`), sql3`, `)}]::text[])`,
-              sql3`${players.points} > 0`
-            )
-          ).groupBy(players.name, players.teamShort);
+            sql3`${players.matchId} = ANY(ARRAY[${sql3.join(
+              h2hMatchIds.map((id) => sql3`${id}`),
+              sql3`, `
+            )}]::text[])`
+          );
+          const h2hByPlayer = /* @__PURE__ */ new Map();
           for (const row of h2hRows) {
-            h2hMap.set(`${row.name}|${row.teamShort}`, row.avg);
+            const key = `${row.name}|${row.teamShort}`;
+            const weight = recentH2HIds.has(row.matchId) ? 2 : 1;
+            if (!h2hByPlayer.has(key)) h2hByPlayer.set(key, { sum: 0, count: 0 });
+            const entry = h2hByPlayer.get(key);
+            entry.sum += (row.points ?? 0) * weight;
+            entry.count += weight;
+          }
+          for (const [key, { sum, count }] of h2hByPlayer.entries()) {
+            h2hMap.set(key, count > 0 ? sum / count : 0);
           }
         }
-        const scored = xiPlayers.map((p) => {
+        const roleAvgMap = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const roleCounts2 = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        for (const p of xiPool) {
+          const match2 = matchPlayerToHistorical(p.name, historicalCache);
+          if (match2.stats && match2.confidence !== "none") {
+            roleAvgMap[p.role] = (roleAvgMap[p.role] || 0) + match2.stats.avg_cdo_points;
+            roleCounts2[p.role]++;
+          }
+        }
+        for (const role of ["WK", "BAT", "AR", "BOWL"]) {
+          roleAvgMap[role] = roleCounts2[role] > 0 ? roleAvgMap[role] / roleCounts2[role] : 20;
+        }
+        const scored = xiPool.map((p) => {
           const key = `${p.name}|${p.teamShort}`;
-          const hist = historicalMap.get(p.name);
-          const careerAvg = hist?.avg_cdo_points ?? 0;
+          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache);
+          const careerAvg = stats ? stats.avg_cdo_points : roleAvgMap[p.role];
+          const careerWeight = confidence === "high" ? 0.3 : confidence === "medium" ? 0.2 : confidence === "low" ? 0.15 : 0;
+          const formWeight = 1 - careerWeight - 0.15;
           const formScore = formMap.get(key) ?? 0;
           const h2hScore = h2hMap.get(key) ?? 0;
-          const phaseBonus = hist ? getPhaseBonus2(hist, p.role) : 0;
-          const aiScore = 0.4 * careerAvg + 0.3 * formScore + 0.2 * h2hScore + phaseBonus;
-          return { ...p, aiScore, careerAvg, formScore, h2hScore, phaseBonus };
-        }).sort((a, b) => b.aiScore - a.aiScore);
+          let phaseBonus = 0;
+          if (stats) {
+            const pos = stats.typical_batting_position || 0;
+            if (p.role === "BAT" || p.role === "AR" || p.role === "WK") {
+              let batBonus = 0;
+              if (pos >= 1 && pos <= 2) {
+                const r = stats.avg_powerplay_runs;
+                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+              } else if (pos >= 3 && pos <= 5) {
+                const r = stats.avg_middle_runs;
+                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+              } else if (pos >= 6 && pos <= 8) {
+                const r = stats.avg_death_runs;
+                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+              }
+              phaseBonus += batBonus;
+            }
+            if (p.role === "BOWL" || p.role === "AR") {
+              const ppW = stats.avg_powerplay_wickets;
+              const dW = stats.avg_death_wickets;
+              phaseBonus += ppW >= 0.8 ? 15 : ppW >= 0.5 ? 10 : ppW >= 0.3 ? 5 : 0;
+              phaseBonus += dW >= 0.8 ? 15 : dW >= 0.5 ? 10 : dW >= 0.3 ? 5 : 0;
+            }
+            phaseBonus = Math.min(phaseBonus, 20);
+          }
+          const aiScore = careerWeight * careerAvg + formWeight * formScore + 0.15 * h2hScore + phaseBonus;
+          return { ...p, aiScore, confidence, careerAvg };
+        });
+        scored.sort((a, b) => b.aiScore - a.aiScore);
         const ROLE_LIMITS = {
           WK: { min: 1, max: 4 },
           BAT: { min: 1, max: 6 },
@@ -5149,45 +5266,38 @@ async function registerRoutes(app2) {
         };
         const MAX_FROM_ONE_TEAM = 6;
         const CREDIT_CAP = 100;
-        const picked = [];
-        const roleCounts = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
-        const teamCounts = {};
-        let credits = 0;
-        for (const role of ["WK", "BAT", "AR", "BOWL"]) {
-          const best = scored.find(
-            (p) => p.role === role && !picked.find((x) => x.id === p.id) && (teamCounts[p.teamShort] || 0) < MAX_FROM_ONE_TEAM && credits + p.credits <= CREDIT_CAP
-          );
-          if (best) {
-            picked.push(best);
-            roleCounts[best.role]++;
-            teamCounts[best.teamShort] = (teamCounts[best.teamShort] || 0) + 1;
-            credits += best.credits;
+        let picked = tryBuildTeam2(scored);
+        if (!picked) {
+          const MAX_RETRIES = 3;
+          for (let retry = 0; retry < MAX_RETRIES; retry++) {
+            const roleCritical = /* @__PURE__ */ new Set();
+            const roleSeenCount = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+            const sortedByScore = [...scored].sort((a, b) => a.aiScore - b.aiScore);
+            for (const role of ["WK", "BAT", "AR", "BOWL"]) {
+              roleSeenCount[role] = scored.filter((p) => p.role === role).length;
+            }
+            const dropCandidate = sortedByScore.find((p) => roleSeenCount[p.role] > 1);
+            if (!dropCandidate) break;
+            const reducedPool = scored.filter((p) => p.id !== dropCandidate.id);
+            picked = tryBuildTeam2(reducedPool);
+            if (picked) break;
           }
         }
-        for (const p of scored) {
-          if (picked.length >= 11) break;
-          if (picked.find((x) => x.id === p.id)) continue;
-          if (roleCounts[p.role] >= ROLE_LIMITS[p.role].max) continue;
-          if ((teamCounts[p.teamShort] || 0) >= MAX_FROM_ONE_TEAM) continue;
-          if (credits + p.credits > CREDIT_CAP) continue;
-          picked.push(p);
-          roleCounts[p.role]++;
-          teamCounts[p.teamShort] = (teamCounts[p.teamShort] || 0) + 1;
-          credits += p.credits;
-        }
-        if (picked.length !== 11) {
+        if (!picked) {
           return res.status(422).json({
             message: "Could not build a valid AI team \u2014 try Smart Pick instead."
           });
         }
-        const pickedIds = new Set(picked.map((p) => p.id));
-        const nonCorePicks = picked.filter((p) => p.careerAvg < 20);
-        let swapsApplied = 0;
         const clickSeed = userId + Date.now().toString();
-        for (let i = 0; i < nonCorePicks.length; i++) {
-          if (swapsApplied >= 2) break;
-          if (seededRandom2(clickSeed, i) > 0.5) continue;
-          const outPlayer = nonCorePicks[i];
+        const pickedIds = new Set(picked.map((p) => p.id));
+        const swapCandidates = picked.filter(
+          (p) => p.careerAvg < 20 || (historicalCache.get(p.name)?.matches_played ?? 0) < 10
+        );
+        let swapsApplied = 0;
+        for (let i = 0; i < swapCandidates.length; i++) {
+          if (swapsApplied >= 3) break;
+          if (seededRandom2(clickSeed, i) > 0.3) continue;
+          const outPlayer = swapCandidates[i];
           const creditsWithout = picked.reduce(
             (s, p) => s + (p.id === outPlayer.id ? 0 : p.credits),
             0
@@ -5220,16 +5330,17 @@ async function registerRoutes(app2) {
         });
         const captainId = cvSorted[0].id;
         const viceCaptainId = cvSorted[1].id;
-        const hasHistory = historicalMap.size > 0;
+        const highCount = scored.filter(
+          (p) => matchPlayerToHistorical(p.name, historicalCache).confidence === "high"
+        ).length;
         const hasForm = formMap.size > 0;
         const hasH2H = h2hMap.size > 0;
-        const reason = hasHistory ? `AI Pick: IPL history (${historicalMap.size} players matched)${hasForm ? " + 2026 form" : ""}${hasH2H ? " + H2H data" : ""}` : "AI Pick: 2026 form only (no historical data matched yet)";
         return res.json({
           fallback: false,
           playerIds: picked.map((p) => p.id),
           captainId,
           viceCaptainId,
-          reason
+          reason: `AI Pick: ${highCount} players matched${hasForm ? " + 2026 form" : ""}${hasH2H ? " + H2H data" : ""}`
         });
       } catch (err) {
         console.error("AI team error:", err);
@@ -8264,11 +8375,31 @@ async function registerRoutes(app2) {
   const httpServer = createServer(app2);
   return httpServer;
 }
+var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache;
+var init_routes = __esm({
+  "server/routes.ts"() {
+    "use strict";
+    init_storage();
+    init_db();
+    init_schema();
+    init_cricket_api();
+    ADMIN_PHONES = ["9840872462", "9884334973", "7406020777"];
+    TOKEN_SECRET = process.env.SESSION_SECRET || "cdo-session-secret-dev";
+    LIVE_CACHE_TTL_MS = 45e3;
+    liveScorecardCache = /* @__PURE__ */ new Map();
+    liveScoreCache = /* @__PURE__ */ new Map();
+    squadFetchBackoff = /* @__PURE__ */ new Map();
+    SQUAD_BACKOFF_MS = 60 * 60 * 1e3;
+    historicalStatsCache = null;
+  }
+});
 
 // server/index.ts
+init_routes();
 init_cricket_api();
 init_storage();
 init_db();
+import express from "express";
 import * as fs from "fs";
 import * as path from "path";
 var app = express();

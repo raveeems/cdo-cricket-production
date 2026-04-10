@@ -111,6 +111,152 @@ const liveScoreCache = new Map<string, { data: any; fetchedAt: number }>();
 const squadFetchBackoff = new Map<string, number>();
 const SQUAD_BACKOFF_MS = 60 * 60 * 1000;
 
+// ── In-memory cache for historical stats ─────────────────────────────────────
+type HistoricalStats = {
+  player_name: string;
+  avg_cdo_points: number;
+  avg_powerplay_runs: number;
+  avg_middle_runs: number;
+  avg_death_runs: number;
+  avg_powerplay_wickets: number;
+  avg_death_wickets: number;
+  typical_batting_position: number;
+  matches_played: number;
+};
+
+let historicalStatsCache: Map<string, HistoricalStats> | null = null;
+
+export function invalidateHistoricalStatsCache(): void {
+  historicalStatsCache = null;
+  console.log("[AI] Historical stats cache invalidated.");
+}
+
+async function getHistoricalStatsCache(): Promise<Map<string, HistoricalStats>> {
+  if (historicalStatsCache) return historicalStatsCache;
+  console.log("[AI] Building historical stats cache from DB...");
+  const rows = await db.execute(sql`
+    SELECT player_name, avg_cdo_points,
+           avg_powerplay_runs, avg_middle_runs, avg_death_runs,
+           avg_powerplay_wickets, avg_death_wickets,
+           typical_batting_position, matches_played
+    FROM player_historical_stats
+  `);
+  const cache = new Map<string, HistoricalStats>();
+  for (const row of rows.rows as HistoricalStats[]) {
+    cache.set(row.player_name, row);
+  }
+  historicalStatsCache = cache;
+  console.log(`[AI] Historical stats cache built — ${cache.size} players.`);
+  return cache;
+}
+
+// ── Name matching ─────────────────────────────────────────────────────────────
+
+type MatchConfidence = "high" | "medium" | "low" | "none";
+
+type MatchResult = {
+  stats: HistoricalStats | null;
+  confidence: MatchConfidence;
+};
+
+function extractSurname(name: string): string {
+  return name.trim().split(/\s+/).pop()?.toLowerCase() || "";
+}
+
+function extractInitial(name: string): string {
+  return name.trim()[0]?.toLowerCase() || "";
+}
+
+function normalizeName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+function matchPlayerToHistorical(
+  dbName: string,
+  cache: Map<string, HistoricalStats>
+): MatchResult {
+  const dbSurname = extractSurname(dbName);
+  const dbInitial = extractInitial(dbName);
+  const dbNormalized = normalizeName(dbName);
+  const dbHasInitialOnly = dbName.trim().split(/\s+/).length <= 2 &&
+    dbName.trim().split(/\s+/)[0].length <= 2;
+
+  // Build surname index from cache
+  const candidates: HistoricalStats[] = [];
+  for (const row of cache.values()) {
+    if (extractSurname(row.player_name) === dbSurname) {
+      candidates.push(row);
+    }
+  }
+
+  if (candidates.length === 0) {
+    // Try normalized full name match
+    for (const row of cache.values()) {
+      if (normalizeName(row.player_name) === dbNormalized) {
+        const mp = row.matches_played;
+        const confidence: MatchConfidence = mp >= 10 ? "medium" : mp >= 5 ? "medium" : "low";
+        console.log(`[AI Match] "${dbName}" → "${row.player_name}" ${confidence.toUpperCase()} (normalized, ${mp} matches)`);
+        return { stats: row, confidence };
+      }
+    }
+    console.log(`[AI Match] "${dbName}" → NONE (no surname or normalized match)`);
+    return { stats: null, confidence: "none" };
+  }
+
+  if (candidates.length === 1) {
+    const row = candidates[0];
+    const cricInitial = extractInitial(row.player_name);
+    const mp = row.matches_played;
+
+    if (mp === 0) {
+      console.log(`[AI Match] "${dbName}" → NONE (0 Cricsheet matches)`);
+      return { stats: null, confidence: "none" };
+    }
+
+    // Initial matches or DB name has no initial
+    if (dbInitial === cricInitial) {
+      const confidence: MatchConfidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
+      console.log(`[AI Match] "${dbName}" → "${row.player_name}" ${confidence.toUpperCase()} (${mp} matches)`);
+      return { stats: row, confidence };
+    }
+
+    if (!dbHasInitialOnly) {
+      // DB name has no initial — medium
+      console.log(`[AI Match] "${dbName}" → "${row.player_name}" MEDIUM (no initial to compare, ${mp} matches)`);
+      return { stats: row, confidence: "medium" };
+    }
+
+    // Initial actively conflicts — do not match
+    console.log(`[AI Match] "${dbName}" → NONE (initial conflict: db="${dbInitial}" cric="${cricInitial}")`);
+    return { stats: null, confidence: "none" };
+  }
+
+  // Multiple candidates with same surname
+  // Try initial match first
+  const initialMatches = candidates.filter(c => extractInitial(c.player_name) === dbInitial);
+  if (initialMatches.length === 1) {
+    const row = initialMatches[0];
+    const mp = row.matches_played;
+    if (mp === 0) {
+      console.log(`[AI Match] "${dbName}" → NONE (0 Cricsheet matches)`);
+      return { stats: null, confidence: "none" };
+    }
+    const confidence: MatchConfidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
+    console.log(`[AI Match] "${dbName}" → "${row.player_name}" ${confidence.toUpperCase()} (collision resolved by initial, ${mp} matches)`);
+    return { stats: row, confidence };
+  }
+
+  // Collision unresolved — pick highest matches_played, mark medium
+  const best = candidates.sort((a, b) => b.matches_played - a.matches_played)[0];
+  if (best.matches_played === 0) {
+    console.log(`[AI Match] "${dbName}" → NONE (collision unresolved, 0 matches)`);
+    return { stats: null, confidence: "none" };
+  }
+  console.log(`[AI Match] "${dbName}" → "${best.player_name}" LOW (collision unresolved, picked highest matches_played=${best.matches_played})`);
+  return { stats: best, confidence: "low" };
+}
+
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const PgStore = connectPgSimple(session);
   const dbUrl = process.env.DATABASE_URL || '';
@@ -1410,6 +1556,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── AI Team Picker ────────────────────────────────────────────────────────────
 
+
+// ── AI Team Endpoint ──────────────────────────────────────────────────────────
+
   app.get(
     "/api/matches/:id/ai-team",
     isAuthenticated,
@@ -1422,257 +1571,277 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const matchPlayers = await storage.getPlayersForMatch(matchId);
 
-        // ── Check if XI is announced ──────────────────────────────────────────
-        const xiPlayers = matchPlayers.filter(p => p.isPlayingXI || p.isImpactPlayer);
-        const xiAnnounced = xiPlayers.length >= 11;
+        // ── Stage 1: Gate check ───────────────────────────────────────────────
+        // Only isPlayingXI counts — isImpactPlayer does NOT count toward gate
+        const team1Players = matchPlayers.filter(
+          p => p.teamShort === match.team1Short && p.isPlayingXI === true
+        );
+        const team2Players = matchPlayers.filter(
+          p => p.teamShort === match.team2Short && p.isPlayingXI === true
+        );
+        const xiPool = [...team1Players, ...team2Players];
 
-        // ── If XI not announced — fall back to smart-pick ─────────────────────
-        if (!xiAnnounced) {
+        const gatePass =
+          team1Players.length >= 11 &&
+          team2Players.length >= 11 &&
+          xiPool.some(p => p.role === "WK") &&
+          xiPool.some(p => p.role === "BAT") &&
+          xiPool.some(p => p.role === "AR") &&
+          xiPool.some(p => p.role === "BOWL");
+
+        if (!gatePass) {
           return res.json({
             fallback: true,
-            reason: "Playing XI not announced yet — using Smart Pick instead.",
+            reason: "Playing XI not fully announced yet — using Smart Pick instead.",
           });
         }
 
-        // ── Load historical stats for these players ───────────────────────────
-        const playerNames = xiPlayers.map(p => p.name);
+        // ── Stage 2: Parallel data fetch ─────────────────────────────────────
+        const xiPlayerNames = xiPool.map(p => p.name);
 
-        // Fetch all historical stats then fuzzy-match in JS
-        // This handles name format differences e.g. "V Kohli" vs "Virat Kohli"
-        const allHistoricalRows = await db.execute(
-          sql`SELECT player_name, avg_cdo_points,
-                     avg_powerplay_runs, avg_middle_runs, avg_death_runs,
-                     avg_powerplay_wickets, avg_death_wickets,
-                     typical_batting_position, matches_played
-              FROM player_historical_stats`
-        );
+        const [historicalCache, formRows, h2hMatches] = await Promise.all([
+          // Historical stats — from in-memory cache
+          getHistoricalStatsCache(),
 
-        // Build surname index for fuzzy matching
-        // "Virat Kohli" → surname "kohli", "V Kohli" → surname "kohli"
-        function extractSurname(name: string): string {
-          return name.trim().split(/\s+/).pop()?.toLowerCase() || name.toLowerCase();
-        }
-        function extractInitial(name: string): string {
-          return name.trim()[0]?.toLowerCase() || "";
-        }
+          // Form data — single batched query (N+1 eliminated)
+          match.tournamentName ? db.execute(sql`
+            SELECT p.name, p.team_short, p.points, m.start_time
+            FROM players p
+            INNER JOIN matches m ON p.match_id = m.id
+            WHERE p.name = ANY(${xiPlayerNames})
+              AND m.tournament_name = ${match.tournamentName}
+              AND m.status = 'completed'
+              AND m.id != ${matchId}
+            ORDER BY m.start_time DESC
+          `) : Promise.resolve({ rows: [] }),
 
-        const surnameIndex = new Map<string, any[]>();
-        for (const row of allHistoricalRows.rows as any[]) {
-          const surname = extractSurname(row.player_name);
-          if (!surnameIndex.has(surname)) surnameIndex.set(surname, []);
-          surnameIndex.get(surname)!.push(row);
-        }
-
-        type HistoricalStats = {
-          avg_cdo_points: number;
-          avg_powerplay_runs: number;
-          avg_middle_runs: number;
-          avg_death_runs: number;
-          avg_powerplay_wickets: number;
-          avg_death_wickets: number;
-          typical_batting_position: number;
-          matches_played: number;
-        };
-        const historicalMap = new Map<string, HistoricalStats>();
-        for (const playerName of playerNames) {
-          const surname = extractSurname(playerName);
-          const initial = extractInitial(playerName);
-          const candidates = surnameIndex.get(surname) || [];
-
-          if (candidates.length === 1) {
-            // Only one player with this surname — safe match
-            historicalMap.set(playerName, candidates[0]);
-          } else if (candidates.length > 1) {
-            // Multiple players with same surname — match by first initial too
-            const match = candidates.find(c =>
-              extractInitial(c.player_name) === initial
-            );
-            if (match) historicalMap.set(playerName, match);
-          }
-        }
-
-        // ── IPL 2026 form — last 5 matches per player (weighted) ─────────────
-        const formMap = new Map<string, number>();
-        if (match.tournamentName) {
-          for (const player of xiPlayers) {
-            const recentRows = await db.execute(
-              sql`
-                SELECT p.points
-                FROM players p
-                INNER JOIN matches m ON p.match_id = m.id
-                WHERE p.name = ${player.name}
-                  AND p.team_short = ${player.teamShort}
-                  AND m.tournament_name = ${match.tournamentName}
-                  AND m.status = 'completed'
-                  AND m.id != ${matchId}
-                ORDER BY m.start_time DESC
-                LIMIT 5
-              `
-            );
-            const rows = recentRows.rows as any[];
-            if (rows.length === 0) continue;
-
-            const weights = [0.30, 0.25, 0.20, 0.15, 0.10];
-            let weightedSum = 0;
-            let weightTotal = 0;
-            for (let i = 0; i < rows.length; i++) {
-              const w = weights[i] ?? 0.10;
-              weightedSum += (rows[i].points ?? 0) * w;
-              weightTotal += w;
-            }
-            formMap.set(
-              `${player.name}|${player.teamShort}`,
-              weightTotal > 0 ? weightedSum / weightTotal : 0
-            );
-          }
-        }
-
-        // ── H2H average vs this opponent ──────────────────────────────────────
-        const h2hMap = new Map<string, number>();
-        const h2hMatches = await db
-          .select({ id: matchesTable.id })
-          .from(matchesTable)
-          .where(
-            and(
-              eq(matchesTable.status, "completed"),
-              sql`(
-                (${matchesTable.team1Short} = ${match.team1Short} AND ${matchesTable.team2Short} = ${match.team2Short})
-                OR
-                (${matchesTable.team1Short} = ${match.team2Short} AND ${matchesTable.team2Short} = ${match.team1Short})
-              )`,
-              sql`${matchesTable.id} != ${matchId}`
+          // H2H — all seasons
+          db.select({ id: matchesTable.id, startTime: matchesTable.startTime })
+            .from(matchesTable)
+            .where(
+              and(
+                eq(matchesTable.status, "completed"),
+                sql`(
+                  (${matchesTable.team1Short} = ${match.team1Short} AND ${matchesTable.team2Short} = ${match.team2Short})
+                  OR
+                  (${matchesTable.team1Short} = ${match.team2Short} AND ${matchesTable.team2Short} = ${match.team1Short})
+                )`,
+                sql`${matchesTable.id} != ${matchId}`
+              )
             )
-          );
+            .orderBy(sql`${matchesTable.startTime} DESC`),
+        ]);
 
+        // ── Stage 2b: Build form map from batched rows ────────────────────────
+        const formMap = new Map<string, number>();
+        const formByPlayer = new Map<string, number[]>();
+        for (const row of formRows.rows as any[]) {
+          const key = `${row.name}|${row.team_short}`;
+          if (!formByPlayer.has(key)) formByPlayer.set(key, []);
+          if (formByPlayer.get(key)!.length < 5) {
+            formByPlayer.get(key)!.push(row.points ?? 0);
+          }
+        }
+        const weights = [0.30, 0.25, 0.20, 0.15, 0.10];
+        for (const [key, pts] of formByPlayer.entries()) {
+          let weightedSum = 0, weightTotal = 0;
+          for (let i = 0; i < pts.length; i++) {
+            const w = weights[i] ?? 0.10;
+            weightedSum += pts[i] * w;
+            weightTotal += w;
+          }
+          formMap.set(key, weightTotal > 0 ? weightedSum / weightTotal : 0);
+        }
+
+        // ── Stage 2c: Build H2H map ───────────────────────────────────────────
+        const h2hMap = new Map<string, number>();
         if (h2hMatches.length > 0) {
+          // Last 3-4 matches weighted 2x
+          const recentH2HIds = new Set(h2hMatches.slice(0, 4).map(m => m.id));
           const h2hMatchIds = h2hMatches.map(m => m.id);
           const h2hRows = await db
             .select({
               name: playersTable.name,
               teamShort: playersTable.teamShort,
-              avg: sql<number>`CAST(AVG(${playersTable.points}) AS FLOAT)`,
+              points: playersTable.points,
+              matchId: playersTable.matchId,
             })
             .from(playersTable)
             .where(
-              and(
-                sql`${playersTable.matchId} = ANY(ARRAY[${sql.join(h2hMatchIds.map(id => sql`${id}`), sql`, `)}]::text[])`,
-                sql`${playersTable.points} > 0`
-              )
-            )
-            .groupBy(playersTable.name, playersTable.teamShort);
+              sql`${playersTable.matchId} = ANY(ARRAY[${sql.join(
+                h2hMatchIds.map(id => sql`${id}`), sql`, `
+              )}]::text[])`
+            );
+
+          // Group and average — recent matches count double
+          const h2hByPlayer = new Map<string, { sum: number; count: number }>();
           for (const row of h2hRows) {
-            h2hMap.set(`${row.name}|${row.teamShort}`, row.avg);
+            const key = `${row.name}|${row.teamShort}`;
+            const weight = recentH2HIds.has(row.matchId) ? 2 : 1;
+            if (!h2hByPlayer.has(key)) h2hByPlayer.set(key, { sum: 0, count: 0 });
+            const entry = h2hByPlayer.get(key)!;
+            entry.sum += (row.points ?? 0) * weight;
+            entry.count += weight;
+          }
+          for (const [key, { sum, count }] of h2hByPlayer.entries()) {
+            h2hMap.set(key, count > 0 ? sum / count : 0);
           }
         }
 
-        // ── Score each player ─────────────────────────────────────────────────
+        // ── Stage 3: Name matching + confidence ──────────────────────────────
+        type PlayerWithScore = typeof xiPool[0] & {
+          aiScore: number;
+          confidence: MatchConfidence;
+          careerAvg: number;
+        };
 
-        function getPhaseBonus(hist: HistoricalStats, role: string): number {
-          let bonus = 0;
-          const pos = hist.typical_batting_position || 0;
-
-          if (role === "BAT" || role === "AR" || role === "WK") {
-            if (pos >= 1 && pos <= 2) {
-              const ppRuns = hist.avg_powerplay_runs;
-              if (ppRuns >= 25) bonus += 15;
-              else if (ppRuns >= 15) bonus += 10;
-              else if (ppRuns >= 8) bonus += 5;
-            } else if (pos >= 3 && pos <= 5) {
-              const midRuns = hist.avg_middle_runs;
-              if (midRuns >= 25) bonus += 15;
-              else if (midRuns >= 15) bonus += 10;
-              else if (midRuns >= 8) bonus += 5;
-            } else if (pos >= 6 && pos <= 8) {
-              const deathRuns = hist.avg_death_runs;
-              if (deathRuns >= 25) bonus += 15;
-              else if (deathRuns >= 15) bonus += 10;
-              else if (deathRuns >= 8) bonus += 5;
-            }
+        // Build role-based averages for debutant fallback
+        const roleAvgMap: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        const roleCounts2: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+        for (const p of xiPool) {
+          const match2 = matchPlayerToHistorical(p.name, historicalCache);
+          if (match2.stats && match2.confidence !== "none") {
+            roleAvgMap[p.role] = (roleAvgMap[p.role] || 0) + match2.stats.avg_cdo_points;
+            roleCounts2[p.role]++;
           }
-
-          if (role === "BOWL" || role === "AR") {
-            const ppWkts = hist.avg_powerplay_wickets;
-            if (ppWkts >= 0.8) bonus += 15;
-            else if (ppWkts >= 0.5) bonus += 10;
-            else if (ppWkts >= 0.3) bonus += 5;
-
-            const deathWkts = hist.avg_death_wickets;
-            if (deathWkts >= 0.8) bonus += 15;
-            else if (deathWkts >= 0.5) bonus += 10;
-            else if (deathWkts >= 0.3) bonus += 5;
-          }
-
-          return bonus;
+        }
+        for (const role of ["WK", "BAT", "AR", "BOWL"]) {
+          roleAvgMap[role] = roleCounts2[role] > 0
+            ? roleAvgMap[role] / roleCounts2[role]
+            : 20; // global fallback if entire role has no data
         }
 
-        const scored = xiPlayers.map(p => {
+        // ── Stage 4: Score each player ────────────────────────────────────────
+        const scored: PlayerWithScore[] = xiPool.map(p => {
           const key = `${p.name}|${p.teamShort}`;
-          const hist = historicalMap.get(p.name);
-          const careerAvg = hist?.avg_cdo_points ?? 0;
+          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache);
+
+          // Career avg — use role average for debutants
+          const careerAvg = stats ? stats.avg_cdo_points : roleAvgMap[p.role];
+
+          // Confidence-tiered career weight
+          const careerWeight =
+            confidence === "high" ? 0.30 :
+            confidence === "medium" ? 0.20 :
+            confidence === "low" ? 0.15 : 0;
+
+          const formWeight = 1 - careerWeight - 0.15; // H2H always 15%
           const formScore = formMap.get(key) ?? 0;
           const h2hScore = h2hMap.get(key) ?? 0;
-          const phaseBonus = hist ? getPhaseBonus(hist, p.role) : 0;
+
+          // Phase bonus — capped at +20
+          let phaseBonus = 0;
+          if (stats) {
+            const pos = stats.typical_batting_position || 0;
+            if (p.role === "BAT" || p.role === "AR" || p.role === "WK") {
+              let batBonus = 0;
+              if (pos >= 1 && pos <= 2) {
+                const r = stats.avg_powerplay_runs;
+                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+              } else if (pos >= 3 && pos <= 5) {
+                const r = stats.avg_middle_runs;
+                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+              } else if (pos >= 6 && pos <= 8) {
+                const r = stats.avg_death_runs;
+                batBonus = r >= 25 ? 15 : r >= 15 ? 10 : r >= 8 ? 5 : 0;
+              }
+              phaseBonus += batBonus;
+            }
+            if (p.role === "BOWL" || p.role === "AR") {
+              const ppW = stats.avg_powerplay_wickets;
+              const dW = stats.avg_death_wickets;
+              phaseBonus += ppW >= 0.8 ? 15 : ppW >= 0.5 ? 10 : ppW >= 0.3 ? 5 : 0;
+              phaseBonus += dW >= 0.8 ? 15 : dW >= 0.5 ? 10 : dW >= 0.3 ? 5 : 0;
+            }
+            phaseBonus = Math.min(phaseBonus, 20); // hard cap
+          }
 
           const aiScore =
-            (0.40 * careerAvg) +
-            (0.30 * formScore) +
-            (0.20 * h2hScore) +
+            (careerWeight * careerAvg) +
+            (formWeight * formScore) +
+            (0.15 * h2hScore) +
             phaseBonus;
 
-          return { ...p, aiScore, careerAvg, formScore, h2hScore, phaseBonus };
-        }).sort((a, b) => b.aiScore - a.aiScore);
+          return { ...p, aiScore, confidence, careerAvg };
+        });
 
-        // ── Greedy selection with constraints ─────────────────────────────────
+        scored.sort((a, b) => b.aiScore - a.aiScore);
+
+        // ── Stage 5: Greedy selection + backtracking ──────────────────────────
         const ROLE_LIMITS: Record<string, { min: number; max: number }> = {
-          WK:   { min: 1, max: 4 },
-          BAT:  { min: 1, max: 6 },
-          AR:   { min: 1, max: 6 },
-          BOWL: { min: 1, max: 6 },
+          WK: { min: 1, max: 4 }, BAT: { min: 1, max: 6 },
+          AR: { min: 1, max: 6 }, BOWL: { min: 1, max: 6 },
         };
         const MAX_FROM_ONE_TEAM = 6;
         const CREDIT_CAP = 100;
 
-        const picked: typeof scored = [];
-        const roleCounts: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
-        const teamCounts: Record<string, number> = {};
-        let credits = 0;
+        function tryBuildTeam(pool: PlayerWithScore[]): PlayerWithScore[] | null {
+          const picked: PlayerWithScore[] = [];
+          const roleCounts: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+          const teamCounts: Record<string, number> = {};
+          let credits = 0;
 
-        // Pass 1 — satisfy role minimums
-        for (const role of ["WK", "BAT", "AR", "BOWL"]) {
-          const best = scored.find(p =>
-            p.role === role &&
-            !picked.find(x => x.id === p.id) &&
-            (teamCounts[p.teamShort] || 0) < MAX_FROM_ONE_TEAM &&
-            credits + p.credits <= CREDIT_CAP
-          );
-          if (best) {
-            picked.push(best);
-            roleCounts[best.role]++;
-            teamCounts[best.teamShort] = (teamCounts[best.teamShort] || 0) + 1;
-            credits += best.credits;
+          // Pass 1 — satisfy minimums
+          for (const role of ["WK", "BAT", "AR", "BOWL"]) {
+            const best = pool.find(p =>
+              p.role === role &&
+              !picked.find(x => x.id === p.id) &&
+              (teamCounts[p.teamShort] || 0) < MAX_FROM_ONE_TEAM &&
+              credits + p.credits <= CREDIT_CAP
+            );
+            if (best) {
+              picked.push(best);
+              roleCounts[best.role]++;
+              teamCounts[best.teamShort] = (teamCounts[best.teamShort] || 0) + 1;
+              credits += best.credits;
+            }
+          }
+
+          // Pass 2 — fill remaining slots
+          for (const p of pool) {
+            if (picked.length >= 11) break;
+            if (picked.find(x => x.id === p.id)) continue;
+            if (roleCounts[p.role] >= ROLE_LIMITS[p.role].max) continue;
+            if ((teamCounts[p.teamShort] || 0) >= MAX_FROM_ONE_TEAM) continue;
+            if (credits + p.credits > CREDIT_CAP) continue;
+            picked.push(p);
+            roleCounts[p.role]++;
+            teamCounts[p.teamShort] = (teamCounts[p.teamShort] || 0) + 1;
+            credits += p.credits;
+          }
+
+          return picked.length === 11 ? picked : null;
+        }
+
+        let picked = tryBuildTeam(scored);
+
+        // Backtracking — max 3 retries
+        if (!picked) {
+          const MAX_RETRIES = 3;
+          for (let retry = 0; retry < MAX_RETRIES; retry++) {
+            // Drop lowest scoring non-role-critical player and retry
+            const roleCritical = new Set<string>();
+            const roleSeenCount: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
+            // Try dropping the lowest AI score player that isn't the only one of its role
+            const sortedByScore = [...scored].sort((a, b) => a.aiScore - b.aiScore);
+            for (const role of ["WK", "BAT", "AR", "BOWL"]) {
+              roleSeenCount[role] = scored.filter(p => p.role === role).length;
+            }
+            const dropCandidate = sortedByScore.find(p => roleSeenCount[p.role] > 1);
+            if (!dropCandidate) break;
+            const reducedPool = scored.filter(p => p.id !== dropCandidate.id);
+            picked = tryBuildTeam(reducedPool);
+            if (picked) break;
           }
         }
 
-        // Pass 2 — fill remaining slots by AI score
-        for (const p of scored) {
-          if (picked.length >= 11) break;
-          if (picked.find(x => x.id === p.id)) continue;
-          if (roleCounts[p.role] >= ROLE_LIMITS[p.role].max) continue;
-          if ((teamCounts[p.teamShort] || 0) >= MAX_FROM_ONE_TEAM) continue;
-          if (credits + p.credits > CREDIT_CAP) continue;
-          picked.push(p);
-          roleCounts[p.role]++;
-          teamCounts[p.teamShort] = (teamCounts[p.teamShort] || 0) + 1;
-          credits += p.credits;
-        }
-
-        if (picked.length !== 11) {
+        if (!picked) {
           return res.status(422).json({
             message: "Could not build a valid AI team — try Smart Pick instead.",
           });
         }
 
-        // ── Per-user variation using userId as seed ───────────────────────────
+        // ── Stage 6: Per-click variation ──────────────────────────────────────
         function seededRandom(seed: string, index: number): number {
           let hash = 0;
           const str = seed + index;
@@ -1683,18 +1852,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return Math.abs(hash) / 2147483647;
         }
 
+        const clickSeed = userId + Date.now().toString();
         const pickedIds = new Set(picked.map(p => p.id));
-        const nonCorePicks = picked.filter(p => p.careerAvg < 20);
+        // Swap candidates: low data OR low matches
+        const swapCandidates = picked.filter(
+          p => p.careerAvg < 20 || (historicalCache.get(p.name)?.matches_played ?? 0) < 10
+        );
         let swapsApplied = 0;
 
-        // Add timestamp to seed so each click produces a different team
-        const clickSeed = userId + Date.now().toString();
+        for (let i = 0; i < swapCandidates.length; i++) {
+          if (swapsApplied >= 3) break;
+          if (seededRandom(clickSeed, i) > 0.30) continue; // 70% chance
 
-        for (let i = 0; i < nonCorePicks.length; i++) {
-          if (swapsApplied >= 2) break;
-          if (seededRandom(clickSeed, i) > 0.5) continue;
-
-          const outPlayer = nonCorePicks[i];
+          const outPlayer = swapCandidates[i];
           const creditsWithout = picked.reduce(
             (s, p) => s + (p.id === outPlayer.id ? 0 : p.credits), 0
           );
@@ -1723,7 +1893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // ── Captain and Vice Captain ──────────────────────────────────────────
+        // ── Stage 7: Captain and Vice Captain ────────────────────────────────
         const cvSorted = [...picked].sort((a, b) => {
           if (Math.abs(b.aiScore - a.aiScore) < 5) {
             const aIsAR = a.role === "AR" ? 1 : 0;
@@ -1736,20 +1906,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const captainId = cvSorted[0].id;
         const viceCaptainId = cvSorted[1].id;
 
-        // ── Reason string ─────────────────────────────────────────────────────
-        const hasHistory = historicalMap.size > 0;
+        // ── Response ──────────────────────────────────────────────────────────
+        const highCount = scored.filter(p =>
+          matchPlayerToHistorical(p.name, historicalCache).confidence === "high"
+        ).length;
         const hasForm = formMap.size > 0;
         const hasH2H = h2hMap.size > 0;
-        const reason = hasHistory
-          ? `AI Pick: IPL history (${historicalMap.size} players matched)${hasForm ? " + 2026 form" : ""}${hasH2H ? " + H2H data" : ""}`
-          : "AI Pick: 2026 form only (no historical data matched yet)";
 
         return res.json({
           fallback: false,
           playerIds: picked.map(p => p.id),
           captainId,
           viceCaptainId,
-          reason,
+          reason: `AI Pick: ${highCount} players matched${hasForm ? " + 2026 form" : ""}${hasH2H ? " + H2H data" : ""}`,
         });
 
       } catch (err: any) {
