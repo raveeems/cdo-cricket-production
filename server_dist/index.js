@@ -3269,7 +3269,8 @@ var init_cricket_api = __esm({
 var cricsheet_loader_exports = {};
 __export(cricsheet_loader_exports, {
   getLoaderProgress: () => getLoaderProgress,
-  loadCricsheetData: () => loadCricsheetData
+  loadCricsheetData: () => loadCricsheetData,
+  rebuildHistoricalStatsPublic: () => rebuildHistoricalStatsPublic
 });
 import https from "https";
 import http from "http";
@@ -3710,6 +3711,13 @@ async function rebuildHistoricalStats() {
   } finally {
     client.release();
   }
+}
+async function rebuildHistoricalStatsPublic() {
+  console.log("[Cricsheet] Manual rebuild of player_historical_stats triggered...");
+  await rebuildHistoricalStats();
+  const { invalidateHistoricalStatsCache: invalidateHistoricalStatsCache2 } = await Promise.resolve().then(() => (init_routes(), routes_exports));
+  invalidateHistoricalStatsCache2();
+  console.log("[Cricsheet] Manual rebuild complete.");
 }
 var loaderProgress;
 var init_cricsheet_loader = __esm({
@@ -4283,6 +4291,22 @@ async function registerRoutes(app2) {
       return res.status(500).json({ message: "Failed to save token" });
     }
   });
+  app2.post(
+    "/api/admin/rebuild-historical-stats",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const { rebuildHistoricalStatsPublic: rebuildHistoricalStatsPublic2 } = await Promise.resolve().then(() => (init_cricsheet_loader(), cricsheet_loader_exports));
+        rebuildHistoricalStatsPublic2().catch((err) => {
+          console.error("[Cricsheet] Rebuild error:", err);
+        });
+        return res.json({ message: "Rebuilding player_historical_stats in background..." });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
   app2.post(
     "/api/admin/load-cricsheet",
     isAuthenticated,

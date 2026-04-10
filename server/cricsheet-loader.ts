@@ -532,3 +532,11 @@ async function rebuildHistoricalStats(): Promise<void> {
     client.release();
   }
 }
+
+export async function rebuildHistoricalStatsPublic(): Promise<void> {
+  console.log("[Cricsheet] Manual rebuild of player_historical_stats triggered...");
+  await rebuildHistoricalStats();
+  const { invalidateHistoricalStatsCache } = await import("./routes");
+  invalidateHistoricalStatsCache();
+  console.log("[Cricsheet] Manual rebuild complete.");
+}

@@ -563,6 +563,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Cricsheet loader — trigger + progress ─────────────────────────────────────
 
   app.post(
+    "/api/admin/rebuild-historical-stats",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const { rebuildHistoricalStatsPublic } = await import("./cricsheet-loader");
+        rebuildHistoricalStatsPublic().catch((err) => {
+          console.error("[Cricsheet] Rebuild error:", err);
+        });
+        return res.json({ message: "Rebuilding player_historical_stats in background..." });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.post(
     "/api/admin/load-cricsheet",
     isAuthenticated,
     isAdmin,
