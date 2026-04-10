@@ -1,0 +1,83 @@
+Fix 1 — Name matching in server/routes.ts
+The WHERE player_name = ANY(${playerNames}) query does exact matching. We need fuzzy matching.
+Find this in the ai-team endpoint:
+tsconst historicalRows = await db.execute(
+  sql`
+    SELECT player_name, avg_cdo_points,
+           avg_powerplay_runs, avg_middle_runs, avg_death_runs,
+           avg_powerplay_wickets, avg_death_wickets,
+           typical_batting_position, matches_played
+    FROM player_historical_stats
+    WHERE player_name = ANY(${playerNames})
+  `
+);
+
+const historicalMap = new Map<string, HistoricalStats>();
+for (const row of historicalRows.rows as any[]) {
+  historicalMap.set(row.player_name, row);
+}
+Replace it with:
+ts// Fetch all historical stats then fuzzy-match in JS
+// This handles name format differences e.g. "V Kohli" vs "Virat Kohli"
+const allHistoricalRows = await db.execute(
+  sql`SELECT player_name, avg_cdo_points,
+             avg_powerplay_runs, avg_middle_runs, avg_death_runs,
+             avg_powerplay_wickets, avg_death_wickets,
+             typical_batting_position, matches_played
+      FROM player_historical_stats`
+);
+
+// Build surname index for fuzzy matching
+// "Virat Kohli" → surname "kohli", "V Kohli" → surname "kohli"
+function extractSurname(name: string): string {
+  return name.trim().split(/\s+/).pop()?.toLowerCase() || name.toLowerCase();
+}
+function extractInitial(name: string): string {
+  return name.trim()[0]?.toLowerCase() || "";
+}
+
+const surnameIndex = new Map<string, any[]>();
+for (const row of allHistoricalRows.rows as any[]) {
+  const surname = extractSurname(row.player_name);
+  if (!surnameIndex.has(surname)) surnameIndex.set(surname, []);
+  surnameIndex.get(surname)!.push(row);
+}
+
+const historicalMap = new Map<string, HistoricalStats>();
+for (const playerName of playerNames) {
+  const surname = extractSurname(playerName);
+  const initial = extractInitial(playerName);
+  const candidates = surnameIndex.get(surname) || [];
+
+  if (candidates.length === 1) {
+    // Only one player with this surname — safe match
+    historicalMap.set(playerName, candidates[0]);
+  } else if (candidates.length > 1) {
+    // Multiple players with same surname — match by first initial too
+    const match = candidates.find(c =>
+      extractInitial(c.player_name) === initial
+    );
+    if (match) historicalMap.set(playerName, match);
+  }
+}
+
+Fix 2 — Add variation per click in server/routes.ts
+Find this in the ai-team endpoint:
+tsconst nonCorePicks = picked.filter(p => p.careerAvg < 20);
+let swapsApplied = 0;
+
+for (let i = 0; i < nonCorePicks.length; i++) {
+  if (swapsApplied >= 2) break;
+  if (seededRandom(userId, i) > 0.5) continue;
+Replace it with:
+tsconst nonCorePicks = picked.filter(p => p.careerAvg < 20);
+let swapsApplied = 0;
+
+// Add timestamp to seed so each click produces a different team
+const clickSeed = userId + Date.now().toString();
+
+for (let i = 0; i < nonCorePicks.length; i++) {
+  if (swapsApplied >= 2) break;
+  if (seededRandom(clickSeed, i) > 0.5) continue;
+
+Then rebuild and push
