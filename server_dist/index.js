@@ -4455,6 +4455,29 @@ async function registerRoutes(app2) {
     }
   });
   app2.get(
+    "/api/admin/player-mappings/search",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const query = (req.query.q || "").toLowerCase().trim();
+        if (!query || query.length < 2) {
+          return res.status(400).json({ message: "q param required (min 2 chars)" });
+        }
+        const rows = await db.execute(sql3`
+          SELECT DISTINCT player_name, team, matches_played, avg_cdo_points
+          FROM player_historical_stats
+          WHERE LOWER(player_name) LIKE ${"%" + query + "%"}
+          ORDER BY matches_played DESC
+          LIMIT 20
+        `);
+        return res.json({ results: rows.rows, count: rows.rows.length });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.get(
     "/api/admin/player-mappings/unresolved",
     isAuthenticated,
     isAdmin,

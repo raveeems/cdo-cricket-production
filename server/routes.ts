@@ -826,6 +826,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Player name mappings admin endpoints ────────────────────────────────────
 
   app.get(
+    "/api/admin/player-mappings/search",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const query = (req.query.q as string || "").toLowerCase().trim();
+        if (!query || query.length < 2) {
+          return res.status(400).json({ message: "q param required (min 2 chars)" });
+        }
+        const rows = await db.execute(sql`
+          SELECT DISTINCT player_name, team, matches_played, avg_cdo_points
+          FROM player_historical_stats
+          WHERE LOWER(player_name) LIKE ${('%' + query + '%')}
+          ORDER BY matches_played DESC
+          LIMIT 20
+        `);
+        return res.json({ results: rows.rows, count: rows.rows.length });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.get(
     "/api/admin/player-mappings/unresolved",
     isAuthenticated,
     isAdmin,
