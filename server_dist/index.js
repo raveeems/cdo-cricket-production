@@ -309,6 +309,63 @@ async function runMigrations() {
       ALTER TABLE match_player_status ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) NOT NULL DEFAULT 'admin';
       UPDATE match_player_status SET id = gen_random_uuid() WHERE id IS NULL;
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS player_match_history (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        cricsheet_match_id TEXT NOT NULL,
+        season TEXT NOT NULL,
+        match_date DATE NOT NULL,
+        team TEXT NOT NULL,
+        opponent TEXT NOT NULL,
+        player_name TEXT NOT NULL,
+        role TEXT,
+        batting_position INTEGER,
+        runs INTEGER NOT NULL DEFAULT 0,
+        balls_faced INTEGER NOT NULL DEFAULT 0,
+        fours INTEGER NOT NULL DEFAULT 0,
+        sixes INTEGER NOT NULL DEFAULT 0,
+        powerplay_runs INTEGER NOT NULL DEFAULT 0,
+        powerplay_balls INTEGER NOT NULL DEFAULT 0,
+        middle_runs INTEGER NOT NULL DEFAULT 0,
+        middle_balls INTEGER NOT NULL DEFAULT 0,
+        death_runs INTEGER NOT NULL DEFAULT 0,
+        death_balls INTEGER NOT NULL DEFAULT 0,
+        wickets INTEGER NOT NULL DEFAULT 0,
+        overs_bowled FLOAT NOT NULL DEFAULT 0,
+        runs_conceded INTEGER NOT NULL DEFAULT 0,
+        maidens INTEGER NOT NULL DEFAULT 0,
+        dot_balls INTEGER NOT NULL DEFAULT 0,
+        powerplay_wickets INTEGER NOT NULL DEFAULT 0,
+        death_wickets INTEGER NOT NULL DEFAULT 0,
+        catches INTEGER NOT NULL DEFAULT 0,
+        stumpings INTEGER NOT NULL DEFAULT 0,
+        run_outs_direct INTEGER NOT NULL DEFAULT 0,
+        run_outs_indirect INTEGER NOT NULL DEFAULT 0,
+        is_out BOOLEAN NOT NULL DEFAULT false,
+        dismissal_type TEXT,
+        lbw_or_bowled_wickets INTEGER NOT NULL DEFAULT 0,
+        cdo_points INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(cricsheet_match_id, player_name, team)
+      );
+
+      CREATE TABLE IF NOT EXISTS player_historical_stats (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        player_name TEXT NOT NULL,
+        team TEXT NOT NULL,
+        matches_played INTEGER NOT NULL DEFAULT 0,
+        total_cdo_points INTEGER NOT NULL DEFAULT 0,
+        avg_cdo_points FLOAT NOT NULL DEFAULT 0,
+        avg_powerplay_runs FLOAT NOT NULL DEFAULT 0,
+        avg_middle_runs FLOAT NOT NULL DEFAULT 0,
+        avg_death_runs FLOAT NOT NULL DEFAULT 0,
+        avg_powerplay_wickets FLOAT NOT NULL DEFAULT 0,
+        avg_death_wickets FLOAT NOT NULL DEFAULT 0,
+        typical_batting_position FLOAT NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(player_name, team)
+      );
+    `);
     console.log("[DB] Migrations complete.");
   } catch (err) {
     console.error("[DB] Migration error:", err.message);
