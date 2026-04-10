@@ -3658,7 +3658,7 @@ async function rebuildHistoricalStats() {
         ROUND(AVG(death_runs)::numeric, 2)                   AS avg_death_runs,
         ROUND(AVG(powerplay_wickets)::numeric, 3)            AS avg_powerplay_wickets,
         ROUND(AVG(death_wickets)::numeric, 3)                AS avg_death_wickets,
-        ROUND(AVG(NULLIF(batting_position, 0))::numeric, 1)  AS typical_batting_position,
+        COALESCE(ROUND(AVG(NULLIF(batting_position, 0))::numeric, 1), 0)  AS typical_batting_position,
         NOW()
       FROM player_match_history
       GROUP BY player_name, team
