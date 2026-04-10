@@ -172,6 +172,23 @@ async function runMigrations(): Promise<void> {
         ON player_match_history(player_name, season);
     `);
 
+    // Player name mappings — auto-generated bridge between DB display names and Cricsheet names
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS player_name_mappings (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        db_name TEXT NOT NULL,
+        cricsheet_name TEXT NOT NULL,
+        team_short VARCHAR(10),
+        confidence TEXT NOT NULL DEFAULT 'auto',
+        source TEXT NOT NULL DEFAULT 'auto',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(db_name, team_short)
+      );
+      CREATE INDEX IF NOT EXISTS idx_player_name_mappings_db_name
+        ON player_name_mappings(db_name);
+    `);
+
     console.log("[DB] Migrations complete.");
   } catch (err: any) {
     console.error("[DB] Migration error:", err.message);

@@ -185,8 +185,12 @@ export async function loadCricsheetData(): Promise<void> {
     loaderProgress.message = "Rebuilding player_historical_stats...";
     await rebuildHistoricalStats();
 
-    const { invalidateHistoricalStatsCache } = await import("./routes");
+    const { invalidateHistoricalStatsCache, invalidateCanonicalIndex, runAutoMapping } = await import("./routes");
     invalidateHistoricalStatsCache();
+    invalidateCanonicalIndex();
+    console.log("[Cricsheet] Running auto name mapping...");
+    await runAutoMapping();
+    console.log("[Cricsheet] Auto name mapping complete.");
     loaderProgress.status = "done";
     loaderProgress.message = `Complete. ${loaderProgress.processed} matches loaded, ${loaderProgress.failed} failed.`;
     console.log(`[Cricsheet] ${loaderProgress.message}`);
@@ -536,7 +540,10 @@ async function rebuildHistoricalStats(): Promise<void> {
 export async function rebuildHistoricalStatsPublic(): Promise<void> {
   console.log("[Cricsheet] Manual rebuild of player_historical_stats triggered...");
   await rebuildHistoricalStats();
-  const { invalidateHistoricalStatsCache } = await import("./routes");
+  const { invalidateHistoricalStatsCache, invalidateCanonicalIndex, runAutoMapping } = await import("./routes");
   invalidateHistoricalStatsCache();
+  invalidateCanonicalIndex();
+  console.log("[Cricsheet] Running auto name mapping...");
+  await runAutoMapping();
   console.log("[Cricsheet] Manual rebuild complete.");
 }

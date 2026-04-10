@@ -377,6 +377,21 @@ async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_player_match_history_name_season
         ON player_match_history(player_name, season);
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS player_name_mappings (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        db_name TEXT NOT NULL,
+        cricsheet_name TEXT NOT NULL,
+        team_short VARCHAR(10),
+        confidence TEXT NOT NULL DEFAULT 'auto',
+        source TEXT NOT NULL DEFAULT 'auto',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(db_name, team_short)
+      );
+      CREATE INDEX IF NOT EXISTS idx_player_name_mappings_db_name
+        ON player_name_mappings(db_name);
+    `);
     console.log("[DB] Migrations complete.");
   } catch (err) {
     console.error("[DB] Migration error:", err.message);
@@ -3388,8 +3403,12 @@ async function loadCricsheetData() {
     }
     loaderProgress.message = "Rebuilding player_historical_stats...";
     await rebuildHistoricalStats();
-    const { invalidateHistoricalStatsCache: invalidateHistoricalStatsCache2 } = await Promise.resolve().then(() => (init_routes(), routes_exports));
+    const { invalidateHistoricalStatsCache: invalidateHistoricalStatsCache2, invalidateCanonicalIndex: invalidateCanonicalIndex2, runAutoMapping: runAutoMapping2 } = await Promise.resolve().then(() => (init_routes(), routes_exports));
     invalidateHistoricalStatsCache2();
+    invalidateCanonicalIndex2();
+    console.log("[Cricsheet] Running auto name mapping...");
+    await runAutoMapping2();
+    console.log("[Cricsheet] Auto name mapping complete.");
     loaderProgress.status = "done";
     loaderProgress.message = `Complete. ${loaderProgress.processed} matches loaded, ${loaderProgress.failed} failed.`;
     console.log(`[Cricsheet] ${loaderProgress.message}`);
@@ -3715,8 +3734,11 @@ async function rebuildHistoricalStats() {
 async function rebuildHistoricalStatsPublic() {
   console.log("[Cricsheet] Manual rebuild of player_historical_stats triggered...");
   await rebuildHistoricalStats();
-  const { invalidateHistoricalStatsCache: invalidateHistoricalStatsCache2 } = await Promise.resolve().then(() => (init_routes(), routes_exports));
+  const { invalidateHistoricalStatsCache: invalidateHistoricalStatsCache2, invalidateCanonicalIndex: invalidateCanonicalIndex2, runAutoMapping: runAutoMapping2 } = await Promise.resolve().then(() => (init_routes(), routes_exports));
   invalidateHistoricalStatsCache2();
+  invalidateCanonicalIndex2();
+  console.log("[Cricsheet] Running auto name mapping...");
+  await runAutoMapping2();
   console.log("[Cricsheet] Manual rebuild complete.");
 }
 var loaderProgress;
@@ -3858,7 +3880,9 @@ var routes_exports = {};
 __export(routes_exports, {
   invalidateCanonicalIndex: () => invalidateCanonicalIndex,
   invalidateHistoricalStatsCache: () => invalidateHistoricalStatsCache,
+  invalidateMappingsCache: () => invalidateMappingsCache,
   registerRoutes: () => registerRoutes,
+  runAutoMapping: () => runAutoMapping,
   startOwnershipWorker: () => startOwnershipWorker
 });
 import { createServer } from "node:http";
@@ -4051,9 +4075,136 @@ function buildCanonicalIndex(cache) {
 function invalidateCanonicalIndex() {
   canonicalCacheIndex = null;
 }
-function matchPlayerToHistorical(dbName, cache) {
+function invalidateMappingsCache() {
+  dbMappingsCache = null;
+}
+async function getDbMappingsCache() {
+  if (dbMappingsCache) return dbMappingsCache;
+  const rows = await db.execute(sql3`
+    SELECT db_name, cricsheet_name FROM player_name_mappings
+  `);
+  const map = /* @__PURE__ */ new Map();
+  for (const row of rows.rows) {
+    map.set(canonicalize(row.db_name), row.cricsheet_name);
+  }
+  dbMappingsCache = map;
+  console.log(`[AI Mapping] Loaded ${map.size} mappings from DB`);
+  return map;
+}
+async function runAutoMapping() {
+  try {
+    const dbPlayersRows = await db.execute(sql3`
+      SELECT DISTINCT name, team_short FROM players WHERE name IS NOT NULL
+    `);
+    const cricsheetRows = await db.execute(sql3`
+      SELECT DISTINCT player_name, team FROM player_historical_stats
+    `);
+    const cricsheetByTeam = /* @__PURE__ */ new Map();
+    for (const row of cricsheetRows.rows) {
+      const teamKey = canonicalize(row.team);
+      if (!cricsheetByTeam.has(teamKey)) cricsheetByTeam.set(teamKey, []);
+      cricsheetByTeam.get(teamKey).push(row.player_name);
+    }
+    const TEAM_NAME_MAP = {
+      "RR": ["rajasthan royals"],
+      "RCB": ["royal challengers bangalore", "royal challengers bengaluru"],
+      "MI": ["mumbai indians"],
+      "CSK": ["chennai super kings"],
+      "KKR": ["kolkata knight riders"],
+      "SRH": ["sunrisers hyderabad"],
+      "DC": ["delhi capitals", "delhi daredevils"],
+      "PBKS": ["punjab kings", "kings xi punjab"],
+      "GT": ["gujarat titans"],
+      "LSG": ["lucknow super giants"]
+    };
+    let autoMapped = 0, alreadyMapped = 0, unresolved = 0;
+    for (const dbRow of dbPlayersRows.rows) {
+      const dbName = dbRow.name;
+      const teamShort = dbRow.team_short;
+      const canonicalDb = canonicalize(dbName);
+      const existingRows = await db.execute(sql3`
+        SELECT id FROM player_name_mappings WHERE db_name = ${dbName} AND team_short = ${teamShort}
+      `);
+      if (existingRows.rows.length > 0) {
+        alreadyMapped++;
+        continue;
+      }
+      const teamKeys = TEAM_NAME_MAP[teamShort] || [];
+      let teamPlayers = [];
+      for (const teamKey of teamKeys) {
+        for (const [k, v] of cricsheetByTeam.entries()) {
+          if (k.includes(teamKey) || teamKey.includes(k)) teamPlayers = [...teamPlayers, ...v];
+        }
+      }
+      if (teamPlayers.length === 0) {
+        for (const v of cricsheetByTeam.values()) teamPlayers = [...teamPlayers, ...v];
+      }
+      let bestMatch = null;
+      let bestConfidence = "none";
+      for (const cp of teamPlayers) {
+        if (canonicalize(cp) === canonicalDb) {
+          bestMatch = cp;
+          bestConfidence = "high";
+          break;
+        }
+      }
+      if (!bestMatch) {
+        const dbSurname = extractSurname(dbName);
+        const dbInit = extractInitial(dbName);
+        const surnameMatches = teamPlayers.filter((cp) => extractSurname(cp) === dbSurname);
+        if (surnameMatches.length === 1) {
+          bestMatch = surnameMatches[0];
+          bestConfidence = extractInitial(surnameMatches[0]) === dbInit ? "high" : "medium";
+        } else if (surnameMatches.length > 1) {
+          const initMatches = surnameMatches.filter((cp) => extractInitial(cp) === dbInit);
+          if (initMatches.length === 1) {
+            bestMatch = initMatches[0];
+            bestConfidence = "high";
+          }
+        }
+      }
+      if (bestMatch && bestConfidence !== "none") {
+        await db.execute(sql3`
+          INSERT INTO player_name_mappings (db_name, cricsheet_name, team_short, confidence, source)
+          VALUES (${dbName}, ${bestMatch}, ${teamShort}, ${bestConfidence}, 'auto')
+          ON CONFLICT (db_name, team_short) DO UPDATE SET
+            cricsheet_name = EXCLUDED.cricsheet_name,
+            confidence = EXCLUDED.confidence,
+            updated_at = NOW()
+        `);
+        autoMapped++;
+      } else {
+        await db.execute(sql3`
+          INSERT INTO player_name_mappings (db_name, cricsheet_name, team_short, confidence, source)
+          VALUES (${dbName}, '', ${teamShort}, 'unresolved', 'auto')
+          ON CONFLICT (db_name, team_short) DO NOTHING
+        `);
+        unresolved++;
+      }
+    }
+    dbMappingsCache = null;
+    console.log(`[AI Mapping] Auto-mapping complete: ${autoMapped} mapped, ${alreadyMapped} already mapped, ${unresolved} unresolved`);
+  } catch (err) {
+    console.error("[AI Mapping] Auto-mapping error:", err.message);
+  }
+}
+function matchPlayerToHistorical(dbName, cache, dbMappings) {
   const canonicalIndex = buildCanonicalIndex(cache);
   const canonicalDb = canonicalize(dbName);
+  if (dbMappings) {
+    const dbMappingTarget = dbMappings.get(canonicalDb);
+    if (dbMappingTarget && dbMappingTarget !== "") {
+      const row = canonicalIndex.get(canonicalize(dbMappingTarget)) || cache.get(dbMappingTarget);
+      if (row) {
+        const mp = row.matches_played;
+        if (mp > 0) {
+          const confidence = mp >= 10 ? "high" : mp >= 5 ? "medium" : "low";
+          console.log(`[AI Match] "${dbName}" \u2192 "${row.player_name}" ${confidence.toUpperCase()} via DB-MAPPING (${mp} matches)`);
+          return { stats: row, confidence, resolvedVia: "db-mapping" };
+        }
+      }
+    }
+  }
   const aliasTarget = PLAYER_ALIASES[canonicalDb];
   if (aliasTarget) {
     const row = canonicalIndex.get(canonicalize(aliasTarget)) || cache.get(aliasTarget);
@@ -4316,6 +4467,63 @@ async function registerRoutes(app2) {
       return res.status(500).json({ message: "Failed to save token" });
     }
   });
+  app2.get(
+    "/api/admin/player-mappings/unresolved",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const rows = await db.execute(sql3`
+          SELECT db_name, team_short, confidence, source, created_at
+          FROM player_name_mappings
+          WHERE confidence = 'unresolved' OR cricsheet_name = ''
+          ORDER BY team_short, db_name
+        `);
+        return res.json({ mappings: rows.rows, count: rows.rows.length });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/player-mappings",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { dbName, cricsheetName, teamShort } = req.body;
+        if (!dbName || !cricsheetName || !teamShort) {
+          return res.status(400).json({ message: "dbName, cricsheetName, teamShort required" });
+        }
+        await db.execute(sql3`
+          INSERT INTO player_name_mappings (db_name, cricsheet_name, team_short, confidence, source)
+          VALUES (${dbName}, ${cricsheetName}, ${teamShort}, 'manual', 'admin')
+          ON CONFLICT (db_name, team_short) DO UPDATE SET
+            cricsheet_name = EXCLUDED.cricsheet_name,
+            confidence = 'manual',
+            source = 'admin',
+            updated_at = NOW()
+        `);
+        dbMappingsCache = null;
+        return res.json({ message: `Mapped "${dbName}" \u2192 "${cricsheetName}" for ${teamShort}` });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/player-mappings/auto-map",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        runAutoMapping().catch((err) => console.error("[AI Mapping] Error:", err));
+        return res.json({ message: "Auto-mapping started in background" });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
   app2.get(
     "/api/admin/ai-diagnostics/:matchId",
     isAuthenticated,
@@ -5398,6 +5606,7 @@ async function registerRoutes(app2) {
           }
           for (const [key, { sum, count }] of h2hByPlayer.entries()) h2hMap.set(key, count > 0 ? sum / count : 0);
         }
+        const dbMappings = await getDbMappingsCache();
         const roleAvgMap = {
           WK: { sum: 0, count: 0 },
           BAT: { sum: 0, count: 0 },
@@ -5405,7 +5614,7 @@ async function registerRoutes(app2) {
           BOWL: { sum: 0, count: 0 }
         };
         for (const p of xiPool) {
-          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache);
+          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache, dbMappings);
           if (stats && confidence !== "none" && roleAvgMap[p.role]) {
             roleAvgMap[p.role].sum += stats.avg_cdo_points;
             roleAvgMap[p.role].count++;
@@ -5417,7 +5626,7 @@ async function registerRoutes(app2) {
         }
         const scored = xiPool.map((p) => {
           const key = `${p.name}|${p.teamShort}`;
-          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache);
+          const { stats, confidence } = matchPlayerToHistorical(p.name, historicalCache, dbMappings);
           const careerAvg = stats ? stats.avg_cdo_points : roleDefaults[p.role];
           const careerWeight = confidence === "high" ? 0.3 : confidence === "medium" ? 0.2 : confidence === "low" ? 0.15 : 0;
           const formWeight = 1 - careerWeight - 0.15;
@@ -5593,7 +5802,7 @@ async function registerRoutes(app2) {
           }
         }
         const finalProjection = calcTeamProjection2(finalTeam, finalCaptainId, finalVcId);
-        const highCount = scored.filter((p) => matchPlayerToHistorical(p.name, historicalCache).confidence === "high").length;
+        const highCount = scored.filter((p) => matchPlayerToHistorical(p.name, historicalCache, dbMappings).confidence === "high").length;
         console.log(`[AI] matchId=${matchId} mode=${mode} downgraded=${modeDowngraded} reason="${downgradeReason}" chalk="${chalkDropped}" replacement="${replacementChosen}" swaps=${swapsApplied} safeProjection=${safeProjection.toFixed(1)} finalProjection=${finalProjection.toFixed(1)} guardrailRatio=${(finalProjection / safeProjection).toFixed(2)} ownership=${safeOwnership?.source ?? "n/a"} teamCount=${safeOwnership?.teamCount ?? 0} highConf=${highCount}`);
         return res.json({
           fallback: false,
@@ -8635,7 +8844,7 @@ async function registerRoutes(app2) {
   const httpServer = createServer(app2);
   return httpServer;
 }
-var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache, ownershipCache, CACHE_TTL_NORMAL, CACHE_TTL_LOCK, CACHE_MAX_STALENESS, userTapCounters, PLAYER_ALIASES, canonicalCacheIndex;
+var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache, ownershipCache, CACHE_TTL_NORMAL, CACHE_TTL_LOCK, CACHE_MAX_STALENESS, userTapCounters, PLAYER_ALIASES, canonicalCacheIndex, dbMappingsCache;
 var init_routes = __esm({
   "server/routes.ts"() {
     "use strict";
@@ -8753,6 +8962,7 @@ var init_routes = __esm({
       "d karthik": "KD Karthik"
     };
     canonicalCacheIndex = null;
+    dbMappingsCache = null;
   }
 });
 
