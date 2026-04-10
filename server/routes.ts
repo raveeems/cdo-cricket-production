@@ -1990,7 +1990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   if (bCursor >= availableBackupsForDisplay.length) break;
                   const rp = resolvedPlayers[i];
                   const fullP = playerById.get(rp.id);
-                  if (fullP && fullP.isPlayingXI !== true) {
+                  if (fullP && fullP.isPlayingXI !== true && fullP.isImpactPlayer !== true) {
                     // Skip any backup already present in resolvedPlayers to prevent duplicate IDs
                     let bk: (typeof availableBackupsForDisplay)[0] | null = null;
                     while (bCursor < availableBackupsForDisplay.length) {
@@ -2392,37 +2392,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // ── Stage 6b: Per-click variation (safe mode only) ────────────────────
+        // Guarantees meaningful variation on every tap for every user.
+        // Top 4 by AI score are always locked. Bottom scorers are swap candidates.
+        // Both the candidate pool and alternative pool are shuffled per request
+        // so identical seeds still produce different teams.
         if (mode === "safe" || modeDowngraded) {
-          function seededRandom(seed: string, index: number): number {
-            let hash = 0;
-            const str = seed + index;
-            for (let i = 0; i < str.length; i++) { hash = (hash << 5) - hash + str.charCodeAt(i); hash |= 0; }
-            return Math.abs(hash) / 2147483647;
-          }
-          const clickSeed = userId + Date.now().toString();
           const pickedIds = new Set(finalTeam.map(p => p.id));
-          const swapCandidates = finalTeam.filter(
-            p => p.careerAvg < 20 || (historicalCache.get(p.name)?.matches_played ?? 0) < 10
+
+          // Lock top 4 by AI score
+          const sortedFinal = [...finalTeam].sort((a, b) => b.aiScore - a.aiScore);
+          const lockedFinalIds = new Set(sortedFinal.slice(0, 4).map(p => p.id));
+
+          // Swap candidates: low career data OR bottom scorers — excludes locked top 4
+          const lowDataCandidates = finalTeam.filter(
+            p => !lockedFinalIds.has(p.id) &&
+            (p.careerAvg < 20 || (historicalCache.get(p.name)?.matches_played ?? 0) < 10)
           );
+          const bottomCandidates = sortedFinal
+            .slice(4)
+            .filter(p => !lowDataCandidates.find(lc => lc.id === p.id))
+            .reverse()
+            .slice(0, 4);
+
+          const swapCandidates = [...lowDataCandidates, ...bottomCandidates];
+
+          // Shuffle candidates so each tap tries different ones first
+          for (let i = swapCandidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [swapCandidates[i], swapCandidates[j]] = [swapCandidates[j], swapCandidates[i]];
+          }
+
           let safeSwaps = 0;
-          for (let i = 0; i < swapCandidates.length; i++) {
+          for (const outPlayer of swapCandidates) {
             if (safeSwaps >= 3) break;
-            if (seededRandom(clickSeed, i) > 0.30) continue;
-            const out = swapCandidates[i];
-            const creditsWithout = finalTeam.reduce((s, p) => s + (p.id === out.id ? 0 : p.credits), 0);
+
+            const creditsWithout = finalTeam.reduce((s, p) => s + (p.id === outPlayer.id ? 0 : p.credits), 0);
             const twc: Record<string, number> = {};
             const rwc: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
-            for (const p of finalTeam) { if (p.id === out.id) continue; twc[p.teamShort] = (twc[p.teamShort] || 0) + 1; rwc[p.role]++; }
-            const alt = scored.find(p =>
-              !pickedIds.has(p.id) && p.role === out.role &&
+            for (const p of finalTeam) {
+              if (p.id === outPlayer.id) continue;
+              twc[p.teamShort] = (twc[p.teamShort] || 0) + 1;
+              rwc[p.role]++;
+            }
+
+            // Shuffle alternatives so each tap picks different replacements
+            const shuffledAlts = [...scored].sort(() => Math.random() - 0.5);
+            const alt = shuffledAlts.find(p =>
+              !pickedIds.has(p.id) &&
+              !lockedFinalIds.has(p.id) &&
+              p.role === outPlayer.role &&
               (twc[p.teamShort] || 0) < MAX_FROM_ONE_TEAM &&
               creditsWithout + p.credits <= CREDIT_CAP &&
               rwc[p.role] < ROLE_LIMITS[p.role].max
             );
+
             if (alt) {
-              const idx = finalTeam.findIndex(p => p.id === out.id);
-              finalTeam = [...finalTeam]; finalTeam[idx] = alt;
-              pickedIds.delete(out.id); pickedIds.add(alt.id); safeSwaps++;
+              const idx = finalTeam.findIndex(p => p.id === outPlayer.id);
+              finalTeam = [...finalTeam];
+              finalTeam[idx] = alt;
+              pickedIds.delete(outPlayer.id);
+              pickedIds.add(alt.id);
+              safeSwaps++;
             }
           }
         }
@@ -2607,39 +2637,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(422).json({ message: "Could not build a valid smart team — falling back to random" });
         }
 
-        // ── Pass 5: Controlled variation (medium — swap 2 non-core players) ──
-        // Core = Last Match XI players. Non-core = REST OF SQUAD picks.
-        // For each non-core pick, find the next best unselected player of the
-        // same role and team balance who fits constraints — swap with 50% chance.
-        // This ensures no two users get identical teams while keeping the
-        // form-based core intact.
+        // ── Pass 5: Controlled variation ─────────────────────────────────────
+        // Guarantees at least 3 unique swaps per request so every tap and every
+        // user gets a meaningfully different team.
+        //
+        // Variation pool priority:
+        //   1. Non-core picks (not in last match XI) — lowest risk to swap
+        //   2. If pool < 3, pad with the bottom scorers from picked XI
+        //      This handles the pre-toss case where everyone has lastXIBonus
+        //
+        // Top 4 players by smartScore are always locked — never swapped.
+        // This preserves the best picks while rotating the fringe slots.
+
         const pickedIds = new Set(picked.map(p => p.id));
-        const nonCorePicks = picked.filter(p => !lastXIBonus.has(`${p.name}|${p.teamShort}`));
+
+        // Sort picked by smartScore descending — top 4 are locked
+        const sortedPicked = [...picked].sort((a, b) => b.smartScore - a.smartScore);
+        const lockedIds = new Set(sortedPicked.slice(0, 4).map(p => p.id));
+
+        // Build variation pool: non-core first, then pad with bottom scorers
+        const nonCorePicks = picked.filter(p =>
+          !lockedIds.has(p.id) &&
+          !lastXIBonus.has(`${p.name}|${p.teamShort}`)
+        );
+        const bottomPicks = sortedPicked
+          .slice(4) // exclude top 4
+          .filter(p => !nonCorePicks.find(nc => nc.id === p.id))
+          .reverse(); // lowest scorers first
+
+        // Combine: non-core first, then bottom scorers as padding
+        const variationPool = [...nonCorePicks, ...bottomPicks].slice(0, 6);
+
+        // Shuffle the variation pool so each request tries different candidates first
+        for (let i = variationPool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [variationPool[i], variationPool[j]] = [variationPool[j], variationPool[i]];
+        }
+
+        const ROLE_LIMITS_V: Record<string, { min: number; max: number }> = {
+          WK: { min: 1, max: 4 }, BAT: { min: 1, max: 6 },
+          AR: { min: 1, max: 6 }, BOWL: { min: 1, max: 6 },
+        };
+
         let swapsApplied = 0;
 
-        for (const outPlayer of nonCorePicks) {
+        for (const outPlayer of variationPool) {
           if (swapsApplied >= 3) break;
-          if (Math.random() < 0.3) continue; // 70% chance to attempt swap
 
           const creditsWithout = picked.reduce((s, p) => s + (p.id === outPlayer.id ? 0 : p.credits), 0);
           const teamCountsWithout: Record<string, number> = {};
-          for (const p of picked) {
-            if (p.id === outPlayer.id) continue;
-            teamCountsWithout[p.teamShort] = (teamCountsWithout[p.teamShort] || 0) + 1;
-          }
           const roleCountsWithout: Record<string, number> = { WK: 0, BAT: 0, AR: 0, BOWL: 0 };
           for (const p of picked) {
             if (p.id === outPlayer.id) continue;
+            teamCountsWithout[p.teamShort] = (teamCountsWithout[p.teamShort] || 0) + 1;
             roleCountsWithout[p.role]++;
           }
 
-          const ROLE_LIMITS_V: Record<string, { min: number; max: number }> = {
-            WK: { min: 1, max: 4 }, BAT: { min: 1, max: 6 },
-            AR: { min: 1, max: 6 }, BOWL: { min: 1, max: 6 },
-          };
-
-          const alternative = scored.find(p =>
+          // Find next best alternative not already picked
+          // Shuffle scored pool so each call picks different alternatives
+          const shuffledScored = [...scored].sort(() => Math.random() - 0.5);
+          const alternative = shuffledScored.find(p =>
             !pickedIds.has(p.id) &&
+            !lockedIds.has(p.id) &&
             p.role === outPlayer.role &&
             (teamCountsWithout[p.teamShort] || 0) < 6 &&
             creditsWithout + p.credits <= 100 &&
