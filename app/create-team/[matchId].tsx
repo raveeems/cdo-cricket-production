@@ -373,6 +373,7 @@ export default function CreateTeamScreen() {
     return new Set();
   });
   const [captainId, setCaptainId] = useState<string | null>(() => editingTeam?.captainId || null);
+  const [aiPickLoading, setAiPickLoading] = useState(false);
   const [vcId, setVcId] = useState<string | null>(() => editingTeam?.viceCaptainId || null);
   const [primaryImpactId, setPrimaryImpactId] = useState<string | null>(() => editingTeam?.primaryImpactId || null);
   const [backupImpactId, setBackupImpactId] = useState<string | null>(() => editingTeam?.backupImpactId || null);
@@ -723,6 +724,31 @@ export default function CreateTeamScreen() {
       }
     }
     setSelectedIds(newSet);
+  };
+
+  const handleAiPick = async () => {
+    if (!match || aiPickLoading) return;
+    setAiPickLoading(true);
+    try {
+      const res = await apiRequest('GET', `/api/matches/${matchId}/ai-team`);
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.fallback && data.playerIds && data.playerIds.length === 11) {
+          setSelectedIds(new Set<string>(data.playerIds));
+          if (data.captainId) setCaptainId(data.captainId);
+          if (data.viceCaptainId) setVcId(data.viceCaptainId);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showSelectionWarning(data.reason || 'AI team selected');
+          return;
+        }
+      }
+      // Fallback to existing smart/random pick
+      await handleAutoSelect();
+    } catch (e) {
+      await handleAutoSelect();
+    } finally {
+      setAiPickLoading(false);
+    }
   };
 
   const handleAutoSelect = async () => {
@@ -1130,19 +1156,23 @@ export default function CreateTeamScreen() {
               })}
             </View>
             <Pressable
-              onPress={handleAutoSelect}
+              onPress={handleAiPick}
+              disabled={aiPickLoading}
               style={({ pressed }) => ({
-                backgroundColor: pressed ? '#E6C200' : '#FFD700',
+                backgroundColor: pressed || aiPickLoading ? '#E6C200' : '#FFD700',
                 borderRadius: 8,
                 paddingHorizontal: 10,
                 paddingVertical: 8,
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 4,
+                opacity: aiPickLoading ? 0.7 : 1,
               })}
             >
               <Ionicons name="flash" size={14} color="#000" />
-              <Text style={{ color: '#000', fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>Auto</Text>
+              <Text style={{ color: '#000', fontSize: 11, fontFamily: 'Inter_700Bold' as const }}>
+                {aiPickLoading ? 'Picking...' : 'AI Pick'}
+              </Text>
             </Pressable>
           </View>
 
