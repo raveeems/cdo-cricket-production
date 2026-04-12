@@ -1035,14 +1035,16 @@ export default function AdminScreen() {
     }
   };
 
-  const setPlayerXI = (playerId: string, teamShort: string) => {
+  const setPlayerXI = async (playerId: string, teamShort: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const teamPlayers = matchPlayers.filter(p => p.teamShort === teamShort);
     const teamXICount = teamPlayers.filter(p => xiPlayerIds.has(p.id)).length;
-    if (!xiPlayerIds.has(playerId) && teamXICount >= 11) {
+    const isCurrentlyXI = xiPlayerIds.has(playerId);
+    if (!isCurrentlyXI && teamXICount >= 11) {
       setXiMessage(`${teamShort} already has 11 XI players`);
       return;
     }
+    const wasImpact = impactPlayerIds.has(playerId);
     setXiPlayerIds(prev => {
       const next = new Set(prev);
       if (next.has(playerId)) { next.delete(playerId); } else { next.add(playerId); }
@@ -1055,6 +1057,27 @@ export default function AdminScreen() {
       next.delete(playerId);
       return next;
     });
+    // Persist immediately to keep DB in sync
+    if (!selectedMatchId) return;
+    const newStatus = isCurrentlyXI ? 'not_active' : 'playing_xi';
+    try {
+      await apiRequest('POST', `/api/admin/matches/${selectedMatchId}/player-status`, {
+        playerId,
+        adminStatus: newStatus,
+      });
+      // If player was impact in DB, the playing_xi status write already clears it server-side
+    } catch (e) {
+      // Revert on failure
+      setXiPlayerIds(prev => {
+        const next = new Set(prev);
+        if (isCurrentlyXI) { next.add(playerId); } else { next.delete(playerId); }
+        return next;
+      });
+      if (wasImpact) {
+        setImpactPlayerIds(prev => { const next = new Set(prev); next.add(playerId); return next; });
+      }
+      setXiMessage(`Failed to update XI status — please try again`);
+    }
   };
 
   const setPlayerImpact = async (playerId: string, teamShort: string) => {

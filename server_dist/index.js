@@ -8133,7 +8133,7 @@ async function registerRoutes(app2) {
             const teamImpactCount = allStatuses.filter(
               (s) => s.adminStatus === "impact_sub" && teamPlayerIds.has(s.playerId) && s.playerId !== playerId
             ).length;
-            if (teamImpactCount >= 5) {
+            if (teamImpactCount >= 6) {
               return res.status(400).json({
                 message: `${targetPlayer.teamShort} already has 5 impact players. Remove one before adding another.`
               });
