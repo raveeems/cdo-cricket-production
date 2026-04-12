@@ -85,7 +85,7 @@ interface StandingEntry {
   userId: string;
   username: string;
   userTeamName: string;
-  totalPoints: number;
+  totalPoints: number | null;
   playerIds: string[];
   captainId: string | null;
   viceCaptainId: string | null;
@@ -1425,8 +1425,8 @@ export default function MatchDetailScreen() {
                 </View>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ color: isCurrentUser ? colors.accent : colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const, width: 60, textAlign: 'right' }}>
-                  {entry.totalPoints}
+                <Text style={{ color: isCurrentUser ? colors.accent : (entry as any).invisibleHidden ? colors.textTertiary : colors.text, fontSize: 16, fontFamily: 'Inter_700Bold' as const, width: 60, textAlign: 'right' }}>
+                  {(entry as any).invisibleHidden ? '—' : entry.totalPoints}
                 </Text>
                 <Ionicons
                   name={expandedTeamId === entry.teamId ? 'chevron-up' : 'chevron-down'}

@@ -5304,7 +5304,7 @@ async function registerRoutes(app2) {
               backupImpactId: null,
               captainType: null,
               vcType: null,
-              totalPoints: t.totalPoints,
+              totalPoints: null,
               createdAt: t.createdAt
             };
           }
@@ -5480,7 +5480,11 @@ async function registerRoutes(app2) {
           if (i > 0 && s.totalPoints < standings[i - 1].totalPoints) {
             rank = i + 1;
           }
-          return { ...s, rank };
+          return {
+            ...s,
+            rank,
+            totalPoints: s.invisibleHidden ? null : s.totalPoints
+          };
         });
         return res.json({ standings: rankedStandings, isLive: true, players: matchPlayersForResponse });
       } catch (err) {

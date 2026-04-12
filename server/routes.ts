@@ -1846,7 +1846,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               backupImpactId: null,
               captainType: null,
               vcType: null,
-              totalPoints: t.totalPoints,
+              totalPoints: null,
               createdAt: t.createdAt,
             };
           }
@@ -2042,7 +2042,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (i > 0 && s.totalPoints < standings[i - 1].totalPoints) {
             rank = i + 1;
           }
-          return { ...s, rank };
+          return {
+            ...s,
+            rank,
+            totalPoints: (s as any).invisibleHidden ? null : s.totalPoints,
+          };
         });
 
         return res.json({ standings: rankedStandings, isLive: true, players: matchPlayersForResponse });
