@@ -4097,98 +4097,114 @@ async function getDbMappingsCache() {
 }
 async function runAutoMapping() {
   try {
-    console.log("[AI Mapping] Starting auto-mapping...");
+    let cricsheetTeamToShort2 = function(team) {
+      const t = canonicalize(team);
+      if (t.includes("rajasthan")) return "RR";
+      if (t.includes("royal challengers")) return "RCB";
+      if (t.includes("mumbai")) return "MI";
+      if (t.includes("chennai")) return "CSK";
+      if (t.includes("kolkata")) return "KKR";
+      if (t.includes("sunrisers") || t.includes("deccan")) return "SRH";
+      if (t.includes("delhi")) return "DC";
+      if (t.includes("punjab") || t.includes("kings xi")) return "PBKS";
+      if (t.includes("gujarat")) return "GT";
+      if (t.includes("lucknow")) return "LSG";
+      if (t.includes("rising pune") || t.includes("kochi") || t.includes("pune warriors")) return null;
+      return null;
+    };
+    var cricsheetTeamToShort = cricsheetTeamToShort2;
+    console.log("[AI Mapping] Starting auto-mapping (Cricsheet-first approach)...");
     const dbPlayersRows = await db.execute(sql3`
       SELECT DISTINCT p.name, p.team_short
       FROM players p
-      INNER JOIN matches m ON p.match_id = m.id
       WHERE p.name IS NOT NULL
-        AND (
-          m.tournament_name ILIKE '%ipl%'
-          OR m.league ILIKE '%indian premier league%'
-          OR p.team_short IN ('RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG')
-        )
+        AND p.team_short IN ('RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG')
     `);
-    const cricsheetRows = await db.execute(sql3`
-      SELECT DISTINCT player_name, team FROM player_historical_stats
-    `);
-    const cricsheetByCanonicalTeam = /* @__PURE__ */ new Map();
-    for (const row of cricsheetRows.rows) {
-      const teamKey = canonicalize(row.team);
-      if (!cricsheetByCanonicalTeam.has(teamKey)) cricsheetByCanonicalTeam.set(teamKey, []);
-      cricsheetByCanonicalTeam.get(teamKey).push(row.player_name);
+    const dbByCanonical = /* @__PURE__ */ new Map();
+    for (const row of dbPlayersRows.rows) {
+      const key = canonicalize(row.name);
+      if (!dbByCanonical.has(key)) dbByCanonical.set(key, []);
+      dbByCanonical.get(key).push({ db_name: row.name, team_short: row.team_short });
     }
-    const allCricsheetPlayers = [];
-    for (const players2 of cricsheetByCanonicalTeam.values()) allCricsheetPlayers.push(...players2);
+    const dbBySurname = /* @__PURE__ */ new Map();
+    for (const row of dbPlayersRows.rows) {
+      const surname = extractSurname(row.name);
+      if (!dbBySurname.has(surname)) dbBySurname.set(surname, []);
+      dbBySurname.get(surname).push({
+        db_name: row.name,
+        team_short: row.team_short,
+        canonical: canonicalize(row.name)
+      });
+    }
+    const cricsheetRows = await db.execute(sql3`
+      SELECT DISTINCT player_name, team, matches_played
+      FROM player_historical_stats
+      ORDER BY matches_played DESC
+    `);
     let autoMapped = 0, alreadyMapped = 0, unresolved = 0;
-    for (const dbRow of dbPlayersRows.rows) {
-      const dbName = dbRow.name;
-      const teamShort = dbRow.team_short;
-      const canonicalDb = canonicalize(dbName);
+    for (const csRow of cricsheetRows.rows) {
+      const cricName = csRow.player_name;
+      const cricTeam = csRow.team;
+      const teamShort = cricsheetTeamToShort2(cricTeam);
+      if (!teamShort) continue;
+      const canonicalCric = canonicalize(cricName);
+      const cricSurname = extractSurname(cricName);
+      const cricInit = extractInitial(cricName);
+      let dbName = null;
+      let confidence = "unresolved";
+      const exactMatches = (dbByCanonical.get(canonicalCric) || []).filter((e) => e.team_short === teamShort);
+      if (exactMatches.length === 1) {
+        dbName = exactMatches[0].db_name;
+        confidence = "high";
+      } else if (exactMatches.length > 1) {
+        dbName = exactMatches[0].db_name;
+        confidence = "high";
+      }
+      if (!dbName) {
+        const allExact = dbByCanonical.get(canonicalCric) || [];
+        if (allExact.length === 1) {
+          dbName = allExact[0].db_name;
+          confidence = "medium";
+        }
+      }
+      if (!dbName) {
+        const surnameEntries = (dbBySurname.get(cricSurname) || []).filter((e) => e.team_short === teamShort);
+        if (surnameEntries.length === 1) {
+          dbName = surnameEntries[0].db_name;
+          const dbInit = extractInitial(surnameEntries[0].db_name);
+          confidence = dbInit === cricInit ? "high" : "medium";
+        }
+      }
+      if (!dbName) continue;
       const existing = await db.execute(sql3`
-        SELECT confidence FROM player_name_mappings
+        SELECT confidence, source FROM player_name_mappings
         WHERE db_name = ${dbName} AND team_short = ${teamShort}
       `);
-      if (existing.rows.length > 0 && existing.rows[0].confidence === "manual") {
-        alreadyMapped++;
-        continue;
-      }
-      const cricsheetTeamNames = TEAM_SHORT_TO_CRICSHEET[teamShort] || [];
-      let teamPlayers = [];
-      for (const expectedTeam of cricsheetTeamNames) {
-        for (const [cricTeam, players2] of cricsheetByCanonicalTeam.entries()) {
-          if (cricTeam.includes(expectedTeam) || expectedTeam.includes(cricTeam)) {
-            teamPlayers = [...teamPlayers, ...players2];
-          }
+      if (existing.rows.length > 0) {
+        const row = existing.rows[0];
+        if (row.source === "admin") {
+          alreadyMapped++;
+          continue;
         }
-      }
-      teamPlayers = [...new Set(teamPlayers)];
-      const searchPool = teamPlayers.length > 0 ? teamPlayers : allCricsheetPlayers;
-      let bestMatch = null;
-      let bestConfidence = "unresolved";
-      for (const cp of searchPool) {
-        if (canonicalize(cp) === canonicalDb) {
-          bestMatch = cp;
-          bestConfidence = "high";
-          break;
-        }
-      }
-      if (!bestMatch) {
-        const dbSurname = extractSurname(dbName);
-        const dbInit = extractInitial(dbName);
-        const surnameMatches = searchPool.filter((cp) => extractSurname(cp) === dbSurname);
-        if (surnameMatches.length === 1) {
-          bestMatch = surnameMatches[0];
-          bestConfidence = extractInitial(surnameMatches[0]) === dbInit ? "high" : "medium";
-        } else if (surnameMatches.length > 1) {
-          const initMatches = surnameMatches.filter((cp) => extractInitial(cp) === dbInit);
-          if (initMatches.length === 1) {
-            bestMatch = initMatches[0];
-            bestConfidence = "high";
-          }
+        const confOrder = { high: 3, medium: 2, low: 1, unresolved: 0 };
+        if ((confOrder[row.confidence] || 0) >= (confOrder[confidence] || 0)) {
+          alreadyMapped++;
+          continue;
         }
       }
       await db.execute(sql3`
         INSERT INTO player_name_mappings (db_name, cricsheet_name, team_short, confidence, source)
-        VALUES (
-          ${dbName},
-          ${bestMatch ?? ""},
-          ${teamShort},
-          ${bestConfidence},
-          'auto'
-        )
+        VALUES (${dbName}, ${cricName}, ${teamShort}, ${confidence}, 'auto')
         ON CONFLICT (db_name, team_short) DO UPDATE SET
           cricsheet_name = EXCLUDED.cricsheet_name,
           confidence = EXCLUDED.confidence,
-          source = CASE WHEN player_name_mappings.source = 'admin' THEN 'admin' ELSE 'auto' END,
           updated_at = NOW()
         WHERE player_name_mappings.source != 'admin'
       `);
-      if (bestMatch) autoMapped++;
-      else unresolved++;
+      autoMapped++;
     }
     dbMappingsCache = null;
-    console.log(`[AI Mapping] Done: ${autoMapped} mapped, ${alreadyMapped} manual kept, ${unresolved} unresolved`);
+    console.log(`[AI Mapping] Done: ${autoMapped} mapped, ${alreadyMapped} skipped, ${unresolved} unresolved`);
   } catch (err) {
     console.error("[AI Mapping] Error:", err.message);
   }
@@ -8862,7 +8878,7 @@ async function registerRoutes(app2) {
   const httpServer = createServer(app2);
   return httpServer;
 }
-var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache, ownershipCache, CACHE_TTL_NORMAL, CACHE_TTL_LOCK, CACHE_MAX_STALENESS, userTapCounters, canonicalCacheIndex, dbMappingsCache, TEAM_SHORT_TO_CRICSHEET, PLAYER_ALIASES;
+var ADMIN_PHONES, TOKEN_SECRET, LIVE_CACHE_TTL_MS, liveScorecardCache, liveScoreCache, squadFetchBackoff, SQUAD_BACKOFF_MS, historicalStatsCache, ownershipCache, CACHE_TTL_NORMAL, CACHE_TTL_LOCK, CACHE_MAX_STALENESS, userTapCounters, canonicalCacheIndex, dbMappingsCache, PLAYER_ALIASES;
 var init_routes = __esm({
   "server/routes.ts"() {
     "use strict";
@@ -8885,18 +8901,6 @@ var init_routes = __esm({
     userTapCounters = {};
     canonicalCacheIndex = null;
     dbMappingsCache = null;
-    TEAM_SHORT_TO_CRICSHEET = {
-      "RR": ["rajasthan royals"],
-      "RCB": ["royal challengers bangalore", "royal challengers bengaluru", "royal challengers"],
-      "MI": ["mumbai indians"],
-      "CSK": ["chennai super kings"],
-      "KKR": ["kolkata knight riders"],
-      "SRH": ["sunrisers hyderabad", "deccan chargers"],
-      "DC": ["delhi capitals", "delhi daredevils"],
-      "PBKS": ["punjab kings", "kings xi punjab"],
-      "GT": ["gujarat titans"],
-      "LSG": ["lucknow super giants"]
-    };
     PLAYER_ALIASES = {
       "vaibhav sooryavanshi": "Vaibhav Suryavanshi",
       "vaibhav suryavanshi": "Vaibhav Suryavanshi",
