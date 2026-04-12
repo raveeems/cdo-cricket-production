@@ -1,0 +1,147 @@
+Open server/routes.ts. Find the entire runAutoMapping function — from export async function runAutoMapping(): Promise<void> { to its closing }. Replace it entirely with:
+tsexport async function runAutoMapping(): Promise<void> {
+  try {
+    console.log("[AI Mapping] Starting auto-mapping (Cricsheet-first approach)...");
+
+    // Step 1: Get all IPL players from your DB
+    const dbPlayersRows = await db.execute(sql`
+      SELECT DISTINCT p.name, p.team_short
+      FROM players p
+      WHERE p.name IS NOT NULL
+        AND p.team_short IN ('RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG')
+    `);
+
+    // Build a lookup: canonical name → { db_name, team_short }[]
+    // One DB name can appear under multiple teams
+    const dbByCanonical = new Map<string, { db_name: string; team_short: string }[]>();
+    for (const row of dbPlayersRows.rows as any[]) {
+      const key = canonicalize(row.name);
+      if (!dbByCanonical.has(key)) dbByCanonical.set(key, []);
+      dbByCanonical.get(key)!.push({ db_name: row.name, team_short: row.team_short });
+    }
+
+    // Also build surname → db entries lookup
+    const dbBySurname = new Map<string, { db_name: string; team_short: string; canonical: string }[]>();
+    for (const row of dbPlayersRows.rows as any[]) {
+      const surname = extractSurname(row.name);
+      if (!dbBySurname.has(surname)) dbBySurname.set(surname, []);
+      dbBySurname.get(surname)!.push({
+        db_name: row.name,
+        team_short: row.team_short,
+        canonical: canonicalize(row.name)
+      });
+    }
+
+    // Step 2: Get ALL Cricsheet players
+    const cricsheetRows = await db.execute(sql`
+      SELECT DISTINCT player_name, team, matches_played
+      FROM player_historical_stats
+      ORDER BY matches_played DESC
+    `);
+
+    // Map team name → IPL team_short
+    // Built from actual Cricsheet team names — covers all historical name variants
+    function cricsheetTeamToShort(team: string): string | null {
+      const t = canonicalize(team);
+      if (t.includes("rajasthan")) return "RR";
+      if (t.includes("royal challengers")) return "RCB";
+      if (t.includes("mumbai")) return "MI";
+      if (t.includes("chennai")) return "CSK";
+      if (t.includes("kolkata")) return "KKR";
+      if (t.includes("sunrisers") || t.includes("deccan")) return "SRH";
+      if (t.includes("delhi")) return "DC";
+      if (t.includes("punjab") || t.includes("kings xi")) return "PBKS";
+      if (t.includes("gujarat")) return "GT";
+      if (t.includes("lucknow")) return "LSG";
+      if (t.includes("rising pune") || t.includes("kochi") || t.includes("pune warriors")) return null;
+      return null;
+    }
+
+    let autoMapped = 0, alreadyMapped = 0, unresolved = 0;
+
+    // Step 3: For each Cricsheet player, find their DB equivalent
+    for (const csRow of cricsheetRows.rows as any[]) {
+      const cricName: string = csRow.player_name;
+      const cricTeam: string = csRow.team;
+      const teamShort = cricsheetTeamToShort(cricTeam);
+
+      // Skip non-IPL teams (defunct franchises etc.)
+      if (!teamShort) continue;
+
+      const canonicalCric = canonicalize(cricName);
+      const cricSurname = extractSurname(cricName);
+      const cricInit = extractInitial(cricName);
+
+      // Find matching DB player for this team
+      let dbName: string | null = null;
+      let confidence = "unresolved";
+
+      // Match 1: Exact canonical match within same team
+      const exactMatches = (dbByCanonical.get(canonicalCric) || [])
+        .filter(e => e.team_short === teamShort);
+      if (exactMatches.length === 1) {
+        dbName = exactMatches[0].db_name;
+        confidence = "high";
+      } else if (exactMatches.length > 1) {
+        // Multiple exact matches same team — take first
+        dbName = exactMatches[0].db_name;
+        confidence = "high";
+      }
+
+      // Match 2: Exact canonical match ignoring team (player switched teams)
+      if (!dbName) {
+        const allExact = dbByCanonical.get(canonicalCric) || [];
+        if (allExact.length === 1) {
+          dbName = allExact[0].db_name;
+          confidence = "medium";
+        }
+      }
+
+      // Match 3: Surname match within same team
+      if (!dbName) {
+        const surnameEntries = (dbBySurname.get(cricSurname) || [])
+          .filter(e => e.team_short === teamShort);
+        if (surnameEntries.length === 1) {
+          dbName = surnameEntries[0].db_name;
+          const dbInit = extractInitial(surnameEntries[0].db_name);
+          confidence = dbInit === cricInit ? "high" : "medium";
+        }
+      }
+
+      if (!dbName) continue; // No DB match found — skip, don't insert
+
+      // Skip if already manually mapped
+      const existing = await db.execute(sql`
+        SELECT confidence, source FROM player_name_mappings
+        WHERE db_name = ${dbName} AND team_short = ${teamShort}
+      `);
+      if (existing.rows.length > 0) {
+        const row = existing.rows[0] as any;
+        if (row.source === 'admin') { alreadyMapped++; continue; }
+        // Only update if new confidence is better
+        const confOrder: Record<string, number> = { high: 3, medium: 2, low: 1, unresolved: 0 };
+        if ((confOrder[row.confidence] || 0) >= (confOrder[confidence] || 0)) {
+          alreadyMapped++;
+          continue;
+        }
+      }
+
+      await db.execute(sql`
+        INSERT INTO player_name_mappings (db_name, cricsheet_name, team_short, confidence, source)
+        VALUES (${dbName}, ${cricName}, ${teamShort}, ${confidence}, 'auto')
+        ON CONFLICT (db_name, team_short) DO UPDATE SET
+          cricsheet_name = EXCLUDED.cricsheet_name,
+          confidence = EXCLUDED.confidence,
+          updated_at = NOW()
+        WHERE player_name_mappings.source != 'admin'
+      `);
+
+      autoMapped++;
+    }
+
+    dbMappingsCache = null;
+    console.log(`[AI Mapping] Done: ${autoMapped} mapped, ${alreadyMapped} skipped, ${unresolved} unresolved`);
+  } catch (err: any) {
+    console.error("[AI Mapping] Error:", err.message);
+  }
+}
