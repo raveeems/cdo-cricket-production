@@ -166,11 +166,11 @@ function BenchStrip({ primary, backup, captainType, vcType }: {
 
   const impactIsCaptain = captainType === 'impact_slot';
   const impactIsVC = vcType === 'impact_slot';
-  const primaryActivated = (primary?.isImpactActivated ?? false) || ((primary?.points ?? 0) > 0);
-  const backupActivated = (backup?.isImpactActivated ?? false) || ((backup?.points ?? 0) > 0);
+  const primaryActivated = (primary?.isImpactActivated ?? false) || ((primary?.points ?? 0) > 0 && !primary?.isPlayingXI);
+  const backupActivated = (backup?.isImpactActivated ?? false) || ((backup?.points ?? 0) > 0 && !backup?.isPlayingXI);
 
   function BenchCard({ player, label, isCaptain, isVC }: { player: PitchPlayer | null | undefined; label: string; isCaptain: boolean; isVC: boolean }) {
-    const isActivated = (player?.isImpactActivated ?? false) || ((player?.points ?? 0) > 0);
+    const isActivated = (player?.isImpactActivated ?? false) || ((player?.points ?? 0) > 0 && !player?.isPlayingXI);
     const rawPts = player?.points ?? 0;
     // When active, +4 impact bonus is added by the server on top of raw scorecard points.
     // Show the true contribution (pts + 4) so the displayed number matches the team total.
