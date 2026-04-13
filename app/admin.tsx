@@ -1422,7 +1422,33 @@ export default function AdminScreen() {
     }
   };
 
-  const handleResetTournamentPot = async () => {
+  const executeResetTournamentPot = async (effectiveTournament: string) => {
+    setPotResetting(true);
+    try {
+      const res = await apiRequest('POST', '/api/tournament/reset', {
+        tournamentName: effectiveTournament,
+      });
+      const data = await res.json();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        'Tournament Pot Reset',
+        `All pot data for "${effectiveTournament}" has been cleared (${data.matchesReset ?? 0} match${data.matchesReset !== 1 ? 'es' : ''} reset). You can now re-process each match with the correct settings.`
+      );
+      setPotSelectedMatchId('');
+      setPotStake('30');
+      setPotMode('entries_only');
+      setPotPenaltyUserIds([]);
+      setPotExcludeUserIds([]);
+      loadPotUnprocessedMatches();
+      loadPotTournamentNames();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to reset tournament pot');
+    } finally {
+      setPotResetting(false);
+    }
+  };
+
+  const handleResetTournamentPot = () => {
     const effectiveTournament = potSelectedTournament || potNewTournament.trim();
     if (!effectiveTournament) {
       Alert.alert('No Tournament Selected', 'Please select a tournament to reset.');
@@ -1436,31 +1462,7 @@ export default function AdminScreen() {
         {
           text: 'Yes, Reset Everything',
           style: 'destructive',
-          onPress: async () => {
-            setPotResetting(true);
-            try {
-              const res = await apiRequest('POST', '/api/tournament/reset', {
-                tournamentName: effectiveTournament,
-              });
-              const data = await res.json();
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-              Alert.alert(
-                'Tournament Pot Reset',
-                `All pot data for "${effectiveTournament}" has been cleared (${data.matchesReset ?? 0} match${data.matchesReset !== 1 ? 'es' : ''} reset). You can now re-process each match with the correct settings.`
-              );
-              setPotSelectedMatchId('');
-              setPotStake('30');
-              setPotMode('entries_only');
-              setPotPenaltyUserIds([]);
-              setPotExcludeUserIds([]);
-              loadPotUnprocessedMatches();
-              loadPotTournamentNames();
-            } catch (e: any) {
-              Alert.alert('Error', e.message || 'Failed to reset tournament pot');
-            } finally {
-              setPotResetting(false);
-            }
-          },
+          onPress: () => { executeResetTournamentPot(effectiveTournament); },
         },
       ]
     );
