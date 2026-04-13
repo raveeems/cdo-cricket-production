@@ -95,6 +95,7 @@ export function TournamentPot({
   const unprocessedCount = potUnprocessedMatches.filter(m => !m.potProcessed).length;
   const processedCount = matches.filter(m => m.potProcessed).length;
   const [showProcessed, setShowProcessed] = React.useState(false);
+  const [confirmingReset, setConfirmingReset] = React.useState(false);
   const visibleMatches = potUnprocessedMatches.filter(m => showProcessed ? true : !m.potProcessed);
 
   return (
@@ -443,24 +444,51 @@ export function TournamentPot({
           <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17, marginBottom: 10 }}>
             Wipes ALL pot results for <Text style={{ fontFamily: 'Inter_700Bold', color: colors.text }}>{potSelectedTournament || potNewTournament.trim()}</Text> — every ledger entry deleted, all matches marked unprocessed, all penalty lists cleared. You can then re-process each match individually with the correct settings.
           </Text>
-          <Pressable
-            onPress={onResetTournament}
-            disabled={potResetting}
-            style={{
-              height: 42, borderRadius: 10, backgroundColor: '#EF4444',
-              justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8,
-              opacity: potResetting ? 0.5 : 1,
-            }}
-          >
-            {potResetting ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <>
-                <Ionicons name="refresh" size={16} color="#FFF" />
-                <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Reset & Reopen Tournament Pot</Text>
-              </>
-            )}
-          </Pressable>
+
+          {!confirmingReset ? (
+            <Pressable
+              onPress={() => setConfirmingReset(true)}
+              disabled={potResetting}
+              style={{
+                height: 42, borderRadius: 10, borderWidth: 1, borderColor: '#EF4444',
+                justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8,
+                backgroundColor: 'transparent',
+                opacity: potResetting ? 0.5 : 1,
+              }}
+            >
+              <Ionicons name="refresh" size={16} color="#EF4444" />
+              <Text style={{ color: '#EF4444', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Reset & Reopen Tournament Pot</Text>
+            </Pressable>
+          ) : (
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: '#EF4444', fontFamily: 'Inter_700Bold', fontSize: 13, textAlign: 'center' }}>
+                Are you sure? This cannot be undone.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pressable
+                  onPress={() => setConfirmingReset(false)}
+                  style={{ flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' }}
+                >
+                  <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setConfirmingReset(false); onResetTournament(); }}
+                  disabled={potResetting}
+                  style={{
+                    flex: 1, height: 42, borderRadius: 10, backgroundColor: '#EF4444',
+                    justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 6,
+                    opacity: potResetting ? 0.5 : 1,
+                  }}
+                >
+                  {potResetting ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Yes, Reset Everything</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          )}
         </View>
       )}
     </View>

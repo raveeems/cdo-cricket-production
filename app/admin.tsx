@@ -1450,22 +1450,8 @@ export default function AdminScreen() {
 
   const handleResetTournamentPot = () => {
     const effectiveTournament = potSelectedTournament || potNewTournament.trim();
-    if (!effectiveTournament) {
-      Alert.alert('No Tournament Selected', 'Please select a tournament to reset.');
-      return;
-    }
-    Alert.alert(
-      'Reset Entire Tournament Pot?',
-      `This will permanently delete ALL pot ledger entries for "${effectiveTournament}" and mark every match as unprocessed.\n\nAll penalty and exclusion settings will be cleared. You can re-process each match individually afterwards.\n\nThis cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes, Reset Everything',
-          style: 'destructive',
-          onPress: () => { executeResetTournamentPot(effectiveTournament); },
-        },
-      ]
-    );
+    if (!effectiveTournament) return;
+    executeResetTournamentPot(effectiveTournament);
   };
 
   return (
