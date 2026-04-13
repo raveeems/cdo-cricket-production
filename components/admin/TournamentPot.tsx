@@ -46,6 +46,7 @@ interface TournamentPotProps {
   potStake: string;
   potMode: 'entries_only' | 'entries_plus_penalty';
   potPenaltyUserIds: string[];
+  potExcludeUserIds: string[];
   potUsersLoading: boolean;
   allUsers: UserInfo[];
   potProcessing: boolean;
@@ -56,6 +57,7 @@ interface TournamentPotProps {
   onSetPotStake: (val: string) => void;
   onSetPotMode: (val: 'entries_only' | 'entries_plus_penalty') => void;
   onSetPotPenaltyUserIds: (updater: (prev: string[]) => string[]) => void;
+  onSetPotExcludeUserIds: (updater: (prev: string[]) => string[]) => void;
   onProcess: () => void;
 }
 
@@ -72,6 +74,7 @@ export function TournamentPot({
   potStake,
   potMode,
   potPenaltyUserIds,
+  potExcludeUserIds,
   potUsersLoading,
   allUsers,
   potProcessing,
@@ -82,6 +85,7 @@ export function TournamentPot({
   onSetPotStake,
   onSetPotMode,
   onSetPotPenaltyUserIds,
+  onSetPotExcludeUserIds,
   onProcess,
 }: TournamentPotProps) {
   const unprocessedCount = potUnprocessedMatches.filter(m => !m.potProcessed).length;
@@ -312,6 +316,71 @@ export function TournamentPot({
             )}
           </View>
         )}
+
+        {/* Exclude entrants */}
+        {potSelectedMatchId && (() => {
+          const selectedMatchData = potUnprocessedMatches.find(m => m.id === potSelectedMatchId);
+          const entrantIds = selectedMatchData?.entrantUserIds || [];
+          if (entrantIds.length === 0) return null;
+          const entrantUsers = allUsers.filter(u => entrantIds.includes(u.id));
+          if (entrantUsers.length === 0) return null;
+          return (
+            <View style={{ marginTop: 12, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <Ionicons name="person-remove-outline" size={14} color="#F59E0B" />
+                <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textTertiary }}>
+                  EXCLUDE FROM POT
+                </Text>
+              </View>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17, marginBottom: 8 }}>
+                Select entrants to remove from this match's pot calculation entirely — no win, no loss. Use this for users who withdrew.
+              </Text>
+              <View style={{ gap: 6 }}>
+                {entrantUsers.map(u => {
+                  const isExcluded = potExcludeUserIds.includes(u.id);
+                  return (
+                    <Pressable
+                      key={u.id}
+                      onPress={() => onSetPotExcludeUserIds(prev =>
+                        prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                      )}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, borderWidth: 1,
+                        backgroundColor: isExcluded ? '#F59E0B12' : colors.surfaceElevated,
+                        borderColor: isExcluded ? '#F59E0B50' : colors.border,
+                      }}
+                    >
+                      <View style={{
+                        width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
+                        borderColor: isExcluded ? '#F59E0B' : colors.border,
+                        backgroundColor: isExcluded ? '#F59E0B' : 'transparent',
+                      }}>
+                        {isExcluded && <Ionicons name="checkmark" size={13} color="#FFF" />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{u.username}</Text>
+                        {u.teamName ? (
+                          <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 11 }}>{u.teamName}</Text>
+                        ) : null}
+                      </View>
+                      {isExcluded && (
+                        <Text style={{ color: '#F59E0B', fontFamily: 'Inter_700Bold', fontSize: 11 }}>EXCLUDED</Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {potExcludeUserIds.length > 0 && (
+                <View style={{ marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: '#F59E0B10', borderWidth: 1, borderColor: '#F59E0B30' }}>
+                  <Text style={{ color: '#F59E0B', fontFamily: 'Inter_700Bold', fontSize: 12, marginBottom: 2 }}>Exclusion Summary</Text>
+                  <Text style={{ color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12 }}>
+                    {potExcludeUserIds.length} {potExcludeUserIds.length === 1 ? 'user' : 'users'} will be excluded — no pot contribution in either direction.
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        })()}
 
         {/* Re-process warning */}
         {(() => {

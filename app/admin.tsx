@@ -132,6 +132,7 @@ export default function AdminScreen() {
   // Penalty mode
   const [potMode, setPotMode] = useState<'entries_only' | 'entries_plus_penalty'>('entries_only');
   const [potPenaltyUserIds, setPotPenaltyUserIds] = useState<string[]>([]);
+  const [potExcludeUserIds, setPotExcludeUserIds] = useState<string[]>([]);
   const [allUsers, setAllUsers] = useState<{id:string;username:string;teamName?:string}[]>([]);
   const [potUsersLoading, setPotUsersLoading] = useState(false);
 
@@ -1400,14 +1401,17 @@ export default function AdminScreen() {
         stake: parseInt(potStake),
         mode: potMode,
         penaltyUserIds: potMode === 'entries_plus_penalty' ? potPenaltyUserIds : [],
+        excludeUserIds: potExcludeUserIds,
       });
       const data = await res.json();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(isReprocessing ? 'Pot Re-processed!' : 'Pot Distributed!', data.message || 'Tournament pot processed successfully');
+      const excludeNote = data.excludedUsers > 0 ? ` (${data.excludedUsers} user${data.excludedUsers > 1 ? 's' : ''} excluded)` : '';
+      Alert.alert(isReprocessing ? 'Pot Re-processed!' : 'Pot Distributed!', (data.message || 'Tournament pot processed successfully') + excludeNote);
       setPotSelectedMatchId('');
       setPotStake('30');
       setPotMode('entries_only');
       setPotPenaltyUserIds([]);
+      setPotExcludeUserIds([]);
       loadPotUnprocessedMatches();
       loadPotTournamentNames();
     } catch (e: any) {
@@ -2271,6 +2275,7 @@ export default function AdminScreen() {
             potStake={potStake}
             potMode={potMode}
             potPenaltyUserIds={potPenaltyUserIds}
+            potExcludeUserIds={potExcludeUserIds}
             potUsersLoading={potUsersLoading}
             allUsers={allUsers}
             potProcessing={potProcessing}
@@ -2281,6 +2286,7 @@ export default function AdminScreen() {
             onSetPotStake={setPotStake}
             onSetPotMode={setPotMode}
             onSetPotPenaltyUserIds={setPotPenaltyUserIds}
+            onSetPotExcludeUserIds={setPotExcludeUserIds}
             onProcess={handleProcessAndDistribute}
           />
 

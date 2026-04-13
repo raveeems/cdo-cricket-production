@@ -4647,7 +4647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     isAdmin,
     async (req: Request, res: Response) => {
       try {
-        const { matchId, tournamentName, stake, mode, penaltyUserIds } = req.body;
+        const { matchId, tournamentName, stake, mode, penaltyUserIds, excludeUserIds } = req.body;
         if (!matchId || !tournamentName || !stake) {
           return res.status(400).json({ message: "matchId, tournamentName, and stake are required" });
         }
@@ -4662,26 +4662,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         const entryStake = Number(stake) || 30;
 
+        // Exclude users: entrants whose contribution is removed from the pot entirely
+        const rawExcludeIds: string[] = Array.isArray(excludeUserIds) ? excludeUserIds : [];
+        const contestUserIds = new Set(allTeams.map(t => t.userId));
+        const validatedExcludeIds = rawExcludeIds.filter(uid => contestUserIds.has(uid));
+        // effectiveTeams = all entrants minus excluded users — used for all ranking + pot maths
+        const effectiveTeams = allTeams.filter(t => !validatedExcludeIds.includes(t.userId));
+
         // Penalty mode setup
         const potMode = mode === "entries_plus_penalty" ? "entries_plus_penalty" : "entries_only";
         const rawPenaltyIds: string[] = Array.isArray(penaltyUserIds) ? penaltyUserIds : [];
 
-        // Penalty users must NOT already be contest participants (prevent double-counting)
-        const contestUserIds = new Set(allTeams.map(t => t.userId));
-        const validatedPenaltyIds = rawPenaltyIds.filter(uid => !contestUserIds.has(uid));
+        // Penalty users must NOT already be active contest participants (prevent double-counting)
+        const effectiveContestUserIds = new Set(effectiveTeams.map(t => t.userId));
+        const validatedPenaltyIds = rawPenaltyIds.filter(uid => !effectiveContestUserIds.has(uid) && !validatedExcludeIds.includes(uid));
 
         const penaltyCount = potMode === "entries_plus_penalty" ? validatedPenaltyIds.length : 0;
 
-        // Rank contest participants by points (descending). Ties share the same rank.
-        const uniquePointTiers = [...new Set(allTeams.map(t => t.totalPoints || 0))].sort((a, b) => b - a);
+        // Rank active contest participants by points (descending). Ties share the same rank.
+        const uniquePointTiers = [...new Set(effectiveTeams.map(t => t.totalPoints || 0))].sort((a, b) => b - a);
 
         const rank1Points = uniquePointTiers[0] ?? 0; // Highest — winner(s)
         const rank2Points = uniquePointTiers[1] ?? null; // Second highest — neutral (±0)
         // Rank 3+ = everyone below rank2 — they each pay the stake
 
-        const winningTeams = allTeams.filter(t => (t.totalPoints || 0) === rank1Points);
-        const neutralTeams = rank2Points !== null ? allTeams.filter(t => (t.totalPoints || 0) === rank2Points) : [];
-        const losingTeams = allTeams.filter(t => (t.totalPoints || 0) < (rank2Points ?? rank1Points));
+        const winningTeams = effectiveTeams.filter(t => (t.totalPoints || 0) === rank1Points);
+        const neutralTeams = rank2Points !== null ? effectiveTeams.filter(t => (t.totalPoints || 0) === rank2Points) : [];
+        const losingTeams = effectiveTeams.filter(t => (t.totalPoints || 0) < (rank2Points ?? rank1Points));
 
         // Total pot:
         //   Mode 1 (entries_only):         losers × stake
@@ -4759,7 +4766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           potMode,
           potPenaltyUserIds: potMode === "entries_plus_penalty" ? validatedPenaltyIds : [],
         } as any);
-        console.log(`[Tournament Pot] ${potMode} | ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} (-${entryStake}), penalty=${penaltyCount} (-${entryStake} each), totalPot=${totalPot}`);
+        console.log(`[Tournament Pot] ${potMode} | ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} (-${entryStake}), penalty=${penaltyCount} (-${entryStake} each), excluded=${validatedExcludeIds.length}, totalPot=${totalPot}`);
         return res.json({
           message: "Pot processed successfully",
           mode: potMode,
@@ -4767,10 +4774,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           neutral: neutralTeams.length,
           losers: losingTeams.length,
           penaltyUsers: penaltyCount,
+          excludedUsers: validatedExcludeIds.length,
           winnerPoints: winnerPointsEach,
           loserPoints: losingTeams.length > 0 ? -entryStake : 0,
           totalPot,
           totalTeams: allTeams.length,
+          activeTeams: effectiveTeams.length,
         });
       } catch (err: any) {
         console.error("Process pot error:", err);

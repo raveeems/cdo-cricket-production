@@ -7643,7 +7643,7 @@ async function registerRoutes(app2) {
     isAdmin,
     async (req, res) => {
       try {
-        const { matchId, tournamentName, stake, mode, penaltyUserIds } = req.body;
+        const { matchId, tournamentName, stake, mode, penaltyUserIds, excludeUserIds } = req.body;
         if (!matchId || !tournamentName || !stake) {
           return res.status(400).json({ message: "matchId, tournamentName, and stake are required" });
         }
@@ -7657,17 +7657,21 @@ async function registerRoutes(app2) {
           return res.status(400).json({ message: `Not enough players. Found ${allTeams.length} team(s), need at least 2.` });
         }
         const entryStake = Number(stake) || 30;
+        const rawExcludeIds = Array.isArray(excludeUserIds) ? excludeUserIds : [];
+        const contestUserIds = new Set(allTeams.map((t) => t.userId));
+        const validatedExcludeIds = rawExcludeIds.filter((uid) => contestUserIds.has(uid));
+        const effectiveTeams = allTeams.filter((t) => !validatedExcludeIds.includes(t.userId));
         const potMode = mode === "entries_plus_penalty" ? "entries_plus_penalty" : "entries_only";
         const rawPenaltyIds = Array.isArray(penaltyUserIds) ? penaltyUserIds : [];
-        const contestUserIds = new Set(allTeams.map((t) => t.userId));
-        const validatedPenaltyIds = rawPenaltyIds.filter((uid) => !contestUserIds.has(uid));
+        const effectiveContestUserIds = new Set(effectiveTeams.map((t) => t.userId));
+        const validatedPenaltyIds = rawPenaltyIds.filter((uid) => !effectiveContestUserIds.has(uid) && !validatedExcludeIds.includes(uid));
         const penaltyCount = potMode === "entries_plus_penalty" ? validatedPenaltyIds.length : 0;
-        const uniquePointTiers = [...new Set(allTeams.map((t) => t.totalPoints || 0))].sort((a, b) => b - a);
+        const uniquePointTiers = [...new Set(effectiveTeams.map((t) => t.totalPoints || 0))].sort((a, b) => b - a);
         const rank1Points = uniquePointTiers[0] ?? 0;
         const rank2Points = uniquePointTiers[1] ?? null;
-        const winningTeams = allTeams.filter((t) => (t.totalPoints || 0) === rank1Points);
-        const neutralTeams = rank2Points !== null ? allTeams.filter((t) => (t.totalPoints || 0) === rank2Points) : [];
-        const losingTeams = allTeams.filter((t) => (t.totalPoints || 0) < (rank2Points ?? rank1Points));
+        const winningTeams = effectiveTeams.filter((t) => (t.totalPoints || 0) === rank1Points);
+        const neutralTeams = rank2Points !== null ? effectiveTeams.filter((t) => (t.totalPoints || 0) === rank2Points) : [];
+        const losingTeams = effectiveTeams.filter((t) => (t.totalPoints || 0) < (rank2Points ?? rank1Points));
         const losersContribution = losingTeams.length * entryStake;
         const penaltyContribution = penaltyCount * entryStake;
         const totalPot = losersContribution + penaltyContribution;
@@ -7726,7 +7730,7 @@ async function registerRoutes(app2) {
           potMode,
           potPenaltyUserIds: potMode === "entries_plus_penalty" ? validatedPenaltyIds : []
         });
-        console.log(`[Tournament Pot] ${potMode} | ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} (-${entryStake}), penalty=${penaltyCount} (-${entryStake} each), totalPot=${totalPot}`);
+        console.log(`[Tournament Pot] ${potMode} | ${match.team1Short} vs ${match.team2Short}: Rank1=${winningTeams.length} (+${winnerPointsEach}), Rank2=${neutralTeams.length} neutral, Rank3+=${losingTeams.length} (-${entryStake}), penalty=${penaltyCount} (-${entryStake} each), excluded=${validatedExcludeIds.length}, totalPot=${totalPot}`);
         return res.json({
           message: "Pot processed successfully",
           mode: potMode,
@@ -7734,10 +7738,12 @@ async function registerRoutes(app2) {
           neutral: neutralTeams.length,
           losers: losingTeams.length,
           penaltyUsers: penaltyCount,
+          excludedUsers: validatedExcludeIds.length,
           winnerPoints: winnerPointsEach,
           loserPoints: losingTeams.length > 0 ? -entryStake : 0,
           totalPot,
-          totalTeams: allTeams.length
+          totalTeams: allTeams.length,
+          activeTeams: effectiveTeams.length
         });
       } catch (err) {
         console.error("Process pot error:", err);
