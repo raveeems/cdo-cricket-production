@@ -3586,14 +3586,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (externalId && existing.some((m: any) => m.externalId === externalId)) {
           return res.status(409).json({ message: "Match already exists in database" });
         }
+        const IPL_TEAM_SHORTS = ['RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG'];
+        const t1s = (team1Short || team1.substring(0, 3)).toUpperCase();
+        const t2s = (team2Short || team2.substring(0, 3)).toUpperCase();
+        const isIPLMatch = IPL_TEAM_SHORTS.includes(t1s) || IPL_TEAM_SHORTS.includes(t2s)
+          || (league || "").toLowerCase().includes("indian premier")
+          || (league || "").toLowerCase().includes("ipl");
+
+        // Auto-detect tournamentName for IPL matches
+        let autoTournamentName: string | null = null;
+        if (isIPLMatch) {
+          const existingIPLName = await db.execute(sql`
+            SELECT tournament_name FROM matches
+            WHERE tournament_name IS NOT NULL
+              AND tournament_name != ''
+              AND (
+                LOWER(tournament_name) LIKE '%ipl%'
+                OR LOWER(tournament_name) LIKE '%indian premier%'
+              )
+            ORDER BY start_time DESC
+            LIMIT 1
+          `);
+          autoTournamentName = existingIPLName.rows.length > 0
+            ? (existingIPLName.rows[0] as any).tournament_name
+            : "Indian Premier League 2026";
+        }
+
         const match = await storage.createMatch({
           externalId: externalId || null,
           seriesId: seriesId || null,
           team1,
-          team1Short: team1Short || team1.substring(0, 3).toUpperCase(),
+          team1Short: t1s,
           team1Color: team1Color || "#333",
           team2,
-          team2Short: team2Short || team2.substring(0, 3).toUpperCase(),
+          team2Short: t2s,
           team2Color: team2Color || "#666",
           venue: venue || "",
           startTime: new Date(startTime),
@@ -3603,7 +3629,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entryFee: 0,
           spotsTotal: 100,
           spotsFilled: 0,
-        });
+          ...(autoTournamentName ? { tournamentName: autoTournamentName } : {}),
+        } as any);
 
         // Auto-fetch squad so players are available immediately
         let playersLoaded = 0;
@@ -3649,6 +3676,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         console.error("Import API match error:", err);
         return res.status(500).json({ message: "Failed to import match" });
+      }
+    }
+  );
+
+  // ---- ADMIN: BACKFILL TOURNAMENT NAMES ----
+  app.post(
+    "/api/admin/backfill-tournament-names",
+    isAuthenticated,
+    isAdmin,
+    async (_req: Request, res: Response) => {
+      try {
+        const existingName = await db.execute(sql`
+          SELECT tournament_name FROM matches
+          WHERE tournament_name IS NOT NULL AND tournament_name != ''
+            AND (LOWER(tournament_name) LIKE '%ipl%' OR LOWER(tournament_name) LIKE '%indian premier%')
+          ORDER BY start_time DESC LIMIT 1
+        `);
+        const tournamentName = existingName.rows.length > 0
+          ? (existingName.rows[0] as any).tournament_name
+          : "Indian Premier League 2026";
+
+        await db.execute(sql`
+          UPDATE matches
+          SET tournament_name = ${tournamentName}
+          WHERE (tournament_name IS NULL OR tournament_name = '')
+            AND (
+              team1_short IN ('RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG')
+              OR team2_short IN ('RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG')
+            )
+        `);
+        return res.json({ message: `Backfilled "${tournamentName}" on all IPL matches missing it` });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
       }
     }
   );

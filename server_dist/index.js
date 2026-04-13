@@ -6722,14 +6722,33 @@ async function registerRoutes(app2) {
         if (externalId && existing.some((m) => m.externalId === externalId)) {
           return res.status(409).json({ message: "Match already exists in database" });
         }
+        const IPL_TEAM_SHORTS = ["RR", "RCB", "MI", "CSK", "KKR", "SRH", "DC", "PBKS", "GT", "LSG"];
+        const t1s = (team1Short || team1.substring(0, 3)).toUpperCase();
+        const t2s = (team2Short || team2.substring(0, 3)).toUpperCase();
+        const isIPLMatch = IPL_TEAM_SHORTS.includes(t1s) || IPL_TEAM_SHORTS.includes(t2s) || (league || "").toLowerCase().includes("indian premier") || (league || "").toLowerCase().includes("ipl");
+        let autoTournamentName = null;
+        if (isIPLMatch) {
+          const existingIPLName = await db.execute(sql3`
+            SELECT tournament_name FROM matches
+            WHERE tournament_name IS NOT NULL
+              AND tournament_name != ''
+              AND (
+                LOWER(tournament_name) LIKE '%ipl%'
+                OR LOWER(tournament_name) LIKE '%indian premier%'
+              )
+            ORDER BY start_time DESC
+            LIMIT 1
+          `);
+          autoTournamentName = existingIPLName.rows.length > 0 ? existingIPLName.rows[0].tournament_name : "Indian Premier League 2026";
+        }
         const match = await storage.createMatch({
           externalId: externalId || null,
           seriesId: seriesId || null,
           team1,
-          team1Short: team1Short || team1.substring(0, 3).toUpperCase(),
+          team1Short: t1s,
           team1Color: team1Color || "#333",
           team2,
-          team2Short: team2Short || team2.substring(0, 3).toUpperCase(),
+          team2Short: t2s,
           team2Color: team2Color || "#666",
           venue: venue || "",
           startTime: new Date(startTime),
@@ -6738,7 +6757,8 @@ async function registerRoutes(app2) {
           totalPrize: "0",
           entryFee: 0,
           spotsTotal: 100,
-          spotsFilled: 0
+          spotsFilled: 0,
+          ...autoTournamentName ? { tournamentName: autoTournamentName } : {}
         });
         let playersLoaded = 0;
         let squadMessage = "No squad data found yet \u2014 use 'Fetch Squad' in Match Controls.";
@@ -6750,12 +6770,12 @@ async function registerRoutes(app2) {
               const seriesPlayers = await fetchSeriesSquad2(seriesId);
               const t1 = team1.toLowerCase();
               const t2 = team2.toLowerCase();
-              const t1s = (team1Short || "").toLowerCase();
-              const t2s = (team2Short || "").toLowerCase();
+              const t1s2 = (team1Short || "").toLowerCase();
+              const t2s2 = (team2Short || "").toLowerCase();
               squad = seriesPlayers.filter((p) => {
                 const pTeam = p.team.toLowerCase();
                 const pShort = p.teamShort.toLowerCase();
-                return pTeam === t1 || pTeam === t2 || pTeam.includes(t1) || t1.includes(pTeam) || pTeam.includes(t2) || t2.includes(pTeam) || pShort === t1s || pShort === t2s;
+                return pTeam === t1 || pTeam === t2 || pTeam.includes(t1) || t1.includes(pTeam) || pTeam.includes(t2) || t2.includes(pTeam) || pShort === t1s2 || pShort === t2s2;
               });
             }
             if (squad.length > 0) {
@@ -6779,6 +6799,34 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Import API match error:", err);
         return res.status(500).json({ message: "Failed to import match" });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/backfill-tournament-names",
+    isAuthenticated,
+    isAdmin,
+    async (_req, res) => {
+      try {
+        const existingName = await db.execute(sql3`
+          SELECT tournament_name FROM matches
+          WHERE tournament_name IS NOT NULL AND tournament_name != ''
+            AND (LOWER(tournament_name) LIKE '%ipl%' OR LOWER(tournament_name) LIKE '%indian premier%')
+          ORDER BY start_time DESC LIMIT 1
+        `);
+        const tournamentName = existingName.rows.length > 0 ? existingName.rows[0].tournament_name : "Indian Premier League 2026";
+        await db.execute(sql3`
+          UPDATE matches
+          SET tournament_name = ${tournamentName}
+          WHERE (tournament_name IS NULL OR tournament_name = '')
+            AND (
+              team1_short IN ('RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG')
+              OR team2_short IN ('RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG')
+            )
+        `);
+        return res.json({ message: `Backfilled "${tournamentName}" on all IPL matches missing it` });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
       }
     }
   );
