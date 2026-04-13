@@ -59,6 +59,8 @@ interface TournamentPotProps {
   onSetPotPenaltyUserIds: (updater: (prev: string[]) => string[]) => void;
   onSetPotExcludeUserIds: (updater: (prev: string[]) => string[]) => void;
   onProcess: () => void;
+  potResetting: boolean;
+  onResetTournament: () => void;
 }
 
 export function TournamentPot({
@@ -87,6 +89,8 @@ export function TournamentPot({
   onSetPotPenaltyUserIds,
   onSetPotExcludeUserIds,
   onProcess,
+  potResetting,
+  onResetTournament,
 }: TournamentPotProps) {
   const unprocessedCount = potUnprocessedMatches.filter(m => !m.potProcessed).length;
   const processedCount = matches.filter(m => m.potProcessed).length;
@@ -424,6 +428,39 @@ export function TournamentPot({
           <Text style={{ color: colors.textTertiary, fontFamily: 'Inter_400Regular', fontSize: 12 }}>
             {processedCount} {processedCount === 1 ? 'match' : 'matches'} already processed
           </Text>
+        </View>
+      )}
+
+      {/* Reset entire tournament pot */}
+      {(potSelectedTournament || potNewTournament.trim()) && processedCount > 0 && (
+        <View style={{ marginTop: 16, borderRadius: 14, borderWidth: 1, borderColor: '#EF444430', backgroundColor: '#EF444408', padding: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <Ionicons name="warning-outline" size={15} color="#EF4444" />
+            <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.6, textTransform: 'uppercase', color: '#EF4444' }}>
+              RESET ENTIRE TOURNAMENT POT
+            </Text>
+          </View>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17, marginBottom: 10 }}>
+            Wipes ALL pot results for <Text style={{ fontFamily: 'Inter_700Bold', color: colors.text }}>{potSelectedTournament || potNewTournament.trim()}</Text> — every ledger entry deleted, all matches marked unprocessed, all penalty lists cleared. You can then re-process each match individually with the correct settings.
+          </Text>
+          <Pressable
+            onPress={onResetTournament}
+            disabled={potResetting}
+            style={{
+              height: 42, borderRadius: 10, backgroundColor: '#EF4444',
+              justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8,
+              opacity: potResetting ? 0.5 : 1,
+            }}
+          >
+            {potResetting ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="refresh" size={16} color="#FFF" />
+                <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Reset & Reopen Tournament Pot</Text>
+              </>
+            )}
+          </Pressable>
         </View>
       )}
     </View>

@@ -133,6 +133,7 @@ export default function AdminScreen() {
   const [potMode, setPotMode] = useState<'entries_only' | 'entries_plus_penalty'>('entries_only');
   const [potPenaltyUserIds, setPotPenaltyUserIds] = useState<string[]>([]);
   const [potExcludeUserIds, setPotExcludeUserIds] = useState<string[]>([]);
+  const [potResetting, setPotResetting] = useState(false);
   const [allUsers, setAllUsers] = useState<{id:string;username:string;teamName?:string}[]>([]);
   const [potUsersLoading, setPotUsersLoading] = useState(false);
 
@@ -1421,6 +1422,50 @@ export default function AdminScreen() {
     }
   };
 
+  const handleResetTournamentPot = async () => {
+    const effectiveTournament = potSelectedTournament || potNewTournament.trim();
+    if (!effectiveTournament) {
+      Alert.alert('No Tournament Selected', 'Please select a tournament to reset.');
+      return;
+    }
+    Alert.alert(
+      'Reset Entire Tournament Pot?',
+      `This will permanently delete ALL pot ledger entries for "${effectiveTournament}" and mark every match as unprocessed.\n\nAll penalty and exclusion settings will be cleared. You can re-process each match individually afterwards.\n\nThis cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, Reset Everything',
+          style: 'destructive',
+          onPress: async () => {
+            setPotResetting(true);
+            try {
+              const res = await apiRequest('POST', '/api/tournament/reset', {
+                tournamentName: effectiveTournament,
+              });
+              const data = await res.json();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              Alert.alert(
+                'Tournament Pot Reset',
+                `All pot data for "${effectiveTournament}" has been cleared (${data.matchesReset ?? 0} match${data.matchesReset !== 1 ? 'es' : ''} reset). You can now re-process each match with the correct settings.`
+              );
+              setPotSelectedMatchId('');
+              setPotStake('30');
+              setPotMode('entries_only');
+              setPotPenaltyUserIds([]);
+              setPotExcludeUserIds([]);
+              loadPotUnprocessedMatches();
+              loadPotTournamentNames();
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Failed to reset tournament pot');
+            } finally {
+              setPotResetting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -2288,6 +2333,8 @@ export default function AdminScreen() {
             onSetPotPenaltyUserIds={setPotPenaltyUserIds}
             onSetPotExcludeUserIds={setPotExcludeUserIds}
             onProcess={handleProcessAndDistribute}
+            potResetting={potResetting}
+            onResetTournament={handleResetTournamentPot}
           />
 
           <View style={styles.section}>

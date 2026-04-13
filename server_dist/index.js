@@ -761,6 +761,12 @@ var init_storage = __esm({
       async deleteLedgerEntriesForMatch(matchId) {
         await db.delete(tournamentLedger).where(eq(tournamentLedger.matchId, matchId));
       }
+      async deleteLedgerEntriesForTournament(tournamentName) {
+        await db.delete(tournamentLedger).where(eq(tournamentLedger.tournamentName, tournamentName));
+      }
+      async getMatchesByTournamentName(tournamentName) {
+        return db.select().from(matches).where(eq(matches.tournamentName, tournamentName));
+      }
       async getDistinctTournamentNames() {
         const rows = await db.selectDistinct({ name: matches.tournamentName }).from(matches).where(
           and(
@@ -7748,6 +7754,42 @@ async function registerRoutes(app2) {
       } catch (err) {
         console.error("Process pot error:", err);
         return res.status(500).json({ message: "Failed to process tournament pot" });
+      }
+    }
+  );
+  app2.post(
+    "/api/tournament/reset",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { tournamentName } = req.body;
+        if (!tournamentName || typeof tournamentName !== "string" || !tournamentName.trim()) {
+          return res.status(400).json({ message: "tournamentName is required" });
+        }
+        const tName = tournamentName.trim();
+        await storage.deleteLedgerEntriesForTournament(tName);
+        const tournamentMatches = await storage.getMatchesByTournamentName(tName);
+        let resetCount = 0;
+        for (const m of tournamentMatches) {
+          if (m.potProcessed || m.potPenaltyUserIds?.length) {
+            await storage.updateMatch(m.id, {
+              potProcessed: false,
+              potPenaltyUserIds: []
+            });
+            resetCount++;
+          }
+        }
+        console.log(`[Tournament Reset] '${tName}': cleared ${resetCount} match(es), wiped all ledger entries`);
+        return res.json({
+          message: `Tournament pot reset successfully`,
+          tournamentName: tName,
+          matchesReset: resetCount,
+          ledgerEntriesDeleted: true
+        });
+      } catch (err) {
+        console.error("Tournament reset error:", err);
+        return res.status(500).json({ message: "Failed to reset tournament pot" });
       }
     }
   );

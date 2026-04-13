@@ -486,6 +486,14 @@ export class DatabaseStorage {
     await db.delete(tournamentLedger).where(eq(tournamentLedger.matchId, matchId));
   }
 
+  async deleteLedgerEntriesForTournament(tournamentName: string): Promise<void> {
+    await db.delete(tournamentLedger).where(eq(tournamentLedger.tournamentName, tournamentName));
+  }
+
+  async getMatchesByTournamentName(tournamentName: string): Promise<Match[]> {
+    return db.select().from(matches).where(eq(matches.tournamentName, tournamentName));
+  }
+
   async getDistinctTournamentNames(): Promise<string[]> {
     const rows = await db
       .selectDistinct({ name: matches.tournamentName })

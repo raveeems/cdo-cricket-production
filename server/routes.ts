@@ -4788,6 +4788,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // ---- ADMIN: RESET ENTIRE TOURNAMENT POT ----
+  // Deletes ALL ledger entries for a tournament and marks every match in it as unprocessed.
+  // Penalty user lists are also cleared. Admin can then re-process each match from scratch.
+  app.post(
+    "/api/tournament/reset",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { tournamentName } = req.body;
+        if (!tournamentName || typeof tournamentName !== "string" || !tournamentName.trim()) {
+          return res.status(400).json({ message: "tournamentName is required" });
+        }
+        const tName = tournamentName.trim();
+
+        // 1. Wipe all ledger entries for this tournament
+        await storage.deleteLedgerEntriesForTournament(tName);
+
+        // 2. Find every match belonging to this tournament and reset pot state
+        const tournamentMatches = await storage.getMatchesByTournamentName(tName);
+        let resetCount = 0;
+        for (const m of tournamentMatches) {
+          if (m.potProcessed || (m as any).potPenaltyUserIds?.length) {
+            await storage.updateMatch(m.id, {
+              potProcessed: false,
+              potPenaltyUserIds: [] as any,
+            } as any);
+            resetCount++;
+          }
+        }
+
+        console.log(`[Tournament Reset] '${tName}': cleared ${resetCount} match(es), wiped all ledger entries`);
+        return res.json({
+          message: `Tournament pot reset successfully`,
+          tournamentName: tName,
+          matchesReset: resetCount,
+          ledgerEntriesDeleted: true,
+        });
+      } catch (err: any) {
+        console.error("Tournament reset error:", err);
+        return res.status(500).json({ message: "Failed to reset tournament pot" });
+      }
+    }
+  );
+
   // ---- ADMIN: GET COMPLETED MATCHES FOR POT MANAGEMENT (unprocessed + re-processable) ----
   app.get(
     "/api/admin/matches/unprocessed",
