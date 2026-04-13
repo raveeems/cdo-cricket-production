@@ -7800,10 +7800,7 @@ async function registerRoutes(app2) {
     async (_req, res) => {
       try {
         const allMatches = await storage.getAllMatches();
-        const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1e3);
-        const completed = allMatches.filter(
-          (m) => m.status === "completed" && new Date(m.startTime) >= tenDaysAgo
-        );
+        const completed = allMatches.filter((m) => m.status === "completed");
         const withParticipation = [];
         for (const m of completed) {
           const teams = await storage.getAllTeamsForMatch(m.id);

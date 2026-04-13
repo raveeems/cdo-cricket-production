@@ -4841,12 +4841,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (_req: Request, res: Response) => {
       try {
         const allMatches = await storage.getAllMatches();
-        const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
-        // Include ALL completed matches in window (both unprocessed and already-processed for re-processing)
-        const completed = allMatches.filter(m =>
-          m.status === "completed" &&
-          new Date(m.startTime) >= tenDaysAgo
-        );
+        // Include ALL completed matches (both unprocessed and already-processed for re-processing)
+        const completed = allMatches.filter(m => m.status === "completed");
         const withParticipation = [];
         for (const m of completed) {
           const teams = await storage.getAllTeamsForMatch(m.id);
