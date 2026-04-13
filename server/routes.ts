@@ -1510,7 +1510,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const matchForPts = await storage.getMatch(matchId);
         if (matchForPts && matchPlayers.length > 0) {
-          // 1. Last match points — same prev-match lookup as lastMatchXI
+          // 1. Last match points — find the most recent completed match with synced scorecard
+          // (i.e., at least one player for this team has points > 0)
           const prevPointsLookup: Record<string, number> = {}; // "name|teamShort" → points
           for (const teamShort of [matchForPts.team1Short, matchForPts.team2Short]) {
             const [prevMatch] = await db
@@ -1520,7 +1521,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 and(
                   sql`(${matchesTable.team1Short} = ${teamShort} OR ${matchesTable.team2Short} = ${teamShort})`,
                   eq(matchesTable.status, "completed"),
-                  sql`${matchesTable.id} != ${matchId}`
+                  sql`${matchesTable.id} != ${matchId}`,
+                  sql`EXISTS (SELECT 1 FROM players p WHERE p.match_id = ${matchesTable.id} AND p.team_short = ${teamShort} AND p.points > 0)`
                 )
               )
               .orderBy(sql`${matchesTable.startTime} DESC`)

@@ -5024,7 +5024,8 @@ async function registerRoutes(app2) {
               and2(
                 sql3`(${matches.team1Short} = ${teamShort} OR ${matches.team2Short} = ${teamShort})`,
                 eq2(matches.status, "completed"),
-                sql3`${matches.id} != ${matchId}`
+                sql3`${matches.id} != ${matchId}`,
+                sql3`EXISTS (SELECT 1 FROM players p WHERE p.match_id = ${matches.id} AND p.team_short = ${teamShort} AND p.points > 0)`
               )
             ).orderBy(sql3`${matches.startTime} DESC`).limit(1);
             if (prevMatch) {
