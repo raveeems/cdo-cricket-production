@@ -883,7 +883,7 @@ var init_storage = __esm({
       }
       async incrementMultiTeamUsage(userId) {
         const usage = await this.getOrCreateWeeklyUsage(userId);
-        const [updated] = await db.update(userWeeklyUsage).set({ multiTeamUsageCount: usage.multiTeamUsageCount + 1 }).where(eq(userWeeklyUsage.id, usage.id)).returning();
+        const [updated] = await db.update(userWeeklyUsage).set({ multiTeamUsageCount: sql2`LEAST(${userWeeklyUsage.multiTeamUsageCount} + 1, 3)` }).where(eq(userWeeklyUsage.id, usage.id)).returning();
         return updated;
       }
       async incrementInvisibleUsage(userId) {
@@ -6233,6 +6233,12 @@ async function registerRoutes(app2) {
           } else {
             useInvisible = true;
             await storage.incrementInvisibleUsage(req.session.userId);
+          }
+        }
+        if (existingTeams.length >= 1) {
+          const freshUsage = await storage.getOrCreateWeeklyUsage(req.session.userId);
+          if (!storage.canUseMultiTeam(freshUsage)) {
+            return res.status(400).json({ message: "You've used all 3 multi-team slots this week. Only 1 team allowed per match until Monday." });
           }
         }
         const team = await storage.createUserTeam({

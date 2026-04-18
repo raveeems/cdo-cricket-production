@@ -3028,6 +3028,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // Hard gate — re-fetch usage immediately before save to catch any race condition
+        // between the first check (above) and the actual team creation.
+        if (existingTeams.length >= 1) {
+          const freshUsage = await storage.getOrCreateWeeklyUsage(req.session.userId!);
+          if (!storage.canUseMultiTeam(freshUsage)) {
+            return res.status(400).json({ message: "You've used all 3 multi-team slots this week. Only 1 team allowed per match until Monday." });
+          }
+        }
+
         const team = await storage.createUserTeam({
           userId: req.session.userId!,
           matchId,

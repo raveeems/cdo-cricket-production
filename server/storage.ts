@@ -660,8 +660,9 @@ export class DatabaseStorage {
 
   async incrementMultiTeamUsage(userId: string): Promise<UserWeeklyUsage> {
     const usage = await this.getOrCreateWeeklyUsage(userId);
+    // LEAST(..., 3) is a hard DB-level cap — the column can never physically exceed 3
     const [updated] = await db.update(userWeeklyUsage)
-      .set({ multiTeamUsageCount: usage.multiTeamUsageCount + 1 })
+      .set({ multiTeamUsageCount: sql`LEAST(${userWeeklyUsage.multiTeamUsageCount} + 1, 3)` })
       .where(eq(userWeeklyUsage.id, usage.id))
       .returning();
     return updated;
