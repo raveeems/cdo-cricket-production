@@ -3044,6 +3044,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           backupXiPlayer2Id: validBackupXi2,
         });
 
+        // Consume one weekly multi-team slot when the user creates their 2nd team
+        // for a match (first multi-team usage for this match). Creating a 3rd team
+        // for the same match does not cost an additional slot.
+        if (existingTeams.length === 1) {
+          await storage.incrementMultiTeamUsage(req.session.userId!);
+        }
+
         return res.json({ team, weeklyUsage: { maxTeams, teamsCreated: existingTeams.length + 1 } });
       } catch (err: any) {
         console.error("CRITICAL TEAM SAVE ERROR:", err);

@@ -6250,6 +6250,9 @@ async function registerRoutes(app2) {
           backupXiPlayer1Id: validBackupXi1,
           backupXiPlayer2Id: validBackupXi2
         });
+        if (existingTeams.length === 1) {
+          await storage.incrementMultiTeamUsage(req.session.userId);
+        }
         return res.json({ team, weeklyUsage: { maxTeams, teamsCreated: existingTeams.length + 1 } });
       } catch (err) {
         console.error("CRITICAL TEAM SAVE ERROR:", err);
