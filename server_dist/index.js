@@ -3922,11 +3922,7 @@ function checkUnlockEligibility(match) {
 }
 function isEntryOpen(match, nowMs) {
   if (match.status === "completed") return false;
-  if (match.adminUnlockOverride === true) {
-    if (!match.firstScorecardAt) return true;
-    const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 6e4;
-    return nowMs < cutoff;
-  }
+  if (match.adminUnlockOverride === true) return true;
   const effectiveDeadline = match.revisedStartTime ?? match.startTime;
   return nowMs < new Date(effectiveDeadline).getTime();
 }

@@ -59,12 +59,8 @@ function isEntryOpen(match: {
   // GATE 1: Completed matches are always locked
   if ((match as any).status === 'completed') return false;
 
-  // GATE 2: Admin unlock — 6-minute hard cutoff from firstScorecardAt
-  if (match.adminUnlockOverride === true) {
-    if (!match.firstScorecardAt) return true; // scoring not started yet — unlock is valid
-    const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 60_000;
-    return nowMs < cutoff; // hard 6-minute cutoff, no exceptions
-  }
+  // GATE 2: Admin unlock — TEMP: 6-minute firstScorecardAt cutoff bypassed for force-unlock — revert after use
+  if (match.adminUnlockOverride === true) return true;
 
   // GATE 3: Deadline-based entry — revisedStartTime takes priority over startTime
   const effectiveDeadline = match.revisedStartTime ?? match.startTime;
