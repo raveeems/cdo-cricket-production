@@ -11,6 +11,7 @@ import {
   Modal,
   Animated,
   Image,
+  Alert,
 } from 'react-native';
 import { getTeamLogo } from '@/utils/teamLogo';
 import { getMatchBanter } from '@/utils/getMatchBanter';
@@ -384,6 +385,8 @@ export default function CreateTeamScreen() {
   const [backupXiPlayer1Id, setBackupXiPlayer1Id] = useState<string | null>(() => (editingTeam as any)?.backupXiPlayer1Id || null);
   const [backupXiPlayer2Id, setBackupXiPlayer2Id] = useState<string | null>(() => (editingTeam as any)?.backupXiPlayer2Id || null);
   const [showBackupPicker, setShowBackupPicker] = useState(() => params.openBackup === 'true' && !!editTeamId);
+  const [isSavingBackup, setIsSavingBackup] = useState(false);
+  const isBackupOnlyMode = params.openBackup === 'true' && !!editTeamId;
   const [filter, setFilter] = useState<RoleFilter>('ALL');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -896,6 +899,26 @@ export default function CreateTeamScreen() {
       setShowPredictionModal(false);
     } finally {
       setPredictionSaving(false);
+    }
+  };
+
+  const saveBackupXi = async () => {
+    if (!editTeamId || isSavingBackup) return;
+    setIsSavingBackup(true);
+    try {
+      await apiRequest('PATCH', `/api/teams/${editTeamId}/backup-xi`, {
+        backupXiPlayer1Id: backupXiPlayer1Id || null,
+        backupXiPlayer2Id: backupXiPlayer2Id || null,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/matches/${matchId}/teams`] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to save backups. Please try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsSavingBackup(false);
     }
   };
 
@@ -2284,12 +2307,24 @@ export default function CreateTeamScreen() {
                 {/* Done button */}
                 <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 16), paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border }}>
                   <Pressable
-                    onPress={() => setShowBackupPicker(false)}
+                    onPress={() => {
+                      if (isBackupOnlyMode) {
+                        saveBackupXi();
+                      } else {
+                        setShowBackupPicker(false);
+                      }
+                    }}
+                    disabled={isSavingBackup}
                     style={{ borderRadius: 14, overflow: 'hidden' as const }}
                   >
                     <LinearGradient colors={[colors.accent, colors.accentDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
-                      <Ionicons name="checkmark" size={20} color="#000" />
-                      <Text style={{ color: '#000', fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>Done</Text>
+                      {isSavingBackup
+                        ? <ActivityIndicator size="small" color="#000" />
+                        : <Ionicons name="checkmark" size={20} color="#000" />
+                      }
+                      <Text style={{ color: '#000', fontSize: 16, fontFamily: 'Inter_700Bold' as const }}>
+                        {isBackupOnlyMode ? 'Save Backups' : 'Done'}
+                      </Text>
                     </LinearGradient>
                   </Pressable>
                 </View>

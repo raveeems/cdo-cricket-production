@@ -6475,6 +6475,51 @@ async function registerRoutes(app2) {
       }
     }
   );
+  app2.patch(
+    "/api/teams/:id/backup-xi",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const team = await storage.getUserTeam(req.params.id);
+        if (!team) return res.status(404).json({ message: "Team not found" });
+        if (team.userId !== req.session.userId) return res.status(403).json({ message: "Not your team" });
+        const match = await storage.getMatch(team.matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        if (match.playingXIManual) {
+          return res.status(400).json({ message: "XI Backups are locked \u2014 Playing XI has already been announced." });
+        }
+        if (match.status === "completed") {
+          return res.status(400).json({ message: "Match is already completed." });
+        }
+        const { backupXiPlayer1Id, backupXiPlayer2Id } = req.body;
+        const matchPlayers = await storage.getPlayersForMatch(team.matchId);
+        const playerMapB = new Map(matchPlayers.map((p) => [p.id, p]));
+        const mainXiIds = new Set(team.playerIds || []);
+        const impactIds = new Set(
+          [team.primaryImpactId, team.backupImpactId].filter(Boolean)
+        );
+        let b1 = backupXiPlayer1Id !== void 0 ? backupXiPlayer1Id || null : team.backupXiPlayer1Id ?? null;
+        let b2 = backupXiPlayer2Id !== void 0 ? backupXiPlayer2Id || null : team.backupXiPlayer2Id ?? null;
+        for (const [slot, id] of [["B1", b1], ["B2", b2]]) {
+          if (!id) continue;
+          if (!playerMapB.has(id)) return res.status(400).json({ message: `${slot} player not found in this match.` });
+          if (mainXiIds.has(id)) return res.status(400).json({ message: `${slot} cannot be one of your main XI players.` });
+          if (impactIds.has(id)) return res.status(400).json({ message: `${slot} cannot overlap with your Impact picks.` });
+        }
+        if (b1 && b2 && b1 === b2) {
+          return res.status(400).json({ message: "Backup 1 and Backup 2 must be different players." });
+        }
+        const updated = await storage.updateUserTeam(req.params.id, req.session.userId, {
+          backupXiPlayer1Id: b1,
+          backupXiPlayer2Id: b2
+        });
+        return res.json({ team: updated });
+      } catch (err) {
+        console.error("Backup XI update error:", err);
+        return res.status(500).json({ message: "Failed to update XI backups" });
+      }
+    }
+  );
   app2.delete(
     "/api/teams/:id",
     isAuthenticated,

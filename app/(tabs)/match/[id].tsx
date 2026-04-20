@@ -499,7 +499,7 @@ export default function MatchDetailScreen() {
                 const b1Name = team.backupXiPlayer1Id ? (players.find(p => p.id === team.backupXiPlayer1Id!)?.name || null) : null;
                 const b2Name = team.backupXiPlayer2Id ? (players.find(p => p.id === team.backupXiPlayer2Id!)?.name || null) : null;
                 const hasBackups = !!(b1Name || b2Name);
-                const backupLocked = !canEdit || !!match.playingXIManual;
+                const backupLocked = !!match.playingXIManual;
 
                 // ── State colours ──────────────────────────────────────────
                 // Empty+open: primary-tinted border + bg, primary text → clear CTA
