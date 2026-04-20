@@ -1141,6 +1141,10 @@ function setupErrorHandler(app: express.Application) {
       }, 0);
     }
 
+    // Tracks matches already notified this server session — prevents duplicate
+    // "starting soon" pushes when the heartbeat fires multiple times in the 5-min window.
+    const notifiedStartingSoonIds = new Set<string>();
+
     async function matchHeartbeat(forcedMatchId?: string) {
       if (heartbeatSyncing && !forcedMatchId) {
         const lockAge = Date.now() - heartbeatLockTime;
@@ -1166,7 +1170,12 @@ function setupErrorHandler(app: express.Application) {
             if (m.status !== 'upcoming') continue;
             if (!m.team1Short || !m.team2Short) continue;
             const startMs = m.startTime ? new Date(m.startTime).getTime() : 0;
-            if (startMs > (now + twentyFiveMinsMs) && startMs <= (now + thirtyMinsMs)) {
+            if (
+              !notifiedStartingSoonIds.has(m.id) &&
+              startMs > (now + twentyFiveMinsMs) &&
+              startMs <= (now + thirtyMinsMs)
+            ) {
+              notifiedStartingSoonIds.add(m.id);
               const { notifyMatchStartingSoon } = await import('./notifications');
               await notifyMatchStartingSoon(m.team1Short, m.team2Short);
               log(`[FCM] 30-min notification sent for ${m.team1Short} vs ${m.team2Short}`);

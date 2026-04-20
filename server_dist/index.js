@@ -9908,6 +9908,7 @@ function setupErrorHandler(app2) {
       return sum + (isNaN(num) ? 0 : num);
     }, 0);
   }
+  const notifiedStartingSoonIds = /* @__PURE__ */ new Set();
   async function matchHeartbeat(forcedMatchId) {
     if (heartbeatSyncing && !forcedMatchId) {
       const lockAge = Date.now() - heartbeatLockTime;
@@ -9932,7 +9933,8 @@ function setupErrorHandler(app2) {
           if (m.status !== "upcoming") continue;
           if (!m.team1Short || !m.team2Short) continue;
           const startMs = m.startTime ? new Date(m.startTime).getTime() : 0;
-          if (startMs > now + twentyFiveMinsMs && startMs <= now + thirtyMinsMs) {
+          if (!notifiedStartingSoonIds.has(m.id) && startMs > now + twentyFiveMinsMs && startMs <= now + thirtyMinsMs) {
+            notifiedStartingSoonIds.add(m.id);
             const { notifyMatchStartingSoon: notifyMatchStartingSoon2 } = await Promise.resolve().then(() => (init_notifications(), notifications_exports));
             await notifyMatchStartingSoon2(m.team1Short, m.team2Short);
             log(`[FCM] 30-min notification sent for ${m.team1Short} vs ${m.team2Short}`);
