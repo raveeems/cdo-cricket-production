@@ -79,7 +79,7 @@ function PlayerItem({
   showPlayingXI,
   isDisabled,
 }: {
-  player: Player;
+  player: Player & { lastMatchPoints?: number | null; tournamentPoints?: number | null };
   isSelected: boolean;
   onToggle: () => void;
   colors: any;

@@ -11,6 +11,10 @@ export interface Player {
   isImpactPlayer?: boolean;
   isPlayingXI?: boolean;
   imageUrl?: string;
+  lastMatchPoints?: number | null;
+  tournamentPoints?: number | null;
+  externalId?: string | null;
+  isImpactActivated?: boolean;
 }
 
 export interface Match {
