@@ -1505,14 +1505,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Build per-player historical points (lastMatchPoints + tournamentPoints)
-      // Reuses the same prev-match queries as lastMatchXI — safe, read-only, no schema changes
+      // Each block has its own try/catch so a failure in one never kills the other.
+      const IPL_SHORTS_FOR_PTS = ['RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG'];
+      const prevPointsLookup: Record<string, number> = {};
+      const tournamentTotalsLookup: Record<string, number> = {};
       const playerPointsMap: Record<string, { lastMatchPoints: number | null; tournamentPoints: number | null }> = {};
-      try {
-        const matchForPts = await storage.getMatch(matchId);
-        if (matchForPts && matchPlayers.length > 0) {
-          // 1. Last match points — find the most recent completed match with synced scorecard
-          // (i.e., at least one player for this team has points > 0)
-          const prevPointsLookup: Record<string, number> = {}; // "name|teamShort" → points
+
+      const matchForPts = await storage.getMatch(matchId).catch(() => null);
+
+      if (matchForPts && matchPlayers.length > 0) {
+        // 1. Last match points — independent try/catch so a DB error here doesn't kill tournament totals
+        try {
           for (const teamShort of [matchForPts.team1Short, matchForPts.team2Short]) {
             const [prevMatch] = await db
               .select({ id: matchesTable.id })
@@ -1536,10 +1539,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           }
+        } catch (err) {
+          console.error("[playerPoints] lastMatchPoints fetch error:", err);
+        }
 
-          // 2. Tournament total points — single aggregated query
-          const tournamentTotalsLookup: Record<string, number> = {};
-          if (matchForPts.tournamentName) {
+        // 2. Tournament total points — independent try/catch.
+        // Uses tournamentName when available; falls back to IPL team detection so this
+        // always runs for IPL matches regardless of whether tournamentName is set in DB.
+        try {
+          const isIPLMatch = IPL_SHORTS_FOR_PTS.includes((matchForPts.team1Short || '').toUpperCase())
+            || IPL_SHORTS_FOR_PTS.includes((matchForPts.team2Short || '').toUpperCase());
+
+          if (matchForPts.tournamentName || isIPLMatch) {
+            const whereCondition = matchForPts.tournamentName
+              ? and(
+                  eq(matchesTable.tournamentName, matchForPts.tournamentName),
+                  eq(matchesTable.status, "completed"),
+                  sql`${playersTable.points} > 0`,
+                  sql`${matchesTable.id} != ${matchId}`
+                )
+              : and(
+                  sql`(${matchesTable.team1Short} = ANY(ARRAY['RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG']) OR ${matchesTable.team2Short} = ANY(ARRAY['RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG']))`,
+                  eq(matchesTable.status, "completed"),
+                  sql`${playersTable.points} > 0`,
+                  sql`${matchesTable.id} != ${matchId}`
+                );
+
             const rows = await db
               .select({
                 name: playersTable.name,
@@ -1548,30 +1573,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
               })
               .from(playersTable)
               .innerJoin(matchesTable, eq(playersTable.matchId, matchesTable.id))
-              .where(
-                and(
-                  eq(matchesTable.tournamentName, matchForPts.tournamentName),
-                  eq(matchesTable.status, "completed"),
-                  sql`${playersTable.points} > 0`
-                )
-              )
+              .where(whereCondition)
               .groupBy(playersTable.name, playersTable.teamShort);
             for (const row of rows) {
               tournamentTotalsLookup[`${row.name}|${row.teamShort}`] = row.total;
             }
           }
-
-          // 3. Build per-player map
-          for (const p of matchPlayers) {
-            const key = `${p.name}|${p.teamShort}`;
-            playerPointsMap[p.id] = {
-              lastMatchPoints: prevPointsLookup[key] ?? null,
-              tournamentPoints: tournamentTotalsLookup[key] ?? null,
-            };
-          }
+        } catch (err) {
+          console.error("[playerPoints] tournamentPoints fetch error:", err);
         }
-      } catch (err) {
-        console.error("[playerPoints] fetch error:", err);
+
+        // 3. Build per-player map
+        for (const p of matchPlayers) {
+          const key = `${p.name}|${p.teamShort}`;
+          playerPointsMap[p.id] = {
+            lastMatchPoints: prevPointsLookup[key] ?? null,
+            tournamentPoints: tournamentTotalsLookup[key] ?? null,
+          };
+        }
       }
 
       // Normalize player.teamShort to the canonical match short codes.

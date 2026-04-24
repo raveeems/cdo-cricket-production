@@ -5014,11 +5014,13 @@ async function registerRoutes(app2) {
         console.error("[lastMatchXI] fetch error:", err);
         lastMatchXI = {};
       }
+      const IPL_SHORTS_FOR_PTS = ["RR", "RCB", "MI", "CSK", "KKR", "SRH", "DC", "PBKS", "GT", "LSG"];
+      const prevPointsLookup = {};
+      const tournamentTotalsLookup = {};
       const playerPointsMap = {};
-      try {
-        const matchForPts = await storage.getMatch(matchId);
-        if (matchForPts && matchPlayers.length > 0) {
-          const prevPointsLookup = {};
+      const matchForPts = await storage.getMatch(matchId).catch(() => null);
+      if (matchForPts && matchPlayers.length > 0) {
+        try {
           for (const teamShort of [matchForPts.team1Short, matchForPts.team2Short]) {
             const [prevMatch] = await db.select({ id: matches.id }).from(matches).where(
               and2(
@@ -5037,33 +5039,42 @@ async function registerRoutes(app2) {
               }
             }
           }
-          const tournamentTotalsLookup = {};
-          if (matchForPts.tournamentName) {
+        } catch (err) {
+          console.error("[playerPoints] lastMatchPoints fetch error:", err);
+        }
+        try {
+          const isIPLMatch = IPL_SHORTS_FOR_PTS.includes((matchForPts.team1Short || "").toUpperCase()) || IPL_SHORTS_FOR_PTS.includes((matchForPts.team2Short || "").toUpperCase());
+          if (matchForPts.tournamentName || isIPLMatch) {
+            const whereCondition = matchForPts.tournamentName ? and2(
+              eq2(matches.tournamentName, matchForPts.tournamentName),
+              eq2(matches.status, "completed"),
+              sql3`${players.points} > 0`,
+              sql3`${matches.id} != ${matchId}`
+            ) : and2(
+              sql3`(${matches.team1Short} = ANY(ARRAY['RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG']) OR ${matches.team2Short} = ANY(ARRAY['RR','RCB','MI','CSK','KKR','SRH','DC','PBKS','GT','LSG']))`,
+              eq2(matches.status, "completed"),
+              sql3`${players.points} > 0`,
+              sql3`${matches.id} != ${matchId}`
+            );
             const rows = await db.select({
               name: players.name,
               teamShort: players.teamShort,
               total: sql3`CAST(SUM(${players.points}) AS INTEGER)`
-            }).from(players).innerJoin(matches, eq2(players.matchId, matches.id)).where(
-              and2(
-                eq2(matches.tournamentName, matchForPts.tournamentName),
-                eq2(matches.status, "completed"),
-                sql3`${players.points} > 0`
-              )
-            ).groupBy(players.name, players.teamShort);
+            }).from(players).innerJoin(matches, eq2(players.matchId, matches.id)).where(whereCondition).groupBy(players.name, players.teamShort);
             for (const row of rows) {
               tournamentTotalsLookup[`${row.name}|${row.teamShort}`] = row.total;
             }
           }
-          for (const p of matchPlayers) {
-            const key = `${p.name}|${p.teamShort}`;
-            playerPointsMap[p.id] = {
-              lastMatchPoints: prevPointsLookup[key] ?? null,
-              tournamentPoints: tournamentTotalsLookup[key] ?? null
-            };
-          }
+        } catch (err) {
+          console.error("[playerPoints] tournamentPoints fetch error:", err);
         }
-      } catch (err) {
-        console.error("[playerPoints] fetch error:", err);
+        for (const p of matchPlayers) {
+          const key = `${p.name}|${p.teamShort}`;
+          playerPointsMap[p.id] = {
+            lastMatchPoints: prevPointsLookup[key] ?? null,
+            tournamentPoints: tournamentTotalsLookup[key] ?? null
+          };
+        }
       }
       try {
         const matchForNorm = await storage.getMatch(matchId);
