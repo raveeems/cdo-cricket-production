@@ -1933,6 +1933,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           viceCaptainId: t.userId === req.session.userId ? t.viceCaptainId : null,
           primaryImpactId: t.userId === req.session.userId ? t.primaryImpactId : null,
           backupImpactId: t.userId === req.session.userId ? t.backupImpactId : null,
+          backupXiPlayer1Id: t.userId === req.session.userId ? t.backupXiPlayer1Id : null,
+          backupXiPlayer2Id: t.userId === req.session.userId ? t.backupXiPlayer2Id : null,
           captainType: t.userId === req.session.userId ? t.captainType : null,
           vcType: t.userId === req.session.userId ? t.vcType : null,
           invisibleMode: t.userId === req.session.userId ? t.invisibleMode : undefined,
@@ -2051,7 +2053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   if (bCursor >= availableBackupsForDisplay.length) break;
                   const rp = resolvedPlayers[i];
                   const fullP = playerById.get(rp.id);
-                  if (fullP && fullP.isPlayingXI !== true && fullP.isImpactPlayer !== true) {
+                  if (fullP && fullP.isPlayingXI !== true) {
                     // Skip any backup already present in resolvedPlayers to prevent duplicate IDs
                     let bk: (typeof availableBackupsForDisplay)[0] | null = null;
                     while (bCursor < availableBackupsForDisplay.length) {
