@@ -278,10 +278,9 @@ export function canEditTeam(
 ): boolean {
   if (status === 'completed') return false;
 
+  // TEMP: no time restriction — unlock is always valid when adminUnlockOverride is set
   if (adminUnlockOverride === true) {
-    if (!firstScorecardAt) return true; // scoring not started, unlock valid
-    const cutoff = new Date(firstScorecardAt).getTime() + 6 * 60_000;
-    return Date.now() < cutoff; // hard 6-minute cutoff
+    return true;
   }
 
   const effectiveDeadline = revisedStartTime ?? startTime;
