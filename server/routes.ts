@@ -43,8 +43,10 @@ function getEffectiveLockMs(match: { startTime: Date | string; revisedStartTime?
 }
 
 function checkUnlockEligibility(match: { firstScorecardAt?: Date | string | null }): { allowed: boolean; reason?: string } {
-  // TEMP: restrictions removed — always allow unlock
-  return { allowed: true };
+  if (!match.firstScorecardAt) return { allowed: true };
+  const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 60_000;
+  if (Date.now() < cutoff) return { allowed: true };
+  return { allowed: false, reason: "Cannot unlock: live scorecard data has been running for more than 6 minutes" };
 }
 
 function isEntryOpen(match: {
@@ -57,9 +59,11 @@ function isEntryOpen(match: {
   // GATE 1: Completed matches are always locked
   if ((match as any).status === 'completed') return false;
 
-  // GATE 2: Admin unlock — TEMP: no time restriction, unlock is always valid
+  // GATE 2: Admin unlock — 6-minute hard cutoff from firstScorecardAt
   if (match.adminUnlockOverride === true) {
-    return true;
+    if (!match.firstScorecardAt) return true; // scoring not started yet — unlock is valid
+    const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 60_000;
+    return nowMs < cutoff; // hard 6-minute cutoff, no exceptions
   }
 
   // GATE 3: Deadline-based entry — revisedStartTime takes priority over startTime
@@ -5541,7 +5545,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
 
-        // TEMP: 6-min scorecard cutoff removed — unlock always permitted
+        // Fix 4: Prevent re-unlock if firstScorecardAt is set and 6 minutes have passed
+        if (unlock === true && (match as any).firstScorecardAt) {
+          const cutoff = new Date((match as any).firstScorecardAt).getTime() + 6 * 60_000;
+          if (Date.now() >= cutoff) {
+            return res.status(403).json({
+              message: "Cannot unlock: scoring has been live for more than 6 minutes. This window is permanently closed.",
+            });
+          }
+        }
+
         console.log(`[Admin] Match ${match.id} ${unlock ? 'unlocked' : 'locked'} by admin at ${new Date().toISOString()}`);
         await storage.updateMatch(matchId, {
           adminUnlockOverride: unlock,
