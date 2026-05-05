@@ -5359,6 +5359,8 @@ async function registerRoutes(app2) {
           viceCaptainId: t.userId === req.session.userId ? t.viceCaptainId : null,
           primaryImpactId: t.userId === req.session.userId ? t.primaryImpactId : null,
           backupImpactId: t.userId === req.session.userId ? t.backupImpactId : null,
+          backupXiPlayer1Id: t.userId === req.session.userId ? t.backupXiPlayer1Id : null,
+          backupXiPlayer2Id: t.userId === req.session.userId ? t.backupXiPlayer2Id : null,
           captainType: t.userId === req.session.userId ? t.captainType : null,
           vcType: t.userId === req.session.userId ? t.vcType : null,
           invisibleMode: t.userId === req.session.userId ? t.invisibleMode : void 0,
@@ -5462,7 +5464,7 @@ async function registerRoutes(app2) {
                 if (bCursor >= availableBackupsForDisplay.length) break;
                 const rp = resolvedPlayers[i];
                 const fullP = playerById.get(rp.id);
-                if (fullP && fullP.isPlayingXI !== true && fullP.isImpactPlayer !== true) {
+                if (fullP && fullP.isPlayingXI !== true) {
                   let bk = null;
                   while (bCursor < availableBackupsForDisplay.length) {
                     const candidate = availableBackupsForDisplay[bCursor++];
@@ -8396,14 +8398,6 @@ async function registerRoutes(app2) {
         }
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
-        if (unlock === true && match.firstScorecardAt) {
-          const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 6e4;
-          if (Date.now() >= cutoff) {
-            return res.status(403).json({
-              message: "Cannot unlock: scoring has been live for more than 6 minutes. This window is permanently closed."
-            });
-          }
-        }
         console.log(`[Admin] Match ${match.id} ${unlock ? "unlocked" : "locked"} by admin at ${(/* @__PURE__ */ new Date()).toISOString()}`);
         await storage.updateMatch(matchId, {
           adminUnlockOverride: unlock,

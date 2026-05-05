@@ -5541,16 +5541,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
 
-        // Fix 4: Prevent re-unlock if firstScorecardAt is set and 6 minutes have passed
-        if (unlock === true && (match as any).firstScorecardAt) {
-          const cutoff = new Date((match as any).firstScorecardAt).getTime() + 6 * 60_000;
-          if (Date.now() >= cutoff) {
-            return res.status(403).json({
-              message: "Cannot unlock: scoring has been live for more than 6 minutes. This window is permanently closed.",
-            });
-          }
-        }
-
         console.log(`[Admin] Match ${match.id} ${unlock ? 'unlocked' : 'locked'} by admin at ${new Date().toISOString()}`);
         await storage.updateMatch(matchId, {
           adminUnlockOverride: unlock,
