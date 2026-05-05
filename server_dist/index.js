@@ -3922,7 +3922,11 @@ function checkUnlockEligibility(match) {
 }
 function isEntryOpen(match, nowMs) {
   if (match.status === "completed") return false;
-  if (match.adminUnlockOverride === true) return true;
+  if (match.adminUnlockOverride === true) {
+    if (!match.firstScorecardAt) return true;
+    const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 6e4;
+    return nowMs < cutoff;
+  }
   const effectiveDeadline = match.revisedStartTime ?? match.startTime;
   return nowMs < new Date(effectiveDeadline).getTime();
 }
@@ -8398,6 +8402,14 @@ async function registerRoutes(app2) {
         }
         const match = await storage.getMatch(matchId);
         if (!match) return res.status(404).json({ message: "Match not found" });
+        if (unlock === true && match.firstScorecardAt) {
+          const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 6e4;
+          if (Date.now() >= cutoff) {
+            return res.status(403).json({
+              message: "Cannot unlock: scoring has been live for more than 6 minutes. This window is permanently closed."
+            });
+          }
+        }
         console.log(`[Admin] Match ${match.id} ${unlock ? "unlocked" : "locked"} by admin at ${(/* @__PURE__ */ new Date()).toISOString()}`);
         await storage.updateMatch(matchId, {
           adminUnlockOverride: unlock,
