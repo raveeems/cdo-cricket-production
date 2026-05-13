@@ -5511,18 +5511,25 @@ async function registerRoutes(app2) {
             resolvedPlayers
           };
         }).sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+        const visibleStandings = standings.filter((s) => !s.invisibleHidden);
+        const invisibleStandings = standings.filter((s) => s.invisibleHidden);
         let rank = 1;
-        const rankedStandings = standings.map((s, i) => {
-          if (i > 0 && s.totalPoints < standings[i - 1].totalPoints) {
+        const rankedVisible = visibleStandings.map((s, i) => {
+          if (i > 0 && s.totalPoints < visibleStandings[i - 1].totalPoints) {
             rank = i + 1;
           }
-          return {
-            ...s,
-            rank,
-            totalPoints: s.invisibleHidden ? null : s.totalPoints
-          };
+          return { ...s, rank, totalPoints: s.totalPoints };
         });
-        return res.json({ standings: rankedStandings, isLive: true, players: matchPlayersForResponse });
+        const finalStandings = [...rankedVisible];
+        for (const inv of invisibleStandings) {
+          const randomIndex = Math.floor(Math.random() * (finalStandings.length + 1));
+          finalStandings.splice(randomIndex, 0, {
+            ...inv,
+            rank: null,
+            totalPoints: null
+          });
+        }
+        return res.json({ standings: finalStandings, isLive: true, players: matchPlayersForResponse });
       } catch (err) {
         console.error("Standings error:", err);
         return res.status(500).json({ message: "Failed to load standings" });

@@ -2100,19 +2100,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
 
+        // Separate invisible (hidden) teams from visible ones.
+        // Visible teams get real sequential ranks. Each invisible team is then
+        // spliced into a random position so neither the rank number nor position
+        // in the list leaks scoring information.
+        const visibleStandings = standings.filter(s => !(s as any).invisibleHidden);
+        const invisibleStandings = standings.filter(s => (s as any).invisibleHidden);
+
         let rank = 1;
-        const rankedStandings = standings.map((s, i) => {
-          if (i > 0 && s.totalPoints < standings[i - 1].totalPoints) {
+        const rankedVisible = visibleStandings.map((s, i) => {
+          if (i > 0 && s.totalPoints < visibleStandings[i - 1].totalPoints) {
             rank = i + 1;
           }
-          return {
-            ...s,
-            rank,
-            totalPoints: (s as any).invisibleHidden ? null : s.totalPoints,
-          };
+          return { ...s, rank, totalPoints: s.totalPoints };
         });
 
-        return res.json({ standings: rankedStandings, isLive: true, players: matchPlayersForResponse });
+        // Insert each invisible team at a random index within the visible list
+        const finalStandings = [...rankedVisible];
+        for (const inv of invisibleStandings) {
+          const randomIndex = Math.floor(Math.random() * (finalStandings.length + 1));
+          finalStandings.splice(randomIndex, 0, {
+            ...inv,
+            rank: null as any,
+            totalPoints: null,
+          });
+        }
+
+        return res.json({ standings: finalStandings, isLive: true, players: matchPlayersForResponse });
       } catch (err: any) {
         console.error("Standings error:", err);
         return res.status(500).json({ message: "Failed to load standings" });

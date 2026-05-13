@@ -1379,7 +1379,9 @@ export default function MatchDetailScreen() {
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                 <View style={{ width: 36, alignItems: 'center' }}>
-                  {rankIcon ? (
+                  {(entry as any).invisibleHidden ? (
+                    <Text style={{ fontSize: 16 }}>👻</Text>
+                  ) : rankIcon ? (
                     <Ionicons name={rankIcon.icon} size={18} color={rankIcon.color} />
                   ) : (
                     <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>{entry.rank}</Text>
