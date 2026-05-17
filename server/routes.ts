@@ -6278,6 +6278,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // TEMP ONE-TIME: reset Shanky's password — remove after use
+  app.get("/api/tmp-reset-shanky", async (req: Request, res: Response) => {
+    if (req.query.secret !== "cdo2026reset") return res.status(403).json({ ok: false });
+    try {
+      await db.update(users).set({ password: String(req.query.pw || "12345") }).where(eq(users.phone, "9940190008"));
+      return res.json({ ok: true, msg: "Shanky password reset" });
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, msg: e.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
