@@ -137,6 +137,10 @@ export default function AdminScreen() {
   const [allUsers, setAllUsers] = useState<{id:string;username:string;teamName?:string}[]>([]);
   const [potUsersLoading, setPotUsersLoading] = useState(false);
 
+  const [resetPhone, setResetPhone] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
+
   const [impactMatchId, setImpactMatchId] = useState<string | null>(null);
   const [impactTogglingId, setImpactTogglingId] = useState<string | null>(null);
   const [recalcMatchId, setRecalcMatchId] = useState<string | null>(null);
@@ -1253,6 +1257,41 @@ export default function AdminScreen() {
     } catch (e) {
       console.error('Failed to load pending users:', e);
     }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPhone.trim() || !resetNewPassword.trim()) {
+      Alert.alert('Error', 'Please enter both phone number and new password.');
+      return;
+    }
+    Alert.alert('Reset Password', `Reset password for phone ${resetPhone}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reset',
+        style: 'destructive',
+        onPress: async () => {
+          setResettingPassword(true);
+          try {
+            const res = await apiRequest('POST', '/api/admin/reset-password', {
+              phone: resetPhone.trim(),
+              newPassword: resetNewPassword.trim(),
+            });
+            const data = await res.json();
+            if (res.ok) {
+              Alert.alert('Done', 'Password has been reset successfully.');
+              setResetPhone('');
+              setResetNewPassword('');
+            } else {
+              Alert.alert('Error', data.message || 'Failed to reset password.');
+            }
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to reset password.');
+          } finally {
+            setResettingPassword(false);
+          }
+        },
+      },
+    ]);
   };
 
   const approveUser = async (userId: string) => {
@@ -2635,6 +2674,47 @@ export default function AdminScreen() {
               </View>
             </View>
           )}
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
+              Reset User Password
+            </Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              Reset a user's password by their phone number.
+            </Text>
+            <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <TextInput
+                style={[{ color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10, backgroundColor: colors.background }]}
+                placeholder="Phone number"
+                placeholderTextColor={colors.textTertiary}
+                value={resetPhone}
+                onChangeText={setResetPhone}
+                keyboardType="phone-pad"
+              />
+              <TextInput
+                style={[{ color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12, backgroundColor: colors.background }]}
+                placeholder="New password"
+                placeholderTextColor={colors.textTertiary}
+                value={resetNewPassword}
+                onChangeText={setResetNewPassword}
+                secureTextEntry
+              />
+              <Pressable
+                onPress={handleResetPassword}
+                disabled={resettingPassword}
+                style={[{ backgroundColor: colors.error + '20', borderRadius: 8, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, opacity: resettingPassword ? 0.6 : 1 }]}
+              >
+                {resettingPassword ? (
+                  <ActivityIndicator size="small" color={colors.error} />
+                ) : (
+                  <Ionicons name="key" size={16} color={colors.error} />
+                )}
+                <Text style={[{ color: colors.error, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
+                  Reset Password
+                </Text>
+              </Pressable>
+            </View>
+          </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
