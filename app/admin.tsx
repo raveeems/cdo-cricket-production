@@ -141,6 +141,12 @@ export default function AdminScreen() {
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
 
+  const [tbcTeam1Short, setTbcTeam1Short] = useState('');
+  const [tbcTeam2, setTbcTeam2] = useState('');
+  const [tbcTeam2Short, setTbcTeam2Short] = useState('');
+  const [fixingTBC, setFixingTBC] = useState(false);
+  const [tbcFixResult, setTbcFixResult] = useState('');
+
   const [impactMatchId, setImpactMatchId] = useState<string | null>(null);
   const [impactTogglingId, setImpactTogglingId] = useState<string | null>(null);
   const [recalcMatchId, setRecalcMatchId] = useState<string | null>(null);
@@ -1292,6 +1298,36 @@ export default function AdminScreen() {
         },
       },
     ]);
+  };
+
+  const handleFixTBCTeams = async () => {
+    if (!tbcTeam1Short.trim() || !tbcTeam2.trim()) {
+      Alert.alert('Error', 'Enter the known team short (e.g. SRH) and the correct opponent name.');
+      return;
+    }
+    setFixingTBC(true);
+    setTbcFixResult('');
+    try {
+      const res = await apiRequest('POST', '/api/admin/fix-tbc-teams', {
+        team1Short: tbcTeam1Short.trim().toUpperCase(),
+        team2: tbcTeam2.trim(),
+        team2Short: tbcTeam2Short.trim().toUpperCase() || undefined,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTbcFixResult(`✔ ${data.message}`);
+        setTbcTeam1Short('');
+        setTbcTeam2('');
+        setTbcTeam2Short('');
+        queryClient.invalidateQueries({ queryKey: ['/api/matches'] });
+      } else {
+        setTbcFixResult(`✘ ${data.message}`);
+      }
+    } catch (e: any) {
+      setTbcFixResult(`✘ ${e.message}`);
+    } finally {
+      setFixingTBC(false);
+    }
   };
 
   const approveUser = async (userId: string) => {
@@ -2711,6 +2747,59 @@ export default function AdminScreen() {
                 )}
                 <Text style={[{ color: colors.error, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
                   Reset Password
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
+              Fix TBC Match Teams
+            </Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              When CricAPI returns "TBC" for a team name, fix it here. Enter the known team short (e.g. SRH) and the correct opponent.
+            </Text>
+            <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <TextInput
+                style={[{ color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, backgroundColor: colors.background }]}
+                placeholder="Known team short (e.g. SRH)"
+                placeholderTextColor={colors.textTertiary}
+                value={tbcTeam1Short}
+                onChangeText={setTbcTeam1Short}
+                autoCapitalize="characters"
+              />
+              <TextInput
+                style={[{ color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, backgroundColor: colors.background }]}
+                placeholder="Correct opponent full name (e.g. Rajasthan Royals)"
+                placeholderTextColor={colors.textTertiary}
+                value={tbcTeam2}
+                onChangeText={setTbcTeam2}
+              />
+              <TextInput
+                style={[{ color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12, backgroundColor: colors.background }]}
+                placeholder="Opponent short code (e.g. RR) — optional"
+                placeholderTextColor={colors.textTertiary}
+                value={tbcTeam2Short}
+                onChangeText={setTbcTeam2Short}
+                autoCapitalize="characters"
+              />
+              {!!tbcFixResult && (
+                <Text style={[{ fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 10, color: tbcFixResult.startsWith('✔') ? colors.success : colors.error }]}>
+                  {tbcFixResult}
+                </Text>
+              )}
+              <Pressable
+                onPress={handleFixTBCTeams}
+                disabled={fixingTBC}
+                style={[{ backgroundColor: colors.warning + '20', borderRadius: 8, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, opacity: fixingTBC ? 0.6 : 1 }]}
+              >
+                {fixingTBC ? (
+                  <ActivityIndicator size="small" color={colors.warning} />
+                ) : (
+                  <Ionicons name="swap-horizontal" size={16} color={colors.warning} />
+                )}
+                <Text style={[{ color: colors.warning, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
+                  Fix TBC Team
                 </Text>
               </Pressable>
             </View>
