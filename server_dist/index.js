@@ -1498,7 +1498,7 @@ async function syncMatchesFromApi() {
       const series = (m.series_id || "").toLowerCase();
       return name.includes("indian premier league") || name.includes(" ipl") || series.includes("ipl");
     };
-    const apiMatches = allApiRaw.filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20" && isIPL(m)).map((m) => {
+    const apiMatches = allApiRaw.filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20" && isIPL(m)).filter((m) => !(m.teams[0] === "Tbc" && m.teams[1] === "Tbc")).map((m) => {
       const team1 = m.teams[0];
       const team2 = m.teams[1];
       const team1Info = m.teamInfo?.find((t) => t.name === team1);
@@ -4889,7 +4889,8 @@ async function registerRoutes(app2) {
       const isIPLPreview = m.status === "upcoming" && isIPLLeague(m.league || "") && !!m.externalId;
       const isRecentlyCompleted = m.status === "completed" && startMs >= nowMs - MS_24H;
       const included = isUpcoming || isLive || m.status === "delayed" || isIPLPreview || isRecentlyCompleted;
-      if (included) {
+      const isBothTBC = (m.team1 === "Tbc" || m.team1Short === "TBC") && (m.team2 === "Tbc" || m.team2Short === "TBC");
+      if (included && !(isBothTBC && participantCount === 0)) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
     }
@@ -8391,6 +8392,74 @@ async function registerRoutes(app2) {
           metadata: JSON.stringify({ isVoid })
         });
         return res.json({ message: isVoid ? "Match voided, all points zeroed" : "Match un-voided" });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.patch(
+    "/api/admin/matches/:id/teams",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const matchId = req.params.id;
+        const { team1, team1Short, team2, team2Short } = req.body;
+        if (!team1 && !team2) {
+          return res.status(400).json({ message: "At least one team field required" });
+        }
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+        const updates = {};
+        if (team1) {
+          updates.team1 = team1;
+          updates.team1Short = (team1Short || team1.substring(0, 5).toUpperCase()).toUpperCase();
+        }
+        if (team2) {
+          updates.team2 = team2;
+          updates.team2Short = (team2Short || team2.substring(0, 5).toUpperCase()).toUpperCase();
+        }
+        await storage.updateMatch(matchId, updates);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "update_match_teams",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify(updates)
+        });
+        return res.json({ message: "Match teams updated", updates });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/fix-tbc-teams",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      try {
+        const { team1Short, team2, team2Short } = req.body;
+        if (!team1Short || !team2) {
+          return res.status(400).json({ message: "team1Short and team2 required" });
+        }
+        const allMatches = await storage.getAllMatches();
+        const match = allMatches.find(
+          (m) => m.team1Short === team1Short && (m.team2 === "Tbc" || m.team2Short === "TBC")
+        );
+        if (!match) return res.status(404).json({ message: `No TBC match found with team1Short=${team1Short}` });
+        const resolvedShort = (team2Short || team2.substring(0, 5)).toUpperCase();
+        await storage.updateMatch(match.id, { team2, team2Short: resolvedShort });
+        await storage.createAuditLog({
+          adminUserId: req.session.userId,
+          actionType: "fix_tbc_teams",
+          entityType: "match",
+          entityId: match.id,
+          matchId: match.id,
+          metadata: JSON.stringify({ team1Short, team2, team2Short: resolvedShort })
+        });
+        return res.json({ message: `Fixed: ${team1Short} vs ${resolvedShort}`, matchId: match.id });
       } catch (err) {
         return res.status(500).json({ message: err.message });
       }

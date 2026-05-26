@@ -853,6 +853,7 @@ export async function syncMatchesFromApi(): Promise<void> {
 
     const apiMatches = allApiRaw
       .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20" && isIPL(m))
+      .filter((m) => !(m.teams[0] === "Tbc" && m.teams[1] === "Tbc")) // skip fully-unconfirmed fixtures
       .map((m) => {
         const team1 = m.teams[0];
         const team2 = m.teams[1];

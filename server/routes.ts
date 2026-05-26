@@ -1343,7 +1343,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Admin controls what's in the DB — everything in DB is intentional.
       const included = isUpcoming || isLive || (m.status === "delayed") || isIPLPreview || isRecentlyCompleted;
 
-      if (included) {
+      // Hide fully-unconfirmed TBC vs TBC matches unless users have already created teams for them
+      const isBothTBC = (m.team1 === "Tbc" || m.team1Short === "TBC") &&
+                        (m.team2 === "Tbc" || m.team2Short === "TBC");
+      if (included && !(isBothTBC && participantCount === 0)) {
         matchesWithParticipants.push({ match: m, participantCount });
       }
     }
@@ -5539,6 +5542,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
           metadata: JSON.stringify({ isVoid }),
         });
         return res.json({ message: isVoid ? "Match voided, all points zeroed" : "Match un-voided" });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.patch(
+    "/api/admin/matches/:id/teams",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const matchId = req.params.id;
+        const { team1, team1Short, team2, team2Short } = req.body;
+        if (!team1 && !team2) {
+          return res.status(400).json({ message: "At least one team field required" });
+        }
+        const match = await storage.getMatch(matchId);
+        if (!match) return res.status(404).json({ message: "Match not found" });
+
+        const updates: Record<string, any> = {};
+        if (team1) { updates.team1 = team1; updates.team1Short = (team1Short || team1.substring(0, 5).toUpperCase()).toUpperCase(); }
+        if (team2) { updates.team2 = team2; updates.team2Short = (team2Short || team2.substring(0, 5).toUpperCase()).toUpperCase(); }
+        await storage.updateMatch(matchId, updates);
+
+        await storage.createAuditLog({
+          adminUserId: req.session.userId!,
+          actionType: "update_match_teams",
+          entityType: "match",
+          entityId: matchId,
+          matchId,
+          metadata: JSON.stringify(updates),
+        });
+        return res.json({ message: "Match teams updated", updates });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  // Temp: fix TBC team names for a specific match by team1 short code
+  app.post(
+    "/api/admin/fix-tbc-teams",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const { team1Short, team2, team2Short } = req.body;
+        if (!team1Short || !team2) {
+          return res.status(400).json({ message: "team1Short and team2 required" });
+        }
+        const allMatches = await storage.getAllMatches();
+        const match = allMatches.find(
+          (m: any) => m.team1Short === team1Short && (m.team2 === "Tbc" || m.team2Short === "TBC")
+        );
+        if (!match) return res.status(404).json({ message: `No TBC match found with team1Short=${team1Short}` });
+
+        const resolvedShort = (team2Short || team2.substring(0, 5)).toUpperCase();
+        await storage.updateMatch(match.id, { team2, team2Short: resolvedShort } as any);
+        await storage.createAuditLog({
+          adminUserId: req.session.userId!,
+          actionType: "fix_tbc_teams",
+          entityType: "match",
+          entityId: match.id,
+          matchId: match.id,
+          metadata: JSON.stringify({ team1Short, team2, team2Short: resolvedShort }),
+        });
+        return res.json({ message: `Fixed: ${team1Short} vs ${resolvedShort}`, matchId: match.id });
       } catch (err: any) {
         return res.status(500).json({ message: err.message });
       }
