@@ -899,8 +899,86 @@ export async function syncMatchesFromApi(): Promise<void> {
 
     const result = await upsertMatches(apiMatches, existing);
     console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} IPL matches from API)`);
+
+    // Phase 2: Use Cricbuzz upcoming to fix any TBC team names CricAPI left behind
+    await fixTBCTeamsFromCricbuzz();
   } catch (err) {
     console.error("Auto-sync failed:", err);
+  }
+}
+
+/**
+ * Calls Cricbuzz /matches/v1/upcoming and resolves any DB matches that still
+ * have "Tbc" team names. Matches are correlated by start-time (within ±1 hour).
+ */
+async function fixTBCTeamsFromCricbuzz(): Promise<void> {
+  if (!process.env.RAPIDAPI_KEY) return;
+  try {
+    const { storage } = await import("./storage");
+    const data = await cricbuzzFetch("/matches/v1/upcoming");
+    const MS_1H = 60 * 60 * 1000;
+
+    // Collect all upcoming IPL matches from Cricbuzz
+    type CbFixture = { team1: string; team1Short: string; team2: string; team2Short: string; startMs: number };
+    const cbFixtures: CbFixture[] = [];
+
+    for (const typeMatch of data.typeMatches || []) {
+      for (const sm of typeMatch.seriesMatches || []) {
+        const series = sm.seriesAdWrapper || sm;
+        const seriesName = (series.seriesName || "").toLowerCase();
+        if (!seriesName.includes("ipl") && !seriesName.includes("indian premier league")) continue;
+        for (const m of series.matches || []) {
+          const mi = m.matchInfo || {};
+          const t1 = mi.team1 || {};
+          const t2 = mi.team2 || {};
+          if (!t1.teamName || !t2.teamName) continue;
+          const startMs = parseInt(mi.startDate || "0", 10);
+          if (!startMs) continue;
+          cbFixtures.push({
+            team1: t1.teamName,
+            team1Short: (t1.teamSName || t1.teamName.substring(0, 5)).toUpperCase(),
+            team2: t2.teamName,
+            team2Short: (t2.teamSName || t2.teamName.substring(0, 5)).toUpperCase(),
+            startMs,
+          });
+        }
+      }
+    }
+
+    if (cbFixtures.length === 0) {
+      console.log("Cricbuzz upcoming: no IPL fixtures found");
+      return;
+    }
+    console.log(`Cricbuzz upcoming: ${cbFixtures.length} IPL fixtures`);
+
+    // Find DB matches with at least one TBC team
+    const allMatches = await storage.getAllMatches();
+    const tbcMatches = allMatches.filter(
+      (m: any) => m.team1 === "Tbc" || m.team1Short === "TBC" || m.team2 === "Tbc" || m.team2Short === "TBC"
+    );
+
+    for (const dbMatch of tbcMatches) {
+      const dbMs = new Date(dbMatch.startTime).getTime();
+      // Find Cricbuzz fixture within 1h of DB match start time
+      const cb = cbFixtures.find((f) => Math.abs(f.startMs - dbMs) <= MS_1H);
+      if (!cb) continue;
+
+      const updates: Record<string, any> = {};
+      if ((dbMatch.team1 === "Tbc" || dbMatch.team1Short === "TBC") && cb.team1 !== "Tbc") {
+        updates.team1 = cb.team1;
+        updates.team1Short = cb.team1Short;
+      }
+      if ((dbMatch.team2 === "Tbc" || dbMatch.team2Short === "TBC") && cb.team2 !== "Tbc") {
+        updates.team2 = cb.team2;
+        updates.team2Short = cb.team2Short;
+      }
+      if (Object.keys(updates).length > 0) {
+        await storage.updateMatch(dbMatch.id, updates);
+        console.log(`Cricbuzz fixed TBC: ${cb.team1Short} vs ${cb.team2Short} (match ${dbMatch.id})`);
+      }
+    }
+  } catch (err) {
+    console.error("Cricbuzz TBC fix failed:", err);
   }
 }
 
