@@ -845,14 +845,21 @@ export async function syncMatchesFromApi(): Promise<void> {
       return;
     }
 
+    // Debug: log what matchTypes CricAPI is returning
+    const typesSeen = [...new Set(allApiRaw.map(m => m.matchType || "?"))];
+    console.log(`Auto-sync: matchTypes in API response: ${typesSeen.join(", ")}`);
+    // Log first 3 match names so we can see if IPL is present
+    allApiRaw.slice(0, 3).forEach(m => console.log(`  sample: "${m.name}" type=${m.matchType}`));
+
     const isIPL = (m: CricApiMatch) => {
       const name = (m.name || "").toLowerCase();
       const series = (m.series_id || "").toLowerCase();
-      return name.includes("indian premier league") || name.includes(" ipl") || series.includes("ipl");
+      return name.includes("indian premier league") || name.includes(" ipl") ||
+             name.includes("ipl ") || series.includes("ipl");
     };
 
     const apiMatches = allApiRaw
-      .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20" && isIPL(m))
+      .filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && (m.matchType || "").toLowerCase() === "t20" && isIPL(m))
       .filter((m) => !(m.teams[0] === "Tbc" && m.teams[1] === "Tbc")) // skip fully-unconfirmed fixtures
       .map((m) => {
         const team1 = m.teams[0];
@@ -893,14 +900,13 @@ export async function syncMatchesFromApi(): Promise<void> {
       });
 
     if (apiMatches.length === 0) {
-      console.log("Auto-sync: no T20 matches to sync");
-      return;
+      console.log("Auto-sync: no T20 IPL matches from CricAPI — running Cricbuzz TBC fix anyway");
+    } else {
+      const result = await upsertMatches(apiMatches, existing);
+      console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} IPL matches from API)`);
     }
 
-    const result = await upsertMatches(apiMatches, existing);
-    console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} IPL matches from API)`);
-
-    // Phase 2: Use Cricbuzz upcoming to fix any TBC team names CricAPI left behind
+    // Phase 2: Always run — fixes any TBC team names using Cricbuzz upcoming fixtures
     await fixTBCTeamsFromCricbuzz();
   } catch (err) {
     console.error("Auto-sync failed:", err);

@@ -1493,12 +1493,15 @@ async function syncMatchesFromApi() {
       console.log("Auto-sync: no matches returned from API");
       return;
     }
+    const typesSeen = [...new Set(allApiRaw.map((m) => m.matchType || "?"))];
+    console.log(`Auto-sync: matchTypes in API response: ${typesSeen.join(", ")}`);
+    allApiRaw.slice(0, 3).forEach((m) => console.log(`  sample: "${m.name}" type=${m.matchType}`));
     const isIPL = (m) => {
       const name = (m.name || "").toLowerCase();
       const series = (m.series_id || "").toLowerCase();
-      return name.includes("indian premier league") || name.includes(" ipl") || series.includes("ipl");
+      return name.includes("indian premier league") || name.includes(" ipl") || name.includes("ipl ") || series.includes("ipl");
     };
-    const apiMatches = allApiRaw.filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && m.matchType === "t20" && isIPL(m)).filter((m) => !(m.teams[0] === "Tbc" && m.teams[1] === "Tbc")).map((m) => {
+    const apiMatches = allApiRaw.filter((m) => m.teams && m.teams.length >= 2 && m.dateTimeGMT && (m.matchType || "").toLowerCase() === "t20" && isIPL(m)).filter((m) => !(m.teams[0] === "Tbc" && m.teams[1] === "Tbc")).map((m) => {
       const team1 = m.teams[0];
       const team2 = m.teams[1];
       const team1Info = m.teamInfo?.find((t) => t.name === team1);
@@ -1533,11 +1536,11 @@ async function syncMatchesFromApi() {
       };
     });
     if (apiMatches.length === 0) {
-      console.log("Auto-sync: no T20 matches to sync");
-      return;
+      console.log("Auto-sync: no T20 IPL matches from CricAPI \u2014 running Cricbuzz TBC fix anyway");
+    } else {
+      const result = await upsertMatches(apiMatches, existing);
+      console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} IPL matches from API)`);
     }
-    const result = await upsertMatches(apiMatches, existing);
-    console.log(`Auto-sync complete: ${result.created} new, ${result.updated} updated (${apiMatches.length} IPL matches from API)`);
     await fixTBCTeamsFromCricbuzz();
   } catch (err) {
     console.error("Auto-sync failed:", err);
