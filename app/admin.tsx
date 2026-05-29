@@ -726,9 +726,16 @@ export default function AdminScreen() {
         setMatchResult(matchId, unlock ? '✔ Entry unlocked' : '✔ Entry locked');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to toggle lock');
-      setMatchResult(matchId, '❌ Lock toggle failed');
+    } catch (e: any) {
+      // throwIfResNotOk throws "STATUS: {json}" — extract the real message
+      let msg = 'Failed to toggle lock';
+      try {
+        const jsonStr = e?.message?.replace(/^\d+:\s*/, '');
+        const parsed = JSON.parse(jsonStr);
+        msg = parsed?.message || msg;
+      } catch {}
+      Alert.alert('Error', msg);
+      setMatchResult(matchId, `❌ ${msg}`);
     } finally {
       setLockTogglingId(null);
     }
