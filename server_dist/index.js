@@ -34,7 +34,7 @@ __export(schema_exports, {
   rewards: () => rewards,
   tournamentLedger: () => tournamentLedger,
   userTeams: () => userTeams,
-  userWeeklyUsage: () => userWeeklyUsage,
+  userWeeklyUsage: () => userWeeklyUsage2,
   users: () => users
 });
 import { sql } from "drizzle-orm";
@@ -50,7 +50,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var users, referenceCodes, matches, players, userTeams, codeVerifications, matchPredictions, rewards, tournamentLedger, apiCallLog, matchPlayerStatus, userWeeklyUsage, adminAuditLog, insertUserSchema, insertReferenceCodeSchema, insertMatchSchema, insertPlayerSchema, insertUserTeamSchema, pushTokens;
+var users, referenceCodes, matches, players, userTeams, codeVerifications, matchPredictions, rewards, tournamentLedger, apiCallLog, matchPlayerStatus, userWeeklyUsage2, adminAuditLog, insertUserSchema, insertReferenceCodeSchema, insertMatchSchema, insertPlayerSchema, insertUserTeamSchema, pushTokens;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -195,7 +195,7 @@ var init_schema = __esm({
       sourceType: varchar("source_type", { length: 20 }).notNull().default("admin"),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
     });
-    userWeeklyUsage = pgTable("user_weekly_usage", {
+    userWeeklyUsage2 = pgTable("user_weekly_usage", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       userId: varchar("user_id").notNull(),
       weekStartDate: varchar("week_start_date", { length: 10 }).notNull(),
@@ -866,14 +866,14 @@ var init_storage = __esm({
       // ====== User Weekly Usage ======
       async getUserWeeklyUsage(userId, weekStartDate) {
         const week = weekStartDate || this.getISTWeekStart();
-        const [usage] = await db.select().from(userWeeklyUsage).where(and(eq(userWeeklyUsage.userId, userId), eq(userWeeklyUsage.weekStartDate, week)));
+        const [usage] = await db.select().from(userWeeklyUsage2).where(and(eq(userWeeklyUsage2.userId, userId), eq(userWeeklyUsage2.weekStartDate, week)));
         return usage;
       }
       async getOrCreateWeeklyUsage(userId, weekStartDate) {
         const week = weekStartDate || this.getISTWeekStart();
         const existing = await this.getUserWeeklyUsage(userId, week);
         if (existing) return existing;
-        const [created] = await db.insert(userWeeklyUsage).values({
+        const [created] = await db.insert(userWeeklyUsage2).values({
           userId,
           weekStartDate: week,
           multiTeamUsageCount: 0,
@@ -883,18 +883,18 @@ var init_storage = __esm({
       }
       async incrementMultiTeamUsage(userId) {
         const usage = await this.getOrCreateWeeklyUsage(userId);
-        const [updated] = await db.update(userWeeklyUsage).set({ multiTeamUsageCount: sql2`LEAST(${userWeeklyUsage.multiTeamUsageCount} + 1, 3)` }).where(eq(userWeeklyUsage.id, usage.id)).returning();
+        const [updated] = await db.update(userWeeklyUsage2).set({ multiTeamUsageCount: sql2`LEAST(${userWeeklyUsage2.multiTeamUsageCount} + 1, 3)` }).where(eq(userWeeklyUsage2.id, usage.id)).returning();
         return updated;
       }
       async incrementInvisibleUsage(userId) {
         const usage = await this.getOrCreateWeeklyUsage(userId);
-        const [updated] = await db.update(userWeeklyUsage).set({ invisibleModeUsageCount: usage.invisibleModeUsageCount + 1 }).where(eq(userWeeklyUsage.id, usage.id)).returning();
+        const [updated] = await db.update(userWeeklyUsage2).set({ invisibleModeUsageCount: usage.invisibleModeUsageCount + 1 }).where(eq(userWeeklyUsage2.id, usage.id)).returning();
         return updated;
       }
       async decrementInvisibleUsage(userId) {
         const usage = await this.getOrCreateWeeklyUsage(userId);
         if (usage.invisibleModeUsageCount > 0) {
-          await db.update(userWeeklyUsage).set({ invisibleModeUsageCount: usage.invisibleModeUsageCount - 1 }).where(eq(userWeeklyUsage.id, usage.id));
+          await db.update(userWeeklyUsage2).set({ invisibleModeUsageCount: usage.invisibleModeUsageCount - 1 }).where(eq(userWeeklyUsage2.id, usage.id));
         }
       }
       canUseMultiTeam(usage) {
@@ -6606,6 +6606,12 @@ async function registerRoutes(app2) {
             return res.status(400).json({ message: "Cannot delete team after deadline has passed" });
           }
         }
+        if (team.invisibleMode) {
+          const otherInvisible = (await storage.getUserTeamsForMatch(req.session.userId, team.matchId)).filter((t) => t.id !== req.params.id && t.invisibleMode === true);
+          if (otherInvisible.length === 0) {
+            await storage.decrementInvisibleUsage(req.session.userId);
+          }
+        }
         await storage.deleteUserTeam(req.params.id, req.session.userId);
         return res.json({ ok: true });
       } catch (err) {
@@ -8134,6 +8140,24 @@ async function registerRoutes(app2) {
       try {
         await db.update(users).set({ password: newPassword }).where(eq2(users.phone, phone));
         return res.json({ message: "Password reset", phone });
+      } catch (err) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+  app2.post(
+    "/api/admin/reset-invisible-mode",
+    isAuthenticated,
+    isAdmin,
+    async (req, res) => {
+      const { phone } = req.body;
+      if (!phone) return res.status(400).json({ message: "phone required" });
+      try {
+        const [user] = await db.select().from(users).where(eq2(users.phone, phone));
+        if (!user) return res.status(404).json({ message: "User not found" });
+        const usage = await storage.getOrCreateWeeklyUsage(user.id);
+        await db.update(userWeeklyUsage).set({ invisibleModeUsageCount: 0 }).where(eq2(userWeeklyUsage.id, usage.id));
+        return res.json({ message: `Invisible mode reset for ${user.name || phone}` });
       } catch (err) {
         return res.status(500).json({ message: err.message });
       }

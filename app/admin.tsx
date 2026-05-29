@@ -141,6 +141,9 @@ export default function AdminScreen() {
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
 
+  const [invisibleResetPhone, setInvisibleResetPhone] = useState('');
+  const [resettingInvisible, setResettingInvisible] = useState(false);
+
   const [tbcTeam1Short, setTbcTeam1Short] = useState('');
   const [tbcTeam2, setTbcTeam2] = useState('');
   const [tbcTeam2Short, setTbcTeam2Short] = useState('');
@@ -1294,6 +1297,38 @@ export default function AdminScreen() {
             Alert.alert('Error', e.message || 'Failed to reset password.');
           } finally {
             setResettingPassword(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleResetInvisibleMode = async () => {
+    if (!invisibleResetPhone.trim()) {
+      Alert.alert('Error', 'Enter the user\'s phone number.');
+      return;
+    }
+    Alert.alert('Reset Invisible Mode', `Reset invisible mode usage for ${invisibleResetPhone}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reset',
+        onPress: async () => {
+          setResettingInvisible(true);
+          try {
+            const res = await apiRequest('POST', '/api/admin/reset-invisible-mode', {
+              phone: invisibleResetPhone.trim(),
+            });
+            const data = await res.json();
+            if (res.ok) {
+              Alert.alert('Done', data.message || 'Invisible mode usage reset.');
+              setInvisibleResetPhone('');
+            } else {
+              Alert.alert('Error', data.message || 'Failed to reset.');
+            }
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to reset.');
+          } finally {
+            setResettingInvisible(false);
           }
         },
       },
@@ -2747,6 +2782,39 @@ export default function AdminScreen() {
                 )}
                 <Text style={[{ color: colors.error, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
                   Reset Password
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: 'Inter_700Bold', borderLeftColor: colors.accent }]}>
+              Reset Invisible Mode
+            </Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, fontFamily: 'Inter_400Regular' }]}>
+              If a user's invisible mode slot is stuck, reset it here so they can use it again this week.
+            </Text>
+            <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <TextInput
+                style={[{ color: colors.text, fontFamily: 'Inter_400Regular', fontSize: 14, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12, backgroundColor: colors.background }]}
+                placeholder="User's phone number"
+                placeholderTextColor={colors.textTertiary}
+                value={invisibleResetPhone}
+                onChangeText={setInvisibleResetPhone}
+                keyboardType="phone-pad"
+              />
+              <Pressable
+                onPress={handleResetInvisibleMode}
+                disabled={resettingInvisible}
+                style={[{ backgroundColor: colors.primary + '20', borderRadius: 8, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, opacity: resettingInvisible ? 0.6 : 1 }]}
+              >
+                {resettingInvisible ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="eye-off-outline" size={16} color={colors.primary} />
+                )}
+                <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
+                  Reset Invisible Mode
                 </Text>
               </Pressable>
             </View>

@@ -3423,6 +3423,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(400).json({ message: "Cannot delete team after deadline has passed" });
           }
         }
+        // If this team had invisible mode on, return the weekly slot
+        if (team.invisibleMode) {
+          const otherInvisible = (await storage.getUserTeamsForMatch(req.session.userId!, team.matchId))
+            .filter((t: any) => t.id !== req.params.id && t.invisibleMode === true);
+          if (otherInvisible.length === 0) {
+            await storage.decrementInvisibleUsage(req.session.userId!);
+          }
+        }
         await storage.deleteUserTeam(req.params.id, req.session.userId!);
         return res.json({ ok: true });
       } catch (err: any) {
@@ -5206,6 +5214,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         await db.update(users).set({ password: newPassword }).where(eq(users.phone, phone));
         return res.json({ message: "Password reset", phone });
+      } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/reset-invisible-mode",
+    isAuthenticated,
+    isAdmin,
+    async (req: Request, res: Response) => {
+      const { phone } = req.body;
+      if (!phone) return res.status(400).json({ message: "phone required" });
+      try {
+        const [user] = await db.select().from(users).where(eq(users.phone, phone));
+        if (!user) return res.status(404).json({ message: "User not found" });
+        const usage = await storage.getOrCreateWeeklyUsage(user.id);
+        await db.update(userWeeklyUsage)
+          .set({ invisibleModeUsageCount: 0 })
+          .where(eq(userWeeklyUsage.id, usage.id));
+        return res.json({ message: `Invisible mode reset for ${user.name || phone}` });
       } catch (err: any) {
         return res.status(500).json({ message: err.message });
       }
