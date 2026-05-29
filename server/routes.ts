@@ -56,19 +56,8 @@ function isEntryOpen(match: {
   firstScorecardAt?: Date | string | null;
   unlockedAt?: Date | string | null;
 }, nowMs: number): boolean {
-  // GATE 1: Completed matches are always locked
-  if ((match as any).status === 'completed') return false;
-
-  // GATE 2: Admin unlock — 6-minute hard cutoff from firstScorecardAt
-  if (match.adminUnlockOverride === true) {
-    if (!match.firstScorecardAt) return true; // scoring not started yet — unlock is valid
-    const cutoff = new Date(match.firstScorecardAt).getTime() + 6 * 60_000;
-    return nowMs < cutoff; // hard 6-minute cutoff, no exceptions
-  }
-
-  // GATE 3: Deadline-based entry — revisedStartTime takes priority over startTime
-  const effectiveDeadline = match.revisedStartTime ?? match.startTime;
-  return nowMs < new Date(effectiveDeadline).getTime();
+  // ALL GUARDS TEMPORARILY REMOVED — restored on admin request
+  return true;
 }
 
 function isAuthenticated(req: Request, res: Response, next: Function) {
@@ -2852,17 +2841,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "Match not found" });
         }
 
-        const now = new Date();
-        if (match.status === "completed") {
-          return res.status(400).json({ message: "Match has already started" });
-        }
-        // For live/delayed matches, isEntryOpen() is the sole authority
-        if (!isEntryOpen(match, now.getTime())) {
-          return res
-            .status(400)
-            .json({ message: "Entry deadline has passed" });
-        }
-
         const existingTeams = await storage.getUserTeamsForMatch(
           req.session.userId!,
           matchId
@@ -3126,15 +3104,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!match) {
           return res.status(404).json({ message: "Match not found" });
         }
-        const now = new Date();
-        if (match.status === "completed") {
-          return res.status(400).json({ message: "Match has already started" });
-        }
-        // For live/delayed matches, isEntryOpen() is the sole authority
-        if (!isEntryOpen(match, now.getTime())) {
-          return res.status(400).json({ message: "Entry deadline has passed" });
-        }
-
         const { playerIds, captainId, viceCaptainId, primaryImpactId, backupImpactId, captainType, vcType, invisibleMode, backupXiPlayer1Id, backupXiPlayer2Id } = req.body;
         if (!playerIds || playerIds.length !== 11) {
           return res.status(400).json({ message: "Must select exactly 11 players" });
@@ -3414,15 +3383,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ message: "Not your team" });
         }
         const match = await storage.getMatch(team.matchId);
-        if (match) {
-          const now = new Date();
-          if (match.status === "live" || match.status === "completed") {
-            return res.status(400).json({ message: "Cannot delete team after match has started" });
-          }
-          if (!isEntryOpen(match, now.getTime())) {
-            return res.status(400).json({ message: "Cannot delete team after deadline has passed" });
-          }
-        }
         // If this team had invisible mode on, return the weekly slot
         if (team.invisibleMode) {
           const otherInvisible = (await storage.getUserTeamsForMatch(req.session.userId!, team.matchId))
@@ -3453,12 +3413,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const match = await storage.getMatch(matchId);
         if (!match) {
           return res.status(404).json({ message: "Match not found" });
-        }
-        if (match.status === "completed") {
-          return res.status(400).json({ message: "Match has already started" });
-        }
-        if (!isEntryOpen(match, Date.now())) {
-          return res.status(400).json({ message: "Entry deadline has passed" });
         }
         if (predictedWinner !== match.team1Short && predictedWinner !== match.team2Short) {
           return res.status(400).json({ message: "Invalid team selection" });
