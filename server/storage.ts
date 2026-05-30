@@ -691,7 +691,7 @@ export class DatabaseStorage {
   }
 
   canUseInvisibleMode(usage: UserWeeklyUsage): boolean {
-    return usage.invisibleModeUsageCount < 1;
+    return usage.invisibleModeUsageCount < 2;
   }
 
   // ====== Admin Audit Log ======

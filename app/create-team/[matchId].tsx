@@ -1918,7 +1918,7 @@ export default function CreateTeamScreen() {
                       <Text style={{ color: colors.text, fontSize: 14, fontFamily: 'Inter_600SemiBold' as const }}>Invisible Mode</Text>
                       <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'Inter_400Regular' as const }}>
                         {weeklyUsageData?.canUseInvisibleMode === false && !invisibleMode
-                          ? 'Weekly limit reached (1/week)'
+                          ? 'Weekly limit reached (2/week)'
                           : 'Hide your team from others until match ends'}
                       </Text>
                     </View>

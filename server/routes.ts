@@ -3033,7 +3033,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (impactEnabled && invisibleMode === true) {
           const invUsage = await storage.getOrCreateWeeklyUsage(req.session.userId!);
           if (!storage.canUseInvisibleMode(invUsage)) {
-            return res.status(400).json({ message: "You've already used Invisible Mode once this week." });
+            return res.status(400).json({ message: "You've already used Invisible Mode twice this week." });
           }
           const existingInvisible = existingTeams.some(t => t.invisibleMode === true);
           if (existingInvisible) {
@@ -3276,7 +3276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (impactEnabled && invisibleMode === true && !team.invisibleMode) {
           const invUsage = await storage.getOrCreateWeeklyUsage(req.session.userId!);
           if (!storage.canUseInvisibleMode(invUsage)) {
-            return res.status(400).json({ message: "You've already used Invisible Mode once this week." });
+            return res.status(400).json({ message: "You've already used Invisible Mode twice this week." });
           }
           const existingInvisible = existingTeams.some(t => t.id !== team.id && t.invisibleMode === true);
           if (!existingInvisible) {
